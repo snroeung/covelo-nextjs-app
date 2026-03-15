@@ -25,6 +25,8 @@ export const flightsRouter = router({
             origin,
             destination,
             departure_date: departureDate,
+            arrival_time: null,
+            departure_time: null,
           },
         ],
         passengers: Array.from({ length: passengers }, () => ({ type: "adult" as const })),
