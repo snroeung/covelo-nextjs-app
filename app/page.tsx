@@ -1,65 +1,122 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState } from 'react';
+import { CardSelector } from '@/components/CardSelector';
+import { PointsGrid } from '@/components/PointsGrid';
+import { usePointsCalc } from '@/hooks/usePointsCalc';
+import { useSelectedCards } from '@/contexts/SelectedCardsContext';
+import { BookingType } from '@/lib/points/types';
+
+function MainContent() {
+  const [location, setLocation] = useState('');
+  const [bookingType, setBookingType] = useState<BookingType>('hotel');
+  const { selectedCards } = useSelectedCards();
+
+  // Price comes from search results later — demo value for now
+  const DEMO_PRICE = 620;
+  const result = usePointsCalc(DEMO_PRICE, bookingType);
+
+  const allCardsMode = selectedCards.length === 0;
+  const noLocation = location.trim().length === 0;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex min-h-screen bg-gray-50 font-sans">
+
+      {/* Left sidebar — card picker */}
+      <aside className="w-72 shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+        {/* Amber disclaimer pinned to top of sidebar */}
+        {allCardsMode && (
+          <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
+            <p className="text-xs text-amber-700">
+              Showing all cards. Select yours for a personalized estimate.
+            </p>
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-6">
+            <span className="text-lg font-bold text-gray-900 tracking-tight">covelo</span>
+          </div>
+          <CardSelector />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </aside>
+
+      {/* Main area */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+
+        {/* Top bar */}
+        <header className="flex items-center justify-end gap-3 border-b border-gray-200 bg-white px-8 py-4">
+          {/* Booking type toggle */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
+            {(['hotel', 'flight'] as BookingType[]).map((type) => (
+              <button
+                key={type}
+                onClick={() => setBookingType(type)}
+                className={`px-4 py-2 capitalize transition-colors ${
+                  bookingType === type
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
+          {/* Location search */}
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"
+              fill="none" stroke="currentColor" strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="City, neighborhood, or address"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="w-72 rounded-lg border border-gray-200 bg-white pl-9 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          </div>
+        </header>
+
+        {/* Center content */}
+        <main className="flex flex-1 items-center justify-center p-8">
+          <div className="w-full max-w-xl space-y-4">
+            {noLocation ? (
+              <EmptyState message="Search for a location to see your points breakdown." />
+            ) : result ? (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                    Points breakdown
+                  </h2>
+                  <span className="text-xs text-gray-400">
+                    {location} · {bookingType}
+                  </span>
+                </div>
+                <PointsGrid result={result} />
+              </>
+            ) : (
+              <EmptyState message="Something went wrong calculating points." />
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-16 text-center">
+      <p className="text-sm text-gray-400">{message}</p>
+    </div>
+  );
+}
+
+export default function Home() {
+  return <MainContent />;
 }
