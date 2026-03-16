@@ -1,26 +1,39 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Blue — navigation & structure */
+  --color-cv-blue-950: #0D1B2A;
+  --color-cv-blue-900: #1B3A5C;
+  --color-cv-blue-600: #1F6FBF;
+  --color-cv-blue-400: #4A9ED6;
+  --color-cv-blue-300: #85BFE8;
+  --color-cv-blue-100: #E8F4FD;
+  --color-cv-blue-50:  #F4F9FE;
+
+  /* Green — savings & confirmation */
+  --color-cv-green-800: #2D7A3A;
+  --color-cv-green-700: #3F8F4E;
+  --color-cv-green-600: #639922;
+  --color-cv-green-400: #7DC48A;
+  --color-cv-green-200: #B8E0BE;
+  --color-cv-green-100: #D6F0DA;
+  --color-cv-green-50:  #E8F5EB;
+
+  /* Amber — hacks & transfer wins */
+  --color-cv-amber-900: #6B3500;
+  --color-cv-amber-700: #B35C00;
+  --color-cv-amber-600: #D4780A;
+  --color-cv-amber-400: #F5A623;
+  --color-cv-amber-300: #FAC775;
+  --color-cv-amber-200: #FCDFA8;
+  --color-cv-amber-50:  #FAEEDA;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-cv-blue-950);
+  color: #fff;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
