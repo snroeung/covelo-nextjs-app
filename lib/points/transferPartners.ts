@@ -109,7 +109,7 @@ function resolveChainKey(hotelChain: string): string | null {
 }
 
 export function calcTransferAlternatives(
-  priceUsd: number,
+  _priceUsd: number,
   bookingType: BookingType,
   userCards: CardId[],
   bestPortalResult: PortalResult,
@@ -152,10 +152,12 @@ export function calcTransferAlternatives(
       if (bookingType === 'hotel') {
         note = HOTEL_CHAIN_NOTES[partner.chainKey ?? ''] ?? 'Award pricing varies — check program award chart';
       } else {
-        // Simplified domestic economy estimate
-        estimatedPointsNeeded = 20_000;
-        estimatedCentsPerPoint = parseFloat(((priceUsd / estimatedPointsNeeded) * 100).toFixed(2));
-        note = '~estimated based on saver award charts — actual availability varies';
+        // TODO: Integrate live award pricing (e.g. seats.aero API) to show real saver
+        // award costs per route and partner program. Until then, award pricing is not
+        // estimated — users should check the partner program's award chart directly.
+        estimatedPointsNeeded = null;
+        estimatedCentsPerPoint = null;
+        note = 'Award pricing varies by route and availability — check the partner program\'s award chart';
       }
 
       const isBetterThanPortal =

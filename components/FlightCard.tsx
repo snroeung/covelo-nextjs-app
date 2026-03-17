@@ -1,0 +1,153 @@
+'use client';
+
+import { useTheme } from '@/contexts/ThemeContext';
+import { usePointsCalc } from '@/hooks/usePointsCalc';
+import { PointsGrid } from '@/components/PointsGrid';
+
+// Converts ISO 8601 duration "PT3H45M" → "3h 45m"
+function formatDuration(iso: string): string {
+  const h = iso.match(/(\d+)H/)?.[1];
+  const m = iso.match(/(\d+)M/)?.[1];
+  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ') || iso;
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function layoverMinutes(arrIso: string, depIso: string): number {
+  return Math.round((new Date(depIso).getTime() - new Date(arrIso).getTime()) / 60000);
+}
+
+function formatLayover(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function SliceRow({ slice }: { slice: any }) {
+  const segments = slice.segments;
+  const stops    = segments.length - 1;
+
+  return (
+    <div className="space-y-2">
+      {/* Summary line */}
+      <div className="flex items-center gap-3">
+        <span className="text-base font-bold">{formatTime(segments[0].departing_at)}</span>
+        <span className="text-xs text-cv-blue-400">{segments[0].origin.iata_code}</span>
+        <div className="flex-1 flex flex-col items-center gap-0.5">
+          <span className="text-[10px] text-cv-blue-400">{formatDuration(slice.duration)}</span>
+          <div className="w-full flex items-center gap-0.5">
+            <div className="h-px flex-1 bg-cv-blue-400/40" />
+            <div className="w-1.5 h-1.5 rounded-full bg-cv-blue-400" />
+            <div className="h-px flex-1 bg-cv-blue-400/40" />
+          </div>
+          <span className="text-[10px] text-cv-blue-400">
+            {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
+          </span>
+        </div>
+        <span className="text-xs text-cv-blue-400">{segments[segments.length - 1].destination.iata_code}</span>
+        <span className="text-base font-bold">{formatTime(segments[segments.length - 1].arriving_at)}</span>
+      </div>
+
+      {/* Per-segment detail for layover flights */}
+      {stops > 0 && (
+        <div className="pl-1 space-y-1.5 border-l-2 border-cv-blue-400/20 ml-1">
+          {segments.map((seg: any, i: number) => (
+            <div key={i}>
+              <div className="flex items-center gap-2 text-xs text-cv-blue-400/80">
+                <span className="font-mono">{seg.origin.iata_code}</span>
+                <span>{formatTime(seg.departing_at)}</span>
+                <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
+                <span>{formatDuration(seg.duration)}</span>
+                <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
+                <span>{formatTime(seg.arriving_at)}</span>
+                <span className="font-mono">{seg.destination.iata_code}</span>
+              </div>
+              {/* Layover connector */}
+              {i < segments.length - 1 && (
+                <div className="flex items-center gap-2 py-1 pl-6">
+                  <span className="text-[10px] text-cv-amber-400">
+                    {formatLayover(layoverMinutes(seg.arriving_at, segments[i + 1].departing_at))} layover · {seg.destination.iata_code}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function FlightCard({ offer }: { offer: any }) {
+  const { isDark } = useTheme();
+  const cardBg      = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
+  const divider     = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
+  const textPrimary = isDark ? 'text-white' : 'text-cv-blue-950';
+  const textMuted   = isDark ? 'text-cv-blue-400' : 'text-cv-blue-500';
+
+  const firstSegment = offer.slices[0].segments[0];
+  const airline      = offer.owner?.name ?? firstSegment?.marketing_carrier?.name ?? 'Unknown airline';
+  const isRoundTrip  = offer.slices.length > 1;
+  const departDate   = formatDate(offer.slices[0].segments[0].departing_at);
+  const returnDate   = isRoundTrip ? formatDate(offer.slices[1].segments[0].departing_at) : null;
+
+  // Points per leg — split total evenly across slices
+  const totalAmount  = parseFloat(offer.total_amount);
+  const perLegPrice  = totalAmount / offer.slices.length;
+  // Always call both hooks unconditionally; one will be used based on isRoundTrip
+  const oneWayPoints    = usePointsCalc(isRoundTrip ? 0 : totalAmount, 'flight');
+  const perLegPoints    = usePointsCalc(isRoundTrip ? perLegPrice : 0, 'flight');
+
+  return (
+    <div className={`rounded-xl overflow-hidden ${cardBg}`}>
+      {/* Header */}
+      <div className={`flex items-center justify-between px-5 py-3 border-b ${divider}`}>
+        <div>
+          <p className={`text-sm font-semibold ${textPrimary}`}>{airline}</p>
+          <p className={`text-xs ${textMuted}`}>
+            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-bold text-cv-blue-400">
+            {totalAmount.toLocaleString('en-US', {
+              style: 'currency',
+              currency: offer.total_currency,
+              maximumFractionDigits: 0,
+            })}
+          </p>
+          <p className={`text-xs ${textMuted}`}>per person</p>
+        </div>
+      </div>
+
+      {/* Slices + per-leg points */}
+      <div className="px-5 py-4 space-y-5">
+        {offer.slices.map((slice: any, i: number) => {
+          const label = isRoundTrip ? (i === 0 ? 'Outbound' : 'Return') : null;
+          const pts   = isRoundTrip ? perLegPoints : oneWayPoints;
+          return (
+            <div key={i} className="space-y-3">
+              {label && (
+                <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMuted}`}>{label}</p>
+              )}
+              <SliceRow slice={slice} />
+              {pts && (
+                <div className="pt-1">
+                  <PointsGrid result={pts} collapseAfter={1} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

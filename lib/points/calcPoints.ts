@@ -4,6 +4,7 @@ import {
   PortalResult,
   PointsResult,
   PORTAL_CPP,
+  CARD_EARN_RATE,
   CARD_PORTAL_MAP,
   CARD_NAMES,
   PORTAL_NAMES,
@@ -15,6 +16,12 @@ const VALID_CARD_IDS = new Set<string>(ALL_CARD_IDS);
 
 function resolveCpp(cardId: CardId, bookingType: BookingType): number {
   const value = PORTAL_CPP[cardId];
+  if (typeof value === 'number') return value;
+  return value[bookingType];
+}
+
+function resolveEarnRate(cardId: CardId, bookingType: BookingType): number {
+  const value = CARD_EARN_RATE[cardId];
   if (typeof value === 'number') return value;
   return value[bookingType];
 }
@@ -43,16 +50,21 @@ export function calcPoints(
   }
 
   const portalResults: PortalResult[] = Array.from(bestByPortal.entries()).map(
-    ([portalId, { cardId, cpp }]) => ({
-      portalId: portalId as PortalResult['portalId'],
-      portalName: PORTAL_NAMES[portalId as PortalResult['portalId']],
-      cardId,
-      cardName: CARD_NAMES[cardId],
-      pointsNeeded: Math.ceil(priceUsd / (cpp / 100)),
-      centsPerPoint: cpp,
-      estimated: true as const,
-      bookingType,
-    })
+    ([portalId, { cardId, cpp }]) => {
+      const earnRate = resolveEarnRate(cardId, bookingType);
+      return {
+        portalId: portalId as PortalResult['portalId'],
+        portalName: PORTAL_NAMES[portalId as PortalResult['portalId']],
+        cardId,
+        cardName: CARD_NAMES[cardId],
+        pointsNeeded: Math.ceil(priceUsd / (cpp / 100)),
+        centsPerPoint: cpp,
+        earnRate,
+        pointsEarned: Math.floor(priceUsd * earnRate),
+        estimated: true as const,
+        bookingType,
+      };
+    }
   );
 
   portalResults.sort((a, b) => a.pointsNeeded - b.pointsNeeded);

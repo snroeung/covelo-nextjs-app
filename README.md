@@ -59,6 +59,15 @@ curl -X POST http://localhost:3000/api/trpc/stays.search \
 | `freeCancellationOnly` | boolean | no | Filter for free cancellation rates, defaults to `false` |
 | `radius` | number | no | Search radius in km, defaults to `5` |
 
+## Known limitations / future work
+
+### Transfer partner award pricing
+The "Transfer beats portal" section in the points grid currently shows airline transfer partners with no award cost estimate — users are directed to check each partner program's award chart. This is intentional: award pricing is route-specific, availability-dependent, and changes frequently, so a static estimate would be misleading.
+
+**Future work:** integrate a live award availability data source (e.g. [seats.aero](https://seats.aero)) to show real saver award costs per route, cabin class, and partner program. This would make the transfer comparison genuinely actionable rather than advisory.
+
+See `lib/points/transferPartners.ts` for the TODO marker.
+
 ## Testing
 
 ```bash

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { CardId, CARD_NAMES } from '@/lib/points/types';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -12,13 +13,19 @@ const CARD_GROUPS: { issuer: string; cards: CardId[] }[] = [
   { issuer: 'Citi',            cards: ['citi_strata_premier', 'citi_strata_elite'] },
 ];
 
+const VISIBLE_GROUPS = 3;
+
 export function CardSelector() {
   const { selectedCards, toggleCard } = useSelectedCards();
   const { isDark } = useTheme();
+  const [expanded, setExpanded] = useState(false);
 
-  const labelColor    = isDark ? 'text-cv-blue-300' : 'text-cv-blue-900';
-  const issuerColor   = isDark ? 'text-cv-blue-400' : 'text-cv-blue-900';
-  const countColor    = isDark ? 'text-cv-blue-400' : 'text-cv-blue-600';
+  const labelColor  = isDark ? 'text-cv-blue-300' : 'text-cv-blue-900';
+  const issuerColor = isDark ? 'text-cv-blue-400' : 'text-cv-blue-900';
+  const countColor  = isDark ? 'text-cv-blue-400' : 'text-cv-blue-600';
+
+  const visibleGroups = expanded ? CARD_GROUPS : CARD_GROUPS.slice(0, VISIBLE_GROUPS);
+  const hiddenCount   = CARD_GROUPS.slice(VISIBLE_GROUPS).reduce((n, g) => n + g.cards.length, 0);
 
   return (
     <div className="space-y-5">
@@ -32,7 +39,7 @@ export function CardSelector() {
       </div>
 
       <div className="space-y-4">
-        {CARD_GROUPS.map(({ issuer, cards }) => (
+        {visibleGroups.map(({ issuer, cards }) => (
           <div key={issuer}>
             <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${issuerColor}`}>
               {issuer}
@@ -61,6 +68,15 @@ export function CardSelector() {
           </div>
         ))}
       </div>
+
+      {CARD_GROUPS.length > VISIBLE_GROUPS && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className={`text-xs font-medium ${countColor} hover:underline`}
+        >
+          {expanded ? 'View less' : `View more · ${hiddenCount} cards`}
+        </button>
+      )}
     </div>
   );
 }

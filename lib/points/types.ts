@@ -26,8 +26,12 @@ export interface PortalResult {
   portalName: string;
   cardId: CardId;
   cardName: string;
+  /** Points needed to book using points through this card's portal */
   pointsNeeded: number;
   centsPerPoint: number;
+  /** Points earned if paying cash through this card's portal */
+  earnRate: number;
+  pointsEarned: number;
   estimated: true;
   bookingType: BookingType;
 }
@@ -54,19 +58,44 @@ export interface PointsResult {
   bestTransferResult: TransferResult | null;
 }
 
+/**
+ * Cents per point when redeeming through each card's travel portal.
+ * Higher = more value per point = fewer points needed.
+ * Source: published portal redemption values (as of 2025).
+ */
 export const PORTAL_CPP: Record<CardId, number | { hotel: number; flight: number }> = {
-  chase_reserve:           1.5,
-  chase_preferred:         1.25,
-  chase_freedom_unlimited: 1.0,
-  c1_venture_x:            1.0,
+  chase_reserve:           1.5,   // 50% travel portal bonus
+  chase_preferred:         1.25,  // 25% travel portal bonus
+  chase_freedom_unlimited: 1.0,   // no portal bonus
+  c1_venture_x:            1.0,   // 1¢/mile fixed
   c1_venture:              1.0,
   c1_savor:                1.0,
   amex_platinum:           { hotel: 0.7, flight: 1.0 },
   amex_gold:               { hotel: 0.7, flight: 1.0 },
   amex_green:              { hotel: 0.7, flight: 1.0 },
-  bilt:                    1.25,
+  bilt:                    1.25,  // 1.25¢/pt in Bilt Travel
   citi_strata_premier:     1.0,
   citi_strata_elite:       1.0,
+};
+
+/**
+ * Points earned per dollar spent when paying cash through the card's travel portal.
+ * These are the portal-specific bonus earn rates (e.g. Chase Travel 5x flights).
+ * Source: published card benefits (as of 2025).
+ */
+export const CARD_EARN_RATE: Record<CardId, number | { hotel: number; flight: number }> = {
+  chase_reserve:           { hotel: 10, flight: 5 },  // 10x hotels, 5x flights via Chase Travel
+  chase_preferred:         { hotel: 5,  flight: 3 },  // 5x hotels, 3x flights via Chase Travel
+  chase_freedom_unlimited: { hotel: 5,  flight: 3 },  // 5x hotels, 3x flights via Chase Travel
+  c1_venture_x:            { hotel: 10, flight: 5 },  // 10x hotels, 5x flights via C1 Travel
+  c1_venture:              { hotel: 5,  flight: 5 },  // 5x hotels + flights via C1 Travel
+  c1_savor:                1,                          // 1x on travel (dining card)
+  amex_platinum:           { hotel: 1,  flight: 5 },  // 5x flights (direct/Amex Travel), 1x hotels
+  amex_gold:               { hotel: 2,  flight: 3 },  // 3x flights, ~2x hotels via Amex Travel
+  amex_green:              3,                          // 3x travel & transit
+  bilt:                    2,                          // 2x travel via Bilt Travel
+  citi_strata_premier:     3,                          // 3x air/hotel
+  citi_strata_elite:       4,                          // 4x air/hotel (premium tier)
 };
 
 export const CARD_PORTAL_MAP: Record<CardId, PortalId> = {
