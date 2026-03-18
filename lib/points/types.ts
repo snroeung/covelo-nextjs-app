@@ -1,3 +1,14 @@
+export type RouteType = 'domestic' | 'short_haul' | 'long_haul';
+export type Cabin = 'economy' | 'business' | 'first';
+
+export interface FlightContext {
+  airlineIata?: string | null;
+  originIata?: string | null;
+  destIata?: string | null;
+  routeType?: RouteType;
+  cabin?: Cabin;
+}
+
 export type CardId =
   | 'chase_reserve'
   | 'chase_preferred'
@@ -26,6 +37,8 @@ export interface PortalResult {
   portalName: string;
   cardId: CardId;
   cardName: string;
+  /** Price this result is calculated against (portal-specific; currently all Duffel) */
+  priceUsd: number;
   /** Points needed to book using points through this card's portal */
   pointsNeeded: number;
   centsPerPoint: number;
@@ -36,6 +49,20 @@ export interface PortalResult {
   bookingType: BookingType;
 }
 
+/**
+ * All cards for one issuer portal, grouped under the portal's price.
+ * Cards are deduplicated by CPP — only one row per distinct CPP tier.
+ * When EPS Rapid / Booking.com APIs are added, priceUsd will differ per portal.
+ */
+export interface PortalGroup {
+  portalId: PortalId;
+  portalName: string;
+  /** Price sourced from this portal's API (currently all Duffel → same value) */
+  priceUsd: number;
+  /** Unique-CPP card results, sorted best (highest CPP) first */
+  results: PortalResult[];
+}
+
 export interface TransferResult {
   partnerProgram: string;
   partnerType: 'hotel' | 'airline';
@@ -44,14 +71,22 @@ export interface TransferResult {
   transferRatio: string;
   estimatedPointsNeeded: number | null;
   estimatedCentsPerPoint: number | null;
+  /** Effective CPP when transferring, based on flight price vs award cost */
+  transferCpp: number | null;
   note: string;
   isBetterThanPortal: boolean;
   estimated: true;
+  routeType?: RouteType;
+  cabin?: Cabin;
 }
 
 export interface PointsResult {
+  /** Baseline price (used for transfer comparisons; equals priceUsd when all portals share one API) */
   priceUsd: number;
   bookingType: BookingType;
+  /** Portals grouped by issuer, each with their own price and deduplicated CPP rows */
+  portalGroups: PortalGroup[];
+  /** Flat best-per-portal list (for transfer comparison logic) */
   portalResults: PortalResult[];
   bestPortalResult: PortalResult;
   transferAlternatives: TransferResult[];

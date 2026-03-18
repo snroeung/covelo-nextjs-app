@@ -3,6 +3,8 @@
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
+import { classifyRoute } from '@/lib/points/transferPartners';
+import { Cabin, FlightContext } from '@/lib/points/types';
 
 // Converts ISO 8601 duration "PT3H45M" → "3h 45m"
 function formatDuration(iso: string): string {
@@ -91,20 +93,36 @@ export function FlightCard({ offer }: { offer: any }) {
   const cardBg      = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
   const divider     = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
   const textPrimary = isDark ? 'text-white' : 'text-cv-blue-950';
-  const textMuted   = isDark ? 'text-cv-blue-400' : 'text-cv-blue-500';
+  const textMuted   = isDark ? 'text-cv-blue-400' : 'text-cv-blue-400';
 
   const firstSegment = offer.slices[0].segments[0];
+  const lastSlice    = offer.slices[offer.slices.length - 1];
+  const lastSegment  = lastSlice.segments[lastSlice.segments.length - 1];
   const airline      = offer.owner?.name ?? firstSegment?.marketing_carrier?.name ?? 'Unknown airline';
   const isRoundTrip  = offer.slices.length > 1;
   const departDate   = formatDate(offer.slices[0].segments[0].departing_at);
   const returnDate   = isRoundTrip ? formatDate(offer.slices[1].segments[0].departing_at) : null;
 
+  // Build flight context for transfer/award calculations
+  const airlineIata  = (offer.owner?.iata_code ?? firstSegment?.marketing_carrier?.iata_code ?? null) as string | null;
+  const originIata   = (firstSegment?.origin?.iata_code ?? null) as string | null;
+  const destIata     = (lastSegment?.destination?.iata_code ?? null) as string | null;
+  const rawCabin     = firstSegment?.passengers?.[0]?.cabin_class as string | undefined;
+  const cabin: Cabin = rawCabin === 'business' ? 'business' : rawCabin === 'first' ? 'first' : 'economy';
+  const flightCtx: FlightContext = {
+    airlineIata,
+    originIata,
+    destIata,
+    routeType: classifyRoute(originIata, destIata),
+    cabin,
+  };
+
   // Points per leg — split total evenly across slices
   const totalAmount  = parseFloat(offer.total_amount);
   const perLegPrice  = totalAmount / offer.slices.length;
   // Always call both hooks unconditionally; one will be used based on isRoundTrip
-  const oneWayPoints    = usePointsCalc(isRoundTrip ? 0 : totalAmount, 'flight');
-  const perLegPoints    = usePointsCalc(isRoundTrip ? perLegPrice : 0, 'flight');
+  const oneWayPoints = usePointsCalc(isRoundTrip ? 0 : totalAmount, 'flight', flightCtx);
+  const perLegPoints = usePointsCalc(isRoundTrip ? perLegPrice : 0, 'flight', flightCtx);
 
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
@@ -117,6 +135,7 @@ export function FlightCard({ offer }: { offer: any }) {
           </p>
         </div>
         <div className="text-right">
+          <p className={`text-[10px] ${textMuted}`}>starting from</p>
           <p className="text-lg font-bold text-cv-blue-400">
             {totalAmount.toLocaleString('en-US', {
               style: 'currency',

@@ -1,8 +1,11 @@
 import {
   CardId,
+  PortalId,
   BookingType,
   PortalResult,
+  PortalGroup,
   PointsResult,
+  FlightContext,
   PORTAL_CPP,
   CARD_EARN_RATE,
   CARD_PORTAL_MAP,
@@ -30,60 +33,93 @@ export function calcPoints(
   priceUsd: number,
   bookingType: BookingType,
   userCards: CardId[] = ALL_CARD_IDS,
+  flightCtx?: FlightContext,
+  /**
+   * Per-portal price overrides. Swap in real values here once EPS Rapid
+   * (Chase/Amex/Bilt/Citi) and Booking.com APIs are integrated.
+   * Defaults to priceUsd for any portal not listed.
+   */
+  portalPrices?: Partial<Record<PortalId, number>>,
 ): PointsResult {
   if (priceUsd <= 0) throw new Error('priceUsd must be greater than 0');
 
-  // Empty userCards defaults to all available cards
-  const cardPool = userCards.length === 0 ? ALL_CARD_IDS : userCards;
+  const cardPool   = userCards.length === 0 ? ALL_CARD_IDS : userCards;
   const validCards = cardPool.filter((c) => VALID_CARD_IDS.has(c));
   if (validCards.length === 0) throw new Error('userCards must contain at least one valid CardId');
 
-  // Group by portal, keep the card with the highest CPP (fewest points) per portal
-  const bestByPortal = new Map<string, { cardId: CardId; cpp: number }>();
+  // Group user's cards by portal
+  const cardsByPortal = new Map<PortalId, CardId[]>();
   for (const cardId of validCards) {
-    const portalId = CARD_PORTAL_MAP[cardId];
-    const cpp = resolveCpp(cardId, bookingType);
-    const existing = bestByPortal.get(portalId);
-    if (!existing || cpp > existing.cpp) {
-      bestByPortal.set(portalId, { cardId, cpp });
-    }
+    const portalId = CARD_PORTAL_MAP[cardId] as PortalId;
+    if (!cardsByPortal.has(portalId)) cardsByPortal.set(portalId, []);
+    cardsByPortal.get(portalId)!.push(cardId);
   }
 
-  const portalResults: PortalResult[] = Array.from(bestByPortal.entries()).map(
-    ([portalId, { cardId, cpp }]) => {
-      const earnRate = resolveEarnRate(cardId, bookingType);
-      return {
-        portalId: portalId as PortalResult['portalId'],
-        portalName: PORTAL_NAMES[portalId as PortalResult['portalId']],
-        cardId,
-        cardName: CARD_NAMES[cardId],
-        pointsNeeded: Math.ceil(priceUsd / (cpp / 100)),
-        centsPerPoint: cpp,
-        earnRate,
-        pointsEarned: Math.floor(priceUsd * earnRate),
-        estimated: true as const,
-        bookingType,
-      };
+  const portalGroups: PortalGroup[] = [];
+
+  for (const [portalId, cards] of cardsByPortal.entries()) {
+    const portalPrice = portalPrices?.[portalId] ?? priceUsd;
+
+    // Deduplicate by CPP within this portal — one row per distinct CPP tier.
+    // When two cards share a CPP, keep the one with the higher earn rate.
+    const byCpp = new Map<number, CardId>();
+    for (const cardId of cards) {
+      const cpp = resolveCpp(cardId, bookingType);
+      const existing = byCpp.get(cpp);
+      if (!existing || resolveEarnRate(cardId, bookingType) > resolveEarnRate(existing, bookingType)) {
+        byCpp.set(cpp, cardId);
+      }
     }
-  );
 
-  portalResults.sort((a, b) => a.pointsNeeded - b.pointsNeeded);
+    // Sort highest CPP first (best value first within the group)
+    const results: PortalResult[] = Array.from(byCpp.entries())
+      .sort(([a], [b]) => b - a)
+      .map(([cpp, cardId]) => {
+        const earnRate = resolveEarnRate(cardId, bookingType);
+        return {
+          portalId,
+          portalName: PORTAL_NAMES[portalId],
+          cardId,
+          cardName: CARD_NAMES[cardId],
+          priceUsd: portalPrice,
+          pointsNeeded: Math.ceil(portalPrice / (cpp / 100)),
+          centsPerPoint: cpp,
+          earnRate,
+          pointsEarned: Math.floor(portalPrice * earnRate),
+          estimated: true as const,
+          bookingType,
+        };
+      });
 
+    portalGroups.push({ portalId, portalName: PORTAL_NAMES[portalId], priceUsd: portalPrice, results });
+  }
+
+  // Sort groups by their best result (fewest points needed)
+  portalGroups.sort((a, b) => a.results[0].pointsNeeded - b.results[0].pointsNeeded);
+
+  // Flat best-per-portal list (top result from each group) for transfer comparison
+  const portalResults: PortalResult[] = portalGroups.map((g) => g.results[0]);
   const bestPortalResult = portalResults[0];
 
+  // Always evaluate transfers across all portals so card selection doesn't hide
+  // programs that beat the user's best portal.
   const transferAlternatives = calcTransferAlternatives(
     priceUsd,
     bookingType,
-    validCards,
-    bestPortalResult
+    ALL_CARD_IDS,
+    bestPortalResult,
+    undefined,
+    undefined,
+    flightCtx,
   );
 
-  const betterTransfers = transferAlternatives.filter((t) => t.isBetterThanPortal);
+  const betterTransfers  = transferAlternatives.filter((t) => t.isBetterThanPortal);
   const bestTransferResult = betterTransfers.length > 0 ? betterTransfers[0] : null;
 
   return {
     priceUsd,
     bookingType,
+    portalGroups,
     portalResults,
     bestPortalResult,
     transferAlternatives,
