@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { DateInput } from '@/components/DateInput';
@@ -10,6 +10,22 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 
 type TripType = 'roundtrip' | 'oneway';
+type CabinClass = 'economy' | 'premium_economy' | 'business' | 'first';
+type SortOrder = 'relevant' | 'az' | 'lowest' | 'highest';
+
+const SORT_LABELS: Record<SortOrder, string> = {
+  relevant: 'Most relevant',
+  az:       'A to Z',
+  lowest:   'Lowest price',
+  highest:  'Highest price',
+};
+
+const CABIN_LABELS: Record<CabinClass, string> = {
+  economy:         'Economy',
+  premium_economy: 'Premium Economy',
+  business:        'Business',
+  first:           'First',
+};
 
 function EmptyState({ message }: { message: string }) {
   const { isDark } = useTheme();
@@ -22,6 +38,8 @@ function EmptyState({ message }: { message: string }) {
 
 export default function FlightsPage() {
   const [tripType, setTripType]         = useState<TripType>('roundtrip');
+  const [cabinClass, setCabinClass]     = useState<CabinClass>('economy');
+  const [sortOrder, setSortOrder]       = useState<SortOrder>('relevant');
   const [startDate, setStartDate]       = useState('');
   const [endDate, setEndDate]           = useState('');
   const [originPlace, setOriginPlace]   = useState<SelectedPlace | null>(null);
@@ -34,8 +52,13 @@ export default function FlightsPage() {
     mutationFn: (vars: any) => trpc.flights.searchOffers.mutate(vars),
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const offers: any[] = flightSearch.data?.offers ?? [];
+  const rawOffers: any[] = flightSearch.data?.offers ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const offers = [...rawOffers].sort((a: any, b: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (sortOrder === 'az')      return (a.owner?.name ?? '').localeCompare(b.owner?.name ?? '');
+    if (sortOrder === 'lowest')  return parseFloat(a.total_amount) - parseFloat(b.total_amount);
+    if (sortOrder === 'highest') return parseFloat(b.total_amount) - parseFloat(a.total_amount);
+    return 0;
+  });
   const originCode  = originPlace?.iataCode ?? '';
   const arrivalCode = arrivalPlace?.iataCode ?? '';
   const canSearch   = originCode.length === 3 && arrivalCode.length === 3 && !!startDate
@@ -49,6 +72,7 @@ export default function FlightsPage() {
       departureDate: startDate,
       returnDate: tripType === 'roundtrip' && endDate ? endDate : undefined,
       passengers: 1,
+      cabinClass,
     });
   }
 
@@ -58,6 +82,66 @@ export default function FlightsPage() {
   const borderCls  = isDark ? 'border-cv-blue-900' : 'border-cv-blue-100';
   const headingCls = isDark ? 'text-cv-blue-300' : 'text-cv-blue-900';
   const subTextCls = isDark ? 'text-cv-blue-400' : 'text-cv-blue-500';
+
+  const cabinRef = useRef<HTMLDivElement>(null);
+  const sortRef  = useRef<HTMLDivElement>(null);
+  const [cabinOpen, setCabinOpen] = useState(false);
+  const [sortOpen, setSortOpen]   = useState(false);
+
+  const filterRowCls = `flex items-center gap-1.5 text-xs font-medium transition-colors ${isDark ? 'text-cv-blue-400 hover:text-cv-blue-200' : 'text-cv-blue-600 hover:text-cv-blue-700'}`;
+  const dropdownCls  = `absolute right-0 top-full mt-1 z-50 rounded-xl border shadow-lg overflow-hidden ${isDark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-cv-blue-100'}`;
+  const optionCls    = (active: boolean) => `w-full text-left px-4 py-2 text-sm transition-colors whitespace-nowrap ${active ? 'bg-cv-blue-600 text-white' : isDark ? 'text-cv-blue-100 hover:bg-cv-blue-800' : 'text-cv-blue-950 hover:bg-cv-blue-50'}`;
+  const chevron      = (open: boolean) => (
+    <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+
+  const cabinRow = (
+    <div className="flex justify-end items-center gap-4 w-full pt-2 pb-1">
+      {/* Cabin type */}
+      <div className="relative" ref={cabinRef}>
+        <button
+          onClick={() => setCabinOpen(o => !o)}
+          onBlur={(e) => { if (!cabinRef.current?.contains(e.relatedTarget as Node)) setCabinOpen(false); }}
+          className={filterRowCls}
+        >
+          <span>Cabin type: {CABIN_LABELS[cabinClass]}</span>
+          {chevron(cabinOpen)}
+        </button>
+        {cabinOpen && (
+          <div className={dropdownCls}>
+            {(Object.keys(CABIN_LABELS) as CabinClass[]).map((c) => (
+              <button key={c} onMouseDown={() => { setCabinClass(c); setCabinOpen(false); }} className={optionCls(c === cabinClass)}>
+                {CABIN_LABELS[c]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sort */}
+      <div className="relative" ref={sortRef}>
+        <button
+          onClick={() => setSortOpen(o => !o)}
+          onBlur={(e) => { if (!sortRef.current?.contains(e.relatedTarget as Node)) setSortOpen(false); }}
+          className={filterRowCls}
+        >
+          <span>Sort: {SORT_LABELS[sortOrder]}</span>
+          {chevron(sortOpen)}
+        </button>
+        {sortOpen && (
+          <div className={dropdownCls}>
+            {(Object.keys(SORT_LABELS) as SortOrder[]).map((s) => (
+              <button key={s} onMouseDown={() => { setSortOrder(s); setSortOpen(false); }} className={optionCls(s === sortOrder)}>
+                {SORT_LABELS[s]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const tripToggle = (
     <div className={`flex rounded-lg border overflow-hidden text-sm font-medium ${borderCls}`}>
@@ -90,16 +174,17 @@ export default function FlightsPage() {
           <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>To</span>
           <LocationSearch forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex justify-between items-end gap-2">
           <DateInput label="Depart" value={startDate} onChange={setStartDate} />
           {tripType === 'roundtrip' && (
             <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
           )}
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex justify-between items-center gap-2">
           {tripToggle}
           {searchBtn(true)}
         </div>
+        {cabinRow}
       </div>
 
       {/* Desktop layout */}
@@ -128,6 +213,7 @@ export default function FlightsPage() {
           {searchBtn(false)}
         </div>
       </div>
+      <div className="hidden md:block">{cabinRow}</div>
 
     </div>
   );
@@ -153,8 +239,8 @@ export default function FlightsPage() {
               {originCode} → {arrivalCode} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'}
             </span>
           </div>
-          {offers.slice(0, 10).map((offer) => (
-            <FlightCard key={offer.id} offer={offer} />
+          {offers.slice(0, 10).map((offer, i) => (
+            <FlightCard key={`${offer.id}-${sortOrder}`} offer={offer} defaultCollapsed={i >= 2} />
           ))}
         </>
       ) : flightSearch.isSuccess ? (

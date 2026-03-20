@@ -76,7 +76,7 @@ function SliceRow({ slice }: { slice: any }) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function FlightCard({ offer }: { offer: any }) {
+export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; defaultCollapsed?: boolean }) {
   const { isDark } = useTheme();
   const cardBg      = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
   const divider     = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
@@ -90,6 +90,8 @@ export function FlightCard({ offer }: { offer: any }) {
   const isRoundTrip  = offer.slices.length > 1;
   const departDate   = formatDate(offer.slices[0].segments[0].departing_at);
   const returnDate   = isRoundTrip ? formatDate(offer.slices[1].segments[0].departing_at) : null;
+  const maxStops     = Math.max(...offer.slices.map((s: any) => s.segments.length - 1)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const stopsLabel   = maxStops === 0 ? 'Nonstop' : `${maxStops} stop${maxStops > 1 ? 's' : ''}`;
 
   // Build flight context for transfer/award calculations
   const airlineIata  = (offer.owner?.iata_code ?? firstSegment?.marketing_carrier?.iata_code ?? null) as string | null;
@@ -112,7 +114,7 @@ export function FlightCard({ offer }: { offer: any }) {
   const oneWayPoints = usePointsCalc(isRoundTrip ? 0 : totalAmount, 'flight', flightCtx);
   const perLegPoints = usePointsCalc(isRoundTrip ? perLegPrice : 0, 'flight', flightCtx);
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
@@ -124,7 +126,7 @@ export function FlightCard({ offer }: { offer: any }) {
         <div>
           <p className={`text-sm font-semibold ${textPrimary}`}>{airline}</p>
           <p className={`text-xs ${textMuted}`}>
-            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'} · {totalTripDuration(offer.slices)}
+            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'} · {totalTripDuration(offer.slices)} · {stopsLabel}
           </p>
         </div>
         <div className="flex items-start gap-3">

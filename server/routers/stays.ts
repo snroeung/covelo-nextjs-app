@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "@/server/trpc";
 import { duffel } from "@/lib/duffel";
-import { geocodeLocation } from "@/lib/geocode";
+import { redis } from "@/lib/redis";
 
 const guestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("adult") }),
@@ -12,7 +12,8 @@ export const staysRouter = router({
   search: publicProcedure
     .input(
       z.object({
-        location: z.string().min(1, "Location is required"),
+        latitude: z.number(),
+        longitude: z.number(),
         radius: z.number().positive().default(5),
         checkInDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD"),
         checkOutDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD"),
@@ -22,35 +23,35 @@ export const staysRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { location, radius, checkInDate, checkOutDate, rooms, guests, freeCancellationOnly } =
-        input;
+      const { latitude, longitude, radius, checkInDate, checkOutDate, rooms, guests, freeCancellationOnly } = input;
 
-      const { latitude, longitude } = await geocodeLocation(location);
+      const result = await duffel.stays.search({
+        check_in_date: checkInDate,
+        check_out_date: checkOutDate,
+        rooms,
+        guests,
+        free_cancellation_only: freeCancellationOnly,
+        location: {
+          radius,
+          geographic_coordinates: { latitude, longitude },
+        },
+      });
 
-      // NOTE: Duffel Stays API requires separate product access.
-      // Access has been requested but is pending approval from Duffel.
-      // This will return an error until access is granted.
-      let result;
-      try {
-        result = await duffel.stays.search({
-          check_in_date: checkInDate,
-          check_out_date: checkOutDate,
-          rooms,
-          guests,
-          free_cancellation_only: freeCancellationOnly,
-          location: {
-            radius,
-            geographic_coordinates: { latitude, longitude },
-          },
-        });
-      } catch (e: unknown) {
-        const message =
-          e instanceof Error && e.message
-            ? e.message
-            : `Duffel stays search failed: ${JSON.stringify(e)}`;
-        throw new Error(message);
-      }
+      // duffel.stays.search returns { data: { results: StaysSearchResult[], created_at } }
+      const searchResults = result.data.results;
 
-      return result.data;
+      // Cache each search result by accommodation ID + date/room params.
+      // 1-hour TTL since rates fluctuate throughout the day.
+      await Promise.all(
+        searchResults.map((sr) =>
+          redis.set(
+            `stay:accommodation:${sr.accommodation.id}:${checkInDate}:${checkOutDate}:${rooms}`,
+            sr,
+            { ex: 60 * 60 },
+          )
+        )
+      );
+
+      return searchResults;
     }),
 });
