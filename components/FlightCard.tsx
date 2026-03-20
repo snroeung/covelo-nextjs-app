@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
@@ -21,6 +22,19 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function isoToMinutes(iso: string): number {
+  const h = parseInt(iso.match(/(\d+)H/)?.[1] ?? '0');
+  const m = parseInt(iso.match(/(\d+)M/)?.[1] ?? '0');
+  return h * 60 + m;
+}
+
+function totalTripDuration(slices: any[]): string {
+  const mins = slices.reduce((sum, s) => sum + isoToMinutes(s.duration), 0);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ');
+}
+
 function layoverMinutes(arrIso: string, depIso: string): number {
   return Math.round((new Date(depIso).getTime() - new Date(arrIso).getTime()) / 60000);
 }
@@ -34,55 +48,29 @@ function formatLayover(minutes: number): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SliceRow({ slice }: { slice: any }) {
   const segments = slice.segments;
-  const stops    = segments.length - 1;
 
   return (
-    <div className="space-y-2">
-      {/* Summary line */}
-      <div className="flex items-center gap-3">
-        <span className="text-base font-bold">{formatTime(segments[0].departing_at)}</span>
-        <span className="text-xs text-cv-blue-400">{segments[0].origin.iata_code}</span>
-        <div className="flex-1 flex flex-col items-center gap-0.5">
-          <span className="text-[10px] text-cv-blue-400">{formatDuration(slice.duration)}</span>
-          <div className="w-full flex items-center gap-0.5">
-            <div className="h-px flex-1 bg-cv-blue-400/40" />
-            <div className="w-1.5 h-1.5 rounded-full bg-cv-blue-400" />
-            <div className="h-px flex-1 bg-cv-blue-400/40" />
+    <div className="space-y-1.5">
+      {segments.map((seg: any, i: number) => (
+        <div key={i}>
+          <div className="flex items-center gap-2 text-xs text-cv-blue-400/80">
+            <span className="font-mono">{seg.origin.iata_code}</span>
+            <span>{formatTime(seg.departing_at)}</span>
+            <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
+            <span>{formatDuration(seg.duration)}</span>
+            <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
+            <span>{formatTime(seg.arriving_at)}</span>
+            <span className="font-mono">{seg.destination.iata_code}</span>
           </div>
-          <span className="text-[10px] text-cv-blue-400">
-            {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
-          </span>
-        </div>
-        <span className="text-xs text-cv-blue-400">{segments[segments.length - 1].destination.iata_code}</span>
-        <span className="text-base font-bold">{formatTime(segments[segments.length - 1].arriving_at)}</span>
-      </div>
-
-      {/* Per-segment detail for layover flights */}
-      {stops > 0 && (
-        <div className="pl-1 space-y-1.5 border-l-2 border-cv-blue-400/20 ml-1">
-          {segments.map((seg: any, i: number) => (
-            <div key={i}>
-              <div className="flex items-center gap-2 text-xs text-cv-blue-400/80">
-                <span className="font-mono">{seg.origin.iata_code}</span>
-                <span>{formatTime(seg.departing_at)}</span>
-                <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
-                <span>{formatDuration(seg.duration)}</span>
-                <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
-                <span>{formatTime(seg.arriving_at)}</span>
-                <span className="font-mono">{seg.destination.iata_code}</span>
-              </div>
-              {/* Layover connector */}
-              {i < segments.length - 1 && (
-                <div className="flex items-center gap-2 py-1 pl-6">
-                  <span className="text-[10px] text-cv-amber-400">
-                    {formatLayover(layoverMinutes(seg.arriving_at, segments[i + 1].departing_at))} layover · {seg.destination.iata_code}
-                  </span>
-                </div>
-              )}
+          {i < segments.length - 1 && (
+            <div className="py-1 pl-6">
+              <span className="text-[10px] text-cv-amber-400">
+                {formatLayover(layoverMinutes(seg.arriving_at, segments[i + 1].departing_at))} layover · {seg.destination.iata_code}
+              </span>
             </div>
-          ))}
+          )}
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -124,49 +112,64 @@ export function FlightCard({ offer }: { offer: any }) {
   const oneWayPoints = usePointsCalc(isRoundTrip ? 0 : totalAmount, 'flight', flightCtx);
   const perLegPoints = usePointsCalc(isRoundTrip ? perLegPrice : 0, 'flight', flightCtx);
 
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
-      {/* Header */}
-      <div className={`flex items-center justify-between px-5 py-3 border-b ${divider}`}>
+      {/* Header — click to collapse/expand */}
+      <button
+        onClick={() => setCollapsed(v => !v)}
+        className={`w-full flex items-center justify-between px-5 py-3 text-left ${collapsed ? '' : `border-b ${divider}`}`}
+      >
         <div>
           <p className={`text-sm font-semibold ${textPrimary}`}>{airline}</p>
           <p className={`text-xs ${textMuted}`}>
-            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'}
+            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'} · {totalTripDuration(offer.slices)}
           </p>
         </div>
-        <div className="text-right">
-          <p className={`text-[10px] ${textMuted}`}>starting from</p>
-          <p className="text-lg font-bold text-cv-blue-400">
-            {totalAmount.toLocaleString('en-US', {
-              style: 'currency',
-              currency: offer.total_currency,
-              maximumFractionDigits: 0,
-            })}
-          </p>
-          <p className={`text-xs ${textMuted}`}>per person</p>
+        <div className="flex items-start gap-3">
+          <div className="text-right">
+            <p className={`text-[10px] ${textMuted}`}>starting from</p>
+            <p className="text-lg font-bold text-cv-blue-400">
+              {totalAmount.toLocaleString('en-US', {
+                style: 'currency',
+                currency: offer.total_currency,
+                maximumFractionDigits: 0,
+              })}
+            </p>
+            <p className={`text-xs ${textMuted}`}>per person</p>
+          </div>
+          <svg
+            className={`w-4 h-4 mt-1 shrink-0 transition-transform text-cv-blue-400 ${collapsed ? '-rotate-90' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
-      </div>
+      </button>
 
       {/* Slices + per-leg points */}
-      <div className="px-5 py-4 space-y-5">
-        {offer.slices.map((slice: any, i: number) => {
-          const label = isRoundTrip ? (i === 0 ? 'Outbound' : 'Return') : null;
-          const pts   = isRoundTrip ? perLegPoints : oneWayPoints;
-          return (
-            <div key={i} className="space-y-3">
-              {label && (
-                <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMuted}`}>{label}</p>
-              )}
-              <SliceRow slice={slice} />
-              {pts && (
-                <div className="pt-1">
-                  <PointsGrid result={pts} collapseAfter={1} />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {!collapsed && (
+        <div className="px-5 py-4 space-y-5">
+          {offer.slices.map((slice: any, i: number) => {
+            const label = isRoundTrip ? (i === 0 ? 'Outbound' : 'Return') : null;
+            const pts   = isRoundTrip ? perLegPoints : oneWayPoints;
+            return (
+              <div key={i} className="space-y-3">
+                {label && (
+                  <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMuted}`}>{label}</p>
+                )}
+                <SliceRow slice={slice} />
+                {pts && (
+                  <div className="pt-1">
+                    <PointsGrid result={pts} collapseAfter={1} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

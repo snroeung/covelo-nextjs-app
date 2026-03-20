@@ -59,61 +59,77 @@ export default function FlightsPage() {
   const headingCls = isDark ? 'text-cv-blue-300' : 'text-cv-blue-900';
   const subTextCls = isDark ? 'text-cv-blue-400' : 'text-cv-blue-500';
 
+  const tripToggle = (
+    <div className={`flex rounded-lg border overflow-hidden text-sm font-medium ${borderCls}`}>
+      {(['roundtrip', 'oneway'] as TripType[]).map((t) => (
+        <button key={t} onClick={() => setTripType(t)}
+          className={`px-3 py-2 whitespace-nowrap transition-colors ${tripType === t ? active : inactive}`}>
+          {t === 'roundtrip' ? 'Round trip' : 'One way'}
+        </button>
+      ))}
+    </div>
+  );
+
+  const searchBtn = (full: boolean) => (
+    <button onClick={handleSearch} disabled={!canSearch || flightSearch.isPending}
+      className={`${full ? 'flex-1' : 'px-5'} py-2 rounded-lg bg-cv-blue-600 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-cv-blue-400 transition-colors`}>
+      {flightSearch.isPending ? 'Searching…' : 'Search'}
+    </button>
+  );
+
   const header = (
-    <>
-      {/* Trip type */}
-      <div className="flex flex-col gap-0.5">
-        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>Trip</span>
-        <div className={`flex rounded-lg border overflow-hidden text-sm font-medium ${borderCls}`}>
-          {(['roundtrip', 'oneway'] as TripType[]).map((t) => (
-            <button key={t} onClick={() => setTripType(t)}
-              className={`px-3 py-2 whitespace-nowrap transition-colors ${tripType === t ? active : inactive}`}>
-              {t === 'roundtrip' ? 'Round trip' : 'One way'}
-            </button>
-          ))}
+    <div className="w-full">
+
+      {/* Mobile layout */}
+      <div className="flex flex-col gap-3 md:hidden">
+        <div className="flex flex-col gap-0.5">
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>From</span>
+          <LocationSearch forAirport onSelect={(p) => setOriginPlace(p)} onClear={() => setOriginPlace(null)} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>To</span>
+          <LocationSearch forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
+        </div>
+        <div className="flex gap-2">
+          <DateInput label="Depart" value={startDate} onChange={setStartDate} />
+          {tripType === 'roundtrip' && (
+            <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
+          )}
+        </div>
+        <div className="flex gap-2 items-center">
+          {tripToggle}
+          {searchBtn(true)}
         </div>
       </div>
 
-      {/* From */}
-      <div className="flex flex-col gap-0.5 flex-1 min-w-40">
-        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>From</span>
-        <LocationSearch
-          forAirport
-          onSelect={(p) => setOriginPlace(p)}
-          onClear={() => setOriginPlace(null)}
-        />
+      {/* Desktop layout */}
+      <div className="hidden md:flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-0.5">
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>Trip</span>
+          {tripToggle}
+        </div>
+        <div className="flex flex-col gap-0.5 flex-1 min-w-40">
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>From</span>
+          <LocationSearch forAirport onSelect={(p) => setOriginPlace(p)} onClear={() => setOriginPlace(null)} />
+        </div>
+        <div className="flex items-center pb-1">
+          <span className="text-cv-blue-400 text-lg">→</span>
+        </div>
+        <div className="flex flex-col gap-0.5 flex-1 min-w-40">
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>To</span>
+          <LocationSearch forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
+        </div>
+        <DateInput label="Depart" value={startDate} onChange={setStartDate} />
+        {tripType === 'roundtrip' && (
+          <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
+        )}
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] opacity-0">·</span>
+          {searchBtn(false)}
+        </div>
       </div>
 
-      {/* Arrow */}
-      <div className="flex items-center pb-1">
-        <span className="text-cv-blue-400 text-lg">→</span>
-      </div>
-
-      {/* To */}
-      <div className="flex flex-col gap-0.5 flex-1 min-w-40">
-        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>To</span>
-        <LocationSearch
-          forAirport
-          onSelect={(p) => setArrivalPlace(p)}
-          onClear={() => setArrivalPlace(null)}
-        />
-      </div>
-
-      {/* Dates */}
-      <DateInput label="Depart" value={startDate} onChange={setStartDate} />
-      {tripType === 'roundtrip' && (
-        <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
-      )}
-
-      {/* Search */}
-      <div className="flex flex-col gap-0.5">
-        <span className="text-[10px] opacity-0">·</span>
-        <button onClick={handleSearch} disabled={!canSearch || flightSearch.isPending}
-          className="px-5 py-2 rounded-lg bg-cv-blue-600 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-cv-blue-400 transition-colors">
-          {flightSearch.isPending ? 'Searching…' : 'Search'}
-        </button>
-      </div>
-    </>
+    </div>
   );
 
   return (

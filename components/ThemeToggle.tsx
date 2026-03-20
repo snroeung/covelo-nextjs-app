@@ -10,18 +10,18 @@ export function ThemeToggle() {
   const darkInactive  = isDark ? activeCls : 'bg-cv-blue-950 text-white hover:bg-cv-blue-900';
 
   return (
-    <div className={`flex rounded-lg border overflow-hidden text-xs font-medium w-full ${borderCls}`}>
+    <div className={`flex rounded-lg border overflow-hidden text-base font-medium ${borderCls}`}>
       <button
         onClick={() => isDark && toggleTheme()}
-        className={`flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors ${lightInactive}`}
+        className={`flex-1 flex items-center justify-center px-3 py-2 transition-colors ${lightInactive}`}
       >
-        ☀️ Light
+        ☀️
       </button>
       <button
         onClick={() => !isDark && toggleTheme()}
-        className={`flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors ${darkInactive}`}
+        className={`flex-1 flex items-center justify-center px-3 py-2 transition-colors ${darkInactive}`}
       >
-        🌙 Dark
+        🌙
       </button>
     </div>
   );

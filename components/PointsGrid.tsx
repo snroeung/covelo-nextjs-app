@@ -26,8 +26,8 @@ function fmtUsd(n: number): string {
 function cppTier(cpp: number): { label: string; cls: string } {
   if (cpp >= 2.0) return { label: 'Excellent',  cls: 'bg-cv-green-800 text-cv-green-100' };
   if (cpp >= 1.5) return { label: 'Great',       cls: 'bg-cv-green-700 text-cv-green-100' };
-  if (cpp >  1.0) return { label: 'Above face',  cls: 'bg-cv-blue-900  text-cv-blue-300'  };
-  if (cpp === 1.0) return { label: '= Cash',      cls: 'bg-cv-blue-900  text-cv-blue-400'  };
+  if (cpp >  1.0) return { label: 'Above face',  cls: 'bg-cv-green-800/50 text-cv-green-300' };
+  if (cpp === 1.0) return { label: '= Cash',      cls: 'bg-cv-amber-900/50 text-cv-white-300' };
   return               { label: 'Below face',  cls: 'bg-orange-900/40 text-orange-400'  };
 }
 
