@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CardSelector } from '@/components/CardSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
@@ -11,14 +11,22 @@ import { useTheme } from '@/contexts/ThemeContext';
 export function AppShell({
   header,
   children,
+  hasResults = false,
 }: {
   header: React.ReactNode;
   children: React.ReactNode;
+  hasResults?: boolean;
 }) {
   const { isDark } = useTheme();
   const { selectedCards } = useSelectedCards();
   const pathname = usePathname();
   const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
+  const [headerOpen, setHeaderOpen] = useState(true);
+
+  // Auto-collapse on mobile when results first appear
+  useEffect(() => {
+    if (hasResults) setHeaderOpen(false);
+  }, [hasResults]);
 
   const pageBg       = isDark ? 'bg-cv-blue-950' : 'bg-cv-blue-50';
   const surfaceBg    = isDark ? 'bg-cv-blue-950' : 'bg-white';
@@ -110,11 +118,35 @@ export function AppShell({
           </div>
         </aside>
 
-        {/* Row 3 (mobile) / main area (desktop): search header + results */}
+        {/* Search header + results */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <header className={`flex flex-wrap items-end gap-3 border-b px-4 md:px-8 py-4 shrink-0 ${surfaceBg} ${borderCls}`}>
+
+          {/* Mobile: collapsible header */}
+          <div className={`md:hidden shrink-0 border-b ${surfaceBg} ${borderCls}`}>
+            {headerOpen && (
+              <div className="px-4 pt-4 pb-2 flex flex-wrap items-end gap-3">
+                {header}
+              </div>
+            )}
+            <button
+              onClick={() => setHeaderOpen(o => !o)}
+              className={`w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${chevronColor}`}
+            >
+              <span>{headerOpen ? 'Collapse search' : 'Modify search'}</span>
+              <svg
+                className={`w-3 h-3 transition-transform ${headerOpen ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Desktop: always visible header */}
+          <header className={`hidden md:flex flex-wrap items-end gap-3 border-b px-8 py-4 shrink-0 ${surfaceBg} ${borderCls}`}>
             {header}
           </header>
+
           <main className="flex flex-1 justify-center p-4 md:p-8 overflow-y-auto">
             <div className="w-full max-w-xl space-y-4">
               {children}

@@ -206,7 +206,7 @@ export default function HotelsPage() {
   );
 
   return (
-    <AppShell header={header}>
+    <AppShell header={header} hasResults={accommodations.length > 0}>
       {hotelSearch.isPending ? (
         <div className="flex items-center justify-center py-16">
           <svg className="w-8 h-8 text-cv-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
