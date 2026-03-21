@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { DateInput } from '@/components/DateInput';
 import { GuestsDropdown, type GuestsValue } from '@/components/GuestsDropdown';
 import { HotelCard } from '@/components/HotelCard';
+import { HotelMap } from '@/components/HotelMap';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -41,8 +42,18 @@ export default function HotelsPage() {
   const [checkOut, setCheckOut]   = useState('');
   const [minStars, setMinStars]   = useState<number | null>(null);
   const [sortOrder, setSortOrder] = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
-  const [starsOpen, setStarsOpen] = useState(false);
-  const [sortOpen, setSortOpen]   = useState(false);
+  const [starsOpen, setStarsOpen]           = useState(false);
+  const [sortOpen, setSortOpen]             = useState(false);
+  const [expandedHotelId, setExpandedHotelId] = useState<string | null>(null);
+  const [showBackToTop, setShowBackToTop]       = useState(false);
+
+  useEffect(() => {
+    const el = document.getElementById('app-main-scroll');
+    if (!el) return;
+    const onScroll = () => setShowBackToTop(el.scrollTop > 420);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
   const starsRef                  = useRef<HTMLDivElement>(null);
   const sortRef                   = useRef<HTMLDivElement>(null);
 
@@ -207,6 +218,17 @@ export default function HotelsPage() {
 
   return (
     <AppShell header={header} hasResults={accommodations.length > 0}>
+      {showBackToTop && (
+        <button
+          onClick={() => document.getElementById('app-main-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}
+          className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold shadow-lg transition-colors ${isDark ? 'bg-cv-blue-800 text-cv-blue-100 hover:bg-cv-blue-700 border-cv-blue-700' : 'bg-white text-cv-blue-950 hover:bg-cv-blue-50 border-cv-blue-200'} border`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+          </svg>
+          Back to top
+        </button>
+      )}
       {hotelSearch.isPending ? (
         <div className="flex items-center justify-center py-16">
           <svg className="w-8 h-8 text-cv-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -226,8 +248,19 @@ export default function HotelsPage() {
               {destPlace?.name} · {rooms} room{rooms !== 1 ? 's' : ''} · {guests.adults + guests.children} guest{guests.adults + guests.children !== 1 ? 's' : ''}
             </span>
           </div>
+          <HotelMap
+            accommodations={accommodations}
+            center={{ lat: destPlace!.latitude, lng: destPlace!.longitude }}
+            onLearnMore={(id) => setExpandedHotelId(id)}
+          />
           {accommodations.map((sr, i) => (
-            <HotelCard key={`${sr.id}-${sortOrder}`} searchResult={sr} defaultCollapsed={i >= 2} />
+            <div key={`${sr.id}-${sortOrder}`} id={`hotel-${sr.accommodation?.id}`}>
+              <HotelCard
+                searchResult={sr}
+                defaultCollapsed={i >= 2}
+                forceExpand={expandedHotelId === sr.accommodation?.id}
+              />
+            </div>
           ))}
         </>
       ) : hotelSearch.isSuccess ? (

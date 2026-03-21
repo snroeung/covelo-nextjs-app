@@ -147,7 +147,7 @@ export function AppShell({
             {header}
           </header>
 
-          <main className="flex flex-1 justify-center p-4 md:p-8 overflow-y-auto">
+          <main id="app-main-scroll" className="flex flex-1 justify-center p-4 md:p-8 overflow-y-auto">
             <div className="w-full max-w-xl space-y-4">
               {children}
             </div>
