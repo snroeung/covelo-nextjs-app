@@ -47,7 +47,6 @@ export function HotelMap({ accommodations, center, onLearnMore }: { accommodatio
 
     (async () => {
       const mapboxgl = (await import('mapbox-gl')).default;
-      await import('mapbox-gl/dist/mapbox-gl.css');
 
       if (cancelled || !containerRef.current) return;
 
