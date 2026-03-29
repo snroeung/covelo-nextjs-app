@@ -1,0 +1,88 @@
+# .github/workflows/portal-monitoring.yml
+#
+# Monitors all five credit card travel portals and their transfer-partner
+# booking sites for URL-pattern drift and HTTP reachability.
+#
+# Jobs:
+#   1. snapshot-tests  — runs Jest snapshot suite for lib/deepLink.ts
+#                        Fails if any portal's URL pattern has changed.
+#   2. probe-portals   — sends HEAD requests to every portal base URL.
+#                        Fails (marked as failure, non-blocking) if any
+#                        site returns a 5xx or a network error.
+#
+# Schedule: daily at 08:00 UTC.
+# Manual trigger: Actions → "Portal URL Monitoring" → Run workflow.
+#
+# If snapshot-tests fails:
+#   1. Check probe-portals to confirm which sites actually changed.
+#   2. Update the URL builder:  lib/deepLink.ts
+#   3. Regenerate snapshots:    npm test -- --testPathPattern=deepLink --updateSnapshot
+#   4. Commit both files together so the paper trail is clear.
+
+name: Portal URL Monitoring
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # daily, 08:00 UTC
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Show HTTP status for every target (not just failures)'
+        type: boolean
+        default: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 — Snapshot regression tests
+  # Strict: a pattern change here means the deep-link builder needs updating.
+  # ---------------------------------------------------------------------------
+  snapshot-tests:
+    name: Snapshot regression tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run deepLink snapshot + unit tests
+        run: npm test -- --testPathPattern=deepLink --ci --forceExit
+        # --ci        disables interactive mode and fails on new snapshots
+        # --forceExit prevents Jest hanging on open handles
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — HTTP reachability probe
+  # Non-blocking (continue-on-error) so a temporarily unreachable partner
+  # doesn't block other CI; the job is still marked failed for visibility.
+  # ---------------------------------------------------------------------------
+  probe-portals:
+    name: HTTP reachability probe
+    runs-on: ubuntu-latest
+    continue-on-error: true   # don't block merges; failure = notification only
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Probe portal and partner base URLs
+        run: node scripts/probe-portals.mjs
+        env:
+          VERBOSE: ${{ inputs.verbose || 'false' }}
+
+      - name: Annotate on failure
+        if: failure()
+        run: |
+          echo "::warning title=Portal Reachability::One or more travel portals returned an error. Check the probe output above and verify lib/deepLink.ts base URLs are current."

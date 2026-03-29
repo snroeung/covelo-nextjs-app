@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
+import type { HotelDeepLinkParams } from '@/lib/deepLink';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -56,6 +57,14 @@ export function HotelCard({ searchResult, defaultCollapsed = false, forceExpand 
   const firstPhoto   = (acc.photos?.[0]?.url ?? null) as string | null;
 
   const pointsResult = usePointsCalc(totalAmount, 'hotel');
+
+  const hotelParams: HotelDeepLinkParams = {
+    destination:  city || name,
+    checkInDate:  checkIn,
+    checkOutDate: checkOut,
+    rooms:        1,
+    adults:       1,
+  };
 
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
@@ -179,7 +188,7 @@ export function HotelCard({ searchResult, defaultCollapsed = false, forceExpand 
           {pointsResult && (
             <div className="space-y-1.5">
               <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMuted}`}>Points</p>
-              <PointsGrid result={pointsResult} collapseAfter={1} />
+              <PointsGrid result={pointsResult} collapseAfter={1} hotelParams={hotelParams} />
             </div>
           )}
         </div>

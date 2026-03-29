@@ -3,6 +3,14 @@
 import { useState } from 'react';
 import { PointsResult, PortalGroup, PortalResult, TransferResult, PORTAL_NAMES } from '@/lib/points/types';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  buildPortalDeepLink,
+  buildPartnerDeepLink,
+  PARTNER_PROGRAM_KEY,
+  PORTAL_NO_PREFILL,
+  type FlightDeepLinkParams,
+  type HotelDeepLinkParams,
+} from '@/lib/deepLink';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,9 +116,11 @@ function CardRow({
 function PortalGroupSection({
   group,
   globalBestPts,
+  bookUrl,
 }: {
   group: PortalGroup;
   globalBestPts: number;
+  bookUrl?: string;
 }) {
   const { isDark } = useTheme();
   const borderCls  = isDark ? 'border-cv-blue-900' : 'border-cv-blue-100';
@@ -153,6 +163,31 @@ function PortalGroupSection({
           </div>
         ))}
       </div>
+
+      {bookUrl && (
+        <div className={`px-5 pb-3 pt-2 border-t ${borderCls} flex items-center gap-2 flex-wrap`}>
+          <a
+            href={bookUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors
+              ${isDark
+                ? 'bg-cv-blue-700 text-white hover:bg-cv-blue-600'
+                : 'bg-cv-blue-600 text-white hover:bg-cv-blue-700'}`}
+          >
+            Book on {group.portalName}
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+          {PORTAL_NO_PREFILL[group.portalId] && (
+            <span className={`text-[10px] ${isDark ? 'text-cv-blue-500' : 'text-cv-blue-400'}`}>
+              {PORTAL_NO_PREFILL[group.portalId]}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -165,10 +200,12 @@ function TransferRow({
   transfer,
   isBest,
   priceUsd,
+  bookUrl,
 }: {
   transfer: TransferResult;
   isBest: boolean;
   priceUsd: number;
+  bookUrl?: string;
 }) {
   const { isDark } = useTheme();
   const rowBorder  = isDark ? 'border-cv-blue-900' : 'border-cv-amber-200';
@@ -229,6 +266,26 @@ function TransferRow({
       ) : (
         <p className={`text-xs ${mathCls}`}>Award chart pricing — check program directly</p>
       )}
+
+      {bookUrl && (
+        <div className="mt-2.5">
+          <a
+            href={bookUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors
+              ${isDark
+                ? 'bg-cv-amber-900 text-cv-amber-300 hover:bg-cv-amber-800'
+                : 'bg-cv-amber-500 text-white hover:bg-cv-amber-600'}`}
+          >
+            Search awards
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -237,7 +294,17 @@ function TransferRow({
 // PointsGrid
 // ---------------------------------------------------------------------------
 
-export function PointsGrid({ result, collapseAfter }: { result: PointsResult; collapseAfter?: number }) {
+export function PointsGrid({
+  result,
+  collapseAfter,
+  flightParams,
+  hotelParams,
+}: {
+  result: PointsResult;
+  collapseAfter?: number;
+  flightParams?: FlightDeepLinkParams;
+  hotelParams?: HotelDeepLinkParams;
+}) {
   const { isDark } = useTheme();
   const [hackExpanded, setHackExpanded] = useState(false);
   const [groupsExpanded, setGroupsExpanded] = useState(false);
@@ -270,11 +337,36 @@ export function PointsGrid({ result, collapseAfter }: { result: PointsResult; co
   const hackHeaderBg = isDark ? 'bg-cv-blue-950 hover:bg-cv-blue-900' : 'bg-cv-amber-50 hover:bg-cv-amber-100';
   const hackBorder   = isDark ? 'border-cv-amber-900' : 'border-cv-amber-200';
 
+  // Build portal deep-link URLs — only when params are available
+  function portalBookUrl(portalId: string): string | undefined {
+    if (result.bookingType === 'flight' && flightParams)
+      return buildPortalDeepLink(portalId as Parameters<typeof buildPortalDeepLink>[0], 'flight', flightParams);
+    if (result.bookingType === 'hotel' && hotelParams)
+      return buildPortalDeepLink(portalId as Parameters<typeof buildPortalDeepLink>[0], 'hotel', hotelParams);
+    return undefined;
+  }
+
+  // Build transfer-partner deep-link URL
+  function transferBookUrl(transfer: { partnerProgram: string; partnerType: 'airline' | 'hotel' }): string | undefined {
+    const key = PARTNER_PROGRAM_KEY[transfer.partnerProgram];
+    if (!key) return undefined;
+    if (transfer.partnerType === 'airline' && flightParams)
+      return buildPartnerDeepLink(key, 'flight', flightParams) ?? undefined;
+    if (transfer.partnerType === 'hotel' && hotelParams)
+      return buildPartnerDeepLink(key, 'hotel', hotelParams) ?? undefined;
+    return undefined;
+  }
+
   return (
     <div className={`rounded-xl overflow-hidden ${containerBg}`}>
 
       {visible.map((g) => (
-        <PortalGroupSection key={g.portalId} group={g} globalBestPts={globalBestPts} />
+        <PortalGroupSection
+          key={g.portalId}
+          group={g}
+          globalBestPts={globalBestPts}
+          bookUrl={portalBookUrl(g.portalId)}
+        />
       ))}
 
       {hiddenCount > 0 && (
@@ -308,6 +400,7 @@ export function PointsGrid({ result, collapseAfter }: { result: PointsResult; co
                 transfer={t}
                 isBest={(t.estimatedPointsNeeded ?? Infinity) === globalBestPts}
                 priceUsd={result.priceUsd}
+                bookUrl={transferBookUrl(t)}
               />
             ))}
         </div>

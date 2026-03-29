@@ -6,6 +6,7 @@ import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
 import { classifyRoute } from '@/lib/points/transferPartners';
 import { Cabin, FlightContext } from '@/lib/points/types';
+import type { FlightDeepLinkParams } from '@/lib/deepLink';
 
 // Converts ISO 8601 duration "PT3H45M" → "3h 45m"
 function formatDuration(iso: string): string {
@@ -28,8 +29,18 @@ function isoToMinutes(iso: string): number {
   return h * 60 + m;
 }
 
+// Sum only segment durations (actual air time, no layovers, no timezone effect)
+function sliceFlightTime(slice: any): string {
+  const mins = slice.segments.reduce((sum: number, seg: any) => sum + isoToMinutes(seg.duration), 0);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ');
+}
+
 function totalTripDuration(slices: any[]): string {
-  const mins = slices.reduce((sum, s) => sum + isoToMinutes(s.duration), 0);
+  const mins = slices.reduce((sum: number, s: any) => (
+    sum + s.segments.reduce((s2: number, seg: any) => s2 + isoToMinutes(seg.duration), 0)
+  ), 0);
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ');
@@ -114,6 +125,18 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
   const oneWayPoints = usePointsCalc(isRoundTrip ? 0 : totalAmount, 'flight', flightCtx);
   const perLegPoints = usePointsCalc(isRoundTrip ? perLegPrice : 0, 'flight', flightCtx);
 
+  // Deep-link params — derived from the offer so each portal's "Book" button
+  // pre-fills the search with the same route, dates, and cabin.
+  const flightParams: FlightDeepLinkParams | undefined =
+    originIata && destIata ? {
+      origin:        originIata,
+      destination:   destIata,
+      departureDate: offer.slices[0].segments[0].departing_at.split('T')[0],
+      returnDate:    isRoundTrip ? offer.slices[1].segments[0].departing_at.split('T')[0] : undefined,
+      passengers:    1,
+      cabin,
+    } : undefined;
+
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   return (
@@ -126,7 +149,7 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
         <div>
           <p className={`text-sm font-semibold ${textPrimary}`}>{airline}</p>
           <p className={`text-xs ${textMuted}`}>
-            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'} · {totalTripDuration(offer.slices)} · {stopsLabel}
+            {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : `One way · ${totalTripDuration(offer.slices)}`} · {stopsLabel}
           </p>
         </div>
         <div className="flex items-start gap-3">
@@ -159,12 +182,14 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
             return (
               <div key={i} className="space-y-3">
                 {label && (
-                  <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMuted}`}>{label}</p>
+                  <p className={`text-[10px] font-semibold uppercase tracking-widest ${textMuted}`}>
+                    {label} · {sliceFlightTime(slice)}
+                  </p>
                 )}
                 <SliceRow slice={slice} />
                 {pts && (
                   <div className="pt-1">
-                    <PointsGrid result={pts} collapseAfter={1} />
+                    <PointsGrid result={pts} collapseAfter={1} flightParams={flightParams} />
                   </div>
                 )}
               </div>
