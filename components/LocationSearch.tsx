@@ -23,13 +23,15 @@ interface Props {
   onClear: () => void;
   placeholder?: string;
   forAirport?: boolean; // restricts suggestions to airports and parses IATA from description
+  initialValue?: string;    // pre-fill the text input without triggering autocomplete
+  initialCommitted?: boolean; // if true, treat initialValue as already-selected (no auto-dropdown)
 }
 
-export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false }: Props) {
+export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, initialValue, initialCommitted = false }: Props) {
   const { isDark } = useTheme();
   const listboxId = useId();
 
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialValue ?? '');
   const [open, setOpen] = useState(false);
   // Session token groups all autocomplete calls — only the Place Details call is billed
   const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID());
@@ -37,7 +39,13 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
   const [resolveError, setResolveError] = useState<string | null>(null);
   // Tracks the last committed (selected) value. While input === committedInput the
   // dropdown stays closed even when new suggestion results arrive from the debounced query.
-  const [committedInput, setCommittedInput] = useState('');
+  // For airport mode with a pre-filled value that isn't already committed (e.g. city name
+  // hint), leave committedInput empty so the dropdown opens on focus and the user can
+  // pick the actual airport. When initialCommitted=true (auto-resolved airport), treat it
+  // as already selected so the dropdown doesn't auto-open.
+  const [committedInput, setCommittedInput] = useState(
+    forAirport && initialValue && !initialCommitted ? '' : (initialValue ?? ''),
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   const debouncedInput = useDebounce(input, 300);

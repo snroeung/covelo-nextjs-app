@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
+import { AddToTripButton } from '@/components/AddToTripButton';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -55,17 +56,14 @@ export function HotelCard({ searchResult, defaultCollapsed = false }: { searchRe
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
       {/* Header */}
-      <button
+      <div
+        role="button"
         onClick={() => setCollapsed(v => !v)}
-        className={`w-full flex items-stretch text-left ${collapsed ? '' : `border-b ${divider}`}`}
+        className={`w-full flex items-stretch text-left cursor-pointer ${collapsed ? '' : `border-b ${divider}`}`}
       >
         {/* Photo */}
         {firstPhoto ? (
-          <img
-            src={firstPhoto}
-            alt={name}
-            className="w-24 shrink-0 object-cover"
-          />
+          <img src={firstPhoto} alt={name} className="w-24 shrink-0 object-cover" />
         ) : (
           <div className={`w-24 shrink-0 flex items-center justify-center text-2xl ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`}>
             🏨
@@ -92,7 +90,7 @@ export function HotelCard({ searchResult, defaultCollapsed = false }: { searchRe
               )}
             </div>
           </div>
-          <div className="flex items-start gap-3 shrink-0">
+          <div className="flex items-start gap-2 shrink-0">
             <div className="text-right">
               <p className={`text-[10px] ${textMuted}`}>from</p>
               <p className="text-lg font-bold text-cv-blue-400">
@@ -102,15 +100,15 @@ export function HotelCard({ searchResult, defaultCollapsed = false }: { searchRe
                 {perNight.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}/night
               </p>
             </div>
-            <svg
-              className={`w-4 h-4 mt-1 shrink-0 transition-transform text-cv-blue-400 ${collapsed ? '-rotate-90' : ''}`}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
+            <AddToTripButton
+              type="hotel"
+              itemId={searchResult.id ?? acc.id ?? `${name}-${city}`}
+              title={`${name} · ${city}`}
+              data={searchResult}
+            />
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Expanded body */}
       {!collapsed && (

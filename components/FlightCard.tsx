@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
+import { AddToTripButton } from '@/components/AddToTripButton';
 import { classifyRoute } from '@/lib/points/transferPartners';
 import { Cabin, FlightContext } from '@/lib/points/types';
 
@@ -119,9 +120,10 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
       {/* Header — click to collapse/expand */}
-      <button
+      <div
+        role="button"
         onClick={() => setCollapsed(v => !v)}
-        className={`w-full flex items-center justify-between px-5 py-3 text-left ${collapsed ? '' : `border-b ${divider}`}`}
+        className={`w-full flex items-center justify-between px-5 py-3 text-left cursor-pointer ${collapsed ? '' : `border-b ${divider}`}`}
       >
         <div>
           <p className={`text-sm font-semibold ${textPrimary}`}>{airline}</p>
@@ -129,7 +131,7 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
             {departDate}{returnDate ? ` → ${returnDate}` : ''} · {isRoundTrip ? 'Round trip' : 'One way'} · {totalTripDuration(offer.slices)} · {stopsLabel}
           </p>
         </div>
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2">
           <div className="text-right">
             <p className={`text-[10px] ${textMuted}`}>starting from</p>
             <p className="text-lg font-bold text-cv-blue-400">
@@ -141,14 +143,14 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
             </p>
             <p className={`text-xs ${textMuted}`}>per person</p>
           </div>
-          <svg
-            className={`w-4 h-4 mt-1 shrink-0 transition-transform text-cv-blue-400 ${collapsed ? '-rotate-90' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          <AddToTripButton
+            type="flight"
+            itemId={offer.id}
+            title={`${airline} · ${originIata} → ${destIata}`}
+            data={offer}
+          />
         </div>
-      </button>
+      </div>
 
       {/* Slices + per-leg points */}
       {!collapsed && (

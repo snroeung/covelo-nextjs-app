@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { DateInput } from '@/components/DateInput';
 import { FlightCard } from '@/components/FlightCard';
@@ -37,15 +38,50 @@ function EmptyState({ message }: { message: string }) {
 }
 
 export default function FlightsPage() {
-  const [tripType, setTripType]         = useState<TripType>('roundtrip');
+  const searchParams = useSearchParams();
+  const paramDest      = searchParams.get('destination') ?? '';
+  const paramDepart    = searchParams.get('departDate') ?? '';
+  const paramReturn    = searchParams.get('returnDate') ?? '';
+  const paramTripType  = (searchParams.get('tripType') as TripType | null) ?? 'roundtrip';
+
+  const [tripType, setTripType]         = useState<TripType>(paramTripType);
   const [cabinClass, setCabinClass]     = useState<CabinClass>('economy');
   const [sortOrder, setSortOrder]       = useState<SortOrder>('relevant');
-  const [startDate, setStartDate]       = useState('');
-  const [endDate, setEndDate]           = useState('');
+  const [startDate, setStartDate]       = useState(paramDepart);
+  const [endDate, setEndDate]           = useState(paramReturn);
   const [originPlace, setOriginPlace]   = useState<SelectedPlace | null>(null);
   const [arrivalPlace, setArrivalPlace] = useState<SelectedPlace | null>(null);
+  // Used to remount the "To" LocationSearch with the resolved airport as committed value
+  const [toKey, setToKey]               = useState(0);
+  const [toInitial, setToInitial]       = useState(paramDest);
+  const [toCommitted, setToCommitted]   = useState(false);
 
   const { isDark } = useTheme();
+
+  // Auto-resolve nearest airport when coming from trip planner
+  const { data: nearestAirport, isLoading: airportLoading } = useQuery({
+    queryKey: ['places.nearestAirport', paramDest],
+    queryFn: () => trpc.places.nearestAirport.query({ cityName: paramDest }),
+    enabled: !!paramDest && !!paramDepart, // only when navigated from trip planner
+    staleTime: 1000 * 60 * 60 * 24,
+    retry: 1,
+  });
+
+  useEffect(() => {
+    if (!nearestAirport) return;
+    setArrivalPlace({
+      latitude: nearestAirport.latitude,
+      longitude: nearestAirport.longitude,
+      name: nearestAirport.name,
+      description: nearestAirport.description,
+      iataCode: nearestAirport.iataCode,
+    });
+    setToInitial(nearestAirport.description);
+    // Only mark as committed (no auto-dropdown) if we got a usable IATA code.
+    // If IATA is missing the user needs to pick from the dropdown themselves.
+    setToCommitted(!!nearestAirport.iataCode);
+    setToKey((k) => k + 1); // remount LocationSearch to show the resolved airport name
+  }, [nearestAirport]);
 
   const flightSearch = useMutation({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,10 +95,12 @@ export default function FlightsPage() {
     if (sortOrder === 'highest') return parseFloat(b.total_amount) - parseFloat(a.total_amount);
     return 0;
   });
+  const todayStr    = new Date().toISOString().split('T')[0];
   const originCode  = originPlace?.iataCode ?? '';
   const arrivalCode = arrivalPlace?.iataCode ?? '';
-  const canSearch   = originCode.length === 3 && arrivalCode.length === 3 && !!startDate
-    && (tripType === 'oneway' || !!endDate);
+  const canSearch   = originCode.length === 3 && arrivalCode.length === 3
+    && !!startDate && startDate >= todayStr
+    && (tripType === 'oneway' || (!!endDate && endDate >= startDate));
 
   function handleSearch() {
     if (!canSearch) return;
@@ -171,11 +209,13 @@ export default function FlightsPage() {
           <LocationSearch forAirport onSelect={(p) => setOriginPlace(p)} onClear={() => setOriginPlace(null)} />
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>To</span>
-          <LocationSearch forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>
+            To{airportLoading ? ' · resolving…' : ''}
+          </span>
+          <LocationSearch key={toKey} forAirport initialValue={toInitial} initialCommitted={toCommitted} onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
         </div>
         <div className="flex justify-between items-end gap-2">
-          <DateInput label="Depart" value={startDate} onChange={setStartDate} />
+          <DateInput label="Depart" value={startDate} onChange={setStartDate} min={todayStr} />
           {tripType === 'roundtrip' && (
             <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
           )}
@@ -201,8 +241,10 @@ export default function FlightsPage() {
           <span className="text-cv-blue-400 text-lg">→</span>
         </div>
         <div className="flex flex-col gap-0.5 flex-1 min-w-40">
-          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>To</span>
-          <LocationSearch forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
+          <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>
+            To{airportLoading ? ' · resolving…' : ''}
+          </span>
+          <LocationSearch key={toKey} forAirport initialValue={toInitial} initialCommitted={toCommitted} onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
         </div>
         <DateInput label="Depart" value={startDate} onChange={setStartDate} />
         {tripType === 'roundtrip' && (
@@ -246,9 +288,13 @@ export default function FlightsPage() {
       ) : flightSearch.isSuccess ? (
         <EmptyState message="No flights found for this route and date." />
       ) : (
-        <EmptyState message={!originPlace || !arrivalPlace
-          ? 'Select departure and arrival airports to search.'
-          : 'Fill in dates and press Search.'} />
+        <EmptyState message={
+          !originPlace || !arrivalPlace
+            ? 'Select departure and arrival airports to search.'
+            : !startDate || startDate < todayStr
+            ? 'Enter a valid departure date and press Search.'
+            : 'Press Search to find flights.'
+        } />
       )}
     </AppShell>
   );

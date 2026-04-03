@@ -22,6 +22,7 @@ export function AppShell({
   const pathname = usePathname();
   const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Auto-collapse on mobile when results first appear
   useEffect(() => {
@@ -54,8 +55,9 @@ export function AppShell({
           covelo<span className="text-cv-blue-400">.</span>
         </span>
         <div className="flex items-center gap-1">
-          <Link href="/"       className={navLinkCls('/')}>Flights</Link>
-          <Link href="/hotels" className={navLinkCls('/hotels')}>Hotels</Link>
+          <Link href="/"              className={navLinkCls('/')}>Flights</Link>
+          <Link href="/hotels"        className={navLinkCls('/hotels')}>Hotels</Link>
+          <Link href="/trip-planner"  className={navLinkCls('/trip-planner')}>Trip Planner</Link>
         </div>
         {/* Theme toggle visible in nav on mobile; in sidebar on desktop */}
         <div className="ml-auto md:hidden">
@@ -102,20 +104,40 @@ export function AppShell({
       <div className="flex flex-1 overflow-hidden">
 
         {/* Sidebar — desktop only */}
-        <aside className={`hidden md:flex w-72 shrink-0 border-r flex-col overflow-hidden ${surfaceBg} ${borderCls}`}>
-          {allCardsMode && (
-            <div className={`px-4 py-3 border-b ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
-              <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'}`}>
-                Showing all cards. Select yours for a personalized estimate.
-              </p>
-            </div>
+        <aside className={`hidden md:flex shrink-0 border-r flex-col overflow-hidden transition-[width] duration-200 ${surfaceBg} ${borderCls} ${sidebarOpen ? 'w-72' : 'w-12'}`}>
+
+          {/* Toggle button — always pinned at the top */}
+          <div className={`shrink-0 flex items-center border-b ${borderCls} ${sidebarOpen ? 'justify-end px-3 py-2' : 'justify-center py-3'}`}>
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-cv-blue-400 hover:bg-cv-blue-800' : 'text-cv-blue-500 hover:bg-cv-blue-100'}`}
+              aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d={sidebarOpen ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content — only rendered when open */}
+          {sidebarOpen && (
+            <>
+              {allCardsMode && (
+                <div className={`px-4 py-3 border-b ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
+                  <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'}`}>
+                    Showing all cards. Select yours for a personalized estimate.
+                  </p>
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto p-6">
+                <CardSelector />
+              </div>
+              <div className={`p-3 border-t ${borderCls}`}>
+                <ThemeToggle />
+              </div>
+            </>
           )}
-          <div className="flex-1 overflow-y-auto p-6">
-            <CardSelector />
-          </div>
-          <div className={`p-3 border-t ${borderCls}`}>
-            <ThemeToggle />
-          </div>
         </aside>
 
         {/* Search header + results */}

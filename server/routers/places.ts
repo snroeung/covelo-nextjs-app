@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure, router } from '@/server/trpc';
-import { getPlaceAutocomplete, getPlaceLatLng } from '@/lib/places';
+import { getPlaceAutocomplete, getPlaceLatLng, getNearestAirport } from '@/lib/places';
 
 export const placesRouter = router({
   /**
@@ -15,6 +15,16 @@ export const placesRouter = router({
     }))
     .query(async ({ input: { input, sessionToken, types } }) => {
       return getPlaceAutocomplete(input, sessionToken, types);
+    }),
+
+  /**
+   * Returns the nearest/most relevant airport for a given city name.
+   * Used to auto-populate the flight destination when coming from the trip planner.
+   */
+  nearestAirport: publicProcedure
+    .input(z.object({ cityName: z.string().min(1) }))
+    .query(async ({ input: { cityName } }) => {
+      return getNearestAirport(cityName);
     }),
 
   /**

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 
-export type GuestsValue = { adults: number; children: number };
+export type GuestsValue = { adults: number; children: number; pets: number };
 
 function Stepper({
   label,
@@ -79,7 +79,11 @@ export function GuestsDropdown({
   }, []);
 
   const total = value.adults + value.children;
-  const summary = `${value.adults} adult${value.adults !== 1 ? 's' : ''}${value.children > 0 ? `, ${value.children} child${value.children !== 1 ? 'ren' : ''}` : ''}`;
+  const summary = [
+    `${value.adults} adult${value.adults !== 1 ? 's' : ''}`,
+    value.children > 0 ? `${value.children} child${value.children !== 1 ? 'ren' : ''}` : '',
+    value.pets > 0 ? `${value.pets} pet${value.pets !== 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(', ');
 
   const labelCls = isDark ? 'text-cv-blue-300' : 'text-cv-blue-900';
   const inputCls = isDark
@@ -121,6 +125,16 @@ export function GuestsDropdown({
             min={0}
             max={total < 16 ? 16 - value.adults : 0}
             onChange={(v) => onChange({ ...value, children: v })}
+            isDark={isDark}
+          />
+          <div className={`border-t ${dividerCls}`} />
+          <Stepper
+            label="Pets"
+            sub="Dogs, cats & more"
+            value={value.pets}
+            min={0}
+            max={10}
+            onChange={(v) => onChange({ ...value, pets: v })}
             isDark={isDark}
           />
         </div>

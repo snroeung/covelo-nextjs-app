@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { DateInput } from '@/components/DateInput';
 import { GuestsDropdown, type GuestsValue } from '@/components/GuestsDropdown';
@@ -34,11 +35,27 @@ function EmptyState({ message }: { message: string }) {
 }
 
 export default function HotelsPage() {
-  const [destPlace, setDestPlace] = useState<SelectedPlace | null>(null);
+  const searchParams  = useSearchParams();
+  const paramDest     = searchParams.get('destination') ?? '';
+  const paramLat      = parseFloat(searchParams.get('lat') ?? '0');
+  const paramLng      = parseFloat(searchParams.get('lng') ?? '0');
+  const paramCheckIn  = searchParams.get('checkIn') ?? '';
+  const paramCheckOut = searchParams.get('checkOut') ?? '';
+  const paramAdults   = parseInt(searchParams.get('adults') ?? '2', 10);
+  const paramChildren = parseInt(searchParams.get('children') ?? '0', 10);
+  const fromTrip      = !!(paramLat && paramLng && paramCheckIn && paramCheckOut);
+
+  const [destPlace, setDestPlace] = useState<SelectedPlace | null>(
+    fromTrip ? { latitude: paramLat, longitude: paramLng, name: paramDest, description: paramDest } : null,
+  );
   const [rooms, setRooms]         = useState(1);
-  const [guests, setGuests]       = useState<GuestsValue>({ adults: 2, children: 0 });
-  const [checkIn, setCheckIn]     = useState('');
-  const [checkOut, setCheckOut]   = useState('');
+  const [guests, setGuests]       = useState<GuestsValue>({
+    adults: fromTrip ? paramAdults : 2,
+    children: fromTrip ? paramChildren : 0,
+    pets: 0,
+  });
+  const [checkIn, setCheckIn]     = useState(fromTrip ? paramCheckIn : '');
+  const [checkOut, setCheckOut]   = useState(fromTrip ? paramCheckOut : '');
   const [minStars, setMinStars]   = useState<number | null>(null);
   const [sortOrder, setSortOrder] = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
   const [starsOpen, setStarsOpen] = useState(false);
@@ -52,6 +69,20 @@ export default function HotelsPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: (vars: any) => trpc.stays.search.mutate(vars),
   });
+
+  // Auto-search when arriving from trip planner with all required data
+  useEffect(() => {
+    if (!fromTrip) return;
+    hotelSearch.mutate({
+      latitude: paramLat,
+      longitude: paramLng,
+      checkInDate: paramCheckIn,
+      checkOutDate: paramCheckOut,
+      rooms: 1,
+      guests: buildGuests({ adults: paramAdults, children: paramChildren, pets: 0 }),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const allAccommodations: any[] = hotelSearch.data ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const accommodations = [...allAccommodations] // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -156,6 +187,7 @@ export default function HotelsPage() {
       <div className="flex flex-col gap-0.5 w-full md:w-auto md:flex-1 md:min-w-0">
         <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>Location</span>
         <LocationSearch
+          initialValue={paramDest || undefined}
           onSelect={setDestPlace}
           onClear={() => setDestPlace(null)}
         />

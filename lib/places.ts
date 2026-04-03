@@ -45,6 +45,41 @@ export async function getPlaceAutocomplete(
   }));
 }
 
+export interface NearestAirport extends PlaceLatLng {
+  description: string;
+  iataCode: string | undefined;
+}
+
+/**
+ * Returns the most relevant airport for a given city name.
+ * Uses Places Autocomplete with "airport" appended, picks the first result
+ * that contains an IATA code, then resolves its lat/lng via Place Details.
+ */
+export async function getNearestAirport(cityName: string): Promise<NearestAirport> {
+  const sessionToken = crypto.randomUUID();
+  // Use only the primary city name (before the first comma) so autocomplete gets a clean,
+  // short query — e.g. "Washington D.C., DC, USA" → "Washington D.C. airport"
+  const cityShort = cityName.split(',')[0].trim();
+  let suggestions = await getPlaceAutocomplete(`${cityShort} airport`, sessionToken, 'airport');
+
+  // If no results, retry with first word only (e.g. "Washington airport")
+  if (suggestions.length === 0) {
+    const firstWord = cityShort.split(' ')[0];
+    suggestions = await getPlaceAutocomplete(`${firstWord} airport`, sessionToken, 'airport');
+  }
+
+  // Prefer results that include an IATA code in the description
+  const withIata = suggestions.filter((s) => /\([A-Z]{3}\)/.test(s.description));
+  const chosen = withIata[0] ?? suggestions[0];
+  if (!chosen) throw new Error(`No airport found for "${cityName}"`);
+
+  const iataMatch = chosen.description.match(/\(([A-Z]{3})\)/);
+  const iataCode = iataMatch?.[1];
+
+  const latLng = await getPlaceLatLng(chosen.placeId, sessionToken);
+  return { ...latLng, description: chosen.description, iataCode };
+}
+
 /**
  * Returns lat/lng for a placeId.
  * Results are cached in Redis by placeId for 30 days — coordinates don't change,
