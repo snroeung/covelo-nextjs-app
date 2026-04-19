@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
@@ -34,7 +34,7 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-export default function HotelsPage() {
+function HotelsPageInner() {
   const searchParams  = useSearchParams();
   const paramDest     = searchParams.get('destination') ?? '';
   const paramLat      = parseFloat(searchParams.get('lat') ?? '0');
@@ -268,5 +268,13 @@ export default function HotelsPage() {
         <EmptyState message={!destPlace ? 'Search for a location to find hotels.' : 'Fill in dates and press Search.'} />
       )}
     </AppShell>
+  );
+}
+
+export default function HotelsPage() {
+  return (
+    <Suspense>
+      <HotelsPageInner />
+    </Suspense>
   );
 }

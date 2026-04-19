@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
@@ -37,7 +37,7 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-export default function FlightsPage() {
+function FlightsPageInner() {
   const searchParams = useSearchParams();
   const paramDest      = searchParams.get('destination') ?? '';
   const paramDepart    = searchParams.get('departDate') ?? '';
@@ -297,5 +297,13 @@ export default function FlightsPage() {
         } />
       )}
     </AppShell>
+  );
+}
+
+export default function FlightsPage() {
+  return (
+    <Suspense>
+      <FlightsPageInner />
+    </Suspense>
   );
 }
