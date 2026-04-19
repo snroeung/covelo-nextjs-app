@@ -232,7 +232,11 @@ export default function TripPlannerPage() {
     setStartDate('');
     setEndDate('');
     setTitle('');
-    setSearchKey((k) => k + 1);
+  }
+
+  function handleBack() {
+    handleDestinationClear();
+    setSearchKey((k) => k + 1); // force-remount to clear the input text
   }
 
   function handleIgnoreWarning() {
@@ -322,7 +326,7 @@ export default function TripPlannerPage() {
             {/* Back button — visible once a destination is selected */}
             {destination && (
               <button
-                onClick={handleDestinationClear}
+                onClick={handleBack}
                 className={`self-start flex items-center gap-1.5 text-sm font-medium transition-colors ${isDark ? 'text-cv-blue-400 hover:text-white' : 'text-cv-blue-600 hover:text-cv-blue-950'}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

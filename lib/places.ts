@@ -86,6 +86,36 @@ export async function getNearestAirport(cityName: string): Promise<NearestAirpor
  * so any user resolving the same place hits the cache, not the API.
  * Passing the sessionToken ends the billing session (this is the only billed call).
  */
+/**
+ * Returns a photo_reference for a place identified by name + address.
+ * The caller should construct a server-side proxy URL from this reference
+ * (e.g. /api/place-photo?ref=REFERENCE) so the API key is never exposed.
+ * Results are cached in Redis for 7 days.
+ */
+export async function getPlacePhoto(name: string, address: string): Promise<string | null> {
+  if (!GMAPS_KEY) return null;
+
+  const cacheKey = `place:photo:ref:${name}:${address}`;
+  const cached = await redis.get<string>(cacheKey);
+  if (cached) return cached;
+
+  const findUrl = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
+  findUrl.searchParams.set('input', `${name} ${address}`);
+  findUrl.searchParams.set('inputtype', 'textquery');
+  findUrl.searchParams.set('fields', 'photos');
+  findUrl.searchParams.set('key', GMAPS_KEY);
+
+  const findRes = await fetch(findUrl.toString());
+  const findData = await findRes.json();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const photoRef: string | undefined = findData.candidates?.[0]?.photos?.[0]?.photo_reference;
+  if (!photoRef) return null;
+
+  await redis.set(cacheKey, photoRef, { ex: 60 * 60 * 24 * 7 });
+  return photoRef;
+}
+
 export async function getPlaceLatLng(
   placeId: string,
   sessionToken: string,

@@ -38,3 +38,17 @@ body {
   color: #fff;
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+/* ── Mapbox POI popup card ────────────────────────────────────────────────── */
+.poi-popup .mapboxgl-popup-content {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-width: 160px;
+  color: #1a1a1a;
+}
+.poi-popup .mapboxgl-popup-tip {
+  display: none;
+}

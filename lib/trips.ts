@@ -39,6 +39,21 @@ export interface TripTravelers {
   pets: number;
 }
 
+export interface TripPin {
+  id: string;
+  label: string;
+  lng: number;
+  lat: number;
+}
+
+export interface Activity {
+  id: string;
+  name: string;
+  address: string;
+  added_at: string; // ISO timestamp
+  photo_url?: string;
+}
+
 export interface Trip {
   id: string;
   title: string;
@@ -49,6 +64,8 @@ export interface Trip {
   start_date: string;  // "YYYY-MM-DD"
   end_date: string;    // "YYYY-MM-DD"
   travelers: TripTravelers;
+  activities: Activity[];
+  pins: TripPin[];
   user_id: string;     // client-generated UUID until auth is added
   created_at: string;  // ISO timestamp
 }
@@ -82,9 +99,11 @@ export function saveTrips(trips: Trip[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
 }
 
-export function createTrip(input: Omit<Trip, 'id' | 'user_id' | 'created_at'>): Trip {
+export function createTrip(input: Omit<Trip, 'id' | 'user_id' | 'created_at' | 'activities' | 'pins'>): Trip {
   const trip: Trip = {
     ...input,
+    activities: [],
+    pins: [],
     id: crypto.randomUUID(),
     user_id: getUserId(),
     created_at: new Date().toISOString(),
@@ -96,4 +115,14 @@ export function createTrip(input: Omit<Trip, 'id' | 'user_id' | 'created_at'>): 
 
 export function deleteTrip(id: string): void {
   saveTrips(loadTrips().filter((t) => t.id !== id));
+}
+
+export function updateTrip(id: string, updates: Partial<Omit<Trip, 'id' | 'user_id' | 'created_at'>>): Trip | null {
+  const trips = loadTrips();
+  const idx = trips.findIndex((t) => t.id === id);
+  if (idx === -1) return null;
+  const updated = { ...trips[idx], ...updates };
+  trips[idx] = updated;
+  saveTrips(trips);
+  return updated;
 }

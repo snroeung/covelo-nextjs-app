@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure, router } from '@/server/trpc';
-import { getPlaceAutocomplete, getPlaceLatLng, getNearestAirport } from '@/lib/places';
+import { getPlaceAutocomplete, getPlaceLatLng, getNearestAirport, getPlacePhoto } from '@/lib/places';
 
 export const placesRouter = router({
   /**
@@ -39,5 +39,17 @@ export const placesRouter = router({
     }))
     .query(async ({ input: { placeId, sessionToken } }) => {
       return getPlaceLatLng(placeId, sessionToken);
+    }),
+
+  /**
+   * Returns a publicly-accessible photo CDN URL for a place.
+   * Cached in Redis for 7 days — returns null if no photo is found.
+   */
+  getPhoto: publicProcedure
+    .input(z.object({ name: z.string(), address: z.string() }))
+    .query(async ({ input: { name, address } }) => {
+      const ref = await getPlacePhoto(name, address);
+      if (!ref) return null;
+      return `/api/place-photo?ref=${encodeURIComponent(ref)}`;
     }),
 });

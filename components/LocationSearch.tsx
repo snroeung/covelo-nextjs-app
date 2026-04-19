@@ -25,9 +25,10 @@ interface Props {
   forAirport?: boolean; // restricts suggestions to airports and parses IATA from description
   initialValue?: string;    // pre-fill the text input without triggering autocomplete
   initialCommitted?: boolean; // if true, treat initialValue as already-selected (no auto-dropdown)
+  autoFocus?: boolean;
 }
 
-export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, initialValue, initialCommitted = false }: Props) {
+export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, initialValue, initialCommitted = false, autoFocus }: Props) {
   const { isDark } = useTheme();
   const listboxId = useId();
 
@@ -160,6 +161,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
           aria-expanded={open}
           aria-controls={listboxId}
           aria-autocomplete="list"
+          autoFocus={autoFocus}
           placeholder={placeholder ?? defaultPlaceholder}
           value={input}
           onChange={(e) => handleChange(e.target.value)}
