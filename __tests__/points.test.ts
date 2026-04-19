@@ -92,10 +92,13 @@ const mockBestPortalResult: PortalResult = {
   portalName: 'Chase Travel',
   cardId: 'chase_reserve',
   cardName: 'Chase Sapphire Reserve',
+  priceUsd: 620.01,
   pointsNeeded: 41_334,
   centsPerPoint: 1.5,
   estimated: true,
   bookingType: 'hotel',
+  earnRate: 3,
+  pointsEarned: 124_002,
 };
 
 describe('calcTransferAlternatives()', () => {

@@ -6,13 +6,10 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { trpc } from '@/lib/trpc-client';
 import type { TripPin } from '@/lib/trips';
 
-const MAPBOX_TOKEN  = process.env.NEXT_PUBLIC_MAPBOX_API_KEY ?? '';
-const POI_SOURCE    = 'poi-markers';
-const POI_LAYER     = 'poi-markers';
-const RADIUS_SOURCE = 'radius-circle';
-const RADIUS_FILL   = 'radius-circle-fill';
-const RADIUS_LINE   = 'radius-circle-line';
-const SEARCH_RADIUS = 500; // metres
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_API_KEY ?? '';
+
+// POI label layers present in both streets-v12 and dark-v11
+const CLICKABLE_POI_LAYERS = ['poi-label', 'airport-label', 'transit-label'];
 
 // ─── Pin visual styles ────────────────────────────────────────────────────────
 
@@ -28,19 +25,6 @@ const IDLE_PIN_CSS = [
   'box-shadow:0 1px 4px rgba(0,0,0,0.2)', 'cursor:grab', 'transition:all .15s',
 ].join(';');
 
-// ─── POI filters ──────────────────────────────────────────────────────────────
-
-type PoiCategory = 'restaurant' | 'cafe' | 'bar' | 'attraction' | 'museum' | 'hotel';
-
-const POI_FILTERS: { id: PoiCategory; label: string; emoji: string; category: string }[] = [
-  { id: 'restaurant', label: 'Food',    emoji: '🍽', category: 'restaurant'        },
-  { id: 'cafe',       label: 'Cafes',   emoji: '☕', category: 'cafe_coffee_house'  },
-  { id: 'bar',        label: 'Bars',    emoji: '🍸', category: 'bar'               },
-  { id: 'attraction', label: 'Sights',  emoji: '🏛', category: 'tourist_attraction' },
-  { id: 'museum',     label: 'Museums', emoji: '🖼', category: 'museum'            },
-  { id: 'hotel',      label: 'Hotels',  emoji: '🏨', category: 'hotel'             },
-];
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface MapPin {
@@ -52,19 +36,10 @@ interface MapPin {
   marker: mapboxgl.Marker;
 }
 
-type PoiFeatureCollection = {
-  type: 'FeatureCollection';
-  features: {
-    type: 'Feature';
-    geometry: { type: 'Point'; coordinates: [number, number] };
-    properties: { name: string; address: string };
-  }[];
-};
-
 interface GeocodingFeature {
   id: string;
   place_name: string;
-  center: [number, number]; // [lng, lat]
+  center: [number, number];
 }
 
 interface TripMapProps {
@@ -80,206 +55,40 @@ interface TripMapProps {
   onPinsChange?: (pins: TripPin[]) => void;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function makeRadiusGeoJSON(centerLng: number, centerLat: number) {
-  const steps = 64;
-  const coords: [number, number][] = [];
-  const latScale = SEARCH_RADIUS / 111_320;
-  const lngScale = SEARCH_RADIUS / (111_320 * Math.cos((centerLat * Math.PI) / 180));
-  for (let i = 0; i <= steps; i++) {
-    const angle = (i / steps) * 2 * Math.PI;
-    coords.push([centerLng + lngScale * Math.cos(angle), centerLat + latScale * Math.sin(angle)]);
-  }
-  return { type: 'Feature' as const, geometry: { type: 'Polygon' as const, coordinates: [coords] }, properties: {} };
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TripMap({
   lat, lng, destination, isDark, borderCls, minimized, onToggleMinimize, onAddActivity,
   initialPins, onPinsChange,
 }: TripMapProps) {
-  // ── Map refs ────────────────────────────────────────────────────────────────
+  // ── Refs ──────────────────────────────────────────────────────────────────
   const containerRef    = useRef<HTMLDivElement>(null);
   const mapRef          = useRef<mapboxgl.Map | null>(null);
-  const activeFilterRef = useRef<PoiCategory | null>(null);
-  const interactionsRef = useRef(false);
-  const dragDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geocodeDebRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openPopupRef    = useRef<mapboxgl.Popup | null>(null);
-  // Suppress persistence calls while restoring saved pins on init
   const isRestoringRef  = useRef(false);
 
-  // ── Multi-pin refs ──────────────────────────────────────────────────────────
-  const pinsRef          = useRef<MapPin[]>([]);
-  const activePinIdRef   = useRef<string | null>(null);
-  const poiCacheRef      = useRef<Map<string, PoiFeatureCollection>>(new Map());
-  const onPinsChangeRef  = useRef(onPinsChange);
-  const initialPinsRef   = useRef(initialPins);
+  const pinsRef         = useRef<MapPin[]>([]);
+  const activePinIdRef  = useRef<string | null>(null);
+  const onPinsChangeRef = useRef(onPinsChange);
+  const initialPinsRef  = useRef(initialPins);
+  const onAddActivityRef = useRef(onAddActivity);
 
-  onPinsChangeRef.current = onPinsChange;
-  initialPinsRef.current  = initialPins;
+  onPinsChangeRef.current  = onPinsChange;
+  initialPinsRef.current   = initialPins;
+  onAddActivityRef.current = onAddActivity;
 
-  // ── State ───────────────────────────────────────────────────────────────────
+  // ── State ─────────────────────────────────────────────────────────────────
   const [pins, setPins]               = useState<MapPin[]>([]);
   const [activePinId, setActivePinId] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<PoiCategory | null>(null);
-  const [loadingPoi, setLoadingPoi]   = useState(false);
-  // Debounced drag update — triggers re-fetch effect
-  const [pinPos, setPinPos]           = useState<{ pinId: string; lng: number; lat: number } | null>(null);
-  // Searchbox
-  const [showSearch, setShowSearch]   = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GeocodingFeature[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const searchBoxRef       = useRef<HTMLDivElement>(null);
-  const onAddActivityRef   = useRef(onAddActivity);
-
-  onAddActivityRef.current = onAddActivity;
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const hasCoords = lat != null && lng != null && (lat !== 0 || lng !== 0);
 
-  // ── Radius circle ──────────────────────────────────────────────────────────
-
-  function addRadiusLayer(map: mapboxgl.Map, centerLng: number, centerLat: number) {
-    const data = makeRadiusGeoJSON(centerLng, centerLat);
-    if (map.getSource(RADIUS_SOURCE)) {
-      (map.getSource(RADIUS_SOURCE) as mapboxgl.GeoJSONSource).setData(data);
-    } else {
-      map.addSource(RADIUS_SOURCE, { type: 'geojson', data });
-      map.addLayer({ id: RADIUS_FILL, type: 'fill', source: RADIUS_SOURCE,
-        paint: { 'fill-color': '#6366f1', 'fill-opacity': 0.08 } });
-      map.addLayer({ id: RADIUS_LINE, type: 'line', source: RADIUS_SOURCE,
-        paint: { 'line-color': '#6366f1', 'line-width': 1.5, 'line-dasharray': [3, 2] } });
-    }
-  }
-
-  // ── POI layer ──────────────────────────────────────────────────────────────
-
-  function addPoiLayer(map: mapboxgl.Map, fc: PoiFeatureCollection) {
-    if (map.getSource(POI_SOURCE)) {
-      (map.getSource(POI_SOURCE) as mapboxgl.GeoJSONSource).setData(fc);
-      return;
-    }
-    map.addSource(POI_SOURCE, { type: 'geojson', data: fc });
-    map.addLayer({ id: POI_LAYER, type: 'circle', source: POI_SOURCE,
-      paint: { 'circle-color': '#6366f1', 'circle-radius': 7, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
-    map.addInteraction('poi-click', {
-      type: 'click', target: { layerId: POI_LAYER },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      handler: (e: any) => {
-        const { name, address } = e.feature.properties as { name: string; address: string };
-        const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        openPopupRef.current?.remove();
-        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: true, maxWidth: '260px', className: 'poi-popup' })
-          .setLngLat(e.feature.geometry.coordinates.slice() as [number, number])
-          .setHTML(
-            `<div style="padding:0;overflow:hidden;border-radius:8px">` +
-            `<div class="poi-photo-wrap" style="width:100%;height:130px;background:#e2e8f0;position:relative;overflow:hidden">` +
-            `<img class="poi-photo" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none" />` +
-            `<div class="poi-photo-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px">📍</div>` +
-            `</div>` +
-            `<div style="padding:10px 10px 8px">` +
-            `<div style="font-size:13px;font-weight:700;line-height:1.3;margin-bottom:3px">${esc(name)}</div>` +
-            `<div style="font-size:11px;opacity:0.6;line-height:1.5;margin-bottom:8px">${esc(address)}</div>` +
-            `<button class="poi-add-btn" data-poi-name="${esc(name)}" data-poi-address="${esc(address)}" style="font-size:11px;font-weight:600;color:#6366f1;background:none;border:none;padding:0;cursor:pointer;">+ Add to trip</button>` +
-            `</div></div>`,
-          );
-        openPopupRef.current = popup;
-        popup.addTo(map);
-
-        // Fetch photo asynchronously and inject into the popup
-        trpc.places.getPhoto.query({ name, address }).then((photoUrl) => {
-          if (!photoUrl) return;
-          const el = popup.getElement();
-          if (!el) return;
-          const img = el.querySelector<HTMLImageElement>('.poi-photo');
-          const placeholder = el.querySelector<HTMLElement>('.poi-photo-placeholder');
-          if (img) { img.src = photoUrl; img.style.display = 'block'; }
-          if (placeholder) placeholder.style.display = 'none';
-        }).catch(() => {});
-      },
-    });
-    map.addInteraction('poi-enter', { type: 'mouseenter', target: { layerId: POI_LAYER },
-      handler: () => { map.getCanvas().style.cursor = 'pointer'; } });
-    map.addInteraction('poi-leave', { type: 'mouseleave', target: { layerId: POI_LAYER },
-      handler: () => { map.getCanvas().style.cursor = ''; } });
-    interactionsRef.current = true;
-  }
-
-  // ── Clear POI layer (keeps cache intact) ──────────────────────────────────
-
-  const clearMarkers = useCallback(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (map.getLayer(POI_LAYER))   map.removeLayer(POI_LAYER);
-    if (map.getSource(POI_SOURCE)) map.removeSource(POI_SOURCE);
-    if (interactionsRef.current) {
-      map.removeInteraction('poi-click');
-      map.removeInteraction('poi-enter');
-      map.removeInteraction('poi-leave');
-      interactionsRef.current = false;
-    }
-  }, []);
-
-  // ── Fetch POIs for a specific pin ──────────────────────────────────────────
-
-  const fetchMarkersForPin = useCallback(async (
-    pinId: string,
-    filter: typeof POI_FILTERS[number],
-    map: mapboxgl.Map,
-    centerLng: number,
-    centerLat: number,
-  ) => {
-    setLoadingPoi(true);
-    try {
-      const res = await fetch(
-        `https://api.mapbox.com/search/searchbox/v1/category/${encodeURIComponent(filter.category)}` +
-        `?proximity=${centerLng},${centerLat}&language=en&access_token=${MAPBOX_TOKEN}`,
-      );
-      const data = await res.json() as {
-        features: {
-          geometry: { coordinates: [number, number] };
-          properties: { name: string; full_address?: string; address?: string; place_formatted?: string };
-        }[];
-      };
-
-      // Abort if filter or active pin changed while awaiting
-      if (activeFilterRef.current !== filter.id) return;
-      if (activePinIdRef.current !== pinId) return;
-
-      const toRad = (d: number) => (d * Math.PI) / 180;
-      const withinRadius = data.features.filter((f) => {
-        const [fLng, fLat] = f.geometry.coordinates;
-        const dLat = toRad(fLat - centerLat);
-        const dLng = toRad(fLng - centerLng);
-        const a = Math.sin(dLat / 2) ** 2 +
-          Math.cos(toRad(centerLat)) * Math.cos(toRad(fLat)) * Math.sin(dLng / 2) ** 2;
-        return 2 * 6_371_000 * Math.asin(Math.sqrt(a)) <= SEARCH_RADIUS;
-      });
-
-      const fc: PoiFeatureCollection = {
-        type: 'FeatureCollection',
-        features: withinRadius.map((f) => {
-          const name    = f.properties.name;
-          const rawAddr = f.properties.full_address ?? f.properties.place_formatted ?? f.properties.address ?? '';
-          const address = rawAddr.startsWith(name) ? rawAddr.slice(name.length).replace(/^,\s*/, '') : rawAddr;
-          return { type: 'Feature', geometry: { type: 'Point', coordinates: f.geometry.coordinates }, properties: { name, address } };
-        }),
-      };
-
-      poiCacheRef.current.set(`${pinId}:${filter.id}`, fc);
-      const add = () => addPoiLayer(map, fc);
-      if (map.loaded()) add(); else map.once('load', add);
-    } catch {
-      // silently fail
-    } finally {
-      setLoadingPoi(false);
-    }
-  }, []);
-
-  // ── Activate a pin (switch radius + POI layer to it) ──────────────────────
+  // ── Activate a pin ────────────────────────────────────────────────────────
 
   const activatePin = useCallback((pinId: string) => {
     const map = mapRef.current;
@@ -287,34 +96,17 @@ export function TripMap({
     const pin = pinsRef.current.find((p) => p.id === pinId);
     if (!pin) return;
 
-    // Update marker visual states
     for (const p of pinsRef.current) {
       p.markerEl.style.cssText = p.id === pinId ? ACTIVE_PIN_CSS : IDLE_PIN_CSS;
     }
-
     activePinIdRef.current = pinId;
     setActivePinId(pinId);
-    addRadiusLayer(map, pin.lng, pin.lat);
     map.flyTo({ center: [pin.lng, pin.lat], duration: 500 });
+  }, []);
 
-    const filterId = activeFilterRef.current;
-    if (!filterId) return;
-
-    const cacheKey = `${pinId}:${filterId}`;
-    const cached = poiCacheRef.current.get(cacheKey);
-    if (cached) {
-      const add = () => addPoiLayer(map, cached);
-      if (map.loaded()) add(); else map.once('load', add);
-    } else {
-      const filter = POI_FILTERS.find((f) => f.id === filterId);
-      if (filter) fetchMarkersForPin(pinId, filter, map, pin.lng, pin.lat);
-    }
-  }, [fetchMarkersForPin]);
-
-  // ── Spawn a new pin on the map ────────────────────────────────────────────
+  // ── Spawn a new pin ───────────────────────────────────────────────────────
 
   function spawnPin(map: mapboxgl.Map, pLng: number, pLat: number, label: string, pinId?: string): MapPin {
-    // Deactivate current active pin visually
     for (const p of pinsRef.current) p.markerEl.style.cssText = IDLE_PIN_CSS;
 
     const el = document.createElement('div');
@@ -327,36 +119,23 @@ export function TripMap({
     const id = pinId ?? (pinsRef.current.length === 0 ? 'default' : crypto.randomUUID());
     const pin: MapPin = { id, label, lng: pLng, lat: pLat, markerEl: el, marker };
 
-    // Click → activate this pin
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       activatePin(pin.id);
     });
 
-    // Drag → move radius immediately, debounce re-fetch 1 s
     marker.on('dragend', () => {
       const { lng: newLng, lat: newLat } = marker.getLngLat();
       const found = pinsRef.current.find((p) => p.id === pin.id);
       if (found) { found.lng = newLng; found.lat = newLat; }
       setPins([...pinsRef.current]);
       persistPins();
-      for (const k of poiCacheRef.current.keys()) {
-        if (k.startsWith(`${pin.id}:`)) poiCacheRef.current.delete(k);
-      }
-      if (pin.id === activePinIdRef.current) {
-        addRadiusLayer(map, newLng, newLat);
-        if (dragDebounceRef.current) clearTimeout(dragDebounceRef.current);
-        dragDebounceRef.current = setTimeout(() => {
-          setPinPos({ pinId: pin.id, lng: newLng, lat: newLat });
-        }, 1000);
-      }
     });
 
     pinsRef.current = [...pinsRef.current, pin];
     activePinIdRef.current = id;
     setPins([...pinsRef.current]);
     setActivePinId(id);
-    addRadiusLayer(map, pLng, pLat);
     if (!isRestoringRef.current) persistPins();
 
     return pin;
@@ -374,48 +153,20 @@ export function TripMap({
     const pin = pinsRef.current.find((p) => p.id === pinId);
     if (!pin) return;
     pin.marker.remove();
-    // Clear its cache
-    for (const k of poiCacheRef.current.keys()) {
-      if (k.startsWith(`${pinId}:`)) poiCacheRef.current.delete(k);
-    }
     pinsRef.current = pinsRef.current.filter((p) => p.id !== pinId);
     setPins([...pinsRef.current]);
     persistPins();
-    // If removed pin was active, activate the last remaining
     if (activePinIdRef.current === pinId) {
       if (pinsRef.current.length > 0) {
         activatePin(pinsRef.current[pinsRef.current.length - 1].id);
       } else {
         activePinIdRef.current = null;
         setActivePinId(null);
-        clearMarkers();
       }
     }
   }
 
-  // ── Toggle filter ──────────────────────────────────────────────────────────
-
-  function toggleFilter(filter: typeof POI_FILTERS[number]) {
-    const pinId = activePinIdRef.current;
-    if (activeFilter === filter.id) {
-      clearMarkers(); setActiveFilter(null); activeFilterRef.current = null; return;
-    }
-    if (!hasCoords || !mapRef.current || !pinId) return;
-    setActiveFilter(filter.id);
-    activeFilterRef.current = filter.id;
-    const map = mapRef.current;
-    const cacheKey = `${pinId}:${filter.id}`;
-    const cached = poiCacheRef.current.get(cacheKey);
-    if (cached) {
-      const add = () => addPoiLayer(map, cached);
-      if (map.loaded()) add(); else map.once('load', add);
-    } else {
-      const pin = pinsRef.current.find((p) => p.id === pinId);
-      if (pin) fetchMarkersForPin(pinId, filter, map, pin.lng, pin.lat);
-    }
-  }
-
-  // ── Geocoding search ──────────────────────────────────────────────────────
+  // ── Geocoding search (for adding pins) ────────────────────────────────────
 
   async function runGeocode(query: string) {
     if (query.trim().length < 2) { setSearchResults([]); return; }
@@ -441,9 +192,81 @@ export function TripMap({
     const label = feature.place_name.split(',')[0].trim();
     map.flyTo({ center: [fLng, fLat], zoom: 14, duration: 600 });
     spawnPin(map, fLng, fLat, label);
-    setShowSearch(false);
     setSearchQuery('');
     setSearchResults([]);
+  }
+
+  // ── Place popup: name from map feature, address from reverse geocode ───────
+  //
+  // Renders immediately with the name, then fills in the address and photo
+  // asynchronously as each resolves — same pattern as Google Maps click UX.
+
+  function buildPopupHTML(name: string): string {
+    const esc = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return (
+      `<div style="padding:0;overflow:hidden;border-radius:8px">` +
+      `<div class="poi-photo-wrap" style="width:100%;height:130px;background:#e2e8f0;position:relative;overflow:hidden">` +
+      `<img class="poi-photo" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none" />` +
+      `<div class="poi-photo-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px">📍</div>` +
+      `</div>` +
+      `<div style="padding:10px 10px 8px">` +
+      `<div style="font-size:13px;font-weight:700;line-height:1.3;margin-bottom:3px">${esc(name)}</div>` +
+      `<div class="poi-address" style="font-size:11px;opacity:0.6;line-height:1.5;margin-bottom:8px">Looking up address…</div>` +
+      `<button class="poi-add-btn" data-poi-name="${esc(name)}" data-poi-address="" ` +
+      `style="font-size:11px;font-weight:600;color:#6366f1;background:none;border:none;padding:0;cursor:pointer;">+ Add to trip</button>` +
+      `</div></div>`
+    );
+  }
+
+  async function showPlacePopup(map: mapboxgl.Map, name: string, coords: [number, number]) {
+    openPopupRef.current?.remove();
+    const popup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: true,
+      maxWidth: '260px',
+      className: 'poi-popup',
+    })
+      .setLngLat(coords)
+      .setHTML(buildPopupHTML(name))
+      .addTo(map);
+    openPopupRef.current = popup;
+
+    // Reverse geocode and photo fetch run in parallel
+    const [address] = await Promise.all([
+      // Reverse geocode for street address
+      fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${coords[0]},${coords[1]}.json` +
+        `?access_token=${MAPBOX_TOKEN}&types=address,poi&limit=1`,
+      )
+        .then((r) => r.json() as Promise<{ features: { place_name: string }[] }>)
+        .then((data) => {
+          const raw = data.features?.[0]?.place_name ?? '';
+          return raw.startsWith(name) ? raw.slice(name.length).replace(/^,\s*/, '') : raw;
+        })
+        .catch(() => ''),
+
+      // Photo fetch — updates DOM directly when it resolves
+      trpc.places.getPhoto.query({ name, address: '' })
+        .then((photoUrl) => {
+          if (!photoUrl) return;
+          const el = popup.getElement();
+          if (!el) return;
+          const img = el.querySelector<HTMLImageElement>('.poi-photo');
+          const placeholder = el.querySelector<HTMLElement>('.poi-photo-placeholder');
+          if (img) { img.src = photoUrl; img.style.display = 'block'; }
+          if (placeholder) placeholder.style.display = 'none';
+        })
+        .catch(() => {}),
+    ]);
+
+    // Patch address into the popup DOM and the "Add to trip" button's data attribute
+    const el = popup.getElement();
+    if (!el) return;
+    const addrEl = el.querySelector<HTMLElement>('.poi-address');
+    const btn    = el.querySelector<HTMLElement>('.poi-add-btn');
+    if (addrEl) addrEl.textContent = address;
+    if (btn)    btn.dataset.poiAddress = address;
   }
 
   // ── Init map ──────────────────────────────────────────────────────────────
@@ -464,6 +287,7 @@ export function TripMap({
     });
 
     map.once('load', () => {
+      // Restore saved pins or place default
       const saved = initialPinsRef.current;
       if (saved && saved.length > 0) {
         isRestoringRef.current = true;
@@ -472,21 +296,38 @@ export function TripMap({
       } else {
         spawnPin(map, initLng, initLat, destination.split(',')[0], 'default');
       }
+
+      // Click on a labeled POI → show name + address popup
+      map.on('click', (e) => {
+        const features = map.queryRenderedFeatures(e.point, { layers: CLICKABLE_POI_LAYERS });
+        if (features.length === 0) return;
+        const feature = features[0];
+        const props = feature.properties ?? {};
+        const name = ((props.name_en ?? props.name) as string | undefined)?.trim() ?? '';
+        if (!name) return;
+        // Point geometry guaranteed for symbol layers
+        const geom = feature.geometry as { type: 'Point'; coordinates: [number, number] };
+        void showPlacePopup(map, name, geom.coordinates);
+      });
+
+      // Pointer cursor when hovering labelled POIs
+      for (const layer of CLICKABLE_POI_LAYERS) {
+        map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+      }
     });
 
-    // Delegated handler for "Add to trip" buttons inside Mapbox popups
+    // Delegated handler for "Add to trip" buttons inside popups
     function onContainerClick(e: MouseEvent) {
       const btn = (e.target as HTMLElement).closest<HTMLElement>('.poi-add-btn');
       if (btn) {
-        const name = btn.dataset.poiName ?? '';
+        const name    = btn.dataset.poiName    ?? '';
         const address = btn.dataset.poiAddress ?? '';
         onAddActivityRef.current?.(name, address);
         openPopupRef.current?.remove();
         openPopupRef.current = null;
       }
     }
-    // Capture the element so cleanup can reliably remove the listener even
-    // after the ref is cleared (avoids double-listener in React StrictMode).
     const mapContainer = containerRef.current;
     mapContainer?.addEventListener('click', onContainerClick);
 
@@ -501,19 +342,6 @@ export function TripMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasCoords]);
 
-  // ── Re-fetch after drag debounce ──────────────────────────────────────────
-
-  useEffect(() => {
-    if (!pinPos || !mapRef.current) return;
-    const { pinId, lng: pLng, lat: pLat } = pinPos;
-    if (activePinIdRef.current !== pinId) return;
-    const filterId = activeFilterRef.current;
-    if (!filterId) return;
-    const filter = POI_FILTERS.find((f) => f.id === filterId);
-    if (filter) fetchMarkersForPin(pinId, filter, mapRef.current, pLng, pLat);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinPos]);
-
   // ── Resize after expand ───────────────────────────────────────────────────
 
   useEffect(() => {
@@ -522,55 +350,36 @@ export function TripMap({
     return () => clearTimeout(t);
   }, [minimized]);
 
-  // ── Theme change — re-add WebGL layers only (markers persist) ─────────────
+  // ── Theme change ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-    map.setStyle(isDark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12');
-    interactionsRef.current = false;
-    map.once('style.load', () => {
-      const activePin = pinsRef.current.find((p) => p.id === activePinIdRef.current);
-      if (activePin) addRadiusLayer(map, activePin.lng, activePin.lat);
-      const filterId = activeFilterRef.current;
-      const pinId = activePinIdRef.current;
-      if (filterId && pinId) {
-        const cached = poiCacheRef.current.get(`${pinId}:${filterId}`);
-        if (cached) addPoiLayer(map, cached);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    mapRef.current?.setStyle(isDark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12');
   }, [isDark]);
 
   // ── Geocode debounce ──────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!showSearch) return;
     if (geocodeDebRef.current) clearTimeout(geocodeDebRef.current);
     geocodeDebRef.current = setTimeout(() => runGeocode(searchQuery), 300);
     return () => { if (geocodeDebRef.current) clearTimeout(geocodeDebRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, showSearch]);
+  }, [searchQuery]);
 
   // ── Searchbox click-outside ───────────────────────────────────────────────
 
   useEffect(() => {
-    if (!showSearch) return;
     function onDown(e: MouseEvent) {
       if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
-        setShowSearch(false);
-        setSearchQuery('');
         setSearchResults([]);
       }
     }
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [showSearch]);
+  }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  function zoomIn()  { mapRef.current?.zoomIn()  }
-  function zoomOut() { mapRef.current?.zoomOut() }
+  function zoomIn()  { mapRef.current?.zoomIn(); }
+  function zoomOut() { mapRef.current?.zoomOut(); }
 
   // ── Styles ────────────────────────────────────────────────────────────────
 
@@ -584,7 +393,6 @@ export function TripMap({
   const btnCls    = isDark
     ? 'bg-cv-blue-900/80 border border-cv-blue-700 text-cv-blue-300 hover:bg-cv-blue-800 hover:text-white'
     : 'bg-white/80 border border-cv-blue-200 text-cv-blue-600 hover:bg-cv-blue-50';
-  const searchBg  = isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-200';
 
   return (
     <div className={`flex flex-col h-full border-l overflow-hidden ${borderCls} ${bg}`}>
@@ -616,23 +424,77 @@ export function TripMap({
         </button>
       </div>
 
+      {/* ── Search bar ──────────────────────────────────────────────────────── */}
+      <div
+        ref={searchBoxRef}
+        className={`shrink-0 border-b ${borderCls} transition-all duration-300 ${minimized ? 'h-0 overflow-hidden border-b-0' : 'relative'}`}
+      >
+        <div className={`flex items-center gap-2 px-3 ${isDark ? 'bg-cv-blue-950' : 'bg-white'}`}>
+          {searchLoading ? (
+            <svg className={`w-4 h-4 shrink-0 animate-spin ${mutedText}`} fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            <svg className={`w-4 h-4 shrink-0 ${mutedText}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+          )}
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); setSearchResults([]); } }}
+            placeholder="Search location to add pin…"
+            disabled={!hasCoords}
+            className={`flex-1 py-2.5 text-sm bg-transparent outline-none disabled:opacity-40 ${isDark
+              ? 'text-white placeholder:text-cv-blue-500'
+              : 'text-cv-blue-950 placeholder:text-cv-blue-400'}`}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+              className={`shrink-0 p-1 rounded transition-colors ${mutedText}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Results dropdown */}
+        {searchResults.length > 0 && (
+          <ul className={`absolute inset-x-0 top-full z-20 border-t shadow-xl ${isDark
+            ? 'bg-cv-blue-900 border-cv-blue-700'
+            : 'bg-white border-cv-blue-100'}`}>
+            {searchResults.map((s) => {
+              const [head, ...rest] = s.place_name.split(',');
+              return (
+                <li key={s.id}>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSearchSelect(s)}
+                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark
+                      ? 'text-cv-blue-100 hover:bg-cv-blue-800'
+                      : 'text-cv-blue-950 hover:bg-cv-blue-50'}`}
+                  >
+                    <span className="font-medium">{head}</span>
+                    {rest.length > 0 && (
+                      <span className={`ml-1 text-xs ${mutedText}`}>{rest.join(',').trim()}</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       {/* ── Pin tabs ────────────────────────────────────────────────────────── */}
       <div className={`shrink-0 border-b ${borderCls} transition-all duration-300 ${minimized ? 'h-0 overflow-hidden border-b-0' : ''}`}>
         <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto">
 
-          {/* Add pin button */}
-          <button
-            onClick={() => { setShowSearch(true); setSearchQuery(''); setSearchResults([]); }}
-            disabled={!hasCoords}
-            className={`${pillBase} ${isDark ? 'bg-cv-blue-800/60 text-cv-blue-400 hover:bg-cv-blue-700 hover:text-white disabled:opacity-40' : 'bg-cv-blue-50 text-cv-blue-500 hover:bg-cv-blue-100 disabled:opacity-40'}`}
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Add pin</span>
-          </button>
-
-          {/* One tab per pin */}
           {pins.map((pin) => (
             <div key={pin.id} className="flex items-center gap-0.5 shrink-0">
               <button
@@ -646,7 +508,9 @@ export function TripMap({
                 <button
                   onClick={() => removePin(pin.id)}
                   title="Remove pin"
-                  className={`p-0.5 rounded-full transition-colors ${isDark ? 'text-cv-blue-700 hover:text-cv-blue-300' : 'text-cv-blue-300 hover:text-cv-blue-600'}`}
+                  className={`p-0.5 rounded-full transition-colors ${isDark
+                    ? 'text-cv-blue-700 hover:text-cv-blue-300'
+                    : 'text-cv-blue-300 hover:text-cv-blue-600'}`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -656,28 +520,6 @@ export function TripMap({
             </div>
           ))}
 
-        </div>
-      </div>
-
-      {/* ── Filters ─────────────────────────────────────────────────────────── */}
-      <div className={`shrink-0 border-b ${borderCls} transition-all duration-300 ${minimized ? 'h-0 overflow-hidden border-b-0' : ''}`}>
-        <div className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto">
-          {POI_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => toggleFilter(f)}
-              className={`${pillBase} ${activeFilter === f.id ? pillOn : pillIdle}`}
-            >
-              <span>{f.emoji}</span>
-              <span>{f.label}</span>
-              {loadingPoi && activeFilter === f.id && (
-                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-              )}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -693,69 +535,6 @@ export function TripMap({
 
             {!minimized && (
               <>
-                {/* ── Search overlay ─────────────────────────────────────── */}
-                {showSearch && (
-                  <div ref={searchBoxRef} className="absolute inset-x-3 top-3 z-20">
-                    <div className={`rounded-xl border shadow-xl overflow-hidden ${searchBg}`}>
-
-                      {/* Input row */}
-                      <div className="flex items-center gap-2 px-3">
-                        {searchLoading ? (
-                          <svg className={`w-4 h-4 shrink-0 animate-spin ${mutedText}`} fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                          </svg>
-                        ) : (
-                          <svg className={`w-4 h-4 shrink-0 ${mutedText}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                          </svg>
-                        )}
-                        <input
-                          autoFocus
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Escape') { setShowSearch(false); setSearchQuery(''); setSearchResults([]); } }}
-                          placeholder="Search for a location…"
-                          className={`flex-1 py-2.5 text-sm bg-transparent outline-none ${isDark ? 'text-white placeholder:text-cv-blue-500' : 'text-cv-blue-950 placeholder:text-cv-blue-400'}`}
-                        />
-                        <button
-                          onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }}
-                          className={`shrink-0 p-1 rounded transition-colors ${mutedText}`}
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-
-                      {/* Results */}
-                      {searchResults.length > 0 && (
-                        <ul className={`border-t ${isDark ? 'border-cv-blue-800' : 'border-cv-blue-100'}`}>
-                          {searchResults.map((s) => {
-                            const [head, ...rest] = s.place_name.split(',');
-                            return (
-                              <li key={s.id}>
-                                <button
-                                  onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => handleSearchSelect(s)}
-                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark ? 'text-cv-blue-100 hover:bg-cv-blue-800' : 'text-cv-blue-950 hover:bg-cv-blue-50'}`}
-                                >
-                                  <span className="font-medium">{head}</span>
-                                  {rest.length > 0 && (
-                                    <span className={`ml-1 text-xs ${mutedText}`}>{rest.join(',').trim()}</span>
-                                  )}
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-
-                    </div>
-                  </div>
-                )}
-
                 {/* ── Zoom controls ──────────────────────────────────────── */}
                 <div className="absolute right-3 bottom-6 flex flex-col gap-1 z-10">
                   <button onClick={zoomIn}
