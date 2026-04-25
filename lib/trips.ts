@@ -52,6 +52,10 @@ export interface Activity {
   address: string;
   added_at: string; // ISO timestamp
   photo_url?: string;
+  time?: string;                        // "HH:MM" — scheduled time in itinerary
+  price?: number;                       // cost in USD (default 0)
+  price_type?: 'per_person' | 'total'; // how the price is applied
+  notes?: string;
 }
 
 export interface Trip {
@@ -66,6 +70,7 @@ export interface Trip {
   travelers: TripTravelers;
   activities: Activity[];
   pins: TripPin[];
+  itinerary_days?: Record<string, Activity[]>; // "YYYY-MM-DD" → activities assigned to that day
   user_id: string;     // client-generated UUID until auth is added
   created_at: string;  // ISO timestamp
 }

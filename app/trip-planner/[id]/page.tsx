@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -76,6 +76,26 @@ function nightsBetween(start: string, end: string): number {
     (new Date(end + 'T00:00:00').getTime() - new Date(start + 'T00:00:00').getTime()) /
       (1000 * 60 * 60 * 24),
   );
+}
+
+// Returns one ISO date string per day from start through end (inclusive)
+function tripDays(start: string, end: string): string[] {
+  const days: string[] = [];
+  const cur = new Date(start + 'T00:00:00');
+  const last = new Date(end + 'T00:00:00');
+  while (cur <= last) {
+    days.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
+function formatDayLabel(dateStr: string): string {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString([], {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 // ─── Traveler Avatars ─────────────────────────────────────────────────────────
@@ -217,7 +237,7 @@ type EditField = 'title' | 'destination' | 'dates' | 'travelers' | null;
 export default function TripDetailPage() {
   const { isDark } = useTheme();
   const params = useParams();
-  const { trips, updateTrip, addActivity, patchActivity, removeActivity } = useTrips();
+  const { trips, updateTrip, addActivity, patchActivity, removeActivity, assignActivityToDay, removeActivityFromDay, patchItineraryActivity, reorderActivityInDay, moveActivityToDay } = useTrips();
   const tripId = params.id as string;
   const { flights, hotels } = useBookmarks(tripId);
 
@@ -225,6 +245,39 @@ export default function TripDetailPage() {
 
   // ── Map state ──────────────────────────────────────────────────────────────
   const [mapMinimized, setMapMinimized] = useState(false);
+
+  // ── Activity menu state ─────────────────────────────────────────────────────
+  const [openMenuId, setOpenMenuId]       = useState<string | null>(null);
+  const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
+  // Keys: `a.id` for Things to Do, `${date}::${a.id}` for itinerary
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+
+  function toggleNotes(key: string) {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  // ── Itinerary drag-and-drop ──────────────────────────────────────────────────
+  const [dragState, setDragState] = useState<{ sourceDate: string; activityId: string; sourceIndex: number } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ date: string; index: number } | null>(null);
+
+  function handleDrop(targetDate: string, targetIndex: number) {
+    if (!dragState || !trip) return;
+    const { sourceDate, activityId, sourceIndex } = dragState;
+    if (sourceDate === targetDate) {
+      // Drop on self or adjacent slot — no-op
+      if (targetIndex !== sourceIndex && targetIndex !== sourceIndex + 1) {
+        reorderActivityInDay(trip.id, sourceDate, sourceIndex, targetIndex);
+      }
+    } else {
+      moveActivityToDay(trip.id, sourceDate, targetDate, activityId, targetIndex);
+    }
+    setDragState(null);
+    setDropTarget(null);
+  }
 
   // ── Edit state ─────────────────────────────────────────────────────────────
   const [editField, setEditField] = useState<EditField>(null);
@@ -240,16 +293,18 @@ export default function TripDetailPage() {
   // ── Sidebar scroll-spy ──────────────────────────────────────────────────────
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const tripInfoRef        = useRef<HTMLDivElement>(null);
+  const itineraryRef       = useRef<HTMLElement>(null);
   const activitiesRef      = useRef<HTMLElement>(null);
   const flightsRef         = useRef<HTMLElement>(null);
   const hotelsRef          = useRef<HTMLElement>(null);
-  const [activeSection, setActiveSection] = useState<'trip-info' | 'activities' | 'flights' | 'hotels'>('trip-info');
+  const [activeSection, setActiveSection] = useState<'trip-info' | 'itinerary' | 'activities' | 'flights' | 'hotels'>('trip-info');
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const refs = [
       { id: 'trip-info'  as const, el: tripInfoRef.current },
+      { id: 'itinerary'  as const, el: itineraryRef.current },
       { id: 'activities' as const, el: activitiesRef.current },
       { id: 'flights'    as const, el: flightsRef.current },
       { id: 'hotels'     as const, el: hotelsRef.current },
@@ -269,6 +324,22 @@ export default function TripDetailPage() {
     refs.forEach(({ el }) => { if (el) observer.observe(el); });
     return () => observer.disconnect();
   }, [trip?.id]);
+
+  // Close activity menu when clicking outside. Uses closest() on a sentinel
+  // class instead of stopPropagation, because React 17+ delegates events to
+  // the root container so e.stopPropagation() in a React handler cannot
+  // prevent native document listeners from firing.
+  useEffect(() => {
+    if (!openMenuId) return;
+    function onOutside(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest('.activity-menu')) {
+        setOpenMenuId(null);
+        setOpenSubmenuId(null);
+      }
+    }
+    document.addEventListener('click', onOutside);
+    return () => document.removeEventListener('click', onOutside);
+  }, [openMenuId]);
 
   // Close panels on outside click
   useEffect(() => {
@@ -461,6 +532,16 @@ export default function TripDetailPage() {
                   icon: (
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                    </svg>
+                  ),
+                },
+                {
+                  id: 'itinerary' as const,
+                  label: 'Itinerary',
+                  ref: itineraryRef,
+                  icon: (
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
                     </svg>
                   ),
                 },
@@ -682,39 +763,126 @@ export default function TripDetailPage() {
               <SectionPlaceholder label="No activities yet — click + Add to trip on a map marker" isDark={isDark} />
             ) : (
               <div className="flex flex-col gap-2">
-                {(trip.activities ?? []).map((a) => (
-                  <div
-                    key={a.id}
-                    className={`flex items-stretch gap-0 rounded-xl border overflow-hidden ${cardBg}`}
-                  >
-                    {/* Photo — fixed 80×80 square */}
-                    {a.photo_url ? (
-                      <img src={a.photo_url} alt={a.name} className="w-20 h-20 shrink-0 object-cover" />
-                    ) : (
-                      <div className={`w-20 h-20 shrink-0 flex items-center justify-center text-2xl ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`}>
-                        📍
+                {(trip.activities ?? []).map((a) => {
+                  const notesKey = a.id;
+                  const showNotes = expandedNotes.has(notesKey) || !!a.notes;
+                  return (
+                  <div key={a.id} className={`rounded-xl border ${cardBg}`}>
+
+                    {/* Main row: photo + info + three-dot menu */}
+                    <div className="flex items-stretch gap-0">
+                      {a.photo_url ? (
+                        <img src={a.photo_url} alt={a.name} className="w-20 h-20 shrink-0 object-cover rounded-l-xl" />
+                      ) : (
+                        <div className={`w-20 h-20 shrink-0 flex items-center justify-center text-2xl rounded-l-xl ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`}>
+                          📍
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{a.name}</p>
+                          {a.address && (
+                            <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>{a.address}</p>
+                          )}
+                        </div>
+
+                        {/* Three-dot menu */}
+                        <div className="relative shrink-0 activity-menu">
+                          <button
+                            onClick={() => {
+                              setOpenMenuId(openMenuId === a.id ? null : a.id);
+                              setOpenSubmenuId(null);
+                            }}
+                            title="Options"
+                            className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
+                              isDark
+                                ? 'text-cv-blue-400 hover:bg-cv-blue-800 hover:text-white'
+                                : 'text-cv-blue-400 hover:bg-cv-blue-50 hover:text-cv-blue-700'
+                            }`}
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+                            </svg>
+                          </button>
+
+                          {openMenuId === a.id && (
+                            <div className={`absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-100'}`}>
+                              <div className="relative">
+                                <button
+                                  onClick={() => setOpenSubmenuId(openSubmenuId === a.id ? null : a.id)}
+                                  className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
+                                    isDark ? 'text-cv-blue-200 hover:bg-cv-blue-800' : 'text-cv-blue-950 hover:bg-cv-blue-50'
+                                  }`}
+                                >
+                                  Move to Itinerary
+                                  <svg className="w-3.5 h-3.5 shrink-0 opacity-50" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                  </svg>
+                                </button>
+                                {openSubmenuId === a.id && (
+                                  <div className={`absolute right-full top-0 mr-1 z-40 w-48 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-100'}`}>
+                                    {tripDays(trip.start_date, trip.end_date).map((date) => (
+                                      <button
+                                        key={date}
+                                        onClick={() => {
+                                          assignActivityToDay(trip.id, date, a);
+                                          setOpenMenuId(null);
+                                          setOpenSubmenuId(null);
+                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                          isDark ? 'text-cv-blue-200 hover:bg-cv-blue-800' : 'text-cv-blue-950 hover:bg-cv-blue-50'
+                                        }`}
+                                      >
+                                        {formatDayLabel(date)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className={`my-1 border-t ${isDark ? 'border-cv-blue-800' : 'border-cv-blue-100'}`} />
+                              <button
+                                onClick={() => { removeActivity(trip.id, a.id); setOpenMenuId(null); }}
+                                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                                  isDark ? 'text-rose-400 hover:bg-cv-blue-800' : 'text-rose-500 hover:bg-rose-50'
+                                }`}
+                              >
+                                Remove from trip
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    {/* Info */}
-                    <div className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3">
-                      <div className="min-w-0">
-                        <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{a.name}</p>
-                        {a.address && (
-                          <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>{a.address}</p>
-                        )}
-                      </div>
+                    </div>
+
+                    {/* Notes pill row */}
+                    <div className={`flex items-center px-4 py-2.5 border-t ${dividerCls}`}>
                       <button
-                        onClick={() => removeActivity(trip.id, a.id)}
-                        title="Remove from trip"
-                        className="shrink-0 p-1 rounded transition-colors text-rose-500 hover:text-rose-600"
+                        onClick={() => toggleNotes(notesKey)}
+                        className={`px-2.5 py-1 rounded-full text-xs transition-all hover:scale-[1.03] ${
+                          showNotes
+                            ? isDark ? 'bg-cv-blue-700 text-cv-blue-200' : 'bg-cv-blue-100 text-cv-blue-700'
+                            : pillBg
+                        }`}
                       >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-                        </svg>
+                        {showNotes ? 'Notes ↑' : '+ Notes'}
                       </button>
                     </div>
+
+                    {/* Notes textarea */}
+                    {showNotes && (
+                      <div className={`border-t px-4 pt-2 pb-3 ${dividerCls}`}>
+                        <textarea
+                          value={a.notes ?? ''}
+                          onChange={(e) => patchActivity(trip.id, a.id, { notes: e.target.value || undefined })}
+                          placeholder="Add notes…"
+                          rows={2}
+                          className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-cv-blue-200 placeholder:text-cv-blue-500' : 'text-cv-blue-800 placeholder:text-cv-blue-400'}`}
+                        />
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -765,6 +933,204 @@ export default function TripDetailPage() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* ── Itinerary ─────────────────────────────────────────────── */}
+          <section ref={itineraryRef}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className={isDark ? 'text-cv-blue-400' : 'text-cv-blue-500'}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+                  </svg>
+                </span>
+                <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>Itinerary</h2>
+              </div>
+              <span className={`text-xs ${isDark ? 'text-cv-blue-500' : 'text-cv-blue-400'}`}>
+                {tripDays(trip.start_date, trip.end_date).length} days
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {tripDays(trip.start_date, trip.end_date).map((date) => {
+                const dayActivities = (trip.itinerary_days ?? {})[date] ?? [];
+                const isExternalDropTarget = dragState !== null && dragState.sourceDate !== date && dropTarget?.date === date;
+                return (
+                  <div
+                    key={date}
+                    className={`rounded-xl border overflow-hidden transition-colors ${cardBg} ${isExternalDropTarget ? isDark ? 'ring-2 ring-cv-blue-500/40' : 'ring-2 ring-cv-blue-400/40' : ''}`}
+                  >
+                    <div className={`px-4 py-3 border-b ${dividerCls}`}>
+                      <span className={`text-sm font-semibold ${isDark ? 'text-cv-blue-100' : 'text-cv-blue-900'}`}>
+                        {formatDayLabel(date)}
+                      </span>
+                    </div>
+
+                    {dayActivities.length === 0 ? (
+                      <div
+                        className={`px-4 py-6 flex items-center justify-center transition-colors ${dropTarget?.date === date ? isDark ? 'bg-cv-blue-800/30' : 'bg-cv-blue-50' : ''}`}
+                        onDragOver={(e) => { e.preventDefault(); setDropTarget({ date, index: 0 }); }}
+                        onDrop={(e) => { e.preventDefault(); handleDrop(date, 0); }}
+                      >
+                        {dropTarget?.date === date ? (
+                          <div className="h-0.5 w-2/3 rounded-full bg-cv-blue-400" />
+                        ) : (
+                          <p className={`text-sm ${isDark ? 'text-cv-blue-700' : 'text-cv-blue-300'}`}>
+                            Nothing planned yet
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        className="flex flex-col gap-2 p-3"
+                        onDragOver={(e) => { e.preventDefault(); }}
+                        onDrop={(e) => { e.preventDefault(); handleDrop(date, dayActivities.length); }}
+                      >
+                        {dayActivities.map((a, idx) => {
+                          const iKey = `${date}::${a.id}`;
+                          const showItinNotes = expandedNotes.has(iKey) || !!a.notes;
+                          const isDraggingThis = dragState?.activityId === a.id && dragState?.sourceDate === date;
+
+                          return (
+                          <Fragment key={a.id}>
+                            {/* Drop indicator before this card */}
+                            {dropTarget?.date === date && dropTarget.index === idx && !isDraggingThis && (
+                              <div className="h-0.5 rounded-full bg-cv-blue-500" />
+                            )}
+
+                            <div
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = 'move';
+                                setDragState({ sourceDate: date, activityId: a.id, sourceIndex: idx });
+                              }}
+                              onDragEnd={() => { setDragState(null); setDropTarget(null); }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'move';
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const insertIdx = e.clientY < rect.top + rect.height / 2 ? idx : idx + 1;
+                                setDropTarget({ date, index: insertIdx });
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const insertIdx = e.clientY < rect.top + rect.height / 2 ? idx : idx + 1;
+                                handleDrop(date, insertIdx);
+                              }}
+                              className={`relative flex flex-col rounded-xl border overflow-hidden transition-opacity cursor-grab active:cursor-grabbing select-none ${cardBg} ${isDraggingThis ? 'opacity-40' : 'opacity-100'}`}
+                            >
+                              {/* X — remove from this day */}
+                              <button
+                                draggable={false}
+                                onClick={() => removeActivityFromDay(trip.id, date, a.id)}
+                                title="Remove from this day"
+                                className={`absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full transition-colors ${isDark ? 'text-cv-blue-600 hover:bg-cv-blue-700 hover:text-white' : 'text-cv-blue-300 hover:bg-cv-blue-100 hover:text-cv-blue-600'}`}
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+
+                              {/* Photo + name row */}
+                              <div className="flex items-stretch">
+                                {a.photo_url ? (
+                                  <img src={a.photo_url} alt={a.name} className="w-16 h-16 shrink-0 object-cover" draggable={false} />
+                                ) : (
+                                  <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`}>
+                                    📍
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0 flex items-center px-4 py-3 pr-8">
+                                  <div className="min-w-0">
+                                    <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{a.name}</p>
+                                    {a.address && (
+                                      <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>{a.address}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Details row: time, price, notes — pill-styled */}
+                              <div className={`flex items-center gap-2 px-4 py-2.5 border-t flex-wrap ${dividerCls}`}>
+                                <label className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs cursor-pointer transition-colors hover:scale-[1.03] ${pillBg}`}>
+                                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                                  </svg>
+                                  <input
+                                    type="time"
+                                    draggable={false}
+                                    value={a.time ?? ''}
+                                    onChange={(e) => patchItineraryActivity(trip.id, date, a.id, { time: e.target.value || undefined })}
+                                    className={`bg-transparent outline-none border-none text-xs w-22 ${isDark ? 'scheme-dark' : 'scheme-light'}`}
+                                  />
+                                </label>
+
+                                <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs ${pillBg}`}>
+                                  <span>$</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    draggable={false}
+                                    value={a.price ?? 0}
+                                    onChange={(e) => {
+                                      const n = parseFloat(e.target.value);
+                                      patchItineraryActivity(trip.id, date, a.id, { price: isNaN(n) ? 0 : n });
+                                    }}
+                                    className="bg-transparent outline-none border-none text-xs w-10 min-w-0"
+                                  />
+                                  <button
+                                    draggable={false}
+                                    onClick={() => patchItineraryActivity(trip.id, date, a.id, { price_type: (a.price_type ?? 'per_person') === 'per_person' ? 'total' : 'per_person' })}
+                                    className="opacity-60 hover:opacity-100 transition-opacity whitespace-nowrap"
+                                  >
+                                    {(a.price_type ?? 'per_person') === 'per_person' ? '/ person' : 'total'}
+                                  </button>
+                                </div>
+
+                                <button
+                                  draggable={false}
+                                  onClick={() => toggleNotes(iKey)}
+                                  className={`px-2.5 py-1 rounded-full text-xs transition-all hover:scale-[1.03] ${
+                                    showItinNotes
+                                      ? isDark ? 'bg-cv-blue-700 text-cv-blue-200' : 'bg-cv-blue-100 text-cv-blue-700'
+                                      : pillBg
+                                  }`}
+                                >
+                                  {showItinNotes ? 'Notes ↑' : '+ Notes'}
+                                </button>
+                              </div>
+
+                              {/* Notes textarea */}
+                              {showItinNotes && (
+                                <div className={`px-4 pb-3 pt-1 border-t ${dividerCls}`}>
+                                  <textarea
+                                    draggable={false}
+                                    value={a.notes ?? ''}
+                                    onChange={(e) => patchItineraryActivity(trip.id, date, a.id, { notes: e.target.value || undefined })}
+                                    placeholder="Add notes…"
+                                    rows={2}
+                                    className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-cv-blue-200 placeholder:text-cv-blue-500' : 'text-cv-blue-800 placeholder:text-cv-blue-400'}`}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Drop indicator after last card */}
+                            {idx === dayActivities.length - 1 && dropTarget?.date === date && dropTarget.index === dayActivities.length && !isDraggingThis && (
+                              <div className="h-0.5 rounded-full bg-cv-blue-500" />
+                            )}
+                          </Fragment>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           </div>
