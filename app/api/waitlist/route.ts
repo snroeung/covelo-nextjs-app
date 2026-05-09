@@ -1,6 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
 import { NextRequest, NextResponse } from 'next/server'
 
 const supabaseAdmin = createClient(
@@ -8,31 +6,7 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SECRET_KEY!
 )
 
-const ratelimit = new Ratelimit({
-  redis: Redis.fromEnv(),
-  limiter: Ratelimit.slidingWindow(3, '1 h'),
-  prefix: 'waitlist',
-})
-
 export async function POST(req: NextRequest) {
-  // Rate limit by IP
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? '127.0.0.1'
-  const { success: allowed, limit, remaining, reset } = await ratelimit.limit(ip)
-
-  if (!allowed) {
-    return NextResponse.json(
-      { error: 'Too many requests. Try again later.' },
-      {
-        status: 429,
-        headers: {
-          'X-RateLimit-Limit':     String(limit),
-          'X-RateLimit-Remaining': String(remaining),
-          'X-RateLimit-Reset':     String(reset),
-        },
-      }
-    )
-  }
-
   try {
     const { email, name, cards_held, website } = await req.json()
 
