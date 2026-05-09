@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+/*
+ * ─── Tailwind v4 theme ────────────────────────────────────────────────────────
+ * Maps CSS custom properties (set per-palette in layout.tsx) to Tailwind
+ * color utilities so you can use classes like bg-accent, text-muted, etc.
+ */
+@theme inline {
+  --color-accent:        var(--accent);
+  --color-accent-fg:     var(--accent-fg);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-bg:            var(--bg);
+  --color-surface:       var(--surface);
+  --color-text-primary:  var(--text-primary);
+  --color-text-muted:    var(--text-muted);
+
+  --font-sans:  var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-mono:  var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
+html {
+  background-color: var(--bg);
+  color:            var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color:            var(--text-primary);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ─── Selection ─────────────────────────────────────────────────────────────── */
+::selection {
+  background-color: var(--accent);
+  color:            var(--accent-fg);
+}
+
+/* ─── Scrollbar (minimal) ───────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 3px; }
+
+/* ─── Landing page responsive grid overrides ────────────────────────────────── */
+/*
+ * Inline styles have higher base specificity, so !important is required to
+ * override them via media-query classes.  These classes handle layout-critical
+ * grid changes that must apply on first paint (before React hydration).
+ */
+@media (max-width: 900px) {
+  /* Section padding */
+  .lp-nav            { padding: 14px 20px !important; }
+  .lp-hero           { padding: 48px 20px 32px !important; }
+  .lp-carousel-wrap  { padding: 0 20px 32px !important; }
+  .lp-whip           { padding: 48px 20px !important; }
+  .lp-hunt           { padding: 48px 20px !important; }
+  .lp-little         { padding: 0 20px 48px !important; }
+  .lp-cta            { padding: 64px 20px !important; }
+  .lp-footer         { padding: 24px 20px !important; flex-direction: column !important; gap: 12px !important; }
+
+  /* Grid layouts → single column */
+  .lp-hero-grid      { grid-template-columns: 1fr !important; gap: 32px !important; margin-top: 32px !important; }
+  .lp-whip-outer     { grid-template-columns: 1fr !important; gap: 32px !important; }
+  .lp-whip-cols      { grid-template-columns: 1fr !important; }
+  .lp-whip-col       { border-right: none !important; }
+  .lp-hunt-grid      { grid-template-columns: 1fr !important; gap: 40px !important; }
+  .lp-cta-grid       { grid-template-columns: 1fr !important; gap: 40px !important; }
+
+  /* Little things: 4-col → 2-col */
+  .lp-little-grid    { grid-template-columns: 1fr 1fr !important; gap: 24px !important; }
+
+  /* Hide desktop-only elements */
+  .lp-desktop-only   { display: none !important; }
+
+  /* Headline sizing */
+  .lp-hero-h1        { font-size: clamp(52px, 13vw, 76px) !important; }
+}
+
+@media (max-width: 480px) {
+  /* Little things: collapse to 1-col on small phones */
+  .lp-little-grid    { grid-template-columns: 1fr !important; }
+}
+
+/* ─── Utility classes ───────────────────────────────────────────────────────── */
+@layer utilities {
+  .border-theme { border-color: var(--border); }
+  .divide-theme > * + * { border-color: var(--border); }
+
+  /* Pill / badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  /* Underline link */
+  .link {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border);
+    transition: text-decoration-color 0.15s;
+  }
+  .link:hover { text-decoration-color: var(--accent); }
+
+  /* Section vertical padding */
+  .section { padding-block: 6rem; }
+}
