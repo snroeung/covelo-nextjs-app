@@ -57,7 +57,7 @@ body {
   .lp-carousel-wrap  { padding: 0 20px 32px !important; }
   .lp-whip           { padding: 48px 20px !important; }
   .lp-hunt           { padding: 48px 20px !important; }
-  .lp-little         { padding: 0 20px 48px !important; }
+  .lp-little         { padding: 64px 20px 48px !important; }
   .lp-cta            { padding: 64px 20px !important; }
   .lp-footer         { padding: 24px 20px !important; flex-direction: column !important; gap: 12px !important; }
 

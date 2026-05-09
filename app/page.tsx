@@ -858,7 +858,7 @@ function Hero({ t, dark }: { t: Tokens; dark: boolean }) {
         <h1 className="lp-hero-h1" style={{ fontSize: "clamp(72px, 10.5vw, 148px)", fontWeight: 800,
           letterSpacing: "-0.04em", lineHeight: 0.92, margin: 0, color: t.ink }}>
           <span style={{ display: "block", padding: 6 }}>Every portal.</span>
-          <span style={{ display: "block" }}>One search<span style={{ color: t.sky }}>.</span></span>
+          <span style={{ display: "block", padding: 6 }}>One search<span style={{ color: t.sky }}>.</span></span>
         </h1>
         <div>
           <div style={{ width: 40, height: 3, background: t.sky, marginBottom: 20 }}/>
@@ -896,8 +896,6 @@ function WhatWeShip({ t }: { t: Tokens }) {
     <div className="lp-whip" style={{ padding: "60px 64px" }}>
       <div className="lp-whip-outer" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 56 }}>
         <div>
-          <div style={{ fontFamily: t.mono, fontSize: 11, letterSpacing: "0.14em",
-            textTransform: "uppercase", color: t.ink, fontWeight: 700 }}>What we ship</div>
           <div style={{ fontSize: 48, fontWeight: 800, letterSpacing: "-0.03em",
             lineHeight: 1.02, color: t.ink, marginTop: 12 }}>
             Three things covelo does exceptionally well<span style={{ color: t.sky }}>.</span>
@@ -1021,14 +1019,11 @@ function LittleThings({ t }: { t: Tokens }) {
     },
   ];
   return (
-    <div className="lp-little" style={{ padding: "24px 64px 80px" }}>
+    <div className="lp-little" style={{ padding: "64px 64px 80px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline",
         paddingBottom: 16, borderBottom: `2px solid ${t.ink}` }}>
         <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em" }}>
           The little things<span style={{ color: t.sky }}>.</span>
-        </div>
-        <div style={{ fontFamily: t.mono, fontSize: 11, color: t.muted, letterSpacing: "0.1em", fontWeight: 700 }}>
-          04 — 07
         </div>
       </div>
       <div className="lp-little-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 32, marginTop: 32 }}>
