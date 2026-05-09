@@ -205,7 +205,7 @@ function ScreenCapHotels({ t, dark }: { t: Tokens; dark: boolean }) {
             {(["Flights", "Hotels", "Trip Planner"] as const).map((l) => {
               const a = l === "Hotels";
               return <span key={l} style={{ padding: "5px 10px", borderRadius: 4, fontSize: 10,
-                fontWeight: a ? 700 : 600, color: a ? "#fff" : muted,
+                fontWeight: a ? 700 : 600, color: a ? t.sky : muted,
                 background: a ? ink : "transparent" }}>{l}</span>;
             })}
           </div>
@@ -351,7 +351,7 @@ function ScreenCapTrip({ t, dark }: { t: Tokens; dark: boolean }) {
             {(["Flights","Hotels","Trip Planner"] as const).map((l) => {
               const a = l === "Trip Planner";
               return <span key={l} style={{ padding: "5px 10px", borderRadius: 4, fontSize: 10,
-                fontWeight: a ? 700 : 600, color: a ? "#fff" : muted, background: a ? ink : "transparent" }}>{l}</span>;
+                fontWeight: a ? 700 : 600, color: a ? t.sky : muted, background: a ? ink : "transparent" }}>{l}</span>;
             })}
           </div>
         </div>
@@ -439,7 +439,7 @@ function ScreenCapFlights({ t, dark }: { t: Tokens; dark: boolean }) {
             {(["Flights","Hotels","Trip Planner"] as const).map((l) => {
               const a = l === "Flights";
               return <span key={l} style={{ padding: "5px 10px", borderRadius: 4, fontSize: 10,
-                fontWeight: a ? 700 : 600, color: a ? "#fff" : muted, background: a ? ink : "transparent" }}>{l}</span>;
+                fontWeight: a ? 700 : 600, color: a ? t.sky : muted, background: a ? ink : "transparent" }}>{l}</span>;
             })}
           </div>
         </div>
@@ -941,8 +941,6 @@ function TheHunt({ t, dark }: { t: Tokens; dark: boolean }) {
       <div className="lp-hunt-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 64, alignItems: "center" }}>
         {/* copy */}
         <div>
-          <div style={{ fontFamily: t.mono, fontSize: 11, letterSpacing: "0.14em",
-            textTransform: "uppercase", color: t.ink, fontWeight: 700 }}>FEATURE · THE HUNT</div>
           <div style={{ fontSize: "clamp(48px, 5.5vw, 80px)", fontWeight: 800,
             letterSpacing: "-0.035em", lineHeight: 1, marginTop: 14 }}>
             Your points<br/>are worth more<br/>than you think<span style={{ color: t.sky }}>.</span>
@@ -1023,7 +1021,7 @@ function LittleThings({ t }: { t: Tokens }) {
     },
   ];
   return (
-    <div className="lp-little" style={{ padding: "0 64px 80px" }}>
+    <div className="lp-little" style={{ padding: "24px 64px 80px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline",
         paddingBottom: 16, borderBottom: `2px solid ${t.ink}` }}>
         <div style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-0.03em" }}>
