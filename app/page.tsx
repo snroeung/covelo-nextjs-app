@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ACTIVE_PALETTE, getTokens, type Tokens } from "@/lib/themes";
 
@@ -1122,7 +1123,11 @@ function LandingFooter({ t }: { t: Tokens }) {
       color: t.muted, letterSpacing: "0.08em", fontWeight: 700 }}>
       <Wordmark color={t.ink} size={14}/>
       <span className="lp-desktop-only">COVELO · 2026 · <span style={{ color: t.ink }}>EVERY PORTAL. ONE SEARCH.</span></span>
-      <span>PRIVACY · TERMS · CONTACT</span>
+      <span>
+        <Link href="/privacy" style={{ color: t.muted, textDecoration: "none" }}>PRIVACY</Link>
+        {" · "}
+        <a href="mailto:hello@covelo.app" style={{ color: t.muted, textDecoration: "none" }}>CONTACT</a>
+      </span>
     </div>
   );
 }
