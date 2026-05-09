@@ -1056,7 +1056,40 @@ function LittleThings({ t }: { t: Tokens }) {
 // ── Final CTA ────────────────────────────────────────────────────────────────
 
 function FinalCTA({ t }: { t: Tokens }) {
-  const issuers = ["Chase", "Amex", "Bilt", "Capital One", "Citi", "Other"];
+  const cards = ["Chase", "Amex", "Bilt", "Capital One", "Citi", "Other"];
+  const [email, setEmail]             = useState("");
+  const [name, setName]               = useState("");
+  const [honeypot, setHoneypot]       = useState("");
+  const [selected, setSelected]       = useState<string[]>([]);
+  const [status, setStatus]           = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg]       = useState("");
+
+  const toggleCard = (c: string) =>
+    setSelected((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]);
+
+  const submit = async () => {
+    if (!email.trim()) return;
+    setStatus("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: name || undefined, cards_held: selected.length ? selected : undefined, website: honeypot }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatus("success");
+      } else {
+        setErrorMsg(data.error || "Something went wrong.");
+        setStatus("error");
+      }
+    } catch {
+      setErrorMsg("Something went wrong.");
+      setStatus("error");
+    }
+  };
+
   return (
     <div id="waitlist" className="lp-cta" style={{ padding: "100px 64px", background: t.navy, color: "#f3f3f1",
       position: "relative", overflow: "hidden" }}>
@@ -1083,31 +1116,97 @@ function FinalCTA({ t }: { t: Tokens }) {
             the day it&apos;s ready.
           </div>
         </div>
-        <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 14, padding: 24 }}>
-          <div style={{ fontSize: 11, fontFamily: t.mono, color: "#a0a0a0",
-            letterSpacing: "0.08em", fontWeight: 700 }}>EMAIL</div>
-          <input placeholder="you@domain.com" style={{ width: "100%", background: "transparent",
-            border: "none", outline: "none", fontSize: 20, color: "#fff", fontWeight: 600,
-            padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.2)", fontFamily: t.sans }}/>
-          <div style={{ fontSize: 11, fontFamily: t.mono, color: "#a0a0a0",
-            letterSpacing: "0.08em", fontWeight: 700, marginTop: 18 }}>PRIMARY ISSUER · OPTIONAL</div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-            {issuers.map((c) => (
-              <span key={c} style={{ padding: "6px 10px", background: "rgba(255,255,255,0.06)",
-                borderRadius: 999, fontSize: 12, fontWeight: 600, color: "#e4e4e1",
-                border: "1px solid rgba(255,255,255,0.1)" }}>{c}</span>
-            ))}
+
+        {status === "success" ? (
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 14, padding: 32, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 16, minHeight: 280, textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: 999, background: t.sky,
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="check" size={22} color="#000"/>
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>
+              You&apos;re on the list.
+            </div>
+            <div style={{ fontSize: 14, color: "#a0a0a0", maxWidth: 280, lineHeight: 1.5 }}>
+              We&apos;ll email you the day covelo launches.
+            </div>
           </div>
-          <button style={{ width: "100%", marginTop: 24, background: t.sky, color: "#0a0a0a",
-            border: "none", borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 800,
-            cursor: "pointer" }}>
-            Join waitlist →
-          </button>
-          <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between",
-            fontSize: 10, fontFamily: t.mono, color: "#7a7a7a", letterSpacing: "0.08em", fontWeight: 700 }}>
+        ) : (
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 14, padding: 24 }}>
+            {/* Honeypot — hidden from humans, bots fill it */}
+            <input
+              type="text"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}/>
+            {/* Name */}
+            <div style={{ fontSize: 11, fontFamily: t.mono, color: "#a0a0a0",
+              letterSpacing: "0.08em", fontWeight: 700 }}>NAME · OPTIONAL</div>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              style={{ width: "100%", background: "transparent", border: "none", outline: "none",
+                fontSize: 16, color: "#fff", fontWeight: 600, padding: "8px 0",
+                borderBottom: "1px solid rgba(255,255,255,0.15)", fontFamily: t.sans, boxSizing: "border-box" }}/>
+            {/* Email */}
+            <div style={{ fontSize: 11, fontFamily: t.mono, color: "#a0a0a0",
+              letterSpacing: "0.08em", fontWeight: 700, marginTop: 18 }}>EMAIL</div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              placeholder="you@domain.com"
+              style={{ width: "100%", background: "transparent", border: "none", outline: "none",
+                fontSize: 20, color: "#fff", fontWeight: 600, padding: "8px 0",
+                borderBottom: "1px solid rgba(255,255,255,0.2)", fontFamily: t.sans, boxSizing: "border-box" }}/>
+            {/* Cards */}
+            <div style={{ fontSize: 11, fontFamily: t.mono, color: "#a0a0a0",
+              letterSpacing: "0.08em", fontWeight: 700, marginTop: 18 }}>CARDS YOU HOLD · OPTIONAL</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {cards.map((c) => {
+                const on = selected.includes(c);
+                return (
+                  <button key={c} onClick={() => toggleCard(c)}
+                    style={{ padding: "6px 12px",
+                      background: on ? t.sky : "rgba(255,255,255,0.06)",
+                      borderRadius: 999, fontSize: 12, fontWeight: 700,
+                      color: on ? "#000" : "#e4e4e1",
+                      border: on ? "none" : "1px solid rgba(255,255,255,0.15)",
+                      cursor: "pointer", transition: "background 0.15s, color 0.15s" }}>
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+            {errorMsg && (
+              <div style={{ marginTop: 12, fontSize: 11, fontFamily: t.mono,
+                color: "#ff6b6b", letterSpacing: "0.06em", fontWeight: 700 }}>
+                {errorMsg.toUpperCase()}
+              </div>
+            )}
+            <button
+              onClick={submit}
+              disabled={status === "loading" || !email.trim()}
+              style={{ width: "100%", marginTop: 24, background: t.sky, color: "#0a0a0a",
+                border: "none", borderRadius: 10, padding: "14px 0", fontSize: 15, fontWeight: 800,
+                cursor: status === "loading" || !email.trim() ? "not-allowed" : "pointer",
+                opacity: status === "loading" || !email.trim() ? 0.6 : 1,
+                transition: "opacity 0.15s" }}>
+              {status === "loading" ? "Joining..." : "Join waitlist →"}
+            </button>
+            <div style={{ marginTop: 12, fontSize: 10, fontFamily: t.mono, color: "#7a7a7a",
+              letterSpacing: "0.08em", fontWeight: 700, textAlign: "center" }}>
+              NO SPAM · LAUNCH EMAIL ONLY
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
