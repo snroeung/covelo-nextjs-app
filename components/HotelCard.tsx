@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
@@ -16,9 +16,14 @@ function formatDate(iso: string): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function HotelCard({ searchResult, defaultCollapsed = false }: { searchResult: any; defaultCollapsed?: boolean }) {
+export function HotelCard({ searchResult, defaultCollapsed = false, forceExpand = false }: { searchResult: any; defaultCollapsed?: boolean; forceExpand?: boolean }) {
   const { isDark } = useTheme();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  // Expand when triggered externally (e.g. from map marker)
+  useEffect(() => {
+    if (forceExpand) setCollapsed(false);
+  }, [forceExpand]);
 
   const cardBg      = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
   const divider     = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
