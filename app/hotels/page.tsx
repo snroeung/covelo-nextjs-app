@@ -1,11 +1,13 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
 import { DateInput } from '@/components/DateInput';
 import { GuestsDropdown, type GuestsValue } from '@/components/GuestsDropdown';
 import { HotelCard } from '@/components/HotelCard';
+import { HotelMap } from '@/components/HotelMap';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,16 +30,42 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-export default function HotelsPage() {
-  const [destPlace, setDestPlace] = useState<SelectedPlace | null>(null);
+function HotelsPageInner() {
+  const searchParams  = useSearchParams();
+  const paramDest     = searchParams.get('destination') ?? '';
+  const paramLat      = parseFloat(searchParams.get('lat') ?? '0');
+  const paramLng      = parseFloat(searchParams.get('lng') ?? '0');
+  const paramCheckIn  = searchParams.get('checkIn') ?? '';
+  const paramCheckOut = searchParams.get('checkOut') ?? '';
+  const paramAdults   = parseInt(searchParams.get('adults') ?? '2', 10);
+  const paramChildren = parseInt(searchParams.get('children') ?? '0', 10);
+  const fromTrip      = !!(paramLat && paramLng && paramCheckIn && paramCheckOut);
+
+  const [destPlace, setDestPlace] = useState<SelectedPlace | null>(
+    fromTrip ? { latitude: paramLat, longitude: paramLng, name: paramDest, description: paramDest } : null,
+  );
   const [rooms, setRooms]         = useState(1);
-  const [guests, setGuests]       = useState<GuestsValue>({ adults: 2, children: 0 });
-  const [checkIn, setCheckIn]     = useState('');
-  const [checkOut, setCheckOut]   = useState('');
+  const [guests, setGuests]       = useState<GuestsValue>({
+    adults: fromTrip ? paramAdults : 2,
+    children: fromTrip ? paramChildren : 0,
+    pets: 0,
+  });
+  const [checkIn, setCheckIn]     = useState(fromTrip ? paramCheckIn : '');
+  const [checkOut, setCheckOut]   = useState(fromTrip ? paramCheckOut : '');
   const [minStars, setMinStars]   = useState<number | null>(null);
   const [sortOrder, setSortOrder] = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
-  const [starsOpen, setStarsOpen] = useState(false);
-  const [sortOpen, setSortOpen]   = useState(false);
+  const [starsOpen, setStarsOpen]           = useState(false);
+  const [sortOpen, setSortOpen]             = useState(false);
+  const [expandedHotelId, setExpandedHotelId] = useState<string | null>(null);
+  const [showBackToTop, setShowBackToTop]       = useState(false);
+
+  useEffect(() => {
+    const el = document.getElementById('app-main-scroll');
+    if (!el) return;
+    const onScroll = () => setShowBackToTop(el.scrollTop > 420);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
   const starsRef = useRef<HTMLDivElement>(null);
   const sortRef  = useRef<HTMLDivElement>(null);
 
@@ -47,6 +75,20 @@ export default function HotelsPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: (vars: any) => trpc.stays.search.mutate(vars),
   });
+
+  // Auto-search when arriving from trip planner with all required data
+  useEffect(() => {
+    if (!fromTrip) return;
+    hotelSearch.mutate({
+      latitude: paramLat,
+      longitude: paramLng,
+      checkInDate: paramCheckIn,
+      checkOutDate: paramCheckOut,
+      rooms: 1,
+      guests: buildGuests({ adults: paramAdults, children: paramChildren, pets: 0 }),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const allAccommodations: any[] = hotelSearch.data ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const accommodations = [...allAccommodations]
@@ -242,6 +284,17 @@ export default function HotelsPage() {
 
   return (
     <AppShell header={header} hasResults={accommodations.length > 0}>
+      {showBackToTop && (
+        <button
+          onClick={() => document.getElementById('app-main-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}
+          className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold shadow-lg transition-colors ${isDark ? 'bg-cv-blue-800 text-cv-blue-100 hover:bg-cv-blue-700 border-cv-blue-700' : 'bg-white text-cv-blue-950 hover:bg-cv-blue-50 border-cv-blue-200'} border`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+          </svg>
+          Back to top
+        </button>
+      )}
       {hotelSearch.isPending ? (
         <div className="flex items-center justify-center py-24">
           <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-cv-blue-400' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
@@ -264,5 +317,13 @@ export default function HotelsPage() {
         <EmptyState message={!destPlace ? 'Search for a location to find hotels.' : 'Fill in dates and press Search.'} />
       )}
     </AppShell>
+  );
+}
+
+export default function HotelsPage() {
+  return (
+    <Suspense>
+      <HotelsPageInner />
+    </Suspense>
   );
 }

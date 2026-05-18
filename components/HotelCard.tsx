@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
+import { AddToTripButton } from '@/components/AddToTripButton';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -19,7 +20,7 @@ function ratingLabel(score: number): string | null {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function HotelCard({ searchResult }: { searchResult: any; defaultCollapsed?: boolean }) {
+export function HotelCard({ searchResult, forceExpand = false }: { searchResult: any; defaultCollapsed?: boolean; forceExpand?: boolean }) {
   const { isDark } = useTheme();
   const [showPortals, setShowPortals] = useState(false);
   const [favorited, setFavorited] = useState(false);

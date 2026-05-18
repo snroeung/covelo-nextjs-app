@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 
-export type GuestsValue = { adults: number; children: number };
+export type GuestsValue = { adults: number; children: number; pets: number };
 
 function Stepper({
   label,
@@ -123,6 +123,16 @@ export function GuestsDropdown({
             min={0}
             max={total < 16 ? 16 - value.adults : 0}
             onChange={(v) => onChange({ ...value, children: v })}
+            isDark={isDark}
+          />
+          <div className={`border-t ${dividerCls}`} />
+          <Stepper
+            label="Pets"
+            sub="Dogs, cats & more"
+            value={value.pets}
+            min={0}
+            max={10}
+            onChange={(v) => onChange({ ...value, pets: v })}
             isDark={isDark}
           />
         </div>

@@ -22,6 +22,7 @@ export function AppShell({
   const pathname = usePathname();
   const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     if (hasResults) setHeaderOpen(false);
@@ -55,8 +56,9 @@ export function AppShell({
           covelo<span className={isDark ? 'text-cv-blue-400' : 'text-gray-400'}>.</span>
         </span>
         <div className="flex items-center gap-1">
-          <Link href="/"       className={navLinkCls('/')}>Flights</Link>
-          <Link href="/hotels" className={navLinkCls('/hotels')}>Hotels</Link>
+          <Link href="/"              className={navLinkCls('/')}>Flights</Link>
+          <Link href="/hotels"        className={navLinkCls('/hotels')}>Hotels</Link>
+          <Link href="/trip-planner"  className={navLinkCls('/trip-planner')}>Trip Planner</Link>
         </div>
         <div className="ml-auto md:hidden">
           <ThemeToggle />
