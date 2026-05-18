@@ -99,6 +99,8 @@ const mockBestPortalResult: PortalResult = {
   pointsEarned: 6_200,
   estimated: true,
   bookingType: 'hotel',
+  earnRate: 3,
+  pointsEarned: 124_002,
 };
 
 describe('calcTransferAlternatives()', () => {

@@ -45,12 +45,77 @@ export async function getPlaceAutocomplete(
   }));
 }
 
+export interface NearestAirport extends PlaceLatLng {
+  description: string;
+  iataCode: string | undefined;
+}
+
+/**
+ * Returns the most relevant airport for a given city name.
+ * Uses Places Autocomplete with "airport" appended, picks the first result
+ * that contains an IATA code, then resolves its lat/lng via Place Details.
+ */
+export async function getNearestAirport(cityName: string): Promise<NearestAirport> {
+  const sessionToken = crypto.randomUUID();
+  // Use only the primary city name (before the first comma) so autocomplete gets a clean,
+  // short query — e.g. "Washington D.C., DC, USA" → "Washington D.C. airport"
+  const cityShort = cityName.split(',')[0].trim();
+  let suggestions = await getPlaceAutocomplete(`${cityShort} airport`, sessionToken, 'airport');
+
+  // If no results, retry with first word only (e.g. "Washington airport")
+  if (suggestions.length === 0) {
+    const firstWord = cityShort.split(' ')[0];
+    suggestions = await getPlaceAutocomplete(`${firstWord} airport`, sessionToken, 'airport');
+  }
+
+  // Prefer results that include an IATA code in the description
+  const withIata = suggestions.filter((s) => /\([A-Z]{3}\)/.test(s.description));
+  const chosen = withIata[0] ?? suggestions[0];
+  if (!chosen) throw new Error(`No airport found for "${cityName}"`);
+
+  const iataMatch = chosen.description.match(/\(([A-Z]{3})\)/);
+  const iataCode = iataMatch?.[1];
+
+  const latLng = await getPlaceLatLng(chosen.placeId, sessionToken);
+  return { ...latLng, description: chosen.description, iataCode };
+}
+
 /**
  * Returns lat/lng for a placeId.
  * Results are cached in Redis by placeId for 30 days — coordinates don't change,
  * so any user resolving the same place hits the cache, not the API.
  * Passing the sessionToken ends the billing session (this is the only billed call).
  */
+/**
+ * Returns a photo_reference for a place identified by name + address.
+ * The caller should construct a server-side proxy URL from this reference
+ * (e.g. /api/place-photo?ref=REFERENCE) so the API key is never exposed.
+ * Results are cached in Redis for 7 days.
+ */
+export async function getPlacePhoto(name: string, address: string): Promise<string | null> {
+  if (!GMAPS_KEY) return null;
+
+  const cacheKey = `place:photo:ref:${name}:${address}`;
+  const cached = await redis.get<string>(cacheKey);
+  if (cached) return cached;
+
+  const findUrl = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
+  findUrl.searchParams.set('input', `${name} ${address}`);
+  findUrl.searchParams.set('inputtype', 'textquery');
+  findUrl.searchParams.set('fields', 'photos');
+  findUrl.searchParams.set('key', GMAPS_KEY);
+
+  const findRes = await fetch(findUrl.toString());
+  const findData = await findRes.json();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const photoRef: string | undefined = findData.candidates?.[0]?.photos?.[0]?.photo_reference;
+  if (!photoRef) return null;
+
+  await redis.set(cacheKey, photoRef, { ex: 60 * 60 * 24 * 7 });
+  return photoRef;
+}
+
 export async function getPlaceLatLng(
   placeId: string,
   sessionToken: string,

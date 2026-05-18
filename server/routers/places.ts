@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { publicProcedure, router } from '@/server/trpc';
-import { getPlaceAutocomplete, getPlaceLatLng } from '@/lib/places';
+import { getPlaceAutocomplete, getPlaceLatLng, getNearestAirport, getPlacePhoto } from '@/lib/places';
 
 export const placesRouter = router({
   /**
@@ -18,6 +18,16 @@ export const placesRouter = router({
     }),
 
   /**
+   * Returns the nearest/most relevant airport for a given city name.
+   * Used to auto-populate the flight destination when coming from the trip planner.
+   */
+  nearestAirport: publicProcedure
+    .input(z.object({ cityName: z.string().min(1) }))
+    .query(async ({ input: { cityName } }) => {
+      return getNearestAirport(cityName);
+    }),
+
+  /**
    * Resolves a placeId → lat/lng.
    * Checks Redis cache first (keyed by placeId, 30-day TTL).
    * On cache miss: calls Place Details API, which closes the billing session.
@@ -29,5 +39,17 @@ export const placesRouter = router({
     }))
     .query(async ({ input: { placeId, sessionToken } }) => {
       return getPlaceLatLng(placeId, sessionToken);
+    }),
+
+  /**
+   * Returns a publicly-accessible photo CDN URL for a place.
+   * Cached in Redis for 7 days — returns null if no photo is found.
+   */
+  getPhoto: publicProcedure
+    .input(z.object({ name: z.string(), address: z.string() }))
+    .query(async ({ input: { name, address } }) => {
+      const ref = await getPlacePhoto(name, address);
+      if (!ref) return null;
+      return `/api/place-photo?ref=${encodeURIComponent(ref)}`;
     }),
 });
