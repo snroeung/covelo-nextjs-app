@@ -4,6 +4,16 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
+  /* Navy — dark points panels, badges */
+  --color-cv-navy-950: #0a1628;
+  --color-cv-navy-900: #1B2D42;
+  --color-cv-navy-400: #7d8fae;
+  --color-cv-navy-300: #9cb3d8;
+
+  /* Sky — primary accent: compare button, points text, CTA */
+  --color-cv-sky-400: #38BDF8;
+  --color-cv-sky-300: #7DD3FC;
+
   /* Blue — navigation & structure */
   --color-cv-blue-950: #0D1B2A;
   --color-cv-blue-900: #1B3A5C;
@@ -17,6 +27,7 @@
   --color-cv-green-800: #2D7A3A;
   --color-cv-green-700: #3F8F4E;
   --color-cv-green-600: #639922;
+  --color-cv-green-500: #22C55E;
   --color-cv-green-400: #7DC48A;
   --color-cv-green-200: #B8E0BE;
   --color-cv-green-100: #D6F0DA;
@@ -33,7 +44,7 @@
 }
 
 body {
-  background: var(--color-cv-blue-950);
-  color: #fff;
+  background: #F3F4F6;
+  color: #111827;
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
