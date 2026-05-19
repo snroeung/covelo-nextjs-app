@@ -36,22 +36,22 @@ function Stepper({
 }) {
   const btnBase = 'w-7 h-7 rounded-full border text-sm font-semibold flex items-center justify-center transition-colors';
   const btnActive = isDark
-    ? 'border-cv-blue-600 text-cv-blue-300 hover:bg-cv-blue-800'
-    : 'border-cv-blue-500 text-cv-blue-600 hover:bg-cv-blue-50';
+    ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
+    : 'border-gray-400 text-gray-700 hover:bg-gray-50';
   const btnDisabled = isDark
-    ? 'border-cv-blue-900 text-cv-blue-700 cursor-not-allowed'
-    : 'border-cv-blue-100 text-cv-blue-300 cursor-not-allowed';
+    ? 'border-gph-dark-line text-gph-dark-muted cursor-not-allowed opacity-30'
+    : 'border-gray-200 text-gray-300 cursor-not-allowed';
 
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <div>
-        <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{label}</p>
-        <p className="text-xs text-cv-blue-400">{sub}</p>
+        <p className={`text-sm font-medium ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{label}</p>
+        <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>{sub}</p>
       </div>
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => onChange(value - 1)} disabled={value <= min}
           className={`${btnBase} ${value <= min ? btnDisabled : btnActive}`}>−</button>
-        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{value}</span>
+        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{value}</span>
         <button type="button" onClick={() => onChange(value + 1)} disabled={value >= max}
           className={`${btnBase} ${value >= max ? btnDisabled : btnActive}`}>+</button>
       </div>
@@ -109,10 +109,10 @@ function TravelerAvatars({ trip, isDark }: { trip: Trip; isDark: boolean }) {
   const shown = Math.min(adults, MAX_SHOWN);
   const overflow = adults > MAX_SHOWN ? adults - MAX_SHOWN : 0;
 
-  const ringCls   = isDark ? 'ring-cv-blue-950' : 'ring-white';
-  const ghostBg   = isDark ? 'bg-cv-blue-800 text-cv-blue-400' : 'bg-cv-blue-100 text-cv-blue-400';
-  const overflowBg = isDark ? 'bg-cv-blue-700 text-cv-blue-300' : 'bg-cv-blue-200 text-cv-blue-600';
-  const labelCls  = isDark ? 'text-cv-blue-400' : 'text-cv-blue-500';
+  const ringCls   = isDark ? 'ring-gph-dark-bg' : 'ring-white';
+  const ghostBg   = isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500';
+  const overflowBg = isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700';
+  const labelCls  = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
 
   return (
     <div className="flex items-center gap-3">
@@ -123,7 +123,7 @@ function TravelerAvatars({ trip, isDark }: { trip: Trip; isDark: boolean }) {
             key={i}
             className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ring-2 ${ringCls} ${
               i === 0
-                ? 'bg-cv-blue-600 text-white z-10'
+                ? isDark ? 'bg-gph-dark-action text-gph-dark-bg z-10' : 'bg-gray-900 text-white z-10'
                 : `${ghostBg} ${i === 1 ? 'z-[9]' : i === 2 ? 'z-[8]' : 'z-[7]'}`
             } ${i > 0 ? '-ml-2' : ''}`}
           >
@@ -193,10 +193,10 @@ function SectionPlaceholder({
   return (
     <div
       className={`rounded-xl border-2 border-dashed flex items-center justify-center py-14 ${
-        isDark ? 'border-cv-blue-800' : 'border-cv-blue-200'
+        isDark ? 'border-gph-dark-line' : 'border-gray-200'
       }`}
     >
-      <p className={`text-sm ${isDark ? 'text-cv-blue-600' : 'text-cv-blue-300'}`}>{label}</p>
+      <p className={`text-sm ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{label}</p>
     </div>
   );
 }
@@ -217,12 +217,12 @@ function SectionHeader({
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
-        <span className={isDark ? 'text-cv-blue-400' : 'text-cv-blue-500'}>{icon}</span>
-        <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{title}</h2>
+        <span className={isDark ? 'text-gph-dark-muted' : 'text-gray-500'}>{icon}</span>
+        <h2 className={`text-base font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{title}</h2>
       </div>
       <Link
         href={searchHref}
-        className={`text-sm transition-colors ${isDark ? 'text-cv-blue-400 hover:text-cv-blue-200' : 'text-cv-blue-500 hover:text-cv-blue-700'}`}
+        className={`text-sm transition-colors ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-700'}`}
       >
         search bookings →
       </Link>
@@ -403,17 +403,17 @@ export default function TripDetailPage() {
     setEditField(null);
   }
 
-  const pageBg    = isDark ? 'bg-cv-blue-950' : 'bg-cv-blue-50';
-  const surfaceBg = isDark ? 'bg-cv-blue-950' : 'bg-white';
-  const borderCls = isDark ? 'border-cv-blue-900' : 'border-cv-blue-100';
-  const cardBg    = isDark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-cv-blue-100';
-  const pillBg    = isDark ? 'bg-cv-blue-800 text-cv-blue-300' : 'bg-cv-blue-50 text-cv-blue-600';
-  const pillEdit  = isDark ? 'bg-cv-blue-700 text-cv-blue-200' : 'bg-cv-blue-100 text-cv-blue-700';
+  const pageBg    = isDark ? 'bg-gph-dark-bg' : 'bg-gray-50';
+  const surfaceBg = isDark ? 'bg-gph-dark-bg' : 'bg-white';
+  const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const cardBg    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const pillBg    = isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink' : 'bg-gray-100 text-gray-700';
+  const pillEdit  = isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700';
   const inputCls  = isDark
-    ? 'border-cv-blue-700 bg-cv-blue-800 text-white placeholder:text-cv-blue-500 focus:ring-cv-blue-500'
-    : 'border-cv-blue-200 bg-white text-cv-blue-950 placeholder:text-cv-blue-300 focus:ring-cv-blue-400';
-  const panelBg   = isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-100';
-  const dividerCls = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
+    ? 'border-gph-dark-line bg-gph-dark-linesoft text-gph-dark-ink placeholder:text-gph-dark-muted focus:ring-gph-dark-action'
+    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:ring-gray-400';
+  const panelBg   = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const dividerCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
   // Pencil icon shown on hover
   const PencilIcon = () => (
@@ -426,8 +426,8 @@ export default function TripDetailPage() {
   function navLinkCls(_href: string) {
     const base = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-colors';
     return isDark
-      ? `${base} text-cv-blue-400 hover:text-white`
-      : `${base} text-cv-blue-600 hover:text-cv-blue-950`;
+      ? `${base} text-gph-dark-muted hover:text-gph-dark-ink`
+      : `${base} text-gray-600 hover:text-gray-900`;
   }
 
   // ── Loading / not-found state (SSR hydration gap) ──────────────────────────
@@ -440,12 +440,12 @@ export default function TripDetailPage() {
     return (
       <div className={`flex flex-col h-screen font-sans ${pageBg}`}>
         <nav className={`flex items-center gap-4 px-6 py-3 border-b ${surfaceBg} ${borderCls}`}>
-          <Link href="/trip-planner" className={`text-sm font-medium ${isDark ? 'text-cv-blue-400 hover:text-white' : 'text-cv-blue-600 hover:text-cv-blue-950'}`}>
+          <Link href="/trip-planner" className={`text-sm font-medium ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'}`}>
             ← Trip Planner
           </Link>
         </nav>
         <div className="flex flex-1 items-center justify-center">
-          <p className={`text-sm ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>Trip not found.</p>
+          <p className={`text-sm ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>Trip not found.</p>
         </div>
       </div>
     );
@@ -458,8 +458,8 @@ export default function TripDetailPage() {
 
       {/* Nav */}
       <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
-        <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>
-          covelo<span className="text-cv-blue-400">.</span>
+        <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+          covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
         </span>
         <div className="flex items-center gap-1">
           <Link href="/"             className={navLinkCls('/')}>Flights</Link>
@@ -481,7 +481,7 @@ export default function TripDetailPage() {
             {/* Back */}
             <Link
               href="/trip-planner"
-              className={`flex items-center gap-1.5 text-sm font-medium mb-4 transition-colors ${isDark ? 'text-cv-blue-400 hover:text-white' : 'text-cv-blue-600 hover:text-cv-blue-950'}`}
+              className={`flex items-center gap-1.5 text-sm font-medium mb-4 transition-colors ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'}`}
             >
               <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -555,20 +555,20 @@ export default function TripDetailPage() {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all duration-150 ${
                     isActive
                       ? isDark
-                        ? 'bg-cv-blue-800 text-white'
-                        : 'bg-cv-blue-50 text-cv-blue-950'
+                        ? 'bg-gph-dark-linesoft text-gph-dark-ink'
+                        : 'bg-gray-100 text-gray-900'
                       : isDark
-                        ? 'text-cv-blue-400 hover:text-white hover:bg-cv-blue-900'
-                        : 'text-cv-blue-500 hover:text-cv-blue-950 hover:bg-cv-blue-50/60'
+                        ? 'text-gph-dark-muted hover:text-gph-dark-ink hover:bg-gph-dark-card'
+                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
-                  <span className={isActive ? (isDark ? 'text-cv-blue-300' : 'text-cv-blue-600') : ''}>{icon}</span>
+                  <span className={isActive ? (isDark ? 'text-gph-dark-ink' : 'text-gray-700') : ''}>{icon}</span>
                   <span className="flex-1">{label}</span>
                   {count !== undefined && (
                     <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${
                       isActive
-                        ? isDark ? 'bg-cv-blue-700 text-cv-blue-200' : 'bg-cv-blue-200 text-cv-blue-700'
-                        : isDark ? 'bg-cv-blue-800 text-cv-blue-400' : 'bg-cv-blue-100 text-cv-blue-500'
+                        ? isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700'
+                        : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
                     }`}>{count}</span>
                   )}
                 </button>
@@ -596,7 +596,7 @@ export default function TripDetailPage() {
                 onBlur={saveTitle}
                 onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') setEditField(null); }}
                 className={`text-2xl md:text-3xl font-bold tracking-tight w-full bg-transparent border-b-2 outline-none pb-1 transition-colors ${
-                  isDark ? 'text-white border-cv-blue-500' : 'text-cv-blue-950 border-cv-blue-400'
+                  isDark ? 'text-gph-dark-ink border-gph-dark-action' : 'text-gray-900 border-gray-400'
                 }`}
               />
             ) : (
@@ -605,10 +605,10 @@ export default function TripDetailPage() {
                 onClick={openTitle}
                 className="group flex items-center gap-2 cursor-pointer rounded-lg -mx-1 px-1 py-0.5 transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/5 hover:-translate-y-px"
               >
-                <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>
+                <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
                   {trip.title}
                 </h1>
-                <span className={`opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 ${isDark ? 'text-cv-blue-500' : 'text-cv-blue-400'}`}>
+                <span className={`opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
                   <PencilIcon />
                 </span>
               </div>
@@ -631,7 +631,7 @@ export default function TripDetailPage() {
               ) : (
                 <button
                   onClick={() => setEditField('destination')}
-                  className={`flex items-center gap-1.5 text-sm px-3 py-1 rounded-full transition-all duration-200 hover:scale-[1.04] hover:shadow-sm ${pillBg} hover:ring-2 ${isDark ? 'hover:ring-cv-blue-500/40' : 'hover:ring-cv-blue-400/40'}`}
+                  className={`flex items-center gap-1.5 text-sm px-3 py-1 rounded-full transition-all duration-200 hover:scale-[1.04] hover:shadow-sm ${pillBg} hover:ring-2 ${isDark ? 'hover:ring-gph-dark-action/40' : 'hover:ring-gray-400/40'}`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round"
@@ -647,7 +647,7 @@ export default function TripDetailPage() {
                   <div className="relative">
                     <button
                       onClick={openDates}
-                      className={`flex items-center gap-1.5 text-sm px-3 py-1 rounded-full transition-all duration-200 ${editField === 'dates' ? pillEdit : `${pillBg} hover:scale-[1.04] hover:shadow-sm hover:ring-2 ${isDark ? 'hover:ring-cv-blue-500/40' : 'hover:ring-cv-blue-400/40'}`}`}
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1 rounded-full transition-all duration-200 ${editField === 'dates' ? pillEdit : `${pillBg} hover:scale-[1.04] hover:shadow-sm hover:ring-2 ${isDark ? 'hover:ring-gph-dark-action/40' : 'hover:ring-gray-400/40'}`}`}
                     >
                       <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round"
@@ -661,14 +661,14 @@ export default function TripDetailPage() {
                       <div ref={datesRef} className={`absolute left-0 top-full mt-2 z-50 rounded-xl border shadow-lg p-4 flex flex-col gap-3 min-w-[260px] ${panelBg}`}>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex flex-col gap-0.5">
-                            <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-600'}`}>Start</label>
+                            <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-gph-dark-muted' : 'text-gray-700'}`}>Start</label>
                             <input type="date" value={editStart}
                               onChange={(e) => { setEditStart(e.target.value); if (editEnd && editEnd < e.target.value) setEditEnd(''); }}
                               className={`rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${inputCls} ${isDark ? 'scheme-dark' : 'scheme-light'}`}
                             />
                           </div>
                           <div className="flex flex-col gap-0.5">
-                            <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-600'}`}>End</label>
+                            <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-gph-dark-muted' : 'text-gray-700'}`}>End</label>
                             <input type="date" value={editEnd} min={editStart || undefined}
                               onChange={(e) => setEditEnd(e.target.value)}
                               className={`rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${inputCls} ${isDark ? 'scheme-dark' : 'scheme-light'}`}
@@ -678,7 +678,7 @@ export default function TripDetailPage() {
                         <button
                           onClick={saveDates}
                           disabled={!editStart || !editEnd}
-                          className="w-full py-2 rounded-lg bg-cv-blue-600 hover:bg-cv-blue-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
+                          className={`w-full py-2 rounded-lg disabled:opacity-40 text-sm font-semibold transition-colors ${isDark ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
                         >
                           Save dates
                         </button>
@@ -705,7 +705,7 @@ export default function TripDetailPage() {
                   className={`group flex items-center gap-2 rounded-lg -mx-1 px-1 py-0.5 transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/5 hover:-translate-y-px ${editField === 'travelers' ? 'bg-black/5 dark:bg-white/5' : ''}`}
                 >
                   <TravelerAvatars trip={trip} isDark={isDark} />
-                  <span className={`opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 ${isDark ? 'text-cv-blue-500' : 'text-cv-blue-400'}`}>
+                  <span className={`opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200 ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
                     <PencilIcon />
                   </span>
                 </button>
@@ -713,7 +713,7 @@ export default function TripDetailPage() {
                 {/* Travelers panel */}
                 {editField === 'travelers' && (
                   <div ref={travelersRef} className={`absolute left-0 top-full mt-2 z-50 rounded-xl border shadow-lg px-4 pt-3 pb-4 flex flex-col min-w-70 ${panelBg}`}>
-                    <div className={`divide-y ${isDark ? 'divide-cv-blue-800' : 'divide-cv-blue-100'}`}>
+                    <div className={`divide-y ${isDark ? 'divide-gph-dark-line' : 'divide-gray-200'}`}>
                       <Stepper label="Adults" sub="Age 18+" value={editTravelers.adults} min={1} max={20}
                         onChange={(v) => setEditTravelers((t) => ({ ...t, adults: v }))} isDark={isDark} />
                       <Stepper label="Children" sub="Ages 0–17" value={editTravelers.children} min={0} max={20}
@@ -723,7 +723,7 @@ export default function TripDetailPage() {
                     </div>
                     <button
                       onClick={saveTravelers}
-                      className="mt-3 w-full py-2 rounded-lg bg-cv-blue-600 hover:bg-cv-blue-500 text-white text-sm font-semibold transition-colors"
+                      className={`mt-3 w-full py-2 rounded-lg text-sm font-semibold transition-colors ${isDark ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
                     >
                       Save
                     </button>
@@ -734,8 +734,8 @@ export default function TripDetailPage() {
               <button
                 className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                   isDark
-                    ? 'border-cv-blue-700 text-cv-blue-300 hover:bg-cv-blue-800'
-                    : 'border-cv-blue-200 text-cv-blue-600 hover:bg-cv-blue-50'
+                    ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
+                    : 'border-gray-200 text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -751,12 +751,12 @@ export default function TripDetailPage() {
           <section ref={activitiesRef}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className={isDark ? 'text-cv-blue-400' : 'text-cv-blue-500'}>
+                <span className={isDark ? 'text-gph-dark-muted' : 'text-gray-500'}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503-10.498l4.875 2.437c.381.19.622.58.622 1.006V17.25a.75.75 0 01-.621.74l-5.03.88a1.5 1.5 0 01-.506.02L9.503 18.13a1.5 1.5 0 00-.506.02l-3.984.743A.75.75 0 014.5 18.13V7.87a.75.75 0 01.372-.648l4.5-2.25a.75.75 0 01.632-.012z" />
                   </svg>
                 </span>
-                <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>Things to Do</h2>
+                <h2 className={`text-base font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>Things to Do</h2>
               </div>
             </div>
             {(trip.activities ?? []).length === 0 ? (
@@ -774,15 +774,15 @@ export default function TripDetailPage() {
                       {a.photo_url ? (
                         <img src={a.photo_url} alt={a.name} className="w-20 h-20 shrink-0 object-cover rounded-l-xl" />
                       ) : (
-                        <div className={`w-20 h-20 shrink-0 flex items-center justify-center text-2xl rounded-l-xl ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`}>
+                        <div className={`w-20 h-20 shrink-0 flex items-center justify-center text-2xl rounded-l-xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>
                           📍
                         </div>
                       )}
                       <div className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3">
                         <div className="min-w-0">
-                          <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{a.name}</p>
+                          <p className={`text-sm font-semibold truncate ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{a.name}</p>
                           {a.address && (
-                            <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>{a.address}</p>
+                            <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>{a.address}</p>
                           )}
                         </div>
 
@@ -796,8 +796,8 @@ export default function TripDetailPage() {
                             title="Options"
                             className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
                               isDark
-                                ? 'text-cv-blue-400 hover:bg-cv-blue-800 hover:text-white'
-                                : 'text-cv-blue-400 hover:bg-cv-blue-50 hover:text-cv-blue-700'
+                                ? 'text-gph-dark-muted hover:bg-gph-dark-linesoft hover:text-gph-dark-ink'
+                                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
                             }`}
                           >
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -806,12 +806,12 @@ export default function TripDetailPage() {
                           </button>
 
                           {openMenuId === a.id && (
-                            <div className={`absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-100'}`}>
+                            <div className={`absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
                               <div className="relative">
                                 <button
                                   onClick={() => setOpenSubmenuId(openSubmenuId === a.id ? null : a.id)}
                                   className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
-                                    isDark ? 'text-cv-blue-200 hover:bg-cv-blue-800' : 'text-cv-blue-950 hover:bg-cv-blue-50'
+                                    isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-900 hover:bg-gray-50'
                                   }`}
                                 >
                                   Move to Itinerary
@@ -820,7 +820,7 @@ export default function TripDetailPage() {
                                   </svg>
                                 </button>
                                 {openSubmenuId === a.id && (
-                                  <div className={`absolute right-full top-0 mr-1 z-40 w-48 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-100'}`}>
+                                  <div className={`absolute right-full top-0 mr-1 z-40 w-48 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
                                     {tripDays(trip.start_date, trip.end_date).map((date) => (
                                       <button
                                         key={date}
@@ -830,7 +830,7 @@ export default function TripDetailPage() {
                                           setOpenSubmenuId(null);
                                         }}
                                         className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                                          isDark ? 'text-cv-blue-200 hover:bg-cv-blue-800' : 'text-cv-blue-950 hover:bg-cv-blue-50'
+                                          isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-900 hover:bg-gray-50'
                                         }`}
                                       >
                                         {formatDayLabel(date)}
@@ -839,11 +839,11 @@ export default function TripDetailPage() {
                                   </div>
                                 )}
                               </div>
-                              <div className={`my-1 border-t ${isDark ? 'border-cv-blue-800' : 'border-cv-blue-100'}`} />
+                              <div className={`my-1 border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-200'}`} />
                               <button
                                 onClick={() => { removeActivity(trip.id, a.id); setOpenMenuId(null); }}
                                 className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                                  isDark ? 'text-rose-400 hover:bg-cv-blue-800' : 'text-rose-500 hover:bg-rose-50'
+                                  isDark ? 'text-rose-400 hover:bg-gph-dark-linesoft' : 'text-rose-500 hover:bg-rose-50'
                                 }`}
                               >
                                 Remove from trip
@@ -860,7 +860,7 @@ export default function TripDetailPage() {
                         onClick={() => toggleNotes(notesKey)}
                         className={`px-2.5 py-1 rounded-full text-xs transition-all hover:scale-[1.03] ${
                           showNotes
-                            ? isDark ? 'bg-cv-blue-700 text-cv-blue-200' : 'bg-cv-blue-100 text-cv-blue-700'
+                            ? isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700'
                             : pillBg
                         }`}
                       >
@@ -876,7 +876,7 @@ export default function TripDetailPage() {
                           onChange={(e) => patchActivity(trip.id, a.id, { notes: e.target.value || undefined })}
                           placeholder="Add notes…"
                           rows={2}
-                          className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-cv-blue-200 placeholder:text-cv-blue-500' : 'text-cv-blue-800 placeholder:text-cv-blue-400'}`}
+                          className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-gph-dark-ink placeholder:text-gph-dark-muted' : 'text-gray-800 placeholder:text-gray-400'}`}
                         />
                       </div>
                     )}
@@ -939,14 +939,14 @@ export default function TripDetailPage() {
           <section ref={itineraryRef}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className={isDark ? 'text-cv-blue-400' : 'text-cv-blue-500'}>
+                <span className={isDark ? 'text-gph-dark-muted' : 'text-gray-500'}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
                   </svg>
                 </span>
-                <h2 className={`text-base font-semibold ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>Itinerary</h2>
+                <h2 className={`text-base font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>Itinerary</h2>
               </div>
-              <span className={`text-xs ${isDark ? 'text-cv-blue-500' : 'text-cv-blue-400'}`}>
+              <span className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
                 {tripDays(trip.start_date, trip.end_date).length} days
               </span>
             </div>
@@ -958,24 +958,24 @@ export default function TripDetailPage() {
                 return (
                   <div
                     key={date}
-                    className={`rounded-xl border overflow-hidden transition-colors ${cardBg} ${isExternalDropTarget ? isDark ? 'ring-2 ring-cv-blue-500/40' : 'ring-2 ring-cv-blue-400/40' : ''}`}
+                    className={`rounded-xl border overflow-hidden transition-colors ${cardBg} ${isExternalDropTarget ? isDark ? 'ring-2 ring-gph-dark-action/40' : 'ring-2 ring-gray-400/40' : ''}`}
                   >
                     <div className={`px-4 py-3 border-b ${dividerCls}`}>
-                      <span className={`text-sm font-semibold ${isDark ? 'text-cv-blue-100' : 'text-cv-blue-900'}`}>
+                      <span className={`text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
                         {formatDayLabel(date)}
                       </span>
                     </div>
 
                     {dayActivities.length === 0 ? (
                       <div
-                        className={`px-4 py-6 flex items-center justify-center transition-colors ${dropTarget?.date === date ? isDark ? 'bg-cv-blue-800/30' : 'bg-cv-blue-50' : ''}`}
+                        className={`px-4 py-6 flex items-center justify-center transition-colors ${dropTarget?.date === date ? isDark ? 'bg-gph-dark-linesoft/50' : 'bg-gray-50' : ''}`}
                         onDragOver={(e) => { e.preventDefault(); setDropTarget({ date, index: 0 }); }}
                         onDrop={(e) => { e.preventDefault(); handleDrop(date, 0); }}
                       >
                         {dropTarget?.date === date ? (
-                          <div className="h-0.5 w-2/3 rounded-full bg-cv-blue-400" />
+                          <div className="h-0.5 w-2/3 rounded-full bg-gph-dark-action" />
                         ) : (
-                          <p className={`text-sm ${isDark ? 'text-cv-blue-700' : 'text-cv-blue-300'}`}>
+                          <p className={`text-sm ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
                             Nothing planned yet
                           </p>
                         )}
@@ -995,7 +995,7 @@ export default function TripDetailPage() {
                           <Fragment key={a.id}>
                             {/* Drop indicator before this card */}
                             {dropTarget?.date === date && dropTarget.index === idx && !isDraggingThis && (
-                              <div className="h-0.5 rounded-full bg-cv-blue-500" />
+                              <div className="h-0.5 rounded-full bg-gph-dark-action" />
                             )}
 
                             <div
@@ -1027,7 +1027,7 @@ export default function TripDetailPage() {
                                 draggable={false}
                                 onClick={() => removeActivityFromDay(trip.id, date, a.id)}
                                 title="Remove from this day"
-                                className={`absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full transition-colors ${isDark ? 'text-cv-blue-600 hover:bg-cv-blue-700 hover:text-white' : 'text-cv-blue-300 hover:bg-cv-blue-100 hover:text-cv-blue-600'}`}
+                                className={`absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full transition-colors ${isDark ? 'text-gph-dark-muted hover:bg-gph-dark-linesoft hover:text-gph-dark-ink' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-700'}`}
                               >
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1039,15 +1039,15 @@ export default function TripDetailPage() {
                                 {a.photo_url ? (
                                   <img src={a.photo_url} alt={a.name} className="w-16 h-16 shrink-0 object-cover" draggable={false} />
                                 ) : (
-                                  <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`}>
+                                  <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>
                                     📍
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0 flex items-center px-4 py-3 pr-8">
                                   <div className="min-w-0">
-                                    <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{a.name}</p>
+                                    <p className={`text-sm font-semibold truncate ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{a.name}</p>
                                     {a.address && (
-                                      <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>{a.address}</p>
+                                      <p className={`text-xs mt-0.5 truncate ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>{a.address}</p>
                                     )}
                                   </div>
                                 </div>
@@ -1095,7 +1095,7 @@ export default function TripDetailPage() {
                                   onClick={() => toggleNotes(iKey)}
                                   className={`px-2.5 py-1 rounded-full text-xs transition-all hover:scale-[1.03] ${
                                     showItinNotes
-                                      ? isDark ? 'bg-cv-blue-700 text-cv-blue-200' : 'bg-cv-blue-100 text-cv-blue-700'
+                                      ? isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700'
                                       : pillBg
                                   }`}
                                 >
@@ -1112,7 +1112,7 @@ export default function TripDetailPage() {
                                     onChange={(e) => patchItineraryActivity(trip.id, date, a.id, { notes: e.target.value || undefined })}
                                     placeholder="Add notes…"
                                     rows={2}
-                                    className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-cv-blue-200 placeholder:text-cv-blue-500' : 'text-cv-blue-800 placeholder:text-cv-blue-400'}`}
+                                    className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-gph-dark-ink placeholder:text-gph-dark-muted' : 'text-gray-800 placeholder:text-gray-400'}`}
                                   />
                                 </div>
                               )}
@@ -1120,7 +1120,7 @@ export default function TripDetailPage() {
 
                             {/* Drop indicator after last card */}
                             {idx === dayActivities.length - 1 && dropTarget?.date === date && dropTarget.index === dayActivities.length && !isDraggingThis && (
-                              <div className="h-0.5 rounded-full bg-cv-blue-500" />
+                              <div className="h-0.5 rounded-full bg-gph-dark-action" />
                             )}
                           </Fragment>
                           );

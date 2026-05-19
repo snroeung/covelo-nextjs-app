@@ -1,15 +1,13 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-
-const today = new Date().toISOString().split('T')[0];
 
 export function DateInput({
   label,
   value,
   onChange,
-  min = today,
+  min,
 }: {
   label: string;
   value: string;
@@ -17,13 +15,18 @@ export function DateInput({
   min?: string;
 }) {
   const { isDark } = useTheme();
+  const [today, setToday] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setToday(new Date().toISOString().split('T')[0]);
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const boxCls = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950'
+    ? 'border-gph-dark-line bg-gph-dark-card'
     : 'border-gray-200 bg-white';
-  const labelCls = isDark ? 'text-cv-blue-400' : 'text-gray-400';
-  const valueCls = isDark ? 'text-white scheme-dark' : 'text-gray-900 scheme-light';
+  const labelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
+  const valueCls = isDark ? 'text-gph-dark-ink scheme-dark' : 'text-gray-900 scheme-light';
 
   return (
     <div
@@ -37,7 +40,7 @@ export function DateInput({
         ref={inputRef}
         type="date"
         value={value}
-        min={min}
+        min={min ?? today}
         onChange={(e) => onChange(e.target.value)}
         className={`text-sm font-semibold mt-1.5 bg-transparent outline-none cursor-pointer w-full ${valueCls}`}
       />

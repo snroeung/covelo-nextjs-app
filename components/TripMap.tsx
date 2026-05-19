@@ -383,16 +383,16 @@ export function TripMap({
 
   // ── Styles ────────────────────────────────────────────────────────────────
 
-  const bg        = isDark ? 'bg-cv-blue-950' : 'bg-white';
-  const mutedText = isDark ? 'text-cv-blue-400' : 'text-cv-blue-400';
+  const bg        = isDark ? 'bg-gph-dark-bg'    : 'bg-white';
+  const mutedText = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const pillBase  = 'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 whitespace-nowrap';
   const pillIdle  = isDark
-    ? 'bg-cv-blue-800 text-cv-blue-300 hover:bg-cv-blue-700'
-    : 'bg-cv-blue-50 text-cv-blue-600 hover:bg-cv-blue-100';
-  const pillOn    = isDark ? 'bg-cv-blue-500 text-white' : 'bg-cv-blue-600 text-white';
+    ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-gph-dark-line'
+    : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+  const pillOn    = isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white';
   const btnCls    = isDark
-    ? 'bg-cv-blue-900/80 border border-cv-blue-700 text-cv-blue-300 hover:bg-cv-blue-800 hover:text-white'
-    : 'bg-white/80 border border-cv-blue-200 text-cv-blue-600 hover:bg-cv-blue-50';
+    ? 'bg-gph-dark-card/80 border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft hover:text-gph-dark-ink'
+    : 'bg-white/80 border border-gray-200 text-gray-600 hover:bg-gray-50';
 
   return (
     <div className={`flex flex-col h-full border-l overflow-hidden ${borderCls} ${bg}`}>
@@ -405,7 +405,7 @@ export function TripMap({
               <path strokeLinecap="round" strokeLinejoin="round"
                 d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />
             </svg>
-            <span className={`text-xs font-semibold truncate ${isDark ? 'text-cv-blue-200' : 'text-cv-blue-800'}`}>
+            <span className={`text-xs font-semibold truncate ${isDark ? 'text-gph-dark-ink' : 'text-gray-800'}`}>
               {destination.split(',')[0]}
             </span>
           </div>
@@ -429,7 +429,7 @@ export function TripMap({
         ref={searchBoxRef}
         className={`shrink-0 border-b ${borderCls} transition-all duration-300 ${minimized ? 'h-0 overflow-hidden border-b-0' : 'relative'}`}
       >
-        <div className={`flex items-center gap-2 px-3 ${isDark ? 'bg-cv-blue-950' : 'bg-white'}`}>
+        <div className={`flex items-center gap-2 px-3 ${isDark ? 'bg-gph-dark-bg' : 'bg-white'}`}>
           {searchLoading ? (
             <svg className={`w-4 h-4 shrink-0 animate-spin ${mutedText}`} fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -448,8 +448,8 @@ export function TripMap({
             placeholder="Search location to add pin…"
             disabled={!hasCoords}
             className={`flex-1 py-2.5 text-sm bg-transparent outline-none disabled:opacity-40 ${isDark
-              ? 'text-white placeholder:text-cv-blue-500'
-              : 'text-cv-blue-950 placeholder:text-cv-blue-400'}`}
+              ? 'text-gph-dark-ink placeholder:text-gph-dark-muted'
+              : 'text-gray-900 placeholder:text-gray-400'}`}
           />
           {searchQuery && (
             <button
@@ -466,8 +466,8 @@ export function TripMap({
         {/* Results dropdown */}
         {searchResults.length > 0 && (
           <ul className={`absolute inset-x-0 top-full z-20 border-t shadow-xl ${isDark
-            ? 'bg-cv-blue-900 border-cv-blue-700'
-            : 'bg-white border-cv-blue-100'}`}>
+            ? 'bg-gph-dark-card border-gph-dark-line'
+            : 'bg-white border-gray-200'}`}>
             {searchResults.map((s) => {
               const [head, ...rest] = s.place_name.split(',');
               return (
@@ -476,8 +476,8 @@ export function TripMap({
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSearchSelect(s)}
                     className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark
-                      ? 'text-cv-blue-100 hover:bg-cv-blue-800'
-                      : 'text-cv-blue-950 hover:bg-cv-blue-50'}`}
+                      ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft'
+                      : 'text-gray-900 hover:bg-gray-50'}`}
                   >
                     <span className="font-medium">{head}</span>
                     {rest.length > 0 && (
@@ -509,8 +509,8 @@ export function TripMap({
                   onClick={() => removePin(pin.id)}
                   title="Remove pin"
                   className={`p-0.5 rounded-full transition-colors ${isDark
-                    ? 'text-cv-blue-700 hover:text-cv-blue-300'
-                    : 'text-cv-blue-300 hover:text-cv-blue-600'}`}
+                    ? 'text-gph-dark-muted hover:text-gph-dark-ink'
+                    : 'text-gray-400 hover:text-gray-700'}`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -551,7 +551,7 @@ export function TripMap({
           </>
         ) : (
           !minimized && (
-            <div className={`flex flex-col items-center justify-center h-full gap-2 ${isDark ? 'bg-cv-blue-900' : 'bg-cv-blue-50'}`}>
+            <div className={`flex flex-col items-center justify-center h-full gap-2 ${isDark ? 'bg-gph-dark-card' : 'bg-gray-50'}`}>
               <svg className={`w-8 h-8 ${mutedText}`} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round"
                   d="M9 6.75V15m6-6v8.25m.503-10.498l4.875 2.437c.381.19.622.58.622 1.006V17.25a.75.75 0 01-.621.74l-5.03.88a1.5 1.5 0 01-.506.02L9.503 18.13a1.5 1.5 0 00-.506.02l-3.984.743A.75.75 0 014.5 18.13V7.87a.75.75 0 01.372-.648l4.5-2.25a.75.75 0 01.632-.012z" />

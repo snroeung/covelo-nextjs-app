@@ -25,6 +25,18 @@
   --color-cv-blue-100: #E8F4FD;
   --color-cv-blue-50:  #F4F9FE;
 
+  /* Graphite dark mode palette */
+  --color-gph-dark-bg:        #0a0a0b;
+  --color-gph-dark-card:      #161618;
+  --color-gph-dark-ink:       #f3f3f1;
+  --color-gph-dark-muted:     #8a8a90;
+  --color-gph-dark-line:      #262629;
+  --color-gph-dark-linesoft:  #1c1c1f;
+  --color-gph-dark-action:    #e4e4e1;
+  --color-gph-dark-actionhi:  #f3f3f0;
+  --color-gph-dark-actionsoft:#222226;
+  --color-gph-dark-navy:      #000000;
+
   /* Green — savings & confirmation */
   --color-cv-green-800: #2D7A3A;
   --color-cv-green-700: #3F8F4E;

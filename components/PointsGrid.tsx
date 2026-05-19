@@ -45,11 +45,11 @@ function CardRow({
   showCardName: boolean;
 }) {
   const { isDark } = useTheme();
-  const ptsCls   = isDark ? 'text-white/70'      : 'text-cv-blue-950';
-  const earnCls  = isDark ? 'text-cv-amber-400'  : 'text-cv-amber-600';
-  const labelCls = isDark ? 'text-cv-blue-400'   : 'text-cv-blue-400';
-  const mathCls  = isDark ? 'text-cv-blue-300'   : 'text-cv-blue-300';
-  const divCls   = isDark ? 'bg-cv-blue-900'     : 'bg-cv-blue-100';
+  const ptsCls   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const earnCls  = isDark ? 'text-cv-amber-400'   : 'text-cv-amber-600';
+  const labelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mathCls  = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
+  const divCls   = isDark ? 'bg-gph-dark-line'    : 'bg-gray-200';
 
   const tier = cppTier(result.centsPerPoint);
   const earnCashValue = Math.round(result.pointsEarned * result.centsPerPoint / 100);
@@ -58,7 +58,7 @@ function CardRow({
     <div className="flex flex-col gap-2">
       {/* Card name only shown when portal has multiple CPP tiers */}
       {showCardName && (
-        <span className={`text-xs font-medium ${isDark ? 'text-white/60' : 'text-cv-blue-600'}`}>
+        <span className={`text-xs font-medium ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
           {result.cardName}
         </span>
       )}
@@ -113,10 +113,10 @@ function PortalGroupSection({
   globalBestPts: number;
 }) {
   const { isDark } = useTheme();
-  const borderCls  = isDark ? 'border-cv-blue-900' : 'border-cv-blue-100';
-  const headerCls  = isDark ? 'text-white/50'      : 'text-cv-blue-400';
-  const priceCls   = isDark ? 'text-cv-blue-300'   : 'text-cv-blue-950';
-  const dividerCls = isDark ? 'border-cv-blue-900/60' : 'border-cv-blue-50';
+  const borderCls  = isDark ? 'border-gph-dark-line'      : 'border-gray-200';
+  const headerCls  = isDark ? 'text-gph-dark-muted'       : 'text-gray-500';
+  const priceCls   = isDark ? 'text-gph-dark-ink'         : 'text-gray-900';
+  const dividerCls = isDark ? 'border-gph-dark-line/60'   : 'border-gray-100';
 
   const isGroupBest = group.results[0].pointsNeeded === globalBestPts;
   const multiCpp    = group.results.length > 1;
@@ -171,8 +171,8 @@ function TransferRow({
   priceUsd: number;
 }) {
   const { isDark } = useTheme();
-  const rowBorder  = isDark ? 'border-cv-blue-900' : 'border-cv-amber-200';
-  const dividerCls = isDark ? 'bg-cv-blue-900'     : 'bg-cv-amber-200';
+  const rowBorder  = isDark ? 'border-gph-dark-line' : 'border-cv-amber-200';
+  const dividerCls = isDark ? 'bg-gph-dark-line'    : 'bg-cv-amber-200';
   const ptsCls     = isBest ? 'text-cv-green-400'  : 'text-cv-amber-400';
   const labelCls   = isDark ? 'text-cv-amber-600'  : 'text-cv-amber-500';
   const mathCls    = isDark ? 'text-cv-amber-700'  : 'text-cv-amber-400/60';
@@ -265,10 +265,10 @@ export function PointsGrid({ result, collapseAfter }: { result: PointsResult; co
   const visible     = groupsExpanded ? result.portalGroups : result.portalGroups.slice(0, limit);
   const hiddenCount = result.portalGroups.length - limit;
 
-  const containerBg  = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
-  const moreButtonBg = isDark ? 'bg-cv-blue-950 text-cv-blue-400' : 'bg-cv-blue-50 text-cv-blue-600';
-  const hackHeaderBg = isDark ? 'bg-cv-blue-950 hover:bg-cv-blue-900' : 'bg-cv-amber-50 hover:bg-cv-amber-100';
-  const hackBorder   = isDark ? 'border-cv-amber-900' : 'border-cv-amber-200';
+  const containerBg  = isDark ? 'bg-gph-dark-card' : 'bg-white border border-gray-200';
+  const moreButtonBg = isDark ? 'bg-gph-dark-bg text-gph-dark-muted' : 'bg-gray-50 text-gray-500';
+  const hackHeaderBg = isDark ? 'bg-gph-dark-bg hover:bg-gph-dark-linesoft' : 'bg-cv-amber-50 hover:bg-cv-amber-100';
+  const hackBorder   = isDark ? 'border-gph-dark-line' : 'border-cv-amber-200';
 
   return (
     <div className={`rounded-xl overflow-hidden ${containerBg}`}>
@@ -314,7 +314,7 @@ export function PointsGrid({ result, collapseAfter }: { result: PointsResult; co
       )}
 
       {/* Disclaimer */}
-      <p className={`px-5 py-2.5 text-[10px] leading-relaxed border-t ${isDark ? 'border-cv-blue-800 text-cv-blue-500' : 'border-cv-blue-100 text-cv-blue-400'}`}>
+      <p className={`px-5 py-2.5 text-[10px] leading-relaxed border-t ${isDark ? 'border-gph-dark-line text-gph-dark-muted' : 'border-gray-200 text-gray-400'}`}>
         {disclaimer}
       </p>
     </div>

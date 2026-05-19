@@ -22,15 +22,13 @@ export function AppShell({
   const pathname = usePathname();
   const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-
   useEffect(() => {
     if (hasResults) setHeaderOpen(false);
   }, [hasResults]);
 
-  const pageBg    = isDark ? 'bg-cv-blue-950' : 'bg-gray-100';
-  const surfaceBg = isDark ? 'bg-cv-blue-950' : 'bg-white';
-  const borderCls = isDark ? 'border-cv-blue-900' : 'border-gray-200';
+  const pageBg    = isDark ? 'bg-gph-dark-bg'   : 'bg-gray-100';
+  const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
+  const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const allCardsMode = selectedCards.length === 0;
 
   function navLinkCls(href: string) {
@@ -40,12 +38,12 @@ export function AppShell({
       ? `${base} bg-white text-gray-900`
       : `${base} bg-gray-900 text-white`;
     return isDark
-      ? `${base} text-cv-blue-400 hover:text-white`
+      ? `${base} text-gph-dark-muted hover:text-gph-dark-ink`
       : `${base} text-gray-500 hover:text-gray-900`;
   }
 
-  const chevronColor = isDark ? 'text-cv-blue-400' : 'text-gray-500';
-  const labelColor   = isDark ? 'text-cv-blue-300' : 'text-gray-900';
+  const chevronColor = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const labelColor   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
 
   return (
     <div className={`flex flex-col h-screen overflow-hidden font-sans ${pageBg}`}>
@@ -53,15 +51,18 @@ export function AppShell({
       {/* ① Nav — full width */}
       <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
         <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          covelo<span className={isDark ? 'text-cv-blue-400' : 'text-gray-400'}>.</span>
+          covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
         </span>
         <div className="flex items-center gap-1">
           <Link href="/"              className={navLinkCls('/')}>Flights</Link>
           <Link href="/hotels"        className={navLinkCls('/hotels')}>Hotels</Link>
           <Link href="/trip-planner"  className={navLinkCls('/trip-planner')}>Trip Planner</Link>
         </div>
-        <div className="ml-auto md:hidden">
-          <ThemeToggle />
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle compact />
+          <div className="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-white text-xs font-bold select-none">
+            NR
+          </div>
         </div>
       </nav>
 
@@ -142,9 +143,6 @@ export function AppShell({
           )}
           <div className="flex-1 overflow-y-auto p-5">
             <CardSelector />
-          </div>
-          <div className={`p-3 border-t ${borderCls}`}>
-            <ThemeToggle />
           </div>
         </aside>
 

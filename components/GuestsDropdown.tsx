@@ -24,17 +24,17 @@ function Stepper({
 }) {
   const btnBase     = 'w-7 h-7 rounded-full border text-sm font-semibold flex items-center justify-center transition-colors';
   const btnActive   = isDark
-    ? 'border-cv-blue-600 text-cv-blue-300 hover:bg-cv-blue-800'
+    ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
     : 'border-gray-400 text-gray-600 hover:bg-gray-100';
   const btnDisabled = isDark
-    ? 'border-cv-blue-900 text-cv-blue-700 cursor-not-allowed'
+    ? 'border-gph-dark-linesoft text-gph-dark-muted/40 cursor-not-allowed'
     : 'border-gray-200 text-gray-300 cursor-not-allowed';
 
   return (
     <div className="flex items-center justify-between gap-4 py-2">
       <div className="flex flex-col">
-        <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{label}</span>
-        <span className={`text-xs ${isDark ? 'text-cv-blue-400' : 'text-gray-400'}`}>{sub}</span>
+        <span className={`text-sm font-medium ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{label}</span>
+        <span className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{sub}</span>
       </div>
       <div className="flex items-center gap-3">
         <button
@@ -44,7 +44,7 @@ function Stepper({
         >
           −
         </button>
-        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
           {value}
         </span>
         <button
@@ -84,10 +84,10 @@ export function GuestsDropdown({
   const summary = `${value.adults} adult${value.adults !== 1 ? 's' : ''}${value.children > 0 ? `, ${value.children} child${value.children !== 1 ? 'ren' : ''}` : ''}`;
 
   const boxCls = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950'
+    ? 'border-gph-dark-line bg-gph-dark-card'
     : 'border-gray-200 bg-white';
   const panelCls = isDark
-    ? 'bg-cv-blue-950 border-cv-blue-800 shadow-xl'
+    ? 'bg-gph-dark-card border-gph-dark-line shadow-xl'
     : 'bg-white border-gray-200 shadow-xl';
 
   return (
@@ -96,10 +96,10 @@ export function GuestsDropdown({
         onClick={() => setOpen((o) => !o)}
         className={`flex flex-col rounded-lg border px-3 py-2 text-left w-full focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition-colors ${boxCls}`}
       >
-        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-cv-blue-400' : 'text-gray-400'}`}>
+        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
           Guests
         </span>
-        <span className={`text-sm font-semibold mt-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <span className={`text-sm font-semibold mt-1.5 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
           {summary}
         </span>
       </button>
@@ -115,7 +115,7 @@ export function GuestsDropdown({
             onChange={(v) => onChange({ ...value, adults: v })}
             isDark={isDark}
           />
-          <div className={`border-t ${isDark ? 'border-cv-blue-800' : 'border-gray-100'}`} />
+          <div className={`border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-100'}`} />
           <Stepper
             label="Children"
             sub="Ages 0–17"
@@ -125,7 +125,7 @@ export function GuestsDropdown({
             onChange={(v) => onChange({ ...value, children: v })}
             isDark={isDark}
           />
-          <div className={`border-t ${dividerCls}`} />
+          <div className={`border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-100'}`} />
           <Stepper
             label="Pets"
             sub="Dogs, cats & more"

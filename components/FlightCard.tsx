@@ -54,12 +54,12 @@ function SliceRow({ slice }: { slice: any }) {
     <div className="space-y-1.5">
       {segments.map((seg: any, i: number) => (
         <div key={i}>
-          <div className="flex items-center gap-2 text-xs text-cv-blue-400/80">
+          <div className="flex items-center gap-2 text-xs text-gph-dark-muted/80">
             <span className="font-mono">{seg.origin.iata_code}</span>
             <span>{formatTime(seg.departing_at)}</span>
-            <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
+            <span className="flex-1 border-t border-dashed border-gph-dark-muted/20" />
             <span>{formatDuration(seg.duration)}</span>
-            <span className="flex-1 border-t border-dashed border-cv-blue-400/20" />
+            <span className="flex-1 border-t border-dashed border-gph-dark-muted/20" />
             <span>{formatTime(seg.arriving_at)}</span>
             <span className="font-mono">{seg.destination.iata_code}</span>
           </div>
@@ -79,10 +79,10 @@ function SliceRow({ slice }: { slice: any }) {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; defaultCollapsed?: boolean }) {
   const { isDark } = useTheme();
-  const cardBg      = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
-  const divider     = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
-  const textPrimary = isDark ? 'text-white' : 'text-cv-blue-950';
-  const textMuted   = isDark ? 'text-cv-blue-400' : 'text-cv-blue-400';
+  const cardBg      = isDark ? 'bg-gph-dark-card' : 'bg-white border border-gray-200';
+  const divider     = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const textPrimary = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const textMuted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
 
   const firstSegment = offer.slices[0].segments[0];
   const lastSlice    = offer.slices[offer.slices.length - 1];
@@ -134,7 +134,7 @@ export function FlightCard({ offer, defaultCollapsed = false }: { offer: any; de
         <div className="flex items-start gap-2">
           <div className="text-right">
             <p className={`text-[10px] ${textMuted}`}>starting from</p>
-            <p className="text-lg font-bold text-cv-blue-400">
+            <p className={`text-lg font-bold ${textMuted}`}>
               {totalAmount.toLocaleString('en-US', {
                 style: 'currency',
                 currency: offer.total_currency,

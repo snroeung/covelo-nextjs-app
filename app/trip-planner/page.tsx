@@ -41,11 +41,11 @@ function TripCard({ trip, onDelete, isDark }: { trip: Trip; onDelete: () => void
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(true);
 
-  const cardBg      = isDark ? 'bg-cv-blue-900' : 'bg-white border border-cv-blue-100';
-  const divider     = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
-  const textPrimary = isDark ? 'text-white' : 'text-cv-blue-950';
-  const textMuted   = isDark ? 'text-cv-blue-400' : 'text-cv-blue-400';
-  const pillBg      = isDark ? 'bg-cv-blue-800 text-cv-blue-300' : 'bg-cv-blue-50 text-cv-blue-600';
+  const cardBg      = isDark ? 'bg-gph-dark-card' : 'bg-white border border-gray-200';
+  const divider     = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
+  const textMuted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const pillBg      = isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink' : 'bg-gray-100 text-gray-700';
 
   const nights = nightsBetween(trip.start_date, trip.end_date);
 
@@ -88,25 +88,25 @@ function TripCard({ trip, onDelete, isDark }: { trip: Trip; onDelete: () => void
           {/* Detail rows */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
             <div>
-              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
                 Destination
               </p>
               <p className={`text-sm ${textPrimary}`}>{trip.destination}</p>
             </div>
             <div>
-              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
                 Dates
               </p>
               <p className={`text-sm ${textPrimary}`}>{formatDateRange(trip.start_date, trip.end_date)}</p>
             </div>
             <div>
-              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
                 Travelers
               </p>
               <p className={`text-sm ${textPrimary}`}>{travelerSummary(trip.travelers)}</p>
             </div>
             <div>
-              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
                 Duration
               </p>
               <p className={`text-sm ${textPrimary}`}>{nights} night{nights !== 1 ? 's' : ''}</p>
@@ -117,13 +117,13 @@ function TripCard({ trip, onDelete, isDark }: { trip: Trip; onDelete: () => void
           <div className={`flex items-center justify-between pt-3 border-t ${divider}`}>
             <button
               onClick={onDelete}
-              className={`text-xs font-medium transition-colors ${isDark ? 'text-cv-blue-400 hover:text-red-400' : 'text-cv-blue-400 hover:text-red-500'}`}
+              className={`text-xs font-medium transition-colors ${isDark ? 'text-gph-dark-muted hover:text-red-400' : 'text-gray-500 hover:text-red-500'}`}
             >
               Delete trip
             </button>
             <button
               onClick={() => router.push(`/trip-planner/${trip.id}`)}
-              className="px-4 py-1.5 rounded-lg bg-cv-blue-600 hover:bg-cv-blue-500 text-white text-xs font-semibold transition-colors"
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors ${isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'}`}
             >
               Plan itinerary →
             </button>
@@ -145,22 +145,22 @@ function Stepper({
 }) {
   const btnBase = 'w-7 h-7 rounded-full border text-sm font-semibold flex items-center justify-center transition-colors';
   const btnActive = isDark
-    ? 'border-cv-blue-600 text-cv-blue-300 hover:bg-cv-blue-800'
-    : 'border-cv-blue-500 text-cv-blue-600 hover:bg-cv-blue-50';
+    ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
+    : 'border-gray-400 text-gray-700 hover:bg-gray-50';
   const btnDisabled = isDark
-    ? 'border-cv-blue-900 text-cv-blue-700 cursor-not-allowed'
-    : 'border-cv-blue-100 text-cv-blue-300 cursor-not-allowed';
+    ? 'border-gph-dark-line text-gph-dark-muted cursor-not-allowed opacity-30'
+    : 'border-gray-200 text-gray-300 cursor-not-allowed';
 
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <div>
-        <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{label}</p>
-        <p className={`text-xs text-cv-blue-400`}>{sub}</p>
+        <p className={`text-sm font-medium ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{label}</p>
+        <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>{sub}</p>
       </div>
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => onChange(value - 1)} disabled={value <= min}
           className={`${btnBase} ${value <= min ? btnDisabled : btnActive}`}>−</button>
-        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>{value}</span>
+        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{value}</span>
         <button type="button" onClick={() => onChange(value + 1)} disabled={value >= max}
           className={`${btnBase} ${value >= max ? btnDisabled : btnActive}`}>+</button>
       </div>
@@ -170,7 +170,7 @@ function Stepper({
 
 function SectionLabel({ children, isDark }: { children: React.ReactNode; isDark: boolean }) {
   return (
-    <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+    <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
       {children}
     </p>
   );
@@ -273,22 +273,22 @@ export default function TripPlannerPage() {
   }
 
   // Style helpers
-  const pageBg    = isDark ? 'bg-cv-blue-950' : 'bg-cv-blue-50';
-  const surfaceBg = isDark ? 'bg-cv-blue-950' : 'bg-white';
-  const cardBg    = isDark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-cv-blue-100';
-  const borderCls = isDark ? 'border-cv-blue-900' : 'border-cv-blue-100';
-  const divider   = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
+  const pageBg    = isDark ? 'bg-gph-dark-bg' : 'bg-gray-50';
+  const surfaceBg = isDark ? 'bg-gph-dark-bg' : 'bg-white';
+  const cardBg    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const divider   = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const inputCls  = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950 text-white placeholder:text-cv-blue-400/60 focus:ring-cv-blue-600'
-    : 'border-cv-blue-100 bg-white text-cv-blue-950 placeholder:text-cv-blue-400 focus:ring-cv-blue-600';
+    ? 'border-gph-dark-line bg-gph-dark-linesoft text-gph-dark-ink placeholder:text-gph-dark-muted focus:ring-gph-dark-action'
+    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:ring-gray-400';
 
   function navLinkCls(href: string) {
     const active = pathname === href;
     const base   = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-colors';
-    if (active) return `${base} bg-cv-blue-600 text-white`;
+    if (active) return isDark ? `${base} bg-gph-dark-action text-gph-dark-bg` : `${base} bg-gray-900 text-white`;
     return isDark
-      ? `${base} text-cv-blue-400 hover:text-white`
-      : `${base} text-cv-blue-600 hover:text-cv-blue-950`;
+      ? `${base} text-gph-dark-muted hover:text-gph-dark-ink`
+      : `${base} text-gray-600 hover:text-gray-900`;
   }
 
   return (
@@ -296,8 +296,8 @@ export default function TripPlannerPage() {
 
       {/* Nav */}
       <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
-        <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>
-          covelo<span className="text-cv-blue-400">.</span>
+        <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+          covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
         </span>
         <div className="flex items-center gap-1">
           <Link href="/"             className={navLinkCls('/')}>Flights</Link>
@@ -318,7 +318,7 @@ export default function TripPlannerPage() {
 
             {/* Heading — hidden once a destination is chosen */}
             {!showCard && (
-              <h1 className={`text-4xl md:text-5xl font-bold text-center tracking-tight ${isDark ? 'text-white' : 'text-cv-blue-950'}`}>
+              <h1 className={`text-4xl md:text-5xl font-bold text-center tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
                 Where is your next adventure?
               </h1>
             )}
@@ -327,7 +327,7 @@ export default function TripPlannerPage() {
             {destination && (
               <button
                 onClick={handleBack}
-                className={`self-start flex items-center gap-1.5 text-sm font-medium transition-colors ${isDark ? 'text-cv-blue-400 hover:text-white' : 'text-cv-blue-600 hover:text-cv-blue-950'}`}
+                className={`self-start flex items-center gap-1.5 text-sm font-medium transition-colors ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'}`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -399,7 +399,7 @@ export default function TripPlannerPage() {
                   <SectionLabel isDark={isDark}>Dates</SectionLabel>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-0.5">
-                      <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+                      <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
                         Start
                       </label>
                       <input type="date" value={startDate} min={today}
@@ -408,7 +408,7 @@ export default function TripPlannerPage() {
                       />
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-cv-blue-300' : 'text-cv-blue-900'}`}>
+                      <label className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${isDark ? 'text-gph-dark-muted' : 'text-gray-900'}`}>
                         End
                       </label>
                       <input type="date" value={endDate} min={startDate || today}
@@ -423,7 +423,7 @@ export default function TripPlannerPage() {
                 <div className={`border-t ${divider}`} />
                 <div className="px-5 py-4">
                   <SectionLabel isDark={isDark}>Travelers</SectionLabel>
-                  <div className={`divide-y ${isDark ? 'divide-cv-blue-800' : 'divide-cv-blue-100'}`}>
+                  <div className={`divide-y ${isDark ? 'divide-gph-dark-line' : 'divide-gray-200'}`}>
                     <Stepper label="Adults" sub="Age 18+" value={travelers.adults} min={1} max={20}
                       onChange={(v) => setTravelers((t) => ({ ...t, adults: v }))} isDark={isDark} />
                     <Stepper label="Children" sub="Ages 0–17" value={travelers.children} min={0} max={20}
@@ -446,7 +446,7 @@ export default function TripPlannerPage() {
                 {/* Save */}
                 <div className={`border-t px-5 py-4 flex justify-end ${divider}`}>
                   <button type="button" onClick={handleSave} disabled={!startDate || !endDate}
-                    className="px-6 py-2.5 rounded-xl bg-cv-blue-600 hover:bg-cv-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                    className={`px-6 py-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed text-sm font-semibold transition-colors ${isDark ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
                   >
                     Save trip
                   </button>
@@ -459,7 +459,7 @@ export default function TripPlannerPage() {
           {/* ── Existing trips ─────────────────────────────────────────── */}
           {trips.length > 0 && !showCard && (
             <div className="flex flex-col gap-4">
-              <p className={`text-sm text-center ${isDark ? 'text-cv-blue-400' : 'text-cv-blue-400'}`}>
+              <p className={`text-sm text-center ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
                 Or continue planning an existing trip
               </p>
               <div className="flex flex-col gap-3">

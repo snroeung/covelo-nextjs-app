@@ -22,11 +22,13 @@ interface Props {
   onSelect: (place: SelectedPlace) => void;
   onClear: () => void;
   placeholder?: string;
-  forAirport?: boolean; // restricts suggestions to airports and parses IATA from description
-  fieldLabel?: string;  // when set, renders label inside the bordered field box
+  forAirport?: boolean;    // restricts suggestions to airports and parses IATA from description
+  fieldLabel?: string;     // when set, renders label inside the bordered field box
+  initialValue?: string;   // pre-filled input text (e.g. from saved trip planner state)
+  initialCommitted?: boolean; // treat initialValue as already-selected (no auto-open dropdown)
 }
 
-export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, fieldLabel }: Props) {
+export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, fieldLabel, initialValue, initialCommitted }: Props) {
   const { isDark } = useTheme();
   const listboxId = useId();
 
@@ -125,15 +127,14 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
 
   const defaultPlaceholder = forAirport ? 'City or airport' : 'City, neighborhood, or address';
 
-  const boxCls   = isDark ? 'border-cv-blue-900 bg-cv-blue-950' : 'border-gray-200 bg-white';
-  const iconCls  = isDark ? 'text-cv-blue-400' : 'text-gray-400';
-  // Used in standard (non-fieldLabel) mode
+  const boxCls   = isDark ? 'border-gph-dark-line bg-gph-dark-card' : 'border-gray-200 bg-white';
+  const iconCls  = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
   const inputCls = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950 text-white placeholder:text-cv-blue-400/60'
+    ? 'border-gph-dark-line bg-gph-dark-card text-gph-dark-ink placeholder:text-gph-dark-muted/60'
     : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400';
-  const dropdownBg = isDark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-gray-200';
+  const dropdownBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const itemBase   = 'w-full text-left px-4 py-2.5 text-sm transition-colors';
-  const itemHover  = isDark ? 'hover:bg-cv-blue-800 text-cv-blue-100' : 'hover:bg-gray-50 text-gray-900';
+  const itemHover  = isDark ? 'hover:bg-gph-dark-linesoft text-gph-dark-ink' : 'hover:bg-gray-50 text-gray-900';
 
   const icon = resolving ? (
     <svg className={`w-4 h-4 ${iconCls} animate-spin shrink-0`} fill="none" viewBox="0 0 24 24">
@@ -155,7 +156,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
       {fieldLabel ? (
         /* Field-box mode: label inside the bordered container */
         <div className={`flex flex-col rounded-lg border px-3 py-2 focus-within:ring-2 focus-within:border-gray-900 focus-within:ring-gray-900/20 transition-colors ${boxCls}`}>
-          <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-cv-blue-400' : 'text-gray-400'}`}>
+          <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
             {fieldLabel}
           </span>
           <div className="flex items-center gap-2 mt-1.5">
@@ -171,7 +172,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
               onChange={(e) => handleChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onFocus={() => suggestions.length > 0 && input.length >= 2 && setOpen(true)}
-              className={`flex-1 min-w-0 text-sm font-semibold bg-transparent outline-none ${isDark ? 'text-white placeholder:text-cv-blue-400/60' : 'text-gray-900 placeholder:text-gray-400'}`}
+              className={`flex-1 min-w-0 text-sm font-semibold bg-transparent outline-none ${isDark ? 'text-gph-dark-ink placeholder:text-gph-dark-muted/60' : 'text-gray-900 placeholder:text-gray-400'}`}
             />
           </div>
         </div>
@@ -216,7 +217,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
                 >
                   <span>{s.description}</span>
                   {iata && (
-                    <span className="shrink-0 text-xs font-mono font-semibold text-cv-blue-400">{iata}</span>
+                    <span className={`shrink-0 text-xs font-mono font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{iata}</span>
                   )}
                 </button>
               </li>

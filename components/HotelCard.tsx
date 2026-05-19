@@ -52,11 +52,11 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
   const portalCount  = pointsResult?.portalGroups.length ?? 0;
   const scoreLabel   = reviewScore !== null && reviewScore !== undefined ? ratingLabel(reviewScore) : null;
 
-  const cardBg      = isDark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-gray-200';
-  const textPrimary = isDark ? 'text-white'        : 'text-gray-900';
-  const textMuted   = isDark ? 'text-cv-blue-400'  : 'text-gray-500';
-  const pillBg      = isDark ? 'bg-cv-blue-800 text-cv-blue-300' : 'bg-gray-100 text-gray-600';
-  const dividerCls  = isDark ? 'border-cv-blue-800' : 'border-gray-200';
+  const cardBg      = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const textPrimary = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const textMuted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const pillBg      = isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600';
+  const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
   return (
     <article className={`rounded-xl overflow-hidden border ${cardBg}`}>
@@ -71,7 +71,7 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
               className="w-full h-52 md:h-full object-cover"
             />
           ) : (
-            <div className={`w-full h-52 md:h-full flex items-center justify-center text-4xl ${isDark ? 'bg-cv-blue-800' : 'bg-gray-100'}`}>
+            <div className={`w-full h-52 md:h-full flex items-center justify-center text-4xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>
               🏨
             </div>
           )}
@@ -90,7 +90,7 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
                   {stars !== null && stars !== undefined && (
                     <div className="flex gap-0.5">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <span key={i} className={`text-xs ${i < stars ? 'text-cv-amber-400' : isDark ? 'text-cv-blue-800' : 'text-gray-200'}`}>★</span>
+                        <span key={i} className={`text-xs ${i < stars ? 'text-cv-amber-400' : isDark ? 'text-gph-dark-line' : 'text-gray-200'}`}>★</span>
                       ))}
                     </div>
                   )}
@@ -143,7 +143,7 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
                   className={`mt-2.5 p-1.5 rounded border transition-colors ${
                     favorited
                       ? 'border-red-300 text-red-500'
-                      : isDark ? 'border-cv-blue-700 text-cv-blue-400 hover:border-cv-blue-500' : 'border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600'
+                      : isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink' : 'border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-600'
                   }`}
                 >
                   <svg width="14" height="14" fill={favorited ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

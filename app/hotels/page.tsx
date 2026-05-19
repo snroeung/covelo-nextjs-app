@@ -24,8 +24,8 @@ function buildGuests(guests: GuestsValue) {
 function EmptyState({ message }: { message: string }) {
   const { isDark } = useTheme();
   return (
-    <div className={`flex items-center justify-center rounded-xl border border-dashed py-16 ${isDark ? 'border-cv-blue-900' : 'border-gray-200'}`}>
-      <p className={`text-sm ${isDark ? 'text-cv-blue-400' : 'text-gray-400'}`}>{message}</p>
+    <div className={`flex items-center justify-center rounded-xl border border-dashed py-16 ${isDark ? 'border-gph-dark-line' : 'border-gray-200'}`}>
+      <p className={`text-sm ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{message}</p>
     </div>
   );
 }
@@ -135,17 +135,17 @@ function HotelsPageInner() {
   const { isDark: dark } = useTheme();
   const ghostBtn = `flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
     dark
-      ? 'border-cv-blue-800 text-cv-blue-300 hover:border-cv-blue-600 hover:text-white'
+      ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink'
       : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900'
   }`;
   const dropdownCls = `absolute right-0 top-full mt-1 z-50 rounded-xl border shadow-lg overflow-hidden min-w-[140px] ${
-    dark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-gray-200'
+    dark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'
   }`;
   const optionCls = (active: boolean) =>
     `w-full text-left px-4 py-2.5 text-sm transition-colors whitespace-nowrap ${
       active
         ? 'bg-gray-900 text-white'
-        : dark ? 'text-cv-blue-100 hover:bg-cv-blue-800' : 'text-gray-700 hover:bg-gray-50'
+        : dark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-700 hover:bg-gray-50'
     }`;
   const chevron = (open: boolean) => (
     <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -154,14 +154,14 @@ function HotelsPageInner() {
   );
 
   const fieldBoxCls = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950'
+    ? 'border-gph-dark-line bg-gph-dark-card'
     : 'border-gray-200 bg-white';
-  const fieldLabelCls = isDark ? 'text-cv-blue-400' : 'text-gray-400';
-  const fieldValueCls = isDark ? 'text-white' : 'text-gray-900';
+  const fieldLabelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
+  const fieldValueCls = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
 
   const header = (
     <div className="w-full flex flex-col gap-2.5 md:grid md:items-stretch"
-      style={{ gridTemplateColumns: '1fr 140px 140px 90px 140px auto' }}>
+      style={{ gridTemplateColumns: 'minmax(0,1fr) 140px 140px 90px auto auto' }}>
 
       {/* Location */}
       <LocationSearch
@@ -199,10 +199,10 @@ function HotelsPageInner() {
       <button
         onClick={handleSearch}
         disabled={!canSearch || hotelSearch.isPending}
-        className={`rounded-lg px-6 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+        className={`rounded-lg px-6 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 ${
           isDark
-            ? 'bg-cv-blue-600 hover:bg-cv-blue-400 focus:ring-cv-blue-600'
-            : 'bg-gray-900 hover:bg-gray-700 focus:ring-gray-900'
+            ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi focus:ring-gph-dark-action'
+            : 'bg-gray-900 text-white hover:bg-gray-700 focus:ring-gray-900'
         }`}
       >
         {hotelSearch.isPending ? 'Searching…' : 'Search →'}
@@ -211,12 +211,12 @@ function HotelsPageInner() {
   );
 
   const resultsHeader = accommodations.length > 0 && (
-    <div className={`flex items-end justify-between pb-3 mb-5 border-b-2 ${isDark ? 'border-cv-blue-300' : 'border-gray-900'}`}>
+    <div className={`flex items-end justify-between pb-3 mb-5 border-b-2 ${isDark ? 'border-gph-dark-action' : 'border-gray-900'}`}>
       <div>
         <h2 className={`text-3xl font-extrabold tracking-tight leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {accommodations.length} hotel{accommodations.length !== 1 ? 's' : ''}{destPlace?.name ? ` in ${destPlace.name}` : ' found'}
         </h2>
-        <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-2 ${isDark ? 'text-cv-blue-400' : 'text-gray-500'}`}>
+        <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-2 ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
           {[
             destPlace?.name,
             rooms > 0 ? `${rooms} room${rooms !== 1 ? 's' : ''}` : null,
@@ -287,7 +287,7 @@ function HotelsPageInner() {
       {showBackToTop && (
         <button
           onClick={() => document.getElementById('app-main-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}
-          className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold shadow-lg transition-colors ${isDark ? 'bg-cv-blue-800 text-cv-blue-100 hover:bg-cv-blue-700 border-cv-blue-700' : 'bg-white text-cv-blue-950 hover:bg-cv-blue-50 border-cv-blue-200'} border`}
+          className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold shadow-lg transition-colors ${isDark ? 'bg-gph-dark-card text-gph-dark-ink hover:bg-gph-dark-linesoft border-gph-dark-line' : 'bg-white text-gray-900 hover:bg-gray-50 border-gray-200'} border`}
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
@@ -297,7 +297,7 @@ function HotelsPageInner() {
       )}
       {hotelSearch.isPending ? (
         <div className="flex items-center justify-center py-24">
-          <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-cv-blue-400' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
+          <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
