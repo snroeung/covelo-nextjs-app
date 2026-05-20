@@ -96,8 +96,12 @@ export async function getPlacePhoto(name: string, address: string): Promise<stri
   if (!GMAPS_KEY) return null;
 
   const cacheKey = `place:photo:ref:${name}:${address}`;
-  const cached = await redis.get<string>(cacheKey);
-  if (cached) return cached;
+  try {
+    const cached = await redis.get<string>(cacheKey);
+    if (cached) return cached;
+  } catch {
+    // Redis unavailable — fall through to live API
+  }
 
   const findUrl = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
   findUrl.searchParams.set('input', `${name} ${address}`);
@@ -112,7 +116,11 @@ export async function getPlacePhoto(name: string, address: string): Promise<stri
   const photoRef: string | undefined = findData.candidates?.[0]?.photos?.[0]?.photo_reference;
   if (!photoRef) return null;
 
-  await redis.set(cacheKey, photoRef, { ex: 60 * 60 * 24 * 7 });
+  try {
+    await redis.set(cacheKey, photoRef, { ex: 60 * 60 * 24 * 7 });
+  } catch {
+    // Redis unavailable — still return the result
+  }
   return photoRef;
 }
 
@@ -122,9 +130,13 @@ export async function getPlaceLatLng(
 ): Promise<PlaceLatLng> {
   const cacheKey = `place:latlng:${placeId}`;
 
-  // Cache hit
-  const cached = await redis.get<PlaceLatLng>(cacheKey);
-  if (cached) return cached;
+  // Cache hit — Redis failure is non-fatal; fall through to live API
+  try {
+    const cached = await redis.get<PlaceLatLng>(cacheKey);
+    if (cached) return cached;
+  } catch (err) {
+    console.warn('[places] Redis read failed, falling through to Places API:', err);
+  }
 
   // Cache miss → call Place Details (this call closes the session and is billed)
   if (!GMAPS_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set');
@@ -146,8 +158,12 @@ export async function getPlaceLatLng(
   const { lat, lng } = data.result.geometry.location;
   const result: PlaceLatLng = { latitude: lat, longitude: lng, name: data.result.name };
 
-  // 30-day TTL — coordinates are effectively permanent
-  await redis.set(cacheKey, result, { ex: 60 * 60 * 24 * 30 });
+  // 30-day TTL — swallow write errors so the result is still returned
+  try {
+    await redis.set(cacheKey, result, { ex: 60 * 60 * 24 * 30 });
+  } catch (err) {
+    console.warn('[places] Redis write failed:', err);
+  }
 
   return result;
 }

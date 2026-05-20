@@ -1,11 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { LocationSearch } from '@/components/LocationSearch';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { NavBar } from '@/components/NavBar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTrips } from '@/hooks/useTrips';
 import type { SelectedPlace } from '@/components/LocationSearch';
@@ -199,7 +197,7 @@ function findMatchingTrips(selected: SelectedPlace, trips: Trip[]): Trip[] {
 
 export default function TripPlannerPage() {
   const { isDark } = useTheme();
-  const pathname = usePathname();
+
   const { trips, addTrip, removeTrip } = useTrips();
 
   // New-trip form state
@@ -282,32 +280,10 @@ export default function TripPlannerPage() {
     ? 'border-gph-dark-line bg-gph-dark-linesoft text-gph-dark-ink placeholder:text-gph-dark-muted focus:ring-gph-dark-action'
     : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:ring-gray-400';
 
-  function navLinkCls(href: string) {
-    const active = pathname === href;
-    const base   = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-colors';
-    if (active) return isDark ? `${base} bg-gph-dark-action text-gph-dark-bg` : `${base} bg-gray-900 text-white`;
-    return isDark
-      ? `${base} text-gph-dark-muted hover:text-gph-dark-ink`
-      : `${base} text-gray-600 hover:text-gray-900`;
-  }
-
   return (
     <div className={`flex flex-col h-screen overflow-hidden font-sans ${pageBg}`}>
 
-      {/* Nav */}
-      <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
-        <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
-          covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
-        </span>
-        <div className="flex items-center gap-1">
-          <Link href="/"             className={navLinkCls('/')}>Flights</Link>
-          <Link href="/hotels"       className={navLinkCls('/hotels')}>Hotels</Link>
-          <Link href="/trip-planner" className={navLinkCls('/trip-planner')}>Trip Planner</Link>
-        </div>
-        <div className="ml-auto">
-          <ThemeToggle />
-        </div>
-      </nav>
+      <NavBar />
 
       {/* Scrollable body */}
       <main className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-12">

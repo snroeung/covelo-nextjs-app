@@ -160,7 +160,6 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
             {fieldLabel}
           </span>
           <div className="flex items-center gap-2 mt-1.5">
-            {icon}
             <input
               type="text"
               role="combobox"

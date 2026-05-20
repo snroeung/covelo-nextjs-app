@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { NavBar } from '@/components/NavBar';
 import { useTrips } from '@/hooks/useTrips';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { FlightCard } from '@/components/FlightCard';
@@ -423,13 +423,6 @@ export default function TripDetailPage() {
     </svg>
   );
 
-  function navLinkCls(_href: string) {
-    const base = 'px-4 py-1.5 rounded-lg text-sm font-medium transition-colors';
-    return isDark
-      ? `${base} text-gph-dark-muted hover:text-gph-dark-ink`
-      : `${base} text-gray-600 hover:text-gray-900`;
-  }
-
   // ── Loading / not-found state (SSR hydration gap) ──────────────────────────
   if (!trip && trips.length === 0) {
     // Still hydrating from localStorage — render nothing to avoid flash
@@ -439,11 +432,7 @@ export default function TripDetailPage() {
   if (!trip) {
     return (
       <div className={`flex flex-col h-screen font-sans ${pageBg}`}>
-        <nav className={`flex items-center gap-4 px-6 py-3 border-b ${surfaceBg} ${borderCls}`}>
-          <Link href="/trip-planner" className={`text-sm font-medium ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'}`}>
-            ← Trip Planner
-          </Link>
-        </nav>
+        <NavBar />
         <div className="flex flex-1 items-center justify-center">
           <p className={`text-sm ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>Trip not found.</p>
         </div>
@@ -456,20 +445,7 @@ export default function TripDetailPage() {
   return (
     <div className={`flex flex-col h-screen overflow-hidden font-sans ${pageBg}`}>
 
-      {/* Nav */}
-      <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
-        <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
-          covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
-        </span>
-        <div className="flex items-center gap-1">
-          <Link href="/"             className={navLinkCls('/')}>Flights</Link>
-          <Link href="/hotels"       className={navLinkCls('/hotels')}>Hotels</Link>
-          <Link href="/trip-planner" className={navLinkCls('/trip-planner')}>Trip Planner</Link>
-        </div>
-        <div className="ml-auto">
-          <ThemeToggle />
-        </div>
-      </nav>
+      <NavBar />
 
       {/* ── Body: sidebar + content ───────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
@@ -905,7 +881,7 @@ export default function TripDetailPage() {
             ) : (
               <div className="space-y-3">
                 {flights.map((bm) => (
-                  <FlightCard key={bm.id} offer={bm.data} defaultCollapsed />
+                  <FlightCard key={bm.id} offer={bm.data} />
                 ))}
               </div>
             )}
