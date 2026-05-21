@@ -25,11 +25,11 @@ export function NavBar() {
 
   return (
     <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
-      <span className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <Link href="/" className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
         covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
-      </span>
+      </Link>
       <div className="flex items-center gap-1">
-        <Link href="/"             className={navLinkCls('/')}>Flights</Link>
+        <Link href="/flights"      className={navLinkCls('/flights')}>Flights</Link>
         <Link href="/hotels"       className={navLinkCls('/hotels')}>Hotels</Link>
         <Link href="/trip-planner" className={navLinkCls('/trip-planner')}>Trip Planner</Link>
       </div>

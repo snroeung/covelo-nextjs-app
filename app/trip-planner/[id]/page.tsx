@@ -597,7 +597,6 @@ export default function TripDetailPage() {
               {editField === 'destination' ? (
                 <div ref={destinationRef} className="w-full">
                   <LocationSearch
-                    autoFocus
                     initialValue={trip.destination}
                     onSelect={saveDestination}
                     onClear={() => {}}
