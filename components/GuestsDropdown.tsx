@@ -22,19 +22,19 @@ function Stepper({
   onChange: (v: number) => void;
   isDark: boolean;
 }) {
-  const btnBase = `w-7 h-7 rounded-full border text-sm font-semibold flex items-center justify-center transition-colors`;
-  const btnActive = isDark
-    ? 'border-cv-blue-600 text-cv-blue-300 hover:bg-cv-blue-800'
-    : 'border-cv-blue-500 text-cv-blue-600 hover:bg-cv-blue-100';
-  const btnDisabled = isDark ? 'border-cv-blue-900 text-cv-blue-700 cursor-not-allowed' : 'border-cv-blue-100 text-cv-blue-300 cursor-not-allowed';
-  const textCls = isDark ? 'text-white' : 'text-cv-blue-950';
-  const subCls = isDark ? 'text-cv-blue-400' : 'text-cv-blue-400';
+  const btnBase     = 'w-7 h-7 rounded-full border text-sm font-semibold flex items-center justify-center transition-colors';
+  const btnActive   = isDark
+    ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
+    : 'border-gray-400 text-gray-600 hover:bg-gray-100';
+  const btnDisabled = isDark
+    ? 'border-gph-dark-linesoft text-gph-dark-muted/40 cursor-not-allowed'
+    : 'border-gray-200 text-gray-300 cursor-not-allowed';
 
   return (
     <div className="flex items-center justify-between gap-4 py-2">
       <div className="flex flex-col">
-        <span className={`text-sm font-medium ${textCls}`}>{label}</span>
-        <span className={`text-xs ${subCls}`}>{sub}</span>
+        <span className={`text-sm font-medium ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>{label}</span>
+        <span className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{sub}</span>
       </div>
       <div className="flex items-center gap-3">
         <button
@@ -44,7 +44,9 @@ function Stepper({
         >
           −
         </button>
-        <span className={`w-4 text-center text-sm font-semibold ${textCls}`}>{value}</span>
+        <span className={`w-4 text-center text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+          {value}
+        </span>
         <button
           onClick={() => onChange(value + 1)}
           disabled={value >= max}
@@ -78,32 +80,28 @@ export function GuestsDropdown({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const total = value.adults + value.children;
-  const summary = [
-    `${value.adults} adult${value.adults !== 1 ? 's' : ''}`,
-    value.children > 0 ? `${value.children} child${value.children !== 1 ? 'ren' : ''}` : '',
-    value.pets > 0 ? `${value.pets} pet${value.pets !== 1 ? 's' : ''}` : '',
-  ].filter(Boolean).join(', ');
+  const total   = value.adults + value.children;
+  const summary = `${value.adults} adult${value.adults !== 1 ? 's' : ''}${value.children > 0 ? `, ${value.children} child${value.children !== 1 ? 'ren' : ''}` : ''}`;
 
-  const labelCls = isDark ? 'text-cv-blue-300' : 'text-cv-blue-900';
-  const inputCls = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950 text-white'
-    : 'border-cv-blue-100 bg-white text-cv-blue-950';
+  const boxCls = isDark
+    ? 'border-gph-dark-line bg-gph-dark-card'
+    : 'border-gray-200 bg-white';
   const panelCls = isDark
-    ? 'bg-cv-blue-950 border-cv-blue-800 shadow-xl'
-    : 'bg-white border-cv-blue-100 shadow-xl';
-  const dividerCls = isDark ? 'border-cv-blue-800' : 'border-cv-blue-100';
+    ? 'bg-gph-dark-card border-gph-dark-line shadow-xl'
+    : 'bg-white border-gray-200 shadow-xl';
 
   return (
-    <div className="relative flex flex-col gap-0.5" ref={ref}>
-      <span className={`text-[10px] font-semibold uppercase tracking-widest px-1 ${labelCls}`}>
-        Guests
-      </span>
+    <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`rounded-lg border px-3 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-cv-blue-600 ${inputCls}`}
+        className={`flex flex-col rounded-lg border px-3 py-2 text-left w-full focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition-colors ${boxCls}`}
       >
-        {summary}
+        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+          Guests
+        </span>
+        <span className={`text-sm font-semibold mt-1.5 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+          {summary}
+        </span>
       </button>
 
       {open && (
@@ -117,7 +115,7 @@ export function GuestsDropdown({
             onChange={(v) => onChange({ ...value, adults: v })}
             isDark={isDark}
           />
-          <div className={`border-t ${dividerCls}`} />
+          <div className={`border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-100'}`} />
           <Stepper
             label="Children"
             sub="Ages 0–17"
@@ -127,7 +125,7 @@ export function GuestsDropdown({
             onChange={(v) => onChange({ ...value, children: v })}
             isDark={isDark}
           />
-          <div className={`border-t ${dividerCls}`} />
+          <div className={`border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-100'}`} />
           <Stepper
             label="Pets"
             sub="Dogs, cats & more"

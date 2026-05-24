@@ -135,8 +135,8 @@ export function HotelMap({ accommodations, center, onLearnMore }: { accommodatio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accommodations, center.lat, center.lng, isDark]);
 
-  const cardBg = isDark ? 'bg-cv-blue-900 border-cv-blue-700' : 'bg-white border-cv-blue-100';
-  const textPrimary = isDark ? 'text-white' : 'text-cv-blue-950';
+  const cardBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
 
   return (
     <div className="hidden md:block relative w-full rounded-xl overflow-hidden" style={{ height: '300px' }}>
@@ -160,7 +160,7 @@ export function HotelMap({ accommodations, center, onLearnMore }: { accommodatio
                 className="w-full aspect-square object-cover"
               />
             ) : (
-              <div className={`w-full h-24 ${isDark ? 'bg-cv-blue-800' : 'bg-cv-blue-50'}`} />
+              <div className={`w-full h-24 ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-50'}`} />
             )}
             <div className="p-2.5">
               <p className={`text-xs font-semibold line-clamp-2 leading-snug ${textPrimary}`}>

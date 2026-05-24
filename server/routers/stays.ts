@@ -42,15 +42,20 @@ export const staysRouter = router({
 
       // Cache each search result by accommodation ID + date/room params.
       // 1-hour TTL since rates fluctuate throughout the day.
-      await Promise.all(
-        searchResults.map((sr) =>
-          redis.set(
-            `stay:accommodation:${sr.accommodation.id}:${checkInDate}:${checkOutDate}:${rooms}`,
-            sr,
-            { ex: 60 * 60 },
+      // Redis failure is non-fatal — results are still returned to the client.
+      try {
+        await Promise.all(
+          searchResults.map((sr) =>
+            redis.set(
+              `stay:accommodation:${sr.accommodation.id}:${checkInDate}:${checkOutDate}:${rooms}`,
+              sr,
+              { ex: 60 * 60 },
+            )
           )
-        )
-      );
+        );
+      } catch (err) {
+        console.warn('[stays] Redis cache write failed:', err);
+      }
 
       return searchResults;
     }),

@@ -22,13 +22,13 @@ interface Props {
   onSelect: (place: SelectedPlace) => void;
   onClear: () => void;
   placeholder?: string;
-  forAirport?: boolean; // restricts suggestions to airports and parses IATA from description
-  initialValue?: string;    // pre-fill the text input without triggering autocomplete
-  initialCommitted?: boolean; // if true, treat initialValue as already-selected (no auto-dropdown)
-  autoFocus?: boolean;
+  forAirport?: boolean;    // restricts suggestions to airports and parses IATA from description
+  fieldLabel?: string;     // when set, renders label inside the bordered field box
+  initialValue?: string;   // pre-filled input text (e.g. from saved trip planner state)
+  initialCommitted?: boolean; // treat initialValue as already-selected (no auto-open dropdown)
 }
 
-export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, initialValue, initialCommitted = false, autoFocus }: Props) {
+export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, fieldLabel, initialValue, initialCommitted }: Props) {
   const { isDark } = useTheme();
   const listboxId = useId();
 
@@ -126,50 +126,74 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
   }
 
   const defaultPlaceholder = forAirport ? 'City or airport' : 'City, neighborhood, or address';
+
+  const boxCls   = isDark ? 'border-gph-dark-line bg-gph-dark-card' : 'border-gray-200 bg-white';
+  const iconCls  = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
   const inputCls = isDark
-    ? 'border-cv-blue-900 bg-cv-blue-950 text-white placeholder:text-cv-blue-400/60'
-    : 'border-cv-blue-100 bg-white text-cv-blue-950 placeholder:text-cv-blue-400';
-  const dropdownBg = isDark ? 'bg-cv-blue-900 border-cv-blue-800' : 'bg-white border-cv-blue-100';
+    ? 'border-gph-dark-line bg-gph-dark-card text-gph-dark-ink placeholder:text-gph-dark-muted/60'
+    : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400';
+  const dropdownBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const itemBase   = 'w-full text-left px-4 py-2.5 text-sm transition-colors';
-  const itemHover  = isDark ? 'hover:bg-cv-blue-800 text-cv-blue-100' : 'hover:bg-cv-blue-50 text-cv-blue-950';
+  const itemHover  = isDark ? 'hover:bg-gph-dark-linesoft text-gph-dark-ink' : 'hover:bg-gray-50 text-gray-900';
+
+  const icon = resolving ? (
+    <svg className={`w-4 h-4 ${iconCls} animate-spin shrink-0`} fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    </svg>
+  ) : forAirport ? (
+    <svg className={`w-4 h-4 ${iconCls} shrink-0`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l-7-7 1.5-1.5L11 15V3h2v12l4.5-4.5L19 12l-7 7z" />
+    </svg>
+  ) : (
+    <svg className={`w-4 h-4 ${iconCls} shrink-0`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+    </svg>
+  );
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <div className="relative">
-        {resolving ? (
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cv-blue-400 animate-spin"
-            fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-        ) : forAirport ? (
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-cv-blue-400 w-4 h-4"
-            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M12 19l-7-7 1.5-1.5L11 15V3h2v12l4.5-4.5L19 12l-7 7z" />
-          </svg>
-        ) : (
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-cv-blue-400 w-4 h-4"
-            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-          </svg>
-        )}
-        <input
-          type="text"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-autocomplete="list"
-          autoFocus={autoFocus}
-          placeholder={placeholder ?? defaultPlaceholder}
-          value={input}
-          onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => suggestions.length > 0 && input.length >= 2 && setOpen(true)}
-          className={`w-full rounded-lg border pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cv-blue-600 ${inputCls}`}
-        />
-      </div>
+      {fieldLabel ? (
+        /* Field-box mode: label inside the bordered container */
+        <div className={`flex flex-col rounded-lg border px-3 py-2 focus-within:ring-2 focus-within:border-gray-900 focus-within:ring-gray-900/20 transition-colors ${boxCls}`}>
+          <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+            {fieldLabel}
+          </span>
+          <div className="flex items-center gap-2 mt-1.5">
+            <input
+              type="text"
+              role="combobox"
+              aria-expanded={open}
+              aria-controls={listboxId}
+              aria-autocomplete="list"
+              placeholder={placeholder ?? defaultPlaceholder}
+              value={input}
+              onChange={(e) => handleChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => suggestions.length > 0 && input.length >= 2 && setOpen(true)}
+              className={`flex-1 min-w-0 text-sm font-semibold bg-transparent outline-none ${isDark ? 'text-gph-dark-ink placeholder:text-gph-dark-muted/60' : 'text-gray-900 placeholder:text-gray-400'}`}
+            />
+          </div>
+        </div>
+      ) : (
+        /* Standard mode: standalone input with its own border */
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2">{icon}</span>
+          <input
+            type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            placeholder={placeholder ?? defaultPlaceholder}
+            value={input}
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => suggestions.length > 0 && input.length >= 2 && setOpen(true)}
+            className={`w-full rounded-lg border pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 ${inputCls}`}
+          />
+        </div>
+      )}
 
       {resolveError && (
         <p className="mt-1 px-1 text-xs text-cv-amber-400">{resolveError} — enter IATA code manually.</p>
@@ -192,7 +216,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
                 >
                   <span>{s.description}</span>
                   {iata && (
-                    <span className="shrink-0 text-xs font-mono font-semibold text-cv-blue-400">{iata}</span>
+                    <span className={`shrink-0 text-xs font-mono font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{iata}</span>
                   )}
                 </button>
               </li>

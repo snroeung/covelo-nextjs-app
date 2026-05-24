@@ -10,7 +10,7 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(true); // default: dark
+  const [isDark, setIsDark] = useState(false); // default: light
 
   useEffect(() => {
     const stored = localStorage.getItem('covelo_theme');
