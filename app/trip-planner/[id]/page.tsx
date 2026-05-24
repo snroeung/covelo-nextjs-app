@@ -405,7 +405,7 @@ export default function TripDetailPage() {
             </Link>
             <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`} />
             <span className={`px-2 py-0.5 rounded ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'}`}>
-              Draft · in progress
+              In progress
             </span>
             <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`} />
             <span>{trip.destination.split(',')[0].toUpperCase()}</span>
@@ -626,6 +626,129 @@ export default function TripDetailPage() {
             </h2>
           </div>
 
+          {/* Things to Do (unassigned activities) */}
+          {(trip.activities ?? []).length > 0 && (
+            <div className="mb-8">
+              <p className={`text-[10px] font-mono font-bold uppercase tracking-widest mb-3 ${muted}`}>Things to Do · not yet scheduled</p>
+              <div className="flex flex-col gap-2">
+                {(trip.activities ?? []).map((a) => {
+                  const notesKey = a.id;
+                  const showNotes = expandedNotes.has(notesKey) || !!a.notes;
+                  return (
+                    <div key={a.id} className={`rounded-xl border ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
+                      <div className="flex items-stretch">
+                        {a.photo_url ? (
+                          <img src={a.photo_url} alt={a.name} className="w-16 h-16 shrink-0 object-cover rounded-l-xl" />
+                        ) : (
+                          <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl rounded-l-xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>📍</div>
+                        )}
+                        <div className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0">
+                            <p className={`text-sm font-semibold truncate ${ink}`}>{a.name}</p>
+                            {a.address && <p className={`text-xs mt-0.5 truncate ${muted}`}>{a.address}</p>}
+                          </div>
+                          <div className="relative shrink-0 activity-menu">
+                            <button
+                              onClick={() => { setOpenMenuId(openMenuId === a.id ? null : a.id); setOpenSubmenuId(null); }}
+                              className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
+                                isDark ? 'text-gph-dark-muted hover:bg-gph-dark-linesoft hover:text-gph-dark-ink' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+                              }`}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+                              </svg>
+                            </button>
+                            {openMenuId === a.id && (
+                              <div className={`absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setOpenSubmenuId(openSubmenuId === a.id ? null : a.id)}
+                                    className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
+                                      isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-900 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    Move to Itinerary
+                                    <svg className="w-3.5 h-3.5 shrink-0 opacity-50" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                    </svg>
+                                  </button>
+                                  {openSubmenuId === a.id && (
+                                    <div className={`absolute right-full top-0 mr-1 z-40 w-52 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
+                                      {days.map((date) => {
+                                        const dateActivities = (trip.itinerary_days ?? {})[date] ?? [];
+                                        const alreadyAdded = dateActivities.some(
+                                          (da) => da.name.toLowerCase() === a.name.toLowerCase()
+                                        );
+                                        return (
+                                          <button
+                                            key={date}
+                                            disabled={alreadyAdded}
+                                            onClick={() => {
+                                              if (!alreadyAdded) {
+                                                assignActivityToDay(trip.id, date, a);
+                                                setOpenMenuId(null);
+                                                setOpenSubmenuId(null);
+                                              }
+                                            }}
+                                            className={`w-full px-4 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
+                                              alreadyAdded
+                                                ? isDark ? 'text-gph-dark-muted cursor-not-allowed' : 'text-gray-300 cursor-not-allowed'
+                                                : isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-900 hover:bg-gray-50'
+                                            }`}
+                                          >
+                                            <span className="text-left">{formatDayLabel(date)}</span>
+                                            {alreadyAdded && (
+                                              <svg className="w-3.5 h-3.5 shrink-0 text-cv-green-500" viewBox="0 0 12 12" fill="none">
+                                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                              </svg>
+                                            )}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className={`my-1 border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-200'}`} />
+                                <button
+                                  onClick={() => { removeActivity(trip.id, a.id); setOpenMenuId(null); }}
+                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark ? 'text-rose-400 hover:bg-gph-dark-linesoft' : 'text-rose-500 hover:bg-rose-50'}`}
+                                >
+                                  Remove from trip
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`flex items-center px-4 py-2.5 border-t ${dividerCls}`}>
+                        <button
+                          onClick={() => toggleNotes(notesKey)}
+                          className={`px-2.5 py-1 rounded-full text-xs transition-all hover:scale-[1.03] ${
+                            showNotes
+                              ? isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700'
+                              : isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink' : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {showNotes ? 'Notes ↑' : '+ Notes'}
+                        </button>
+                      </div>
+                      {showNotes && (
+                        <div className={`border-t px-4 pt-2 pb-3 ${dividerCls}`}>
+                          <textarea
+                            value={a.notes ?? ''}
+                            onChange={(e) => patchActivity(trip.id, a.id, { notes: e.target.value || undefined })}
+                            placeholder="Add notes…" rows={2}
+                            className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-gph-dark-ink placeholder:text-gph-dark-muted' : 'text-gray-800 placeholder:text-gray-400'}`}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Day-by-day */}
           {days.map((date, di) => {
             const dayActivities = (trip.itinerary_days ?? {})[date] ?? [];
@@ -822,106 +945,6 @@ export default function TripDetailPage() {
             );
           })}
 
-          {/* Things to Do (unassigned activities) */}
-          {(trip.activities ?? []).length > 0 && (
-            <div className="mt-4">
-              <p className={`text-[10px] font-mono font-bold uppercase tracking-widest mb-3 ${muted}`}>Things to Do · not yet scheduled</p>
-              <div className="flex flex-col gap-2">
-                {(trip.activities ?? []).map((a) => {
-                  const notesKey = a.id;
-                  const showNotes = expandedNotes.has(notesKey) || !!a.notes;
-                  return (
-                    <div key={a.id} className={`rounded-xl border ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
-                      <div className="flex items-stretch">
-                        {a.photo_url ? (
-                          <img src={a.photo_url} alt={a.name} className="w-16 h-16 shrink-0 object-cover rounded-l-xl" />
-                        ) : (
-                          <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl rounded-l-xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>📍</div>
-                        )}
-                        <div className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3">
-                          <div className="min-w-0">
-                            <p className={`text-sm font-semibold truncate ${ink}`}>{a.name}</p>
-                            {a.address && <p className={`text-xs mt-0.5 truncate ${muted}`}>{a.address}</p>}
-                          </div>
-                          <div className="relative shrink-0 activity-menu">
-                            <button
-                              onClick={() => { setOpenMenuId(openMenuId === a.id ? null : a.id); setOpenSubmenuId(null); }}
-                              className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors ${
-                                isDark ? 'text-gph-dark-muted hover:bg-gph-dark-linesoft hover:text-gph-dark-ink' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
-                              }`}
-                            >
-                              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
-                              </svg>
-                            </button>
-                            {openMenuId === a.id && (
-                              <div className={`absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
-                                <div className="relative">
-                                  <button
-                                    onClick={() => setOpenSubmenuId(openSubmenuId === a.id ? null : a.id)}
-                                    className={`w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-left transition-colors ${
-                                      isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-900 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    Move to Itinerary
-                                    <svg className="w-3.5 h-3.5 shrink-0 opacity-50" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                                    </svg>
-                                  </button>
-                                  {openSubmenuId === a.id && (
-                                    <div className={`absolute right-full top-0 mr-1 z-40 w-48 rounded-xl border shadow-lg py-1 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
-                                      {days.map((date) => (
-                                        <button
-                                          key={date}
-                                          onClick={() => { assignActivityToDay(trip.id, date, a); setOpenMenuId(null); setOpenSubmenuId(null); }}
-                                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-900 hover:bg-gray-50'}`}
-                                        >
-                                          {formatDayLabel(date)}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className={`my-1 border-t ${isDark ? 'border-gph-dark-line' : 'border-gray-200'}`} />
-                                <button
-                                  onClick={() => { removeActivity(trip.id, a.id); setOpenMenuId(null); }}
-                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${isDark ? 'text-rose-400 hover:bg-gph-dark-linesoft' : 'text-rose-500 hover:bg-rose-50'}`}
-                                >
-                                  Remove from trip
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`flex items-center px-4 py-2.5 border-t ${dividerCls}`}>
-                        <button
-                          onClick={() => toggleNotes(notesKey)}
-                          className={`px-2.5 py-1 rounded-full text-xs transition-all hover:scale-[1.03] ${
-                            showNotes
-                              ? isDark ? 'bg-gph-dark-card text-gph-dark-ink' : 'bg-gray-200 text-gray-700'
-                              : isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink' : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          {showNotes ? 'Notes ↑' : '+ Notes'}
-                        </button>
-                      </div>
-                      {showNotes && (
-                        <div className={`border-t px-4 pt-2 pb-3 ${dividerCls}`}>
-                          <textarea
-                            value={a.notes ?? ''}
-                            onChange={(e) => patchActivity(trip.id, a.id, { notes: e.target.value || undefined })}
-                            placeholder="Add notes…" rows={2}
-                            className={`w-full text-xs resize-none bg-transparent outline-none placeholder:opacity-50 ${isDark ? 'text-gph-dark-ink placeholder:text-gph-dark-muted' : 'text-gray-800 placeholder:text-gray-400'}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </section>
 
         {/* ── Sidebar ────────────────────────────────────────────────────────── */}

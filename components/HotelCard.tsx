@@ -180,7 +180,7 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
                 <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">
                   Redeem
                 </p>
-                <p className="text-sm font-bold font-mono text-cv-sky-400 leading-tight">
+                <p className="text-sm font-bold font-mono text-lime-400 leading-tight">
                   {best.pointsNeeded.toLocaleString()} pts
                   <span className="text-cv-navy-300 font-normal ml-1.5">· {best.centsPerPoint}¢/pt</span>
                 </p>
@@ -203,7 +203,7 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
               {portalCount > 0 && (
                 <button
                   onClick={() => setShowPortals(v => !v)}
-                  className="ml-auto bg-cv-sky-400 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-cv-sky-300 transition-colors"
+                  className="ml-auto bg-lime-500 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-lime-300 transition-colors"
                 >
                   Compare {portalCount} portal{portalCount !== 1 ? 's' : ''} →
                 </button>

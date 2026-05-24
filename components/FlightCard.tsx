@@ -313,7 +313,7 @@ export function FlightCard({ offer }: { offer: any }) {
               {nPortals > 0 && (
                 <button
                   onClick={() => setExpanded(v => !v)}
-                  className="bg-cv-sky-400 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-cv-sky-300 transition-colors"
+                  className="bg-lime-500 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-lime-400 transition-colors"
                 >
                   {expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
                 </button>
@@ -387,7 +387,7 @@ export function FlightCard({ offer }: { offer: any }) {
 
           <div>
             <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Redeem</p>
-            <p className="text-sm font-bold font-mono text-cv-sky-400 leading-tight">
+            <p className="text-sm font-bold font-mono text-lime-500 leading-tight">
               {best.pointsNeeded.toLocaleString()} pts
               <span className="text-cv-navy-300 font-normal ml-1.5">· {best.centsPerPoint}¢/pt</span>
             </p>
@@ -409,7 +409,7 @@ export function FlightCard({ offer }: { offer: any }) {
             {nPortals > 0 && (
               <button
                 onClick={() => setExpanded(v => !v)}
-                className="bg-cv-sky-400 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-cv-sky-300 transition-colors"
+                className="bg-green-500 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-green-300 transition-colors"
               >
                 {expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
               </button>
