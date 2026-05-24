@@ -53,6 +53,7 @@ export interface Activity {
   added_at: string; // ISO timestamp
   photo_url?: string;
   time?: string;                        // "HH:MM" — scheduled time in itinerary
+  duration?: string;                    // e.g. "1h", "30m", "2h 30m"
   price?: number;                       // cost in USD (default 0)
   price_type?: 'per_person' | 'total'; // how the price is applied
   notes?: string;

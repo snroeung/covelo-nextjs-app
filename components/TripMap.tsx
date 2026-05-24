@@ -53,13 +53,14 @@ interface TripMapProps {
   onAddActivity?: (name: string, address: string) => void;
   initialPins?: TripPin[];
   onPinsChange?: (pins: TripPin[]) => void;
+  hideHeader?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function TripMap({
   lat, lng, destination, isDark, borderCls, minimized, onToggleMinimize, onAddActivity,
-  initialPins, onPinsChange,
+  initialPins, onPinsChange, hideHeader,
 }: TripMapProps) {
   // ── Refs ──────────────────────────────────────────────────────────────────
   const containerRef    = useRef<HTMLDivElement>(null);
@@ -84,6 +85,7 @@ export function TripMap({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<GeocodingFeature[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [mapHovered, setMapHovered] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const hasCoords = lat != null && lng != null && (lat !== 0 || lng !== 0);
@@ -398,8 +400,8 @@ export function TripMap({
     <div className={`flex flex-col h-full border-l overflow-hidden ${borderCls} ${bg}`}>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className={`shrink-0 flex items-center justify-between px-3 py-2.5 border-b ${borderCls}`}>
-        {!minimized && (
+      {!hideHeader && (
+        <div className={`shrink-0 flex items-center justify-between px-3 py-2.5 border-b ${borderCls}`}>
           <div className="flex items-center gap-1.5 min-w-0 mr-2">
             <svg className={`w-3.5 h-3.5 shrink-0 ${mutedText}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -409,20 +411,20 @@ export function TripMap({
               {destination.split(',')[0]}
             </span>
           </div>
-        )}
-        <button
-          onClick={onToggleMinimize}
-          title={minimized ? 'Expand map' : 'Minimize map'}
-          className={`shrink-0 p-1 rounded transition-colors ${mutedText} ${minimized ? 'mx-auto' : ''}`}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            {minimized
-              ? <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-              : <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            }
-          </svg>
-        </button>
-      </div>
+          <button
+            onClick={onToggleMinimize}
+            title={minimized ? 'Expand map' : 'Minimize map'}
+            className={`shrink-0 p-1 rounded transition-colors ${mutedText}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              {minimized
+                ? <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                : <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              }
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* ── Search bar ──────────────────────────────────────────────────────── */}
       <div
@@ -524,7 +526,11 @@ export function TripMap({
       </div>
 
       {/* ── Map ─────────────────────────────────────────────────────────────── */}
-      <div className="flex-1 relative overflow-hidden">
+      <div
+        className="flex-1 relative overflow-hidden"
+        onMouseEnter={() => setMapHovered(true)}
+        onMouseLeave={() => setMapHovered(false)}
+      >
         {hasCoords ? (
           <>
             <div
@@ -533,20 +539,17 @@ export function TripMap({
               style={{ visibility: minimized ? 'hidden' : 'visible' }}
             />
 
-            {!minimized && (
-              <>
-                {/* ── Zoom controls ──────────────────────────────────────── */}
-                <div className="absolute right-3 bottom-6 flex flex-col gap-1 z-10">
-                  <button onClick={zoomIn}
-                    className={`w-8 h-8 rounded-lg text-lg font-bold flex items-center justify-center backdrop-blur-sm transition-colors ${btnCls}`}>
-                    +
-                  </button>
-                  <button onClick={zoomOut}
-                    className={`w-8 h-8 rounded-lg text-lg font-bold flex items-center justify-center backdrop-blur-sm transition-colors ${btnCls}`}>
-                    −
-                  </button>
-                </div>
-              </>
+            {!minimized && mapHovered && (
+              <div className="absolute right-3 bottom-6 flex flex-col gap-1 z-10">
+                <button onClick={zoomIn}
+                  className={`w-8 h-8 rounded-lg text-lg font-bold flex items-center justify-center backdrop-blur-sm transition-colors ${btnCls}`}>
+                  +
+                </button>
+                <button onClick={zoomOut}
+                  className={`w-8 h-8 rounded-lg text-lg font-bold flex items-center justify-center backdrop-blur-sm transition-colors ${btnCls}`}>
+                  −
+                </button>
+              </div>
             )}
           </>
         ) : (
