@@ -59,7 +59,7 @@ export default function StartPage() {
         letterSpacing: '0.06em',
       }}>
         <span>COVELO · POINTS ENGINE + TRAVEL PLANNER</span>
-        <span>WAITLIST OPEN · v0.9 BETA</span>
+        <span>WAITLIST OPEN · BETA</span>
       </div>
 
       {/* ── Two-column body ────────────────────────────────────────────── */}
@@ -89,7 +89,7 @@ export default function StartPage() {
 
             {/* Tagline */}
             <p style={{ marginTop: 28, fontSize: 16, color: t.muted, lineHeight: 1.55, maxWidth: 460 }}>
-              Covelo searches every points program at once — Chase, Amex, Bilt, Capital One — and ranks them by true cents-per-point value before you book.
+              Covelo searches every points program at once — Chase, Amex, Capital One, Bilt — and ranks them by true cents-per-point value.
             </p>
           </div>
 
@@ -141,10 +141,10 @@ export default function StartPage() {
           background: t.bg,
         }}>
           <h2 style={{ fontSize: 44, lineHeight: 0.95, fontWeight: 800, letterSpacing: '-0.035em', margin: '0 0 8px' }}>
-            Make it<br />yours<span style={{ color: t.sky }}>.</span>
+            Make it yours<span style={{ color: t.sky }}>.</span>
           </h2>
           <p style={{ fontSize: 14, color: t.muted, lineHeight: 1.55, margin: '0 0 28px', maxWidth: 380 }}>
-            Pick how you&apos;d like to start. You can connect cards later or skip and try it cold.
+            Create an account to save your trips, sync your cards, and get personalized recommendations. Giving it a try? No problem — continue as a guest.
           </p>
 
           {/* Google */}
@@ -224,9 +224,6 @@ export default function StartPage() {
           }}>
             <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
               <span>Continue as guest</span>
-              <span style={{ fontSize: 10.5, fontFamily: 'var(--font-geist-mono)', color: t.muted, fontWeight: 700, letterSpacing: '0.06em', marginTop: 2 }}>
-                1 SEARCH · NOTHING SAVED
-              </span>
             </span>
             <span style={{ fontFamily: 'var(--font-geist-mono)', color: t.muted }}>→</span>
           </Link>
