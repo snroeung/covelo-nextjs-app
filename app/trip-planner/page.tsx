@@ -528,9 +528,9 @@ export default function TripPlannerPage() {
     });
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!destination || !startDate || !endDate) return;
-    const newTrip = addTrip({
+    const newTrip = await addTrip({
       title: title.trim() || `Trip to ${destination.description.split(',')[0].trim()}`,
       destination: destination.description,
       destination_place_id: undefined,
