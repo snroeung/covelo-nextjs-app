@@ -25,7 +25,6 @@ const LEDGER = [
   { n: '01', label: 'Every portal, searched at once.',          metric: '40+',  unit: 'PORTALS',   highlight: false },
   { n: '02', label: 'True cents-per-point on every row.',       metric: '¢/pt', unit: 'EVERY ROW', highlight: false },
   { n: '03', label: 'Save unlimited trips & itineraries.',      metric: '∞',    unit: 'TRIPS',     highlight: true  },
-  { n: '04', label: 'Read-only card sync — never moves money.', metric: '0',    unit: 'WRITES',    highlight: false },
 ];
 
 // ─── Google G mark ────────────────────────────────────────────────────────────
