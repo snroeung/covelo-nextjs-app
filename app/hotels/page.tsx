@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
@@ -13,6 +13,145 @@ import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
 
 const ROOM_OPTIONS = [1, 2, 3, 4, 5];
+
+const STAR_OPTIONS: { label: string; value: number | null }[] = [
+  { label: 'Any',  value: null },
+  { label: '3★+',  value: 3 },
+  { label: '4★+',  value: 4 },
+  { label: '5★',   value: 5 },
+];
+
+interface HotelFiltersProps {
+  isDark: boolean;
+  minStars: number | null;
+  onStarsChange: (v: number | null) => void;
+  availableAmenities: { type: string; description: string; count: number }[];
+  requiredAmenities: Set<string>;
+  onToggleAmenity: (type: string) => void;
+  filterCount: number;
+  onClearAll: () => void;
+}
+
+function HotelFiltersContent({
+  isDark, minStars, onStarsChange,
+  availableAmenities, requiredAmenities, onToggleAmenity,
+  filterCount, onClearAll,
+}: HotelFiltersProps) {
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const inkCls   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const rowOnCls = isDark
+    ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink'
+    : 'border-gray-900 bg-gray-100 text-gray-900';
+  const rowIdleCls = isDark
+    ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink'
+    : 'border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900';
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>Filters</div>
+        {filterCount > 0 && (
+          <button
+            onClick={onClearAll}
+            className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls} hover:text-red-500 transition-colors`}
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Stars */}
+      <div>
+        <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Star rating</div>
+        <div className="flex flex-col gap-1.5">
+          {STAR_OPTIONS.map((opt) => (
+            <button
+              key={String(opt.value)}
+              onClick={() => onStarsChange(opt.value)}
+              className={`flex items-center px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                opt.value === minStars ? rowOnCls : rowIdleCls
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Amenities */}
+      {availableAmenities.length > 0 && (
+        <div>
+          <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Amenities</div>
+          <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto">
+            {availableAmenities.map(({ type, description, count }) => {
+              const on = requiredAmenities.has(type);
+              return (
+                <button
+                  key={type}
+                  onClick={() => onToggleAmenity(type)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${on ? rowOnCls : rowIdleCls}`}
+                >
+                  <span className="truncate text-left">{description}</span>
+                  <span className={`text-[10px] font-mono font-bold ml-2 shrink-0 ${inkCls}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HotelFiltersDropdown(props: HotelFiltersProps) {
+  const { isDark, filterCount } = props;
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [open]);
+
+  const cardCls = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+
+  return (
+    <div ref={ref} className="relative md:hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+          open || filterCount > 0
+            ? isDark ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink' : 'border-gray-900 bg-gray-100 text-gray-900'
+            : isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink' : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900'
+        }`}
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 12h10M11 20h2" />
+        </svg>
+        Filter
+        {filterCount > 0 && (
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'}`}>
+            {filterCount}
+          </span>
+        )}
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className={`absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border shadow-xl p-4 ${cardCls}`}>
+          <HotelFiltersContent {...props} />
+        </div>
+      )}
+    </div>
+  );
+}
 const DEFAULT_CHILD_AGE = 8;
 
 function buildGuests(guests: GuestsValue) {
@@ -52,12 +191,12 @@ function HotelsPageInner() {
   });
   const [checkIn, setCheckIn]     = useState(fromTrip ? paramCheckIn : '');
   const [checkOut, setCheckOut]   = useState(fromTrip ? paramCheckOut : '');
-  const [minStars, setMinStars]   = useState<number | null>(null);
-  const [sortOrder, setSortOrder] = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
-  const [starsOpen, setStarsOpen]           = useState(false);
-  const [sortOpen, setSortOpen]             = useState(false);
+  const [minStars, setMinStars]         = useState<number | null>(null);
+  const [requiredAmenities, setRequiredAmenities] = useState<Set<string>>(new Set());
+  const [sortOrder, setSortOrder]       = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
+  const [sortOpen, setSortOpen]         = useState(false);
   const [expandedHotelId, setExpandedHotelId] = useState<string | null>(null);
-  const [showBackToTop, setShowBackToTop]       = useState(false);
+  const [showBackToTop, setShowBackToTop]     = useState(false);
 
   useEffect(() => {
     const el = document.getElementById('app-main-scroll');
@@ -66,8 +205,7 @@ function HotelsPageInner() {
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
   }, []);
-  const starsRef = useRef<HTMLDivElement>(null);
-  const sortRef  = useRef<HTMLDivElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
 
   const { isDark } = useTheme();
 
@@ -91,16 +229,45 @@ function HotelsPageInner() {
   }, []);
 
   const allAccommodations: any[] = hotelSearch.data ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const accommodations = [...allAccommodations]
+
+  const availableAmenities = useMemo(() => {
+    const map = new Map<string, { description: string; count: number }>();
+    allAccommodations.forEach(sr => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sr.accommodation?.amenities ?? []).forEach((a: any) => {
+        const type = a.type ?? '';
+        const desc = a.description ?? type;
+        if (!type) return;
+        const prev = map.get(type);
+        map.set(type, { description: desc, count: (prev?.count ?? 0) + 1 });
+      });
+    });
+    return Array.from(map.entries())
+      .map(([type, { description, count }]) => ({ type, description, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [allAccommodations]);
+
+  const accommodations = useMemo(() => [...allAccommodations]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((sr: any) => minStars === null || (sr.accommodation?.rating ?? 0) >= minStars)
+    .filter((sr: any) => {
+      const acc = sr.accommodation ?? {};
+      if (minStars !== null && (acc.rating ?? 0) < minStars) return false;
+      if (requiredAmenities.size > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const types = new Set((acc.amenities ?? []).map((a: any) => a.type));
+        for (const req of requiredAmenities) {
+          if (!types.has(req)) return false;
+        }
+      }
+      return true;
+    })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .sort((a: any, b: any) => {
       if (sortOrder === 'az')      return (a.accommodation?.name ?? '').localeCompare(b.accommodation?.name ?? '');
       if (sortOrder === 'lowest')  return parseFloat(a.cheapest_rate_total_amount) - parseFloat(b.cheapest_rate_total_amount);
       if (sortOrder === 'highest') return parseFloat(b.cheapest_rate_total_amount) - parseFloat(a.cheapest_rate_total_amount);
       return 0;
-    });
+    }), [allAccommodations, minStars, requiredAmenities, sortOrder]);
 
   const canSearch = !!destPlace && !!checkIn && !!checkOut;
 
@@ -116,13 +283,6 @@ function HotelsPageInner() {
     });
   }
 
-  const STAR_OPTIONS: { label: string; value: number | null }[] = [
-    { label: 'Any stars', value: null },
-    { label: '3+ stars',  value: 3 },
-    { label: '4+ stars',  value: 4 },
-    { label: '5 stars',   value: 5 },
-  ];
-
   const SORT_LABELS = {
     relevant: 'Best value',
     az:       'A to Z',
@@ -130,7 +290,20 @@ function HotelsPageInner() {
     highest:  'Highest price',
   } as const;
 
-  const activeFilters = minStars !== null ? 1 : 0;
+  const filterCount = (minStars !== null ? 1 : 0) + (requiredAmenities.size > 0 ? 1 : 0);
+
+  function handleToggleAmenity(type: string) {
+    setRequiredAmenities(prev => {
+      const next = new Set(prev);
+      next.has(type) ? next.delete(type) : next.add(type);
+      return next;
+    });
+  }
+
+  function handleClearFilters() {
+    setMinStars(null);
+    setRequiredAmenities(new Set());
+  }
 
   const { isDark: dark } = useTheme();
   const ghostBtn = `flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
@@ -226,33 +399,17 @@ function HotelsPageInner() {
       </div>
 
       <div className="flex gap-2 shrink-0">
-        {/* Stars filter */}
-        <div className="relative" ref={starsRef}>
-          <button
-            onClick={() => setStarsOpen(o => !o)}
-            onBlur={(e) => { if (!starsRef.current?.contains(e.relatedTarget as Node)) setStarsOpen(false); }}
-            className={ghostBtn}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-            </svg>
-            Filter{activeFilters > 0 ? ` · ${activeFilters}` : ''}
-            {chevron(starsOpen)}
-          </button>
-          {starsOpen && (
-            <div className={dropdownCls}>
-              {STAR_OPTIONS.map((o) => (
-                <button
-                  key={String(o.value)}
-                  onMouseDown={() => { setMinStars(o.value); setStarsOpen(false); }}
-                  className={optionCls(o.value === minStars)}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Mobile-only filter button */}
+        <HotelFiltersDropdown
+          isDark={isDark}
+          minStars={minStars}
+          onStarsChange={setMinStars}
+          availableAmenities={availableAmenities}
+          requiredAmenities={requiredAmenities}
+          onToggleAmenity={handleToggleAmenity}
+          filterCount={filterCount}
+          onClearAll={handleClearFilters}
+        />
 
         {/* Sort */}
         <div className="relative" ref={sortRef}>
@@ -283,7 +440,22 @@ function HotelsPageInner() {
   );
 
   return (
-    <AppShell header={header} hasResults={accommodations.length > 0}>
+    <AppShell
+      header={header}
+      hasResults={accommodations.length > 0}
+      sidebar={allAccommodations.length > 0 ? (
+        <HotelFiltersContent
+          isDark={isDark}
+          minStars={minStars}
+          onStarsChange={setMinStars}
+          availableAmenities={availableAmenities}
+          requiredAmenities={requiredAmenities}
+          onToggleAmenity={handleToggleAmenity}
+          filterCount={filterCount}
+          onClearAll={handleClearFilters}
+        />
+      ) : undefined}
+    >
       {showBackToTop && (
         <button
           onClick={() => document.getElementById('app-main-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}

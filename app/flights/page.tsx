@@ -112,12 +112,136 @@ interface RefineProps {
   onCabinChange: (c: CabinClass) => void;
 }
 
-function RefineDropdown({
+// Shared filter content — used by both the sidebar panel and the mobile dropdown
+function RefineContent({
   isDark, stopCounts, excludedStops, onToggleStop,
   availableAirlines, excludedAirlines, onToggleAirline,
   priceRange, filterMaxPrice, onSetMaxPrice, filterCount, onClearAll,
   cabinClass, onCabinChange,
 }: RefineProps) {
+  const sliderMax   = priceRange.max > 0 ? Math.ceil(priceRange.max / 10) * 10 : 2000;
+  const sliderValue = filterMaxPrice ?? sliderMax;
+
+  const inkCls     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const mutedCls   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const rowIdleCls = isDark
+    ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink'
+    : 'border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900';
+  const rowOnCls = isDark
+    ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink'
+    : 'border-gray-900 bg-gray-100 text-gray-900';
+
+  const availableStopKeys = ([0, 1, 2] as const).filter(s => stopCounts[s] !== undefined);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>Refine results</div>
+        {filterCount > 0 && (
+          <button
+            onClick={onClearAll}
+            className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls} hover:text-red-500 transition-colors`}
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Stops */}
+      {availableStopKeys.length > 0 && (
+        <div>
+          <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Stops</div>
+          <div className="flex flex-col gap-1.5">
+            {availableStopKeys.map((stop) => {
+              const excluded = excludedStops.has(stop);
+              return (
+                <button
+                  key={stop}
+                  onClick={() => onToggleStop(stop)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${excluded ? rowIdleCls : rowOnCls}`}
+                >
+                  <span className={excluded ? 'line-through opacity-40' : ''}>{STOP_LABELS[stop]}</span>
+                  <span className={`text-[10px] font-mono font-bold ${mutedCls}`}>{stopCounts[stop]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Airlines */}
+      {availableAirlines.length > 1 && (
+        <div>
+          <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Airlines</div>
+          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+            {availableAirlines.map(({ code, name, count }) => {
+              const excluded = excludedAirlines.has(code);
+              return (
+                <button
+                  key={code}
+                  onClick={() => onToggleAirline(code)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${excluded ? rowIdleCls : rowOnCls}`}
+                >
+                  <span className={excluded ? 'line-through opacity-40' : ''}>{name}</span>
+                  <span className={`text-[10px] font-mono font-bold ${mutedCls}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Cabin */}
+      <div>
+        <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Cabin</div>
+        <div className="flex flex-col gap-1.5">
+          {(Object.keys(CABIN_LABELS) as CabinClass[]).map((c) => (
+            <button
+              key={c}
+              onClick={() => onCabinChange(c)}
+              className={`flex items-center px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${c === cabinClass ? rowOnCls : rowIdleCls}`}
+            >
+              {CABIN_LABELS[c]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Max price */}
+      {priceRange.max > priceRange.min && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>Max price</div>
+            <div className={`text-sm font-bold font-mono ${inkCls}`}>
+              {sliderValue >= sliderMax ? 'Any' : `$${sliderValue.toLocaleString()}`}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={Math.floor(priceRange.min)}
+            max={sliderMax}
+            step={10}
+            value={sliderValue}
+            onChange={(e) => {
+              const v = parseInt(e.target.value);
+              onSetMaxPrice(v >= sliderMax ? null : v);
+            }}
+            className={`w-full ${isDark ? 'accent-gph-dark-action' : 'accent-gray-900'}`}
+          />
+          <div className={`flex justify-between text-[9px] font-mono mt-1 ${mutedCls}`}>
+            <span>${Math.floor(priceRange.min)}</span>
+            <span>${sliderMax}+</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mobile-only dropdown button wrapping RefineContent
+function RefineDropdown(props: RefineProps) {
+  const { isDark, filterCount } = props;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -130,171 +254,36 @@ function RefineDropdown({
     return () => document.removeEventListener('mousedown', handle);
   }, [open]);
 
-  const sliderMax   = priceRange.max > 0 ? Math.ceil(priceRange.max / 10) * 10 : 2000;
-  const sliderValue = filterMaxPrice ?? sliderMax;
-  const isActive    = open || filterCount > 0;
-
-  const cardCls    = isDark ? 'bg-gph-dark-card border-gph-dark-line'     : 'bg-white border-gray-200';
-  const inkCls     = isDark ? 'text-gph-dark-ink'                          : 'text-gray-900';
-  const mutedCls   = isDark ? 'text-gph-dark-muted'                        : 'text-gray-500';
-  const rowIdleCls = isDark
-    ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink'
-    : 'border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900';
-  const rowOnCls   = isDark
-    ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink'
-    : 'border-gray-900 bg-gray-100 text-gray-900';
-
-  const availableStopKeys = ([0, 1, 2] as const).filter(s => stopCounts[s] !== undefined);
+  const isActive = open || filterCount > 0;
+  const cardCls  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative md:hidden">
       <button
         onClick={() => setOpen(v => !v)}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
           isActive
-            ? isDark
-              ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink'
-              : 'border-gray-900 bg-gray-100 text-gray-900'
-            : isDark
-              ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink'
-              : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900'
+            ? isDark ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink' : 'border-gray-900 bg-gray-100 text-gray-900'
+            : isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink' : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900'
         }`}
       >
-        {/* Filter icon */}
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 12h10M11 20h2" />
         </svg>
         Refine
         {filterCount > 0 && (
-          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
-            isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-          }`}>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'}`}>
             {filterCount}
           </span>
         )}
-        <svg
-          className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-        >
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {open && (
-        <div className={`absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border shadow-xl p-4 space-y-4 ${cardCls}`}>
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className={`text-sm font-bold ${inkCls}`}>Refine results</div>
-            {filterCount > 0 && (
-              <button
-                onClick={onClearAll}
-                className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls} hover:text-red-500 transition-colors`}
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-
-          {/* Stops */}
-          {availableStopKeys.length > 0 && (
-            <div>
-              <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Stops</div>
-              <div className="flex flex-col gap-1.5">
-                {availableStopKeys.map((stop) => {
-                  const excluded = excludedStops.has(stop);
-                  return (
-                    <button
-                      key={stop}
-                      onClick={() => onToggleStop(stop)}
-                      className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        excluded ? rowIdleCls : rowOnCls
-                      }`}
-                    >
-                      <span className={excluded ? 'line-through opacity-40' : ''}>
-                        {STOP_LABELS[stop]}
-                      </span>
-                      <span className={`text-[10px] font-mono font-bold ${mutedCls}`}>
-                        {stopCounts[stop]}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Airlines */}
-          {availableAirlines.length > 1 && (
-            <div>
-              <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Airlines</div>
-              <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-                {availableAirlines.map(({ code, name, count }) => {
-                  const excluded = excludedAirlines.has(code);
-                  return (
-                    <button
-                      key={code}
-                      onClick={() => onToggleAirline(code)}
-                      className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                        excluded ? rowIdleCls : rowOnCls
-                      }`}
-                    >
-                      <span className={excluded ? 'line-through opacity-40' : ''}>{name}</span>
-                      <span className={`text-[10px] font-mono font-bold ${mutedCls}`}>{count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Cabin class */}
-          <div>
-            <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Cabin</div>
-            <div className="flex flex-col gap-1.5">
-              {(Object.keys(CABIN_LABELS) as CabinClass[]).map((c) => {
-                const active = c === cabinClass;
-                return (
-                  <button
-                    key={c}
-                    onClick={() => onCabinChange(c)}
-                    className={`flex items-center px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      active ? rowOnCls : rowIdleCls
-                    }`}
-                  >
-                    {CABIN_LABELS[c]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Max price slider */}
-          {priceRange.max > priceRange.min && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>Max price</div>
-                <div className={`text-sm font-bold font-mono ${inkCls}`}>
-                  {sliderValue >= sliderMax ? 'Any' : `$${sliderValue.toLocaleString()}`}
-                </div>
-              </div>
-              <input
-                type="range"
-                min={Math.floor(priceRange.min)}
-                max={sliderMax}
-                step={10}
-                value={sliderValue}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  onSetMaxPrice(v >= sliderMax ? null : v);
-                }}
-                className={`w-full ${isDark ? 'accent-gph-dark-action' : 'accent-gray-900'}`}
-              />
-              <div className={`flex justify-between text-[9px] font-mono mt-1 ${mutedCls}`}>
-                <span>${Math.floor(priceRange.min)}</span>
-                <span>${sliderMax}+</span>
-              </div>
-            </div>
-          )}
+        <div className={`absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border shadow-xl p-4 ${cardCls}`}>
+          <RefineContent {...props} />
         </div>
       )}
     </div>
@@ -585,8 +574,41 @@ function FlightsPageInner() {
   const subTextCls = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
   const borderAccent = isDark ? 'border-gph-dark-action' : 'border-gray-900';
 
+  const refineProps: RefineProps = {
+    isDark,
+    stopCounts,
+    excludedStops,
+    onToggleStop: (stop) => setExcludedStops(prev => {
+      const next = new Set(prev);
+      next.has(stop) ? next.delete(stop) : next.add(stop);
+      return next;
+    }),
+    availableAirlines,
+    excludedAirlines,
+    onToggleAirline: (code) => setExcludedAirlines(prev => {
+      const next = new Set(prev);
+      next.has(code) ? next.delete(code) : next.add(code);
+      return next;
+    }),
+    priceRange,
+    filterMaxPrice,
+    onSetMaxPrice: setFilterMaxPrice,
+    filterCount,
+    onClearAll: () => {
+      setExcludedStops(new Set());
+      setExcludedAirlines(new Set());
+      setFilterMaxPrice(null);
+    },
+    cabinClass,
+    onCabinChange: setCabinClass,
+  };
+
   return (
-    <AppShell header={header} hasResults={rawOffers.length > 0}>
+    <AppShell
+      header={header}
+      hasResults={rawOffers.length > 0}
+      sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
+    >
       {flightSearch.isPending ? (
         <div className="flex items-center justify-center py-24">
           <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
@@ -637,35 +659,8 @@ function FlightsPageInner() {
                 ))}
               </div>
 
-              {/* Refine dropdown */}
-              <RefineDropdown
-                isDark={isDark}
-                stopCounts={stopCounts}
-                excludedStops={excludedStops}
-                onToggleStop={(stop) => setExcludedStops(prev => {
-                  const next = new Set(prev);
-                  next.has(stop) ? next.delete(stop) : next.add(stop);
-                  return next;
-                })}
-                availableAirlines={availableAirlines}
-                excludedAirlines={excludedAirlines}
-                onToggleAirline={(code) => setExcludedAirlines(prev => {
-                  const next = new Set(prev);
-                  next.has(code) ? next.delete(code) : next.add(code);
-                  return next;
-                })}
-                priceRange={priceRange}
-                filterMaxPrice={filterMaxPrice}
-                onSetMaxPrice={setFilterMaxPrice}
-                filterCount={filterCount}
-                onClearAll={() => {
-                  setExcludedStops(new Set());
-                  setExcludedAirlines(new Set());
-                  setFilterMaxPrice(null);
-                }}
-                cabinClass={cabinClass}
-                onCabinChange={setCabinClass}
-              />
+              {/* Refine dropdown — mobile only */}
+              <RefineDropdown {...refineProps} />
             </div>
           </div>
 
