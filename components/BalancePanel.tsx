@@ -8,11 +8,11 @@ import { useTheme } from '@/contexts/ThemeContext';
 const CPP_ESTIMATE = 0.0125; // 1.25¢/pt
 
 const PORTAL_LABEL: Record<PortalId, string> = {
-  chase:       'Chase UR',
-  amex:        'Amex MR',
-  capital_one: 'Cap One',
-  bilt:        'Bilt',
-  citi:        'Citi TY',
+  chase:       'Chase Ultimate Rewards',
+  amex:        'Amex Membership Rewards',
+  capital_one: 'Capital One',
+  bilt:        'Bilt Rewards',
+  citi:        'Citi ThankYou Rewards',
 };
 
 const PORTAL_COLOR: Record<PortalId, string> = {

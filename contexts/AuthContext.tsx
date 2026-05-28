@@ -7,8 +7,10 @@ import type { CardId } from '@/lib/points/types';
 export interface Profile {
   id: string;
   display_name: string | null;
+  username: string | null;
   preferred_cards: CardId[];
   avatar_url: string | null;
+  onboarding_completed: boolean;
 }
 
 type SupabaseClient = ReturnType<typeof import('@/lib/supabase/client').createClient>;
@@ -19,6 +21,7 @@ interface AuthContextValue {
   loading: boolean;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<Profile, 'display_name' | 'preferred_cards'>>) => Promise<void>;
+  completeOnboarding: (cards: CardId[], username: string, displayName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -77,8 +80,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data) setProfile(data as Profile);
   }
 
+  async function completeOnboarding(cards: CardId[], username: string, displayName: string) {
+    if (!supabaseRef.current || !user) return;
+    const { data } = await supabaseRef.current
+      .from('profiles')
+      .update({ preferred_cards: cards, username, display_name: displayName, onboarding_completed: true, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select()
+      .single();
+    if (data) setProfile(data as Profile);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut, updateProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut, updateProfile, completeOnboarding }}>
       {children}
     </AuthContext.Provider>
   );

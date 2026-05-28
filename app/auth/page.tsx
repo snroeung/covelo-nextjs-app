@@ -68,9 +68,14 @@ function AuthForm() {
         if (error) throw error;
         setView('confirm');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error, data } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push('/flights');
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', data.user.id)
+          .single();
+        router.push(profile?.onboarding_completed ? '/flights' : '/onboarding');
         router.refresh();
       }
     } catch (err: unknown) {

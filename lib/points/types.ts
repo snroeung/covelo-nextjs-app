@@ -19,7 +19,9 @@ export type CardId =
   | 'amex_platinum'
   | 'amex_gold'
   | 'amex_green'
-  | 'bilt'
+  | 'bilt_blue'
+  | 'bilt_obsidian'
+  | 'bilt_palladium'
   | 'citi_strata_premier'
   | 'citi_strata_elite';
 
@@ -108,7 +110,9 @@ export const PORTAL_CPP: Record<CardId, number | { hotel: number; flight: number
   amex_platinum:           { hotel: 0.7, flight: 1.0 },
   amex_gold:               { hotel: 0.7, flight: 1.0 },
   amex_green:              { hotel: 0.7, flight: 1.0 },
-  bilt:                    1.25,  // 1.25¢/pt in Bilt Travel
+  bilt_blue:                    1.00,  // Bilt Cash
+  bilt_obsidian:                1.00,
+  bilt_palladium:               1.00,
   citi_strata_premier:     1.0,
   citi_strata_elite:       1.0,
 };
@@ -128,7 +132,9 @@ export const CARD_EARN_RATE: Record<CardId, number | { hotel: number; flight: nu
   amex_platinum:           { hotel: 1,  flight: 5 },  // 5x flights (direct/Amex Travel), 1x hotels
   amex_gold:               { hotel: 2,  flight: 3 },  // 3x flights, ~2x hotels via Amex Travel
   amex_green:              3,                          // 3x travel & transit
-  bilt:                    2,                          // 2x travel via Bilt Travel
+  bilt_blue:                    2,                          // 2x travel via Bilt Travel
+  bilt_obsidian:                2,                          // 3x travel via Bilt Travel
+  bilt_palladium:               2,                          // 3x travel via Bilt Travel
   citi_strata_premier:     3,                          // 3x air/hotel
   citi_strata_elite:       4,                          // 4x air/hotel (premium tier)
 };
@@ -143,7 +149,9 @@ export const CARD_PORTAL_MAP: Record<CardId, PortalId> = {
   amex_platinum:           'amex',
   amex_gold:               'amex',
   amex_green:              'amex',
-  bilt:                    'bilt',
+  bilt_blue:                    'bilt',
+  bilt_obsidian:                'bilt',
+  bilt_palladium:               'bilt',
   citi_strata_premier:     'citi',
   citi_strata_elite:       'citi',
 };
@@ -158,14 +166,16 @@ export const CARD_NAMES: Record<CardId, string> = {
   amex_platinum:           'Amex Platinum',
   amex_gold:               'Amex Gold',
   amex_green:              'Amex Green',
-  bilt:                    'Bilt Mastercard',
+  bilt_blue:               'Bilt Blue',
+  bilt_obsidian:           'Bilt Obsidian',
+  bilt_palladium:          'Bilt Palladium',
   citi_strata_premier:     'Citi Strata Premier',
   citi_strata_elite:       'Citi Strata Elite',
 };
 
 export const PORTAL_NAMES: Record<PortalId, string> = {
   chase:       'Chase Travel',
-  amex:        'Amex Travel',
+  amex:        'American Express Travel',
   capital_one: 'Capital One Travel',
   bilt:        'Bilt Travel',
   citi:        'Citi Travel',

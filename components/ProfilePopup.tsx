@@ -6,12 +6,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CARD_NAMES, type CardId } from '@/lib/points/types';
 
 const CARD_GROUPS: { label: string; cards: CardId[] }[] = [
-  { label: 'Chase',       cards: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'] },
-  { label: 'Amex',        cards: ['amex_platinum', 'amex_gold', 'amex_green'] },
-  { label: 'Capital One', cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
-  { label: 'Bilt',        cards: ['bilt'] },
-  { label: 'Citi',        cards: ['citi_strata_premier', 'citi_strata_elite'] },
+  { label: 'Chase',            cards: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'] },
+  { label: 'American Express', cards: ['amex_platinum', 'amex_gold', 'amex_green'] },
+  { label: 'Capital One',      cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
+  { label: 'Bilt',             cards: ['bilt_blue', 'bilt_obsidian', 'bilt_palladium'] },
+  { label: 'Citi',             cards: ['citi_strata_premier', 'citi_strata_elite'] },
 ];
+
+const KNOWN_CARD_IDS = new Set(CARD_GROUPS.flatMap(g => g.cards));
 
 interface ProfilePopupProps {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
@@ -25,13 +27,15 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing]         = useState(false);
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
-  const [selectedCards, setSelectedCards] = useState<CardId[]>(profile?.preferred_cards ?? []);
+  const [selectedCards, setSelectedCards] = useState<CardId[]>(
+    (profile?.preferred_cards ?? []).filter(id => KNOWN_CARD_IDS.has(id))
+  );
   const [saving, setSaving]           = useState(false);
 
   // Sync local state when profile loads
   useEffect(() => {
     setDisplayName(profile?.display_name ?? '');
-    setSelectedCards(profile?.preferred_cards ?? []);
+    setSelectedCards((profile?.preferred_cards ?? []).filter(id => KNOWN_CARD_IDS.has(id)));
   }, [profile]);
 
   // Close on outside click
@@ -88,7 +92,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
   return (
     <div
       ref={popupRef}
-      className={`absolute right-0 top-full mt-2 w-80 rounded-2xl border shadow-xl z-50 overflow-hidden ${bg}`}
+      className={`absolute right-0 top-full mt-2 w-80 rounded-2xl border shadow-xl z-50 flex flex-col max-h-[min(32rem,calc(100vh-5rem))] ${bg}`}
       role="dialog"
       aria-label="Profile"
     >
@@ -115,7 +119,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
         </button>
       </div>
 
-      <div className="px-4 py-4 flex flex-col gap-4">
+      <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
         {editing ? (
           <>
             {/* Display Name */}
