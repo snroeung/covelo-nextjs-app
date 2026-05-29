@@ -46,7 +46,7 @@ type View = 'form' | 'confirm';
 
 export default function StartPage() {
   const { isDark } = useTheme();
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, signOut, loading: authLoading } = useAuth();
   const t = isDark ? PAL.dark : PAL.light;
 
   const [view, setView]               = useState<View>('form');
@@ -213,6 +213,19 @@ export default function StartPage() {
                   </Link>
                 ))}
               </div>
+
+              <button
+                onClick={signOut}
+                style={{
+                  marginTop: 8, width: '100%', background: 'transparent',
+                  border: `1.5px solid ${t.line}`, borderRadius: 10,
+                  padding: '13px 16px', fontSize: 13.5, fontWeight: 700,
+                  cursor: 'pointer', color: isDark ? '#f87171' : '#dc2626',
+                  fontFamily: 'inherit', letterSpacing: '-0.01em',
+                }}
+              >
+                Sign out
+              </button>
             </div>
           ) : view === 'confirm' ? (
             /* ── Email confirmation screen ── */

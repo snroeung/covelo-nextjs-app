@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { BalancePanel } from '@/components/BalancePanel';
+import { CardSelector } from '@/components/CardSelector';
 import { NavBar } from '@/components/NavBar';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -18,6 +20,7 @@ export function AppShell({
   hasResults?: boolean;
 }) {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const { selectedCards } = useSelectedCards();
   const [headerOpen, setHeaderOpen] = useState(true);
   useEffect(() => {
@@ -80,7 +83,7 @@ export function AppShell({
           )}
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {sidebar}
-            <BalancePanel />
+            {user ? <BalancePanel /> : <CardSelector />}
           </div>
         </aside>
 
