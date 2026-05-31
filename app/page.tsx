@@ -57,6 +57,22 @@ export default function StartPage() {
   const [error, setError]             = useState<string | null>(null);
   const [loading, setLoading]         = useState(false);
 
+  async function handleGoogleSignIn() {
+    setError(null);
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) throw error;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setLoading(false);
+    }
+  }
+
   async function handleSignUp(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -267,21 +283,25 @@ export default function StartPage() {
                 Create an account to save your trips, sync your cards, and get personalized recommendations. Giving it a try? No problem — continue as a guest.
               </p>
 
-              {/* Google (coming soon) */}
-              <button disabled style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                background: t.ink, color: isDark ? t.navy : '#fff',
-                border: `1.5px solid ${t.ink}`, borderRadius: 10,
-                padding: '13px 16px', fontSize: 14, fontWeight: 700, cursor: 'not-allowed',
-                fontFamily: 'inherit', letterSpacing: '-0.005em', opacity: 0.45,
-              }}>
+              {/* Google sign-in */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  background: t.ink, color: isDark ? t.navy : '#fff',
+                  border: `1.5px solid ${t.ink}`, borderRadius: 10,
+                  padding: '13px 16px', fontSize: 14, fontWeight: 700,
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit', letterSpacing: '-0.005em',
+                  opacity: loading ? 0.65 : 1,
+                }}
+              >
                 <span style={{ display: 'inline-flex', padding: 2, background: '#fff', borderRadius: 4 }}>
                   <GoogleG size={16} />
                 </span>
-                <span>Continue with Google</span>
-                <span style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginLeft: 'auto', letterSpacing: '0.08em' }}>
-                  SOON
-                </span>
+                <span>{loading ? 'Redirecting…' : 'Continue with Google'}</span>
               </button>
 
               {/* OR divider */}

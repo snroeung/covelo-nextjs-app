@@ -85,6 +85,22 @@ function AuthForm() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    setError(null);
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (error) throw error;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setLoading(false);
+    }
+  }
+
   async function handleMagicLink() {
     if (!email) {
       setError('Please enter your email address first.');
@@ -312,6 +328,33 @@ function AuthForm() {
               {m === 'signup' ? 'Create account' : 'Sign in'}
             </button>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-3 mb-2">
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className={`w-full flex items-center justify-center gap-2.5 py-2.5 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50 ${
+              isDark
+                ? 'border-gph-dark-line text-white hover:bg-gph-dark-bg'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <svg viewBox="0 0 48 48" width="16" height="16" aria-hidden="true">
+              <path fill="#4285F4" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.7-6 8-11.3 8a12 12 0 1 1 0-24c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 1 0 24 44c11 0 20-8.9 20-20 0-1.2-.1-2.3-.4-3.5z"/>
+              <path fill="#34A853" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 0 0 6.3 14.7z"/>
+              <path fill="#FBBC05" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2c-2 1.4-4.6 2.4-7.3 2.4-5.3 0-9.7-3.3-11.3-8l-6.5 5A20 20 0 0 0 24 44z"/>
+              <path fill="#EA4335" d="M43.6 20.5H24v8h11.3a12 12 0 0 1-4 5.1l6.3 5.2C41.4 35.9 44 30.5 44 24c0-1.2-.1-2.3-.4-3.5z"/>
+            </svg>
+            {loading ? 'Redirecting…' : 'Continue with Google'}
+          </button>
+
+          <div className="flex items-center gap-3">
+            <div className={`flex-1 h-px ${isDark ? 'bg-gph-dark-line' : 'bg-gray-200'}`} />
+            <span className={`text-xs ${textMuted}`}>or</span>
+            <div className={`flex-1 h-px ${isDark ? 'bg-gph-dark-line' : 'bg-gray-200'}`} />
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
