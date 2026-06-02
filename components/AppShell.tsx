@@ -1,24 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CardSelector } from '@/components/CardSelector';
 import { BalancePanel } from '@/components/BalancePanel';
+import { CardSelector } from '@/components/CardSelector';
 import { NavBar } from '@/components/NavBar';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export function AppShell({
   header,
   children,
+  sidebar,
   hasResults = false,
 }: {
   header: React.ReactNode;
   children: React.ReactNode;
+  sidebar?: React.ReactNode;
   hasResults?: boolean;
 }) {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const { selectedCards } = useSelectedCards();
-  const [cardDropdownOpen, setCardDropdownOpen] = useState(false);
   const [headerOpen, setHeaderOpen] = useState(true);
   useEffect(() => {
     if (hasResults) setHeaderOpen(false);
@@ -30,7 +33,6 @@ export function AppShell({
   const allCardsMode = selectedCards.length === 0;
 
   const chevronColor = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const labelColor   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
 
   return (
     <div className={`flex flex-col h-screen overflow-hidden font-sans ${pageBg}`}>
@@ -38,40 +40,6 @@ export function AppShell({
       {/* ① Nav — shared across all pages */}
       <NavBar />
 
-      {/* ② Mobile: Your Cards dropdown */}
-      <div className={`md:hidden shrink-0 border-b ${surfaceBg} ${borderCls}`}>
-        <button
-          onClick={() => setCardDropdownOpen(v => !v)}
-          className={`w-full flex items-center justify-between px-4 py-3 ${labelColor}`}
-        >
-          <span className="text-xs font-semibold uppercase tracking-widest">
-            Your Cards
-            {selectedCards.length > 0 && (
-              <span className={`ml-2 font-normal normal-case tracking-normal ${chevronColor}`}>
-                · {selectedCards.length} selected
-              </span>
-            )}
-            {allCardsMode && (
-              <span className={`ml-2 font-normal normal-case tracking-normal ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'}`}>
-                · showing all
-              </span>
-            )}
-          </span>
-          <svg
-            className={`w-4 h-4 transition-transform ${cardDropdownOpen ? 'rotate-180' : ''} ${chevronColor}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {cardDropdownOpen && (
-          <div className={`px-4 pb-4 border-t ${borderCls} overflow-y-auto max-h-60`}>
-            <div className="pt-4">
-              <CardSelector />
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* ③ Search bar — full width, above the sidebar/results split */}
 
@@ -114,8 +82,8 @@ export function AppShell({
             </div>
           )}
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            <CardSelector />
-            <BalancePanel />
+            {sidebar}
+            {user ? <BalancePanel /> : <CardSelector />}
           </div>
         </aside>
 

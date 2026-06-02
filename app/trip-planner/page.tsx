@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LocationSearch } from '@/components/LocationSearch';
 import { NavBar } from '@/components/NavBar';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTrips } from '@/hooks/useTrips';
 import { trpc } from '@/lib/trpc-client';
@@ -471,6 +473,7 @@ function TripCreateForm({
 export default function TripPlannerPage() {
   const router = useRouter();
   const { isDark } = useTheme();
+  const { user, loading: authLoading } = useAuth();
   const { trips, addTrip, removeTrip } = useTrips();
 
   const [destination, setDestination] = useState<SelectedPlace | null>(null);
@@ -528,9 +531,9 @@ export default function TripPlannerPage() {
     });
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!destination || !startDate || !endDate) return;
-    const newTrip = addTrip({
+    const newTrip = await addTrip({
       title: title.trim() || `Trip to ${destination.description.split(',')[0].trim()}`,
       destination: destination.description,
       destination_place_id: undefined,
@@ -625,49 +628,99 @@ export default function TripPlannerPage() {
           {/* Command bar */}
           <div className="absolute left-0 right-0 top-[30%] md:top-[38%] flex justify-center px-4">
             <div className="w-full max-w-xl">
-              <div
-                className="rounded-lg"
-                style={{
-                  boxShadow: isDark
-                    ? `0 8px 40px rgba(0,0,0,0.6), 0 0 0 2px ${inkColor}`
-                    : `0 8px 40px rgba(12,12,13,0.12), 0 0 0 2px ${inkColor}, 0 0 0 6px rgba(132,204,22,0.35)`,
-                }}
-              >
-                <LocationSearch
-                  key={searchKey}
-                  placeholder="Search a city, airport, or destination…"
-                  onSelect={handleDestinationSelect}
-                  onClear={handleDestinationClear}
-                />
-              </div>
-
-              {/* Duplicate warning */}
-              {showWarning && destination && (
-                <DupeWarning
-                  dupeTrips={dupeTrips}
-                  onDelete={handleDupeDelete}
-                  onIgnore={handleIgnoreWarning}
-                  isDark={isDark}
-                />
-              )}
-
-              {/* AI banner */}
-              {!showWarning && (
+              {!authLoading && !user ? (
+                /* ── Unauthenticated: sign-up banner ── */
                 <div
-                  className="mt-4 flex items-center gap-3 px-4 py-3 rounded-2xl border"
+                  className="rounded-2xl border shadow-lg overflow-hidden"
                   style={{ background: cardColor, borderColor: lineColor }}
                 >
-                  <div className="flex items-center gap-2 shrink-0">
-                    <svg className="w-4 h-4 text-lime-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                    </svg>
-                    <PremiumBadge />
+                  <div className="px-6 py-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-4 h-4 text-lime-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 9m0 8V9m0 0L9 7" />
+                      </svg>
+                      <span
+                        className="text-[9px] font-mono font-black tracking-widest uppercase"
+                        style={{ color: mutedColor }}
+                      >
+                        Trip Planner
+                      </span>
+                    </div>
+                    <h2 className="text-xl font-black tracking-tight leading-snug" style={{ color: inkColor }}>
+                      Create an account to plan &amp; save trips
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed" style={{ color: mutedColor }}>
+                      Sign up free to plan trips, compare flights and hotels across all points portals, and save your itineraries in one place.
+                    </p>
                   </div>
-                  <p className="text-xs font-semibold flex-1" style={{ color: mutedColor }}>
-                    <span style={{ color: inkColor }}>AI trip planning</span> — surprise me, itinerary ideas, and smart point recommendations are coming as a premium feature.
-                  </p>
+                  <div
+                    className="flex items-center gap-3 px-6 py-4 border-t"
+                    style={{ borderColor: lineColor }}
+                  >
+                    <Link
+                      href="/"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-colors"
+                      style={{ background: inkColor, color: isDark ? '#0a0a0b' : '#ffffff' }}
+                    >
+                      Sign up free →
+                    </Link>
+                    <Link
+                      href="/auth"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold border transition-colors"
+                      style={{ borderColor: lineColor, color: mutedColor }}
+                    >
+                      Sign in
+                    </Link>
+                  </div>
                 </div>
-              )}
+              ) : user ? (
+                /* ── Authenticated: location search ── */
+                <>
+                  <div
+                    className="rounded-lg"
+                    style={{
+                      boxShadow: isDark
+                        ? `0 8px 40px rgba(0,0,0,0.6), 0 0 0 2px ${inkColor}`
+                        : `0 8px 40px rgba(12,12,13,0.12), 0 0 0 2px ${inkColor}, 0 0 0 6px rgba(132,204,22,0.35)`,
+                    }}
+                  >
+                    <LocationSearch
+                      key={searchKey}
+                      placeholder="Search a city, airport, or destination…"
+                      onSelect={handleDestinationSelect}
+                      onClear={handleDestinationClear}
+                    />
+                  </div>
+
+                  {/* Duplicate warning */}
+                  {showWarning && destination && (
+                    <DupeWarning
+                      dupeTrips={dupeTrips}
+                      onDelete={handleDupeDelete}
+                      onIgnore={handleIgnoreWarning}
+                      isDark={isDark}
+                    />
+                  )}
+
+                  {/* AI banner */}
+                  {!showWarning && (
+                    <div
+                      className="mt-4 flex items-center gap-3 px-4 py-3 rounded-2xl border"
+                      style={{ background: cardColor, borderColor: lineColor }}
+                    >
+                      <div className="flex items-center gap-2 shrink-0">
+                        <svg className="w-4 h-4 text-lime-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        </svg>
+                        <PremiumBadge />
+                      </div>
+                      <p className="text-xs font-semibold flex-1" style={{ color: mutedColor }}>
+                        <span style={{ color: inkColor }}>AI trip planning</span> — surprise me, itinerary ideas, and smart point recommendations are coming as a premium feature.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -703,7 +756,7 @@ export default function TripPlannerPage() {
         </div>
 
         {/* ── Continue planning — bottom rail ───────────────────────────── */}
-        {trips.length > 0 && !showForm && (
+        {user && trips.length > 0 && !showForm && (
           <div
             className="absolute bottom-0 left-0 right-0 z-30 border-t"
             style={{ background: cardColor, borderColor: lineColor }}

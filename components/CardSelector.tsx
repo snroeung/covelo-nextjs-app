@@ -9,7 +9,7 @@ const CARD_GROUPS: { issuer: string; cards: CardId[] }[] = [
   { issuer: 'Chase',            cards: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'] },
   { issuer: 'American Express', cards: ['amex_platinum', 'amex_gold', 'amex_green'] },
   { issuer: 'Capital One',      cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
-  { issuer: 'Bilt',             cards: ['bilt'] },
+  { issuer: 'Bilt',             cards: ['bilt_blue', 'bilt_obsidian', 'bilt_palladium'] },
   { issuer: 'Citi',             cards: ['citi_strata_premier', 'citi_strata_elite'] },
 ];
 

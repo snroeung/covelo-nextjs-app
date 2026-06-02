@@ -72,20 +72,21 @@ export interface Trip {
   activities: Activity[];
   pins: TripPin[];
   itinerary_days?: Record<string, Activity[]>; // "YYYY-MM-DD" → activities assigned to that day
-  user_id: string;     // client-generated UUID until auth is added
+  user_id: string;
   created_at: string;  // ISO timestamp
 }
 
-// ─── localStorage helpers ──────────────────────────────────────────────────────
+// ─── localStorage helpers (used when the user is not signed in) ───────────────
 
-const STORAGE_KEY = 'covelo_trips';
+const STORAGE_KEY    = 'covelo_trips';
+const LOCAL_USER_KEY = 'covelo_user_id';
 
-function getUserId(): string {
-  const key = 'covelo_user_id';
-  let id = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+export function getLocalUserId(): string {
+  if (typeof window === 'undefined') return '';
+  let id = localStorage.getItem(LOCAL_USER_KEY);
   if (!id) {
     id = crypto.randomUUID();
-    if (typeof window !== 'undefined') localStorage.setItem(key, id);
+    localStorage.setItem(LOCAL_USER_KEY, id);
   }
   return id;
 }
@@ -111,7 +112,7 @@ export function createTrip(input: Omit<Trip, 'id' | 'user_id' | 'created_at' | '
     activities: [],
     pins: [],
     id: crypto.randomUUID(),
-    user_id: getUserId(),
+    user_id: getLocalUserId(),
     created_at: new Date().toISOString(),
   };
   const trips = loadTrips();
@@ -131,4 +132,55 @@ export function updateTrip(id: string, updates: Partial<Omit<Trip, 'id' | 'user_
   trips[idx] = updated;
   saveTrips(trips);
   return updated;
+}
+
+// ─── Supabase helpers (used when the user is signed in) ───────────────────────
+
+type DbClient = Awaited<ReturnType<typeof import('@/lib/supabase/client').createClient>>;
+
+export async function loadTripsFromDb(db: DbClient, userId: string): Promise<Trip[]> {
+  const { data } = await db
+    .from('trips')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  return (data ?? []).map(normalizeDbTrip);
+}
+
+export async function upsertTripToDb(db: DbClient, trip: Trip): Promise<void> {
+  await db.from('trips').upsert(
+    { ...trip, updated_at: new Date().toISOString() },
+    { onConflict: 'id' }
+  );
+}
+
+export async function deleteTripFromDb(db: DbClient, id: string): Promise<void> {
+  await db.from('trips').delete().eq('id', id);
+}
+
+// Migrates any trips from localStorage to Supabase under the authenticated user_id.
+// Returns the number of trips migrated. Safe to call multiple times (upsert).
+export async function migrateLocalTripsToDb(db: DbClient, authUserId: string): Promise<number> {
+  const local = loadTrips();
+  if (!local.length) return 0;
+  const toMigrate = local.map((t) => ({ ...t, user_id: authUserId, updated_at: new Date().toISOString() }));
+  const { error } = await db.from('trips').upsert(toMigrate, { onConflict: 'id' });
+  if (!error) {
+    // Clear local storage so we don't migrate again next session
+    saveTrips([]);
+    if (typeof window !== 'undefined') localStorage.removeItem(LOCAL_USER_KEY);
+  }
+  return toMigrate.length;
+}
+
+// Supabase returns JSONB fields already parsed, but ensure arrays/objects are never null.
+function normalizeDbTrip(row: Record<string, unknown>): Trip {
+  return {
+    ...(row as unknown as Trip),
+    activities:     Array.isArray(row.activities)     ? (row.activities as Activity[])                       : [],
+    pins:           Array.isArray(row.pins)           ? (row.pins as TripPin[])                              : [],
+    itinerary_days: row.itinerary_days && typeof row.itinerary_days === 'object' && !Array.isArray(row.itinerary_days)
+      ? (row.itinerary_days as Record<string, Activity[]>)
+      : {},
+  };
 }
