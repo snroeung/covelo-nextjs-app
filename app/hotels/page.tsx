@@ -344,10 +344,17 @@ function HotelsPageInner() {
       />
 
       {/* Check-in */}
-      <DateInput label="Check-in" value={checkIn} onChange={setCheckIn} />
+      <DateInput
+        label="Check-in"
+        value={checkIn}
+        onChange={(v) => {
+          setCheckIn(v);
+          if (checkOut && checkOut <= v) setCheckOut('');
+        }}
+      />
 
       {/* Check-out */}
-      <DateInput label="Check-out" value={checkOut} onChange={setCheckOut} />
+      <DateInput label="Check-out" value={checkOut} onChange={setCheckOut} min={checkIn || undefined} />
 
       {/* Rooms */}
       <div className={`flex flex-col rounded-lg border px-3 py-2 focus-within:ring-2 focus-within:border-gray-900 focus-within:ring-gray-900/20 transition-colors ${fieldBoxCls}`}>

@@ -142,14 +142,7 @@ function PortalRow({
         {/* Cash + delta */}
         <div>
           <div className={`text-base font-bold font-mono tabular-nums ${inkCls}`}>{fmtUsd(group.priceUsd)}</div>
-          {delta !== 0 && (
-            <div className={`text-[10px] font-bold font-mono mt-0.5 tracking-wide ${delta < 0 ? 'text-green-600' : 'text-orange-600'}`}>
-              {delta < 0 ? '↓ ' : '↑ +'}{fmtUsd(Math.abs(delta))}
-            </div>
-          )}
-          {delta === 0 && (
-            <div className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>baseline</div>
-          )}
+
         </div>
 
         {/* Points */}
