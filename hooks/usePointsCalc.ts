@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { calcPoints } from '@/lib/points/calcPoints';
-import { BookingType, FlightContext, PointsResult } from '@/lib/points/types';
+import { BookingType, FlightContext, PointsResult, PortalId } from '@/lib/points/types';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 
 /**
@@ -14,6 +14,7 @@ export function usePointsCalc(
   priceUsd: number,
   bookingType: BookingType,
   flightCtx?: FlightContext,
+  portalPrices?: Partial<Record<PortalId, number>>,
 ): PointsResult | null {
   const { selectedCards } = useSelectedCards();
 
@@ -22,13 +23,15 @@ export function usePointsCalc(
     try {
       // No cards selected → default to all available cards (shows disclaimer in UI)
       return selectedCards.length === 0
-        ? calcPoints(priceUsd, bookingType, undefined, flightCtx)
-        : calcPoints(priceUsd, bookingType, selectedCards, flightCtx);
+        ? calcPoints(priceUsd, bookingType, undefined, flightCtx, portalPrices)
+        : calcPoints(priceUsd, bookingType, selectedCards, flightCtx, portalPrices);
     } catch {
       return null;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceUsd, bookingType, selectedCards,
     flightCtx?.airlineIata, flightCtx?.originIata, flightCtx?.destIata,
-    flightCtx?.routeType, flightCtx?.cabin]);
+    flightCtx?.routeType, flightCtx?.cabin,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    JSON.stringify(portalPrices)]);
 }

@@ -46,7 +46,7 @@ export function HotelCard({ searchResult, forceExpand = false }: { searchResult:
   const amenities   = (acc.amenities ?? []).slice(0, 6) as any[];
   const firstPhoto  = (acc.photos?.[0]?.url ?? null) as string | null;
 
-  const pointsResult = usePointsCalc(totalAmount, 'hotel');
+  const pointsResult = usePointsCalc(totalAmount, 'hotel', undefined, searchResult.portalPrices);
   const best         = pointsResult?.bestPortalResult;
   const isBestValue  = best ? best.centsPerPoint > 1.0 : false;
   const portalCount  = pointsResult?.portalGroups.length ?? 0;

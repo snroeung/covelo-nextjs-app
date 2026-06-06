@@ -1,4 +1,4 @@
-export type HotelSource = "duffel" | "eps" | "booking";
+export type HotelSource = "duffel" | "eps" | "booking" | "hotelbeds";
 
 export interface HotelModel {
   id: string;
