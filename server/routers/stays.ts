@@ -25,7 +25,124 @@ function hbCacheKey(
   return `hb:search:${createHash("sha256").update(raw).digest("hex")}`;
 }
 
+interface AccommodationStaticDetails {
+  description: string | null;
+  check_in_information: { check_in_after_time: string; check_out_before_time: string } | null;
+  reviews: Array<{ created_at: string; reviewer_name: string; score: number; text: string }>;
+  roomPhotosByName: Record<string, Array<{ url: string }>>;
+}
+
+interface RoomSummary {
+  name: string;
+  beds: Array<{ type: string; count: number }>;
+  photos: Array<{ url: string }>;
+  rates: Array<{
+    id: string;
+    total_amount: string;
+    total_currency: string;
+    board_type: string;
+    payment_type: string;
+    quantity_available: number | null;
+    cancellation_timeline: Array<{ refund_amount: string; before: string; currency: string }>;
+  }>;
+}
+
 export const staysRouter = router({
+  accommodationDetails: publicProcedure
+    .input(z.object({ accommodationId: z.string(), searchResultId: z.string() }))
+    .query(async ({ input }) => {
+      const staticKey = `stay:details:${input.accommodationId}`;
+      const roomsKey  = `stay:rooms:${input.searchResultId}`;
+
+      // Fetch static details (24h cache) and rooms (15 min cache) independently
+      const [cachedStatic, cachedRooms] = await Promise.all([
+        redis.get<AccommodationStaticDetails>(staticKey).catch(() => null),
+        redis.get<RoomSummary[]>(roomsKey).catch(() => null),
+      ]);
+
+      // Run only the API calls we still need
+      const [detailsOutcome, reviewsOutcome, ratesOutcome] = await Promise.allSettled([
+        cachedStatic ? Promise.resolve(null) : duffel.stays.accommodation.get(input.accommodationId),
+        cachedStatic ? Promise.resolve(null) : duffel.stays.accommodation.reviews(input.accommodationId),
+        cachedRooms  ? Promise.resolve(null) : duffel.stays.searchResults.fetchAllRates(input.searchResultId),
+      ]);
+
+      let staticDetails = cachedStatic;
+      if (!staticDetails) {
+        const roomPhotosByName: Record<string, Array<{ url: string }>> = {};
+        if (detailsOutcome.status === "fulfilled" && detailsOutcome.value) {
+          for (const room of detailsOutcome.value.data.rooms ?? []) {
+            if (room.photos?.length) {
+              roomPhotosByName[room.name] = room.photos.map((p) => ({ url: p.url }));
+            }
+          }
+        }
+        staticDetails = {
+          description:
+            detailsOutcome.status === "fulfilled" && detailsOutcome.value
+              ? (detailsOutcome.value.data.description ?? null)
+              : null,
+          check_in_information:
+            detailsOutcome.status === "fulfilled" && detailsOutcome.value
+              ? detailsOutcome.value.data.check_in_information
+              : null,
+          reviews:
+            reviewsOutcome.status === "fulfilled" && reviewsOutcome.value
+              ? reviewsOutcome.value.data.reviews.slice(0, 6)
+              : [],
+          roomPhotosByName,
+        };
+        await redis.set(staticKey, staticDetails, { ex: 60 * 60 * 24 }).catch(() => {});
+      }
+
+      let rooms = cachedRooms;
+      if (!rooms) {
+        if (ratesOutcome.status === "fulfilled" && ratesOutcome.value) {
+          const rawRooms = ratesOutcome.value.data.accommodation.rooms ?? [];
+          const photosByName = staticDetails.roomPhotosByName ?? {};
+          rooms = rawRooms.map((r) => {
+            const ratePhotos = (r.photos ?? []).map((p) => ({ url: p.url }));
+            const photos = ratePhotos.length > 0 ? ratePhotos : (photosByName[r.name] ?? []);
+            return {
+              name: r.name,
+              beds: (r.beds ?? []).map((b) => ({ type: b.type, count: b.count })),
+              photos,
+              rates: r.rates.map((rt) => ({
+                id: rt.id,
+                total_amount: rt.total_amount,
+                total_currency: rt.total_currency,
+                board_type: rt.board_type,
+                payment_type: rt.payment_type,
+                quantity_available: rt.quantity_available ?? null,
+                cancellation_timeline: (rt.cancellation_timeline ?? []).map((c) => ({
+                  refund_amount: c.refund_amount,
+                  before: c.before,
+                  currency: c.currency,
+                })),
+              })),
+            };
+          });
+          console.log(`[stays] fetchAllRates ${input.searchResultId} → ${rooms!.length} rooms`);
+          rooms!.forEach((r) => {
+            const src = r.photos.length > 0
+              ? (photosByName[r.name]?.length && r.photos[0].url === photosByName[r.name][0].url ? "accommodation.get" : "fetchAllRates")
+              : "none";
+            console.log(
+              `[stays]   room "${r.name}"  photos=${r.photos.length} (src=${src})  rates=${r.rates.length}`,
+            );
+          });
+        } else {
+          if (ratesOutcome.status === "rejected") {
+            console.warn("[stays] fetchAllRates ✗", ratesOutcome.reason);
+          }
+          rooms = [];
+        }
+        await redis.set(roomsKey, rooms, { ex: 60 * 15 }).catch(() => {});
+      }
+
+      return { ...staticDetails, rooms };
+    }),
+
   search: publicProcedure
     .input(
       z.object({
