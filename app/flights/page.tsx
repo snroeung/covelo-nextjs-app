@@ -536,7 +536,7 @@ function FlightsPageInner() {
         <LocationSearch fieldLabel="From" forAirport onSelect={(p) => setOriginPlace(p)} onClear={() => setOriginPlace(null)} />
         <LocationSearch fieldLabel="To"   forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
         <div className="flex gap-2.5">
-          <div className="flex-1"><DateInput label="Depart" value={startDate} onChange={setStartDate} /></div>
+          <div className="flex-1"><DateInput label="Depart" value={startDate} onChange={(v) => { setStartDate(v); if (endDate && endDate <= v) setEndDate(''); }} /></div>
           {tripType === 'roundtrip' && (
             <div className="flex-1"><DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} /></div>
           )}
@@ -560,7 +560,7 @@ function FlightsPageInner() {
           onSelect={(p) => setArrivalPlace(p)}
           onClear={() => setArrivalPlace(null)}
         />
-        <DateInput label="Depart" value={startDate} onChange={setStartDate} />
+        <DateInput label="Depart" value={startDate} onChange={(v) => { setStartDate(v); if (endDate && endDate <= v) setEndDate(''); }} />
         <div className={tripType === 'oneway' ? 'invisible' : ''}>
           <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
         </div>

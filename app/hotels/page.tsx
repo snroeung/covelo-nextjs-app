@@ -7,12 +7,12 @@ import { AppShell } from '@/components/AppShell';
 import { DateInput } from '@/components/DateInput';
 import { GuestsDropdown, type GuestsValue } from '@/components/GuestsDropdown';
 import { HotelCard } from '@/components/HotelCard';
+import { HotelDetailModal } from '@/components/HotelDetailModal';
 import { HotelMap } from '@/components/HotelMap';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
 
-const ROOM_OPTIONS = [1, 2, 3, 4, 5];
 
 const STAR_OPTIONS: { label: string; value: number | null }[] = [
   { label: 'Any',  value: null },
@@ -183,7 +183,6 @@ function HotelsPageInner() {
   const [destPlace, setDestPlace] = useState<SelectedPlace | null>(
     fromTrip ? { latitude: paramLat, longitude: paramLng, name: paramDest, description: paramDest } : null,
   );
-  const [rooms, setRooms]         = useState(1);
   const [guests, setGuests]       = useState<GuestsValue>({
     adults: fromTrip ? paramAdults : 2,
     children: fromTrip ? paramChildren : 0,
@@ -195,7 +194,8 @@ function HotelsPageInner() {
   const [requiredAmenities, setRequiredAmenities] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder]       = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
   const [sortOpen, setSortOpen]         = useState(false);
-  const [expandedHotelId, setExpandedHotelId] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [detailResult, setDetailResult] = useState<any | null>(null);
   const [showBackToTop, setShowBackToTop]     = useState(false);
 
   useEffect(() => {
@@ -278,7 +278,7 @@ function HotelsPageInner() {
       longitude: destPlace.longitude,
       checkInDate: checkIn,
       checkOutDate: checkOut,
-      rooms,
+      rooms: 1,
       guests: buildGuests(guests),
     });
   }
@@ -344,26 +344,17 @@ function HotelsPageInner() {
       />
 
       {/* Check-in */}
-      <DateInput label="Check-in" value={checkIn} onChange={setCheckIn} />
+      <DateInput
+        label="Check-in"
+        value={checkIn}
+        onChange={(v) => {
+          setCheckIn(v);
+          if (checkOut && checkOut <= v) setCheckOut('');
+        }}
+      />
 
       {/* Check-out */}
-      <DateInput label="Check-out" value={checkOut} onChange={setCheckOut} />
-
-      {/* Rooms */}
-      <div className={`flex flex-col rounded-lg border px-3 py-2 focus-within:ring-2 focus-within:border-gray-900 focus-within:ring-gray-900/20 transition-colors ${fieldBoxCls}`}>
-        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${fieldLabelCls}`}>
-          Rooms
-        </span>
-        <select
-          value={rooms}
-          onChange={(e) => setRooms(Number(e.target.value))}
-          className={`text-sm font-semibold mt-1.5 bg-transparent outline-none cursor-pointer ${fieldValueCls}`}
-        >
-          {ROOM_OPTIONS.map((n) => (
-            <option key={n} value={n}>{n} {n === 1 ? 'room' : 'rooms'}</option>
-          ))}
-        </select>
-      </div>
+      <DateInput label="Check-out" value={checkOut} onChange={setCheckOut} min={checkIn || undefined} />
 
       {/* Guests */}
       <GuestsDropdown value={guests} onChange={setGuests} />
@@ -392,7 +383,6 @@ function HotelsPageInner() {
         <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-2 ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
           {[
             destPlace?.name,
-            rooms > 0 ? `${rooms} room${rooms !== 1 ? 's' : ''}` : null,
             guests.adults + guests.children > 0 ? `${guests.adults + guests.children} guest${guests.adults + guests.children !== 1 ? 's' : ''}` : null,
           ].filter(Boolean).join(' · ')}
         </p>
@@ -440,6 +430,7 @@ function HotelsPageInner() {
   );
 
   return (
+    <>
     <AppShell
       header={header}
       hasResults={accommodations.length > 0}
@@ -480,7 +471,7 @@ function HotelsPageInner() {
         <div className="space-y-4">
           {resultsHeader}
           {accommodations.map((sr) => (
-            <HotelCard key={sr.id} searchResult={sr} />
+            <HotelCard key={sr.id} searchResult={sr} onOpenDetail={setDetailResult} />
           ))}
         </div>
       ) : hotelSearch.isSuccess ? (
@@ -489,6 +480,11 @@ function HotelsPageInner() {
         <EmptyState message={!destPlace ? 'Search for a location to find hotels.' : 'Fill in dates and press Search.'} />
       )}
     </AppShell>
+
+    {detailResult && (
+      <HotelDetailModal searchResult={detailResult} onClose={() => setDetailResult(null)} />
+    )}
+    </>
   );
 }
 
