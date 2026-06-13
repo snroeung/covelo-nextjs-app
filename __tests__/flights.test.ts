@@ -8,6 +8,11 @@ jest.mock("@/lib/duffel", () => ({
   },
 }));
 
+// Enable all flags relevant to flights so unit tests are not coupled to flag config
+jest.mock("@/lib/feature-flags", () => ({
+  isEnabled: () => true,
+}));
+
 import { duffel } from "@/lib/duffel";
 
 const mockOfferRequest = {
@@ -57,7 +62,7 @@ describe("flights.searchOffers", () => {
 
     expect(result).toEqual(mockOfferRequest);
     expect(duffel.offerRequests.create).toHaveBeenCalledWith({
-      slices: [{ origin: "LHR", destination: "JFK", departure_date: "2026-06-01" }],
+      slices: [{ origin: "LHR", destination: "JFK", departure_date: "2026-06-01", arrival_time: null, departure_time: null }],
       passengers: [{ type: "adult" }],
       cabin_class: "economy",
     });

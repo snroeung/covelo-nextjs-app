@@ -1,7 +1,27 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isEnabled } from '@/lib/feature-flags';
+import type { FlagName } from '@/lib/feature-flags';
+
+// Routes that require a feature flag to be enabled.
+// Patterns are prefix-matched (pathname.startsWith).
+// Auth routes are intentionally excluded — auth is always on.
+const ROUTE_FLAGS: Array<{ prefix: string; flag: FlagName }> = [
+  { prefix: '/hotels',       flag: 'ui:hotels' },
+  { prefix: '/flights',      flag: 'ui:flights' },
+  { prefix: '/trip-planner', flag: 'ui:trip-planner' },
+];
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Feature flag gate — redirect disabled routes to home before auth processing
+  for (const { prefix, flag } of ROUTE_FLAGS) {
+    if (pathname.startsWith(prefix) && !isEnabled(flag)) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -1,9 +1,11 @@
 import { z } from "zod";
-import { publicProcedure, router } from "@/server/trpc";
+import { flaggedProcedure, router } from "@/server/trpc";
+import { isEnabled } from "@/lib/feature-flags";
+import { TRPCError } from "@trpc/server";
 import { duffel } from "@/lib/duffel";
 
 export const flightsRouter = router({
-  searchOffers: publicProcedure
+  searchOffers: flaggedProcedure("api:flights")
     .input(
       z.object({
         origin: z.string().length(3, "Must be a 3-letter IATA airport code"),
@@ -19,6 +21,13 @@ export const flightsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      if (!isEnabled("integration:duffel:flights")) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Flight search integration is not available in this environment.",
+        });
+      }
+
       const { origin, destination, departureDate, returnDate, passengers, cabinClass } = input;
 
       const slices = [
