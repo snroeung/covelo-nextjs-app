@@ -141,6 +141,55 @@ Renders portal groups and transfer alternatives. Called from `HotelCard` and `Fl
 - Dark/light theming via `isDark` boolean from `useTheme()` — no CSS `dark:` variant
 - `any` types used intentionally for Duffel API responses (untyped SDK shapes)
 - Max content width: `max-w-3xl` for hotel results
+
+### Dropdown / Popover Interaction Pattern
+
+All hover-triggered dropdowns follow this behavior:
+
+| Trigger | Effect |
+|---|---|
+| Hover trigger button | Opens dropdown |
+| Mouse-out (not pinned) | Closes dropdown |
+| Click trigger button | Pins dropdown open — hover-out no longer closes it |
+| Click trigger again | Unpins and closes |
+| Click outside | Closes and unpins |
+| Route change | Closes and unpins |
+
+**Implementation rules:**
+
+1. **Never use `mt-*` to space a dropdown from its trigger.** Margin creates a physical gap in the DOM — when the cursor crosses it, `onMouseLeave` fires on the wrapper and the dropdown closes before the user reaches it. Instead, position the panel flush (`top-full`) and use `pt-*` padding inside a transparent wrapper to create the visual gap:
+
+```tsx
+// ❌ Gap between button and panel causes premature close
+<div className="absolute top-full left-0 mt-1.5 ...">
+
+// ✅ Wrapper is flush; padding creates visual gap without breaking hover area
+<div className="absolute top-full left-0 pt-1.5 z-50">
+  <div className="rounded-xl border shadow-lg ...">
+    {items}
+  </div>
+</div>
+```
+
+2. Use a single wrapper `div` with `onMouseEnter`/`onMouseLeave` covering **both** the trigger and the panel. This keeps the hover area continuous.
+
+3. Track `pinned` state separately from `open` state. `onMouseLeave` checks `pinned` before closing:
+
+```tsx
+const [open, setOpen]     = useState(false);
+const [pinned, setPinned] = useState(false);
+
+function close() { setOpen(false); setPinned(false); }
+
+// wrapper
+onMouseEnter={() => setOpen(true)}
+onMouseLeave={() => { if (!pinned) setOpen(false); }}
+
+// trigger button
+onClick={() => { if (pinned) { close(); } else { setPinned(true); setOpen(true); } }}
+```
+
+See `components/NavBar.tsx` — Search dropdown — as the reference implementation.
 # CLAUDE.md — Covelo Developer Instructions
 
 You are a senior full-stack developer building **Covelo** (covelo.app), a consumer travel planning app that compares flight and hotel costs across Chase, Capital One, Amex, Bilt, and Citi travel portals in real time. The core value: one search, all five portals, points costs included.

@@ -2,11 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePopup } from '@/components/ProfilePopup';
+import { isEnabled } from '@/lib/feature-flags';
+
+const flightsEnabled    = isEnabled('ui:flights');
+const hotelsEnabled     = isEnabled('ui:hotels');
 
 export function NavBar() {
   const { isDark }   = useTheme();
@@ -14,14 +18,18 @@ export function NavBar() {
   const pathname     = usePathname();
   const router       = useRouter();
   const avatarRef    = useRef<HTMLButtonElement>(null);
-  const [popupOpen, setPopupOpen] = useState(false);
+  const searchRef    = useRef<HTMLDivElement>(null);
+  const [popupOpen, setPopupOpen]   = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchPinned, setSearchPinned] = useState(false);
 
   const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
-  function navLinkCls(href: string) {
-    const active = pathname === href;
-    const base   = 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors';
+  const searchActive = pathname === '/flights' || pathname === '/hotels';
+
+  function navLinkCls(active: boolean) {
+    const base = 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors';
     if (active) return isDark
       ? `${base} bg-white text-gray-900`
       : `${base} bg-gray-900 text-white`;
@@ -30,25 +38,96 @@ export function NavBar() {
       : `${base} text-gray-500 hover:text-gray-900`;
   }
 
+  function closeSearch() {
+    setSearchOpen(false);
+    setSearchPinned(false);
+  }
+
+  // Close the Search dropdown when clicking outside
+  useEffect(() => {
+    if (!searchOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        closeSearch();
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [searchOpen]);
+
+  // Close Search dropdown on navigation
+  useEffect(() => { closeSearch(); }, [pathname]);
+
   const initials = profile?.display_name
     ? profile.display_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? '?';
+
+  const dropdownSurface = isDark
+    ? 'bg-gph-dark-card border-gph-dark-line'
+    : 'bg-white border-gray-200';
 
   return (
     <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
       <Link href="/" className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
         covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
       </Link>
+
       <div className="flex items-center gap-1">
-        <Link href="/flights"      className={navLinkCls('/flights')}>Flights</Link>
-        <Link href="/hotels"       className={navLinkCls('/hotels')}>Hotels</Link>
-        <Link href="/trip-planner" className={navLinkCls('/trip-planner')}>Trip Planner</Link>
+        {/* Search dropdown */}
+        <div
+          ref={searchRef}
+          className="relative"
+          onMouseEnter={() => setSearchOpen(true)}
+          onMouseLeave={() => { if (!searchPinned) setSearchOpen(false); }}
+        >
+          <button
+            onClick={() => {
+              if (searchPinned) {
+                closeSearch();
+              } else {
+                setSearchPinned(true);
+                setSearchOpen(true);
+              }
+            }}
+            className={`${navLinkCls(searchActive)} flex items-center gap-1`}
+            aria-haspopup="true"
+            aria-expanded={searchOpen}
+          >
+            Search
+          </button>
+
+          {searchOpen && (
+            <div className="absolute top-full left-0 w-44 pt-1.5 z-50">
+            <div className={`rounded-xl border shadow-lg overflow-hidden ${dropdownSurface}`}>
+              <SearchDropdownItem
+                href="/flights"
+                label="Flights"
+                enabled={flightsEnabled}
+                active={pathname === '/flights'}
+                isDark={isDark}
+                onClick={() => setSearchOpen(false)}
+              />
+              <SearchDropdownItem
+                href="/hotels"
+                label="Hotels"
+                enabled={hotelsEnabled}
+                active={pathname === '/hotels'}
+                isDark={isDark}
+                onClick={() => setSearchOpen(false)}
+              />
+            </div>
+            </div>
+          )}
+        </div>
+
+        <Link href="/trip-planner" className={navLinkCls(pathname === '/trip-planner')}>
+          Trip Planner
+        </Link>
       </div>
 
       <div className="ml-auto flex items-center gap-2">
         <ThemeToggle compact />
 
-        {/* Auth area */}
         {loading ? (
           <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
         ) : user ? (
@@ -83,5 +162,45 @@ export function NavBar() {
         )}
       </div>
     </nav>
+  );
+}
+
+interface SearchDropdownItemProps {
+  href: string;
+  label: string;
+  enabled: boolean;
+  active: boolean;
+  isDark: boolean;
+  onClick: () => void;
+}
+
+function SearchDropdownItem({ href, label, enabled, active, isDark, onClick }: SearchDropdownItemProps) {
+  const base = 'flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold transition-colors';
+
+  if (!enabled) {
+    return (
+      <div className={`${base} ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'} cursor-default`}>
+        {label}
+        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
+          isDark ? 'bg-gph-dark-line text-gph-dark-muted' : 'bg-gray-100 text-gray-400'
+        }`}>
+          Soon
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`${base} ${
+        active
+          ? isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'
+          : isDark ? 'text-gph-dark-ink hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      {label}
+    </Link>
   );
 }
