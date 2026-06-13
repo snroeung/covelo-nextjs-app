@@ -34,7 +34,7 @@ describe('calcPoints()', () => {
     const result = calcPoints(
       300,
       'hotel',
-      ['chase_reserve', 'amex_platinum', 'c1_venture_x', 'bilt', 'citi_strata_premier']
+      ['chase_reserve', 'amex_platinum', 'c1_venture_x', 'bilt_blue', 'citi_strata_premier']
     );
     expect(result.portalResults).toHaveLength(5);
     expect(result.portalResults[0].portalId).toBe('chase'); // 1.5¢ = fewest points
@@ -76,7 +76,7 @@ describe('calcPoints()', () => {
   });
 
   it('10. estimated flag is always true on every PortalResult', () => {
-    const result = calcPoints(500, 'hotel', ['chase_reserve', 'amex_platinum', 'bilt']);
+    const result = calcPoints(500, 'hotel', ['chase_reserve', 'amex_platinum', 'bilt_blue']);
     for (const r of result.portalResults) {
       expect(r.estimated).toBe(true);
     }
@@ -95,12 +95,10 @@ const mockBestPortalResult: PortalResult = {
   priceUsd: 620,
   pointsNeeded: 41_334,
   centsPerPoint: 1.5,
-  earnRate: 10,
-  pointsEarned: 6_200,
-  estimated: true,
-  bookingType: 'hotel',
   earnRate: 3,
   pointsEarned: 124_002,
+  estimated: true,
+  bookingType: 'hotel',
 };
 
 describe('calcTransferAlternatives()', () => {
@@ -146,11 +144,11 @@ describe('calcTransferAlternatives()', () => {
   });
 
   it('7. isBetterThanPortal = true when transfer estimate < bestPortalResult.pointsNeeded', () => {
-    // Portal costs 41,334 pts; flight transfer estimate is 20,000 → better
+    // Portal costs 41,334 pts; UA long-haul economy saver = 30,000 → better
     const flightBest: PortalResult = { ...mockBestPortalResult, bookingType: 'flight', pointsNeeded: 41_334 };
     const results = calcTransferAlternatives(620, 'flight', ['chase_reserve'], flightBest, null, 'UA');
     const united = results.find((r) => r.partnerProgram === 'United MileagePlus');
     expect(united?.isBetterThanPortal).toBe(true);
-    expect(united?.estimatedPointsNeeded).toBe(20_000);
+    expect(united?.estimatedPointsNeeded).toBe(30_000);
   });
 });

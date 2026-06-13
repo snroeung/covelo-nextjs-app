@@ -166,6 +166,46 @@ For simple, well-scoped tasks (typo fix, single-line change, adding a constant),
 
 ---
 
+## 🚩 Feature Flags & Cache Config
+
+### Feature flags (non-negotiable)
+
+Every new UI route and tRPC endpoint **must** be registered in `lib/feature-flags.ts` before it ships.
+
+**New UI route checklist:**
+1. Add a `"ui:<route>"` entry to `FLAGS_CONFIG` in `lib/feature-flags.ts` with `enabledIn` set appropriately
+2. Add the route prefix to the `ROUTE_FLAGS` array in `proxy.ts`
+3. Default all envs to enabled (`["local", "beta", "production"]`) unless intentionally gating the feature
+
+**New tRPC endpoint checklist:**
+1. Add an `"api:<router>"` entry to `FLAGS_CONFIG`
+2. Use `flaggedProcedure("api:<router>")` instead of `publicProcedure` in the router file
+3. If the endpoint calls an external API, also add an `"integration:<service>"` entry and check it inside the resolver before calling the API
+
+**Naming conventions:**
+- `"ui:<kebab-route>"` — page routes (`ui:hotels`, `ui:trip-planner`)
+- `"api:<router-name>"` — tRPC routers (`api:stays`, `api:flights`)
+- `"integration:<service>"` — external API calls (`integration:duffel`, `integration:redis`)
+
+**Environment mapping** (`NEXT_PUBLIC_APP_ENV`):
+- `feature/*` branches → unset (defaults to `"local"`)
+- `main` branch → `"beta"` (set as branch-scoped Preview var in Vercel)
+- `production` branch → `"production"` (set in Vercel Production env)
+
+### Cache config (non-negotiable)
+
+Every Redis cache entry **must** have its key template and TTL defined in `lib/cache-config.ts` before writing any `redis.get`/`redis.set` call.
+
+**Adding a new cached entry:**
+1. Add a key builder to `cacheKeys` in `lib/cache-config.ts`
+2. Add a TTL entry to `CACHE` using a named constant from `TTL`
+3. Use `cacheKeys.<entry>(params)` and `CACHE.<entry>.ttl` at every call site — never raw strings or magic numbers
+
+**`integration:redis` flag:**
+Every Redis call must short-circuit when `isEnabled("integration:redis")` is false. Use the `cacheGet`/`cacheSet` helpers in `server/routers/stays.ts` as the reference pattern for routers, and the inline `if (isEnabled("integration:redis"))` guard pattern in `lib/places.ts` for lib functions.
+
+---
+
 ## 🔧 Terminal & Shell
 
 The shell is **zsh**. Source `.zshrc` before running commands when in doubt:
@@ -244,7 +284,7 @@ chore(deps): upgrade @duffel/api to latest
 
 ## 🧪 Testing Requirements
 
-Every commit that touches logic or UI **must include tests**. No exceptions before production.
+Prompt user if ready to create tests after every conversation
 
 ### Unit / Integration (Vitest + MSW)
 - All `src/lib/` modules require Vitest unit tests

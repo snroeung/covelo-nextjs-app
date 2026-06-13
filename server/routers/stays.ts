@@ -1,11 +1,26 @@
 import { createHash } from "crypto";
 import { z } from "zod";
-import { publicProcedure, router } from "@/server/trpc";
+import { TRPCError } from "@trpc/server";
+import { flaggedProcedure, router } from "@/server/trpc";
+import { isEnabled } from "@/lib/feature-flags";
+import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { duffel } from "@/lib/duffel";
 import { redis } from "@/lib/redis";
 import { searchHotels } from "@/lib/hotelbeds";
 import { adaptHotelBedsResults } from "@/lib/adapters/hotelbeds-adapter";
 import { matchHotels } from "@/lib/hotelbeds-match";
+
+// Redis helpers that respect the integration:redis flag.
+// When the flag is off, reads return null (cache miss) and writes are no-ops,
+// reusing the existing graceful-degradation pattern.
+async function cacheGet<T>(key: string): Promise<T | null> {
+  if (!isEnabled("integration:redis:stays")) return null;
+  return redis.get<T>(key).catch(() => null);
+}
+async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
+  if (!isEnabled("integration:redis:stays")) return;
+  await redis.set(key, value, { ex: ttl }).catch(() => {});
+}
 
 const guestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("adult") }),
@@ -22,7 +37,7 @@ function hbCacheKey(
   children: number,
 ): string {
   const raw = `${lat}|${lng}|${checkIn}|${checkOut}|${rooms}|${adults}|${children}`;
-  return `hb:search:${createHash("sha256").update(raw).digest("hex")}`;
+  return cacheKeys.hotelBedsSearch(createHash("sha256").update(raw).digest("hex"));
 }
 
 interface AccommodationStaticDetails {
@@ -48,16 +63,23 @@ interface RoomSummary {
 }
 
 export const staysRouter = router({
-  accommodationDetails: publicProcedure
+  accommodationDetails: flaggedProcedure("api:stays")
     .input(z.object({ accommodationId: z.string(), searchResultId: z.string() }))
     .query(async ({ input }) => {
-      const staticKey = `stay:details:${input.accommodationId}`;
-      const roomsKey  = `stay:rooms:${input.searchResultId}`;
+      if (!isEnabled("integration:duffel:stays")) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Hotel details integration is not available in this environment.",
+        });
+      }
+
+      const staticKey = cacheKeys.stayDetails(input.accommodationId);
+      const roomsKey  = cacheKeys.stayRooms(input.searchResultId);
 
       // Fetch static details (24h cache) and rooms (15 min cache) independently
       const [cachedStatic, cachedRooms] = await Promise.all([
-        redis.get<AccommodationStaticDetails>(staticKey).catch(() => null),
-        redis.get<RoomSummary[]>(roomsKey).catch(() => null),
+        cacheGet<AccommodationStaticDetails>(staticKey),
+        cacheGet<RoomSummary[]>(roomsKey),
       ]);
 
       // Run only the API calls we still need
@@ -92,7 +114,7 @@ export const staysRouter = router({
               : [],
           roomPhotosByName,
         };
-        await redis.set(staticKey, staticDetails, { ex: 60 * 60 * 24 }).catch(() => {});
+        await cacheSet(staticKey, staticDetails, CACHE.stayDetails.ttl);
       }
 
       let rooms = cachedRooms;
@@ -137,13 +159,13 @@ export const staysRouter = router({
           }
           rooms = [];
         }
-        await redis.set(roomsKey, rooms, { ex: 60 * 15 }).catch(() => {});
+        await cacheSet(roomsKey, rooms, CACHE.stayRooms.ttl);
       }
 
       return { ...staticDetails, rooms };
     }),
 
-  search: publicProcedure
+  search: flaggedProcedure("api:stays")
     .input(
       z.object({
         latitude: z.number(),
@@ -157,6 +179,13 @@ export const staysRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      if (!isEnabled("integration:duffel:stays")) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Hotel search integration is not available in this environment.",
+        });
+      }
+
       const { latitude, longitude, radius, checkInDate, checkOutDate, rooms, guests, freeCancellationOnly } = input;
 
       const adults = guests.filter((g) => g.type === "adult").length;
@@ -185,16 +214,17 @@ export const staysRouter = router({
           return res;
         })(),
         (async () => {
+          if (!isEnabled("integration:hotelbeds:stays")) {
+            console.log("[stays] HotelBeds disabled via feature flag — skipping");
+            return [];
+          }
+
           const cacheKey = hbCacheKey(latitude, longitude, checkInDate, checkOutDate, rooms, adults, children);
-          try {
-            const cached = await redis.get<ReturnType<typeof adaptHotelBedsResults>>(cacheKey);
-            if (cached) {
-              console.log(`[stays] HotelBeds ✓ ${cached.length} hotels (cache hit)`);
-              cached.forEach((h) => console.log(`[stays]   hb: ${h.name} $${h.lowestRateUsd.toFixed(2)} ${h.currency}`));
-              return cached;
-            }
-          } catch {
-            // Redis read failure is non-fatal
+          const cached = await cacheGet<ReturnType<typeof adaptHotelBedsResults>>(cacheKey);
+          if (cached) {
+            console.log(`[stays] HotelBeds ✓ ${cached.length} hotels (cache hit)`);
+            cached.forEach((h) => console.log(`[stays]   hb: ${h.name} $${h.lowestRateUsd.toFixed(2)} ${h.currency}`));
+            return cached;
           }
 
           console.log("[stays] HotelBeds → calling hotel-api/1.0/hotels");
@@ -213,11 +243,7 @@ export const staysRouter = router({
           const normalized = adaptHotelBedsResults(raw);
           console.log(`[stays] HotelBeds ✓ ${normalized.length} hotels (${Date.now() - t0}ms)`);
 
-          try {
-            await redis.set(cacheKey, normalized, { ex: 900 });
-          } catch {
-            // Redis write failure is non-fatal
-          }
+          await cacheSet(cacheKey, normalized, CACHE.hotelBedsSearch.ttl);
 
           return normalized;
         })(),
@@ -240,18 +266,20 @@ export const staysRouter = router({
       }
 
       // Cache Duffel results per accommodation (1h TTL — rates fluctuate)
-      try {
-        await Promise.all(
-          searchResults.map((sr) =>
-            redis.set(
-              `stay:accommodation:${sr.accommodation.id}:${checkInDate}:${checkOutDate}:${rooms}`,
-              sr,
-              { ex: 60 * 60 },
+      if (isEnabled("integration:redis:stays")) {
+        try {
+          await Promise.all(
+            searchResults.map((sr) =>
+              redis.set(
+                cacheKeys.staySearchResult(sr.accommodation.id, checkInDate, checkOutDate, rooms),
+                sr,
+                { ex: CACHE.staySearchResult.ttl },
+              )
             )
-          )
-        );
-      } catch (err) {
-        console.warn("[stays] Redis cache write failed:", err);
+          );
+        } catch (err) {
+          console.warn("[stays] Redis cache write failed:", err);
+        }
       }
 
       // Augment each result with HotelBeds portal prices where available

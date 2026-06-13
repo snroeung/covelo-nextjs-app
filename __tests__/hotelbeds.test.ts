@@ -97,8 +97,8 @@ describe('adaptHotelBedsResults()', () => {
       hotels: {
         currency: 'USD',
         hotels: [
-          { code: 1, name: { content: 'Hotel A' }, latitude: '40.0', longitude: '-74.0', minRate: '100.00' },
-          { code: 2, name: { content: 'Hotel B' } }, // no rate
+          { code: 1, name: 'Hotel A', latitude: '40.0', longitude: '-74.0', minRate: '100.00' },
+          { code: 2, name: 'Hotel B' }, // no rate
         ],
       },
     };

@@ -1,4 +1,6 @@
 import { redis } from './redis';
+import { isEnabled } from './feature-flags';
+import { CACHE, cacheKeys } from './cache-config';
 
 const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -81,12 +83,6 @@ export async function getNearestAirport(cityName: string): Promise<NearestAirpor
 }
 
 /**
- * Returns lat/lng for a placeId.
- * Results are cached in Redis by placeId for 30 days — coordinates don't change,
- * so any user resolving the same place hits the cache, not the API.
- * Passing the sessionToken ends the billing session (this is the only billed call).
- */
-/**
  * Returns a photo_reference for a place identified by name + address.
  * The caller should construct a server-side proxy URL from this reference
  * (e.g. /api/place-photo?ref=REFERENCE) so the API key is never exposed.
@@ -95,12 +91,15 @@ export async function getNearestAirport(cityName: string): Promise<NearestAirpor
 export async function getPlacePhoto(name: string, address: string): Promise<string | null> {
   if (!GMAPS_KEY) return null;
 
-  const cacheKey = `place:photo:ref:${name}:${address}`;
-  try {
-    const cached = await redis.get<string>(cacheKey);
-    if (cached) return cached;
-  } catch {
-    // Redis unavailable — fall through to live API
+  const cacheKey = cacheKeys.placePhoto(name, address);
+
+  if (isEnabled("integration:redis:places")) {
+    try {
+      const cached = await redis.get<string>(cacheKey);
+      if (cached) return cached;
+    } catch {
+      // Redis unavailable — fall through to live API
+    }
   }
 
   const findUrl = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
@@ -116,26 +115,37 @@ export async function getPlacePhoto(name: string, address: string): Promise<stri
   const photoRef: string | undefined = findData.candidates?.[0]?.photos?.[0]?.photo_reference;
   if (!photoRef) return null;
 
-  try {
-    await redis.set(cacheKey, photoRef, { ex: 60 * 60 * 24 * 7 });
-  } catch {
-    // Redis unavailable — still return the result
+  if (isEnabled("integration:redis:places")) {
+    try {
+      await redis.set(cacheKey, photoRef, { ex: CACHE.placePhoto.ttl });
+    } catch {
+      // Redis unavailable — still return the result
+    }
   }
+
   return photoRef;
 }
 
+/**
+ * Returns lat/lng for a placeId.
+ * Results are cached in Redis by placeId for 30 days — coordinates don't change,
+ * so any user resolving the same place hits the cache, not the API.
+ * Passing the sessionToken ends the billing session (this is the only billed call).
+ */
 export async function getPlaceLatLng(
   placeId: string,
   sessionToken: string,
 ): Promise<PlaceLatLng> {
-  const cacheKey = `place:latlng:${placeId}`;
+  const cacheKey = cacheKeys.placeLatLng(placeId);
 
   // Cache hit — Redis failure is non-fatal; fall through to live API
-  try {
-    const cached = await redis.get<PlaceLatLng>(cacheKey);
-    if (cached) return cached;
-  } catch (err) {
-    console.warn('[places] Redis read failed, falling through to Places API:', err);
+  if (isEnabled("integration:redis:places")) {
+    try {
+      const cached = await redis.get<PlaceLatLng>(cacheKey);
+      if (cached) return cached;
+    } catch (err) {
+      console.warn('[places] Redis read failed, falling through to Places API:', err);
+    }
   }
 
   // Cache miss → call Place Details (this call closes the session and is billed)
@@ -159,10 +169,12 @@ export async function getPlaceLatLng(
   const result: PlaceLatLng = { latitude: lat, longitude: lng, name: data.result.name };
 
   // 30-day TTL — swallow write errors so the result is still returned
-  try {
-    await redis.set(cacheKey, result, { ex: 60 * 60 * 24 * 30 });
-  } catch (err) {
-    console.warn('[places] Redis write failed:', err);
+  if (isEnabled("integration:redis:places")) {
+    try {
+      await redis.set(cacheKey, result, { ex: CACHE.placeLatLng.ttl });
+    } catch (err) {
+      console.warn('[places] Redis write failed:', err);
+    }
   }
 
   return result;
