@@ -62,9 +62,9 @@ export const offersRouter = router({
   // Public read works via "sponsored_ads_public_read" RLS policy (005_offers_rls_update.sql)
   getFeaturedAd: flaggedProcedure("api:offers")
     .input(z.object({ slot: z.enum(["hero", "grid_inline", "below_grid", "sidebar"]) }))
-    .query(async ({ input }): Promise<PublicSponsoredAd | null> => {
+    .query(async ({ input }): Promise<PublicSponsoredAd[]> => {
       const key = cacheKeys.sponsoredAd(input.slot);
-      const cached = await cacheGet<PublicSponsoredAd>(key);
+      const cached = await cacheGet<PublicSponsoredAd[]>(key);
       if (cached) return cached;
 
       const supabase = await createClient();
@@ -77,35 +77,33 @@ export const offersRouter = router({
         .or(`start_date.is.null,start_date.lte.${now}`)
         .or(`end_date.is.null,end_date.gte.${now}`)
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(10);
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
-      if (!data) return null;
+      if (!data || data.length === 0) return [];
 
-      const ad = data as SponsoredAd;
-      // Append tracking_id to CTA URL for affiliate attribution
-      const ctaUrl = ad.cta_url.includes("?")
-        ? `${ad.cta_url}&ref=${ad.tracking_id}`
-        : `${ad.cta_url}?ref=${ad.tracking_id}`;
+      const ads: PublicSponsoredAd[] = (data as SponsoredAd[]).map((ad) => {
+        const ctaUrl = ad.cta_url.includes("?")
+          ? `${ad.cta_url}&ref=${ad.tracking_id}`
+          : `${ad.cta_url}?ref=${ad.tracking_id}`;
+        return {
+          id:          ad.id,
+          partner:     ad.partner,
+          product:     ad.product,
+          slot:        ad.slot,
+          headline:    ad.headline,
+          subheadline: ad.subheadline,
+          bullets:     ad.bullets,
+          cta_label:   ad.cta_label,
+          cta_url:     ctaUrl,
+          disclosure:  ad.disclosure,
+          tone:        ad.tone,
+          image_url:   ad.image_url,
+        };
+      });
 
-      const publicAd: PublicSponsoredAd = {
-        id: ad.id,
-        partner: ad.partner,
-        product: ad.product,
-        slot: ad.slot,
-        headline: ad.headline,
-        subheadline: ad.subheadline,
-        bullets: ad.bullets,
-        cta_label: ad.cta_label,
-        cta_url: ctaUrl,
-        disclosure: ad.disclosure,
-        tone: ad.tone,
-        image_url: ad.image_url,
-      };
-
-      await cacheSet(key, publicAd, CACHE.sponsoredAd.ttl);
-      return publicAd;
+      await cacheSet(key, ads, CACHE.sponsoredAd.ttl);
+      return ads;
     }),
 
   // trackImpression, trackClick, and upvote removed — will be replaced with
@@ -188,6 +186,7 @@ export const offersRouter = router({
           .single();
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await redis.del(cacheKeys.sponsoredAd(input.slot)).catch(() => {});
         return data as SponsoredAd;
       }),
 

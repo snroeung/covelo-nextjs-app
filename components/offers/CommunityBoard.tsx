@@ -99,7 +99,7 @@ export function CommunityBoard({ isDark }: Props) {
             isDark ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'
           }`}>
             <span className="w-2 h-2 rounded-full bg-amber-400" />
-            Launching summer 2026 · verified members only
+            Launching in 2026 ·  members only
           </div>
         </div>
       </div>

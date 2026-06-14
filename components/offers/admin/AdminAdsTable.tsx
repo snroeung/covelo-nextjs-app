@@ -17,10 +17,23 @@ function formatDate(iso: string) {
 export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: deleteAd, isPending } = useMutation({
+  const { mutate: deleteAd, isPending: deactivating } = useMutation({
     mutationFn: (id: string) => trpc.offers.admin.deleteAd.mutate({ id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
+      queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
+    },
   });
+
+  const { mutate: reactivateAd, isPending: reactivating } = useMutation({
+    mutationFn: (id: string) => trpc.offers.admin.updateAd.mutate({ id, active: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
+      queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
+    },
+  });
+
+  const isPending = deactivating || reactivating;
 
   const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -31,9 +44,8 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
 
   return (
     <div className={`rounded-xl border overflow-hidden ${card}`}>
-      <div className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-5 py-3 border-b text-[10px] font-mono font-bold tracking-widest ${muted} ${headBg} ${divider}`}>
+      <div className={`grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-3 border-b text-[10px] font-mono font-bold tracking-widest ${muted} ${headBg} ${divider}`}>
         <div>AD</div>
-        <div>SLOT</div>
         <div>IMPR.</div>
         <div>CLICKS</div>
         <div>STATUS</div>
@@ -49,7 +61,7 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
         return (
           <div
             key={ad.id}
-            className={`grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 items-center px-5 py-4 transition-colors ${rowHov} ${
+            className={`grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 items-center px-5 py-4 transition-colors ${rowHov} ${
               i < ads.length - 1 ? `border-b ${divider}` : ''
             }`}
           >
@@ -63,10 +75,6 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
                   {ad.start_date ? formatDate(ad.start_date) : '∞'} → {ad.end_date ? formatDate(ad.end_date) : '∞'}
                 </div>
               )}
-            </div>
-
-            <div className={`text-[10px] font-mono font-bold shrink-0 ${muted}`}>
-              {ad.slot.toUpperCase().replace('_', ' ')}
             </div>
 
             <div className={`text-sm font-mono tabular-nums shrink-0 ${ink}`}>
@@ -100,15 +108,25 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
               >
                 Edit
               </button>
-              <button
-                disabled={isPending}
-                onClick={() => {
-                  if (window.confirm(`Deactivate "${ad.headline}"?`)) deleteAd(ad.id);
-                }}
-                className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
-              >
-                Deactivate
-              </button>
+              {ad.active ? (
+                <button
+                  disabled={isPending}
+                  onClick={() => {
+                    if (window.confirm(`Deactivate "${ad.headline}"?`)) deleteAd(ad.id);
+                  }}
+                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
+                >
+                  Deactivate
+                </button>
+              ) : (
+                <button
+                  disabled={isPending}
+                  onClick={() => reactivateAd(ad.id)}
+                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
+                >
+                  Reactivate
+                </button>
+              )}
             </div>
           </div>
         );

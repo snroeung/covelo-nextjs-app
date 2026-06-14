@@ -1,16 +1,37 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
-import type { SponsoredAd, AdSlot } from '@/lib/types/offers';
+import { CARD_NAMES, type CardId } from '@/lib/points/types';
+import { CARD_IMAGES } from '@/lib/cardImages';
+import type { SponsoredAd } from '@/lib/types/offers';
 
-const SLOTS: { value: AdSlot; label: string }[] = [
-  { value: 'hero',       label: 'Hero (top of page)' },
-  { value: 'grid_inline', label: 'Grid inline' },
-  { value: 'below_grid', label: 'Below grid' },
-  { value: 'sidebar',    label: 'Sidebar' },
-];
+const ISSUER_NAMES: Record<string, string> = {
+  chase: 'Chase',
+  amex:  'American Express',
+  c1:    'Capital One',
+  bilt:  'Bilt',
+  citi:  'Citi',
+};
+
+const ISSUER_CARDS: Record<string, CardId[]> = {
+  chase: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'],
+  amex:  ['amex_platinum', 'amex_gold', 'amex_green'],
+  c1:    ['c1_venture_x', 'c1_venture', 'c1_savor'],
+  bilt:  ['bilt_blue', 'bilt_obsidian', 'bilt_palladium'],
+  citi:  ['citi_strata_premier', 'citi_strata_elite'],
+};
+
+
+function reverseCardLookup(product: string): { issuer: string; cardId: string } {
+  const entry = (Object.entries(CARD_NAMES) as [CardId, string][]).find(([, name]) => name === product);
+  if (!entry) return { issuer: 'other', cardId: 'other' };
+  const cardId = entry[0];
+  const issuerEntry = Object.entries(ISSUER_CARDS).find(([, cards]) => (cards as string[]).includes(cardId));
+  return { issuer: issuerEntry?.[0] ?? 'other', cardId };
+}
 
 interface Props {
   ad?: SponsoredAd;
@@ -20,9 +41,10 @@ interface Props {
 }
 
 interface FormState {
+  card_issuer: string;
+  card_id_key: string;
   partner:     string;
   product:     string;
-  slot:        AdSlot;
   headline:    string;
   subheadline: string;
   bullets:     string[];
@@ -37,10 +59,12 @@ interface FormState {
 }
 
 function defaultForm(ad?: SponsoredAd): FormState {
+  const { issuer, cardId } = ad?.product ? reverseCardLookup(ad.product) : { issuer: '', cardId: '' };
   return {
+    card_issuer: issuer,
+    card_id_key: cardId,
     partner:     ad?.partner     ?? '',
     product:     ad?.product     ?? '',
-    slot:        ad?.slot        ?? 'below_grid',
     headline:    ad?.headline    ?? '',
     subheadline: ad?.subheadline ?? '',
     bullets:     ad?.bullets     ?? [''],
@@ -59,12 +83,11 @@ function LabelCls(isDark: boolean) {
   return `text-[10px] font-mono font-bold tracking-widest ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`;
 }
 
-function InputCls(isDark: boolean, focused = false) {
+function InputCls(isDark: boolean) {
   return `w-full px-3 py-2 rounded-lg text-sm border outline-none transition-colors ${
-    focused ? 'ring-2 ring-blue-500' : ''
-  } ${isDark
-    ? 'bg-gph-dark-bg border-gph-dark-line text-gph-dark-ink placeholder-gph-dark-muted focus:border-blue-500'
-    : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+    isDark
+      ? 'bg-gph-dark-bg border-gph-dark-line text-gph-dark-ink placeholder-gph-dark-muted focus:border-blue-500'
+      : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
   }`;
 }
 
@@ -82,16 +105,31 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
   const labelCls = LabelCls(isDark);
   const inputCls = InputCls(isDark);
 
+  const cardImage = form.card_id_key && form.card_id_key !== 'other'
+    ? CARD_IMAGES[form.card_id_key as CardId] ?? null
+    : null;
+
   const { mutate: createAd, isPending: creating } = useMutation({
     mutationFn: () => trpc.offers.admin.createAd.mutate({
-      ...form,
+      partner:     form.partner,
+      product:     form.product,
+      slot:        'below_grid',
+      headline:    form.headline,
       subheadline: form.subheadline || null,
+      bullets:     form.bullets,
+      cta_label:   form.cta_label,
+      cta_url:     form.cta_url,
+      tracking_id: form.tracking_id,
+      disclosure:  form.disclosure,
+      tone:        form.tone,
       image_url:   null,
+      active:      form.active,
       start_date:  form.start_date || null,
       end_date:    form.end_date   || null,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
+      queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
       onSave();
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
@@ -99,14 +137,25 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
 
   const { mutate: updateAd, isPending: updating } = useMutation({
     mutationFn: () => trpc.offers.admin.updateAd.mutate({
-      id: ad!.id,
-      ...form,
+      id:          ad!.id,
+      partner:     form.partner,
+      product:     form.product,
+      image_url:   null,
+      headline:    form.headline,
       subheadline: form.subheadline || null,
+      bullets:     form.bullets,
+      cta_label:   form.cta_label,
+      cta_url:     form.cta_url,
+      tracking_id: form.tracking_id,
+      disclosure:  form.disclosure,
+      tone:        form.tone,
+      active:      form.active,
       start_date:  form.start_date || null,
       end_date:    form.end_date   || null,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
+      queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
       onSave();
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
@@ -124,7 +173,23 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     setForm((prev) => ({ ...prev, bullets: next }));
   }
 
-  // Compliance checks
+  function handleIssuerChange(issuer: string) {
+    if (issuer === 'other') {
+      setForm((prev) => ({ ...prev, card_issuer: 'other', card_id_key: 'other', partner: '', product: '' }));
+    } else {
+      setForm((prev) => ({ ...prev, card_issuer: issuer, card_id_key: '', partner: ISSUER_NAMES[issuer] ?? '', product: '' }));
+    }
+  }
+
+  function handleCardChange(cardId: string) {
+    if (cardId === 'other') {
+      setForm((prev) => ({ ...prev, card_id_key: 'other', product: '' }));
+    } else {
+      const name = CARD_NAMES[cardId as CardId] ?? '';
+      setForm((prev) => ({ ...prev, card_id_key: cardId, product: name }));
+    }
+  }
+
   const checks = [
     { label: 'Sponsored tag will be visible',          ok: true },
     { label: 'Disclosure text present',                ok: form.disclosure.trim().length > 0 },
@@ -132,6 +197,10 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     { label: 'Tracking ID set',                        ok: form.tracking_id.trim().length > 0 },
     { label: 'Headline under 80 chars',                ok: form.headline.length <= 80 },
   ];
+
+  const availableCards = form.card_issuer && form.card_issuer !== 'other'
+    ? ISSUER_CARDS[form.card_issuer] ?? []
+    : [];
 
   return (
     <div className={`rounded-xl border overflow-hidden ${card}`}>
@@ -160,27 +229,70 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
           {/* 1. Identity */}
           <section>
             <div className={`mb-3 ${labelCls}`}>1 · PARTNER & PRODUCT</div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-3">
+              {/* Card issuer dropdown */}
               <div>
-                <label className={`block mb-1.5 ${labelCls}`}>PARTNER</label>
-                <input className={inputCls} value={form.partner} onChange={(e) => set('partner', e.target.value)} placeholder="Chase" />
-              </div>
-              <div>
-                <label className={`block mb-1.5 ${labelCls}`}>PRODUCT</label>
-                <input className={inputCls} value={form.product} onChange={(e) => set('product', e.target.value)} placeholder="Sapphire Preferred®" />
-              </div>
-              <div>
-                <label className={`block mb-1.5 ${labelCls}`}>SLOT</label>
+                <label className={`block mb-1.5 ${labelCls}`}>CARD ISSUER</label>
                 <select
                   className={inputCls}
-                  value={form.slot}
-                  onChange={(e) => set('slot', e.target.value as AdSlot)}
+                  value={form.card_issuer}
+                  onChange={(e) => handleIssuerChange(e.target.value)}
                 >
-                  {SLOTS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
+                  <option value="">Select issuer…</option>
+                  {Object.entries(ISSUER_NAMES).map(([key, name]) => (
+                    <option key={key} value={key}>{name}</option>
                   ))}
+                  <option value="other">Other</option>
                 </select>
               </div>
+
+              {/* Card name: dropdown when issuer known, text inputs when "other" */}
+              {form.card_issuer === 'other' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block mb-1.5 ${labelCls}`}>PARTNER</label>
+                    <input
+                      className={inputCls}
+                      value={form.partner}
+                      onChange={(e) => set('partner', e.target.value)}
+                      placeholder="e.g. Discover"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 ${labelCls}`}>CARD NAME</label>
+                    <input
+                      className={inputCls}
+                      value={form.product}
+                      onChange={(e) => set('product', e.target.value)}
+                      placeholder="e.g. it® Cash Back"
+                    />
+                  </div>
+                </div>
+              ) : form.card_issuer ? (
+                <div>
+                  <label className={`block mb-1.5 ${labelCls}`}>CARD NAME</label>
+                  <select
+                    className={inputCls}
+                    value={form.card_id_key}
+                    onChange={(e) => handleCardChange(e.target.value)}
+                  >
+                    <option value="">Select card…</option>
+                    {availableCards.map((id) => (
+                      <option key={id} value={id}>{CARD_NAMES[id]}</option>
+                    ))}
+                    <option value="other">Other</option>
+                  </select>
+                  {form.card_id_key === 'other' && (
+                    <input
+                      className={`${inputCls} mt-2`}
+                      value={form.product}
+                      onChange={(e) => set('product', e.target.value)}
+                      placeholder="Enter card name…"
+                    />
+                  )}
+                </div>
+              ) : null}
+
               <div>
                 <label className={`block mb-1.5 ${labelCls}`}>TONE</label>
                 <select className={inputCls} value={form.tone} onChange={(e) => set('tone', e.target.value)}>
@@ -341,35 +453,52 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
                   )}
                 </div>
                 <span className={`text-xs font-medium ${c.ok ? ink : 'text-red-500'}`}>{c.label}</span>
-                {!c.ok && <span className={`ml-auto text-[10px] font-mono font-bold text-red-500`}>FIX</span>}
+                {!c.ok && <span className="ml-auto text-[10px] font-mono font-bold text-red-500">FIX</span>}
               </div>
             ))}
           </div>
 
           {/* Live preview */}
-          <div className={`mt-2 p-4 rounded-xl border ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
-            <div className={`text-[10px] font-mono font-bold tracking-widest mb-3 ${muted}`}>LIVE PREVIEW</div>
-            <div className={`flex items-center gap-2 mb-2`}>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'}`}>
-                SPONSORED
-              </span>
-              <span className={`text-[10px] font-mono ${muted}`}>· {form.partner || 'PARTNER'}</span>
+          <div className={`mt-2 rounded-xl border overflow-hidden ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
+            <div className={`px-4 pt-3 pb-1 text-[10px] font-mono font-bold tracking-widest ${muted}`}>LIVE PREVIEW</div>
+            <div className="flex">
+              {/* Card image — shown only when an asset is mapped for the selected card */}
+              {cardImage && (
+                <div className="shrink-0 flex items-center justify-center p-4 pr-0">
+                  <div className="relative w-20 h-12.5 rounded-md overflow-hidden shadow-md">
+                    <Image
+                      src={cardImage}
+                      alt={form.product || 'Card image'}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="flex-1 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'}`}>
+                    SPONSORED
+                  </span>
+                  <span className={`text-[10px] font-mono ${muted}`}>· {form.partner || 'PARTNER'}</span>
+                </div>
+                <p className={`text-base font-bold leading-tight mb-1 ${ink}`}>{form.headline || 'Your headline here'}</p>
+                {form.subheadline && <p className={`text-xs leading-relaxed mb-2 ${muted}`}>{form.subheadline}</p>}
+                {form.bullets.filter(Boolean).length > 0 && (
+                  <ul className="flex flex-col gap-1 mb-2">
+                    {form.bullets.filter(Boolean).map((b, i) => (
+                      <li key={i} className={`flex items-center gap-1.5 text-[11px] font-semibold font-mono ${ink}`}>
+                        <svg className="w-2.5 h-2.5 text-green-500 shrink-0" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className={`text-[9px] font-mono italic ${muted}`}>{form.disclosure}</div>
+              </div>
             </div>
-            <p className={`text-base font-bold leading-tight mb-1 ${ink}`}>{form.headline || 'Your headline here'}</p>
-            {form.subheadline && <p className={`text-xs leading-relaxed mb-2 ${muted}`}>{form.subheadline}</p>}
-            {form.bullets.filter(Boolean).length > 0 && (
-              <ul className="flex flex-col gap-1 mb-2">
-                {form.bullets.filter(Boolean).map((b, i) => (
-                  <li key={i} className={`flex items-center gap-1.5 text-[11px] font-semibold font-mono ${ink}`}>
-                    <svg className="w-2.5 h-2.5 text-green-500 shrink-0" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className={`text-[9px] font-mono italic ${muted}`}>{form.disclosure}</div>
           </div>
         </div>
       </div>
