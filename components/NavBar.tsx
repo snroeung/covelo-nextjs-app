@@ -11,6 +11,7 @@ import { isEnabled } from '@/lib/feature-flags';
 
 const flightsEnabled    = isEnabled('ui:flights');
 const hotelsEnabled     = isEnabled('ui:hotels');
+const offersEnabled     = isEnabled('ui:offers');
 
 export function NavBar() {
   const { isDark }   = useTheme();
@@ -123,6 +124,12 @@ export function NavBar() {
         <Link href="/trip-planner" className={navLinkCls(pathname === '/trip-planner')}>
           Trip Planner
         </Link>
+
+        {offersEnabled && (
+          <Link href="/offers" className={navLinkCls(pathname.startsWith('/offers'))}>
+            Offers
+          </Link>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-2">

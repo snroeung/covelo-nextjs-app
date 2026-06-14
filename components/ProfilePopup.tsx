@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -277,8 +278,19 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
         )}
       </div>
 
-      {/* Sign out */}
-      <div className={`border-t px-4 py-3 shrink-0 ${divider}`}>
+      {/* Footer: admin link + sign out */}
+      <div className={`border-t px-4 py-3 shrink-0 flex flex-col gap-1 ${divider}`}>
+        {user?.app_metadata?.role === 'admin' && (
+          <Link
+            href="/offers/admin"
+            onClick={onClose}
+            className={`text-center w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
+              isDark ? 'text-gph-dark-ink hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Offers admin
+          </Link>
+        )}
         <button
           onClick={signOut}
           className={`w-full py-2 rounded-lg text-sm font-semibold transition-colors ${

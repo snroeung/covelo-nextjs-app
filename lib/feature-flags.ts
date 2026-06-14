@@ -5,10 +5,12 @@ export type FlagName =
   | "ui:hotels"
   | "ui:flights"
   | "ui:trip-planner"
+  | "ui:offers"
   // tRPC routers
   | "api:stays"
   | "api:flights"
   | "api:places"
+  | "api:offers"
   // External integrations — scoped per API surface
   | "integration:duffel:flights"
   | "integration:duffel:stays"
@@ -16,6 +18,7 @@ export type FlagName =
   | "integration:google-places:places"
   | "integration:redis:stays"
   | "integration:redis:places"
+  | "integration:redis:offers"
   | "integration:supabase";
 
 interface FlagDef {
@@ -42,7 +45,11 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:google-places:places":  { enabledIn: ["local", "beta", "production"], description: "Google Places API — places router" },
   "integration:redis:stays":           { enabledIn: ["local", "beta", "production"], description: "Redis caching — stays router" },
   "integration:redis:places":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — places lib" },
+  "integration:redis:offers":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — offers router" },
   "integration:supabase":              { enabledIn: ["local", "beta", "production"], description: "Supabase (auth — keep always-on)" },
+
+  "ui:offers":                         { enabledIn: ["local", "beta", "production"], description: "/offers page" },
+  "api:offers":                        { enabledIn: ["local", "beta", "production"], description: "offers tRPC router" },
 } as const;
 
 // Called lazily inside isEnabled() — never at module load time.
