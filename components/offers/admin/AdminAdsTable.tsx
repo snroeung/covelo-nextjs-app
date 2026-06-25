@@ -14,6 +14,14 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
+export function adStatus(ad: SponsoredAd): 'live' | 'scheduled' | 'expired' | 'paused' {
+  if (!ad.active) return 'paused';
+  const today = new Date().toISOString().split('T')[0];
+  if (ad.start_date && ad.start_date > today) return 'scheduled';
+  if (ad.end_date && ad.end_date < today) return 'expired';
+  return 'live';
+}
+
 export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
   const queryClient = useQueryClient();
 
@@ -57,7 +65,8 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
       )}
 
       {ads.map((ad, i) => {
-        const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '—';
+        const ctr    = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '—';
+        const status = adStatus(ad);
         return (
           <div
             key={ad.id}
@@ -88,12 +97,18 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
 
             <div className="shrink-0">
               <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                ad.active
-                  ? 'bg-green-100 text-green-700'
-                  : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                status === 'live'      ? 'bg-green-100 text-green-700' :
+                status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                status === 'expired'   ? 'bg-red-100 text-red-600' :
+                isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
               }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${ad.active ? 'bg-green-500' : 'bg-gray-400'}`} />
-                {ad.active ? 'Live' : 'Paused'}
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  status === 'live'      ? 'bg-green-500' :
+                  status === 'scheduled' ? 'bg-blue-500' :
+                  status === 'expired'   ? 'bg-red-400' :
+                  'bg-gray-400'
+                }`} />
+                {status === 'live' ? 'Live' : status === 'scheduled' ? 'Scheduled' : status === 'expired' ? 'Expired' : 'Paused'}
               </span>
             </div>
 
@@ -116,7 +131,7 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
                   }}
                   className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
                 >
-                  Deactivate
+                  {status === 'expired' ? 'Archive' : 'Deactivate'}
                 </button>
               ) : (
                 <button

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
 import { AdminOffersTable } from '@/components/offers/admin/AdminOffersTable';
-import { AdminAdsTable } from '@/components/offers/admin/AdminAdsTable';
+import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
@@ -12,6 +12,7 @@ import type { SponsoredAd, OfferStatus } from '@/lib/types/offers';
 
 type Tab = 'offers' | 'ads';
 type OfferFilter = OfferStatus | 'all';
+type AdStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
 
 const OFFER_TABS: { key: OfferFilter; label: string }[] = [
   { key: 'all',      label: 'All' },
@@ -21,10 +22,19 @@ const OFFER_TABS: { key: OfferFilter; label: string }[] = [
   { key: 'rejected', label: 'Rejected' },
 ];
 
+const AD_STATUS_TABS: { key: AdStatusFilter; label: string }[] = [
+  { key: 'all',       label: 'All' },
+  { key: 'live',      label: 'Live' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'expired',   label: 'Expired' },
+  { key: 'paused',    label: 'Paused' },
+];
+
 export function OffersAdminShell() {
   const { isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('offers');
   const [offerFilter, setOfferFilter] = useState<OfferFilter>('all');
+  const [adFilter, setAdFilter] = useState<AdStatusFilter>('all');
   const [editingAd, setEditingAd] = useState<SponsoredAd | null | undefined>(undefined); // undefined = hidden, null = new
 
   const { data: offersData, isLoading: loadingOffers } = useQuery({
@@ -58,6 +68,9 @@ export function OffersAdminShell() {
   const pendingCount = (offersData?.transferBonuses ?? []).filter((o) => o.status === 'pending').length
     + (offersData?.spendingBonuses ?? []).filter((o) => o.status === 'pending').length;
 
+  const liveAdsCount = adsData.filter((a) => adStatus(a) === 'live').length;
+  const filteredAds = adFilter === 'all' ? adsData : adsData.filter((a) => adStatus(a) === adFilter);
+
   return (
     <div className={`flex flex-col min-h-screen ${pageBg}`}>
       <NavBar />
@@ -80,7 +93,7 @@ export function OffersAdminShell() {
             <p className={`text-sm mt-1 ${muted}`}>
               {(offersData?.transferBonuses.length ?? 0) + (offersData?.spendingBonuses.length ?? 0)} total ·{' '}
               {pendingCount > 0 && <span className="text-amber-500 font-semibold">{pendingCount} pending review · </span>}
-              {adsData.filter((a) => a.active).length} ads live
+              {liveAdsCount} ads live
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -164,11 +177,38 @@ export function OffersAdminShell() {
               />
             )}
 
+            {/* Ad status filter chips */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {AD_STATUS_TABS.map((t) => {
+                const count = t.key === 'all'
+                  ? adsData.length
+                  : adsData.filter((a) => adStatus(a) === t.key).length;
+                const dotColor =
+                  t.key === 'live'      ? 'bg-green-500' :
+                  t.key === 'scheduled' ? 'bg-blue-500' :
+                  t.key === 'expired'   ? 'bg-red-400' :
+                  t.key === 'paused'    ? 'bg-gray-400' : undefined;
+                return (
+                  <button key={t.key} onClick={() => setAdFilter(t.key)} className={filterTabCls(adFilter === t.key)}>
+                    <span className="inline-flex items-center gap-1.5">
+                      {dotColor && (
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+                      )}
+                      {t.label}
+                    </span>
+                    <span className={`ml-1.5 text-[10px] font-mono ${adFilter === t.key ? '' : muted}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {loadingAds ? (
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
               <AdminAdsTable
-                ads={adsData}
+                ads={filteredAds}
                 onEdit={(ad) => setEditingAd(ad)}
                 isDark={isDark}
               />
