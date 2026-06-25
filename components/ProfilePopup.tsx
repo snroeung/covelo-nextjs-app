@@ -29,7 +29,6 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
 
   const popupRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing]         = useState(false);
-  const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [balanceDrafts, setBalanceDrafts] = useState<Partial<Record<CardId, string>>>({});
   const [saving, setSaving]           = useState(false);
 
@@ -38,7 +37,6 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
     if (profile?.preferred_cards && selectedCards.length === 0 && profile.preferred_cards.length > 0) {
       initCards(profile.preferred_cards.filter(id => KNOWN_CARD_IDS.has(id)) as CardId[]);
     }
-    setDisplayName(profile?.display_name ?? '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -82,7 +80,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
       const val = parseInt((raw ?? '').replace(/,/g, ''), 10);
       setCardBalance(cardId as CardId, isNaN(val) ? 0 : Math.max(0, val));
     });
-    await updateProfile({ display_name: displayName || null, preferred_cards: selectedCards });
+    await updateProfile({ preferred_cards: selectedCards });
     setSaving(false);
     setEditing(false);
   }
@@ -141,18 +139,6 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
       <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
         {editing ? (
           <>
-            {/* Display name */}
-            <div>
-              <label className={`block mb-1 ${labelCls}`}>Display name</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                placeholder="Your name"
-                className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputCls}`}
-              />
-            </div>
-
             {/* Cards + per-card point inputs */}
             <div>
               <label className={`block mb-2 ${labelCls}`}>Cards & points</label>
@@ -278,7 +264,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
         )}
       </div>
 
-      {/* Footer: admin link + sign out */}
+      {/* Footer: settings + admin link + sign out */}
       <div className={`border-t px-4 py-3 shrink-0 flex flex-col gap-1 ${divider}`}>
         {user?.app_metadata?.role === 'admin' && (
           <Link
@@ -291,6 +277,15 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
             Offers admin
           </Link>
         )}
+        <Link
+          href="/settings"
+          onClick={onClose}
+          className={`text-center w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
+            isDark ? 'text-gph-dark-ink hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          Account settings
+        </Link>
         <button
           onClick={signOut}
           className={`w-full py-2 rounded-lg text-sm font-semibold transition-colors ${

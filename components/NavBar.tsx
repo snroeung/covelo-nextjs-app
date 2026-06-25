@@ -28,6 +28,7 @@ export function NavBar() {
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
   const searchActive = pathname === '/flights' || pathname === '/hotels';
+  const searchLabel  = pathname === '/flights' ? 'Flights' : pathname === '/hotels' ? 'Hotels' : null;
 
   function navLinkCls(active: boolean) {
     const base = 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors';
@@ -90,11 +91,20 @@ export function NavBar() {
                 setSearchOpen(true);
               }
             }}
-            className={`${navLinkCls(searchActive)} flex items-center gap-1`}
+            className={`${navLinkCls(searchActive)} flex items-center gap-1.5`}
             aria-haspopup="true"
             aria-expanded={searchOpen}
           >
             Search
+            {searchLabel && (
+              <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
+                isDark
+                  ? 'bg-black/15 text-gray-900'
+                  : 'bg-white/20 text-white'
+              }`}>
+                {searchLabel}
+              </span>
+            )}
           </button>
 
           {searchOpen && (

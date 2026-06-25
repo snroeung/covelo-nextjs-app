@@ -6,6 +6,7 @@ export type FlagName =
   | "ui:flights"
   | "ui:trip-planner"
   | "ui:offers"
+  | "ui:settings"
   // tRPC routers
   | "api:stays"
   | "api:flights"
@@ -31,12 +32,12 @@ interface FlagDef {
 // "beta"       → main branch preview deployments
 // "production" → covelo.app (production branch)
 const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
-  "ui:hotels":                 { enabledIn: [], description: "/hotels page" },
+  "ui:hotels":                 { enabledIn: ["local", "beta",], description: "/hotels page" },
   "ui:flights":                { enabledIn: ["local", "beta", "production"], description: "/flights page" },
   "ui:trip-planner":           { enabledIn: ["local", "beta", "production"], description: "/trip-planner pages" },
 
   "api:stays":                 { enabledIn: ["local", "beta", "production"], description: "stays tRPC router" },
-  "api:flights":               { enabledIn: [], description: "flights tRPC router" },
+  "api:flights":               { enabledIn: ["local", "beta", "production"], description: "flights tRPC router" },
   "api:places":                { enabledIn: ["local", "beta", "production"], description: "places tRPC router" },
 
   "integration:duffel:flights":        { enabledIn: ["local", "beta", "production"], description: "Duffel API — flights router" },
@@ -49,6 +50,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:supabase":              { enabledIn: ["local", "beta", "production"], description: "Supabase (auth — keep always-on)" },
 
   "ui:offers":                         { enabledIn: ["local", "beta", "production"], description: "/offers page" },
+  "ui:settings":                       { enabledIn: ["local", "beta", "production"], description: "/settings page" },
   "api:offers":                        { enabledIn: ["local", "beta", "production"], description: "offers tRPC router" },
 } as const;
 

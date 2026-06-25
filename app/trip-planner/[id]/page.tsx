@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
+import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { NavBar } from '@/components/NavBar';
 import { useTrips } from '@/hooks/useTrips';
 import { useBookmarks } from '@/hooks/useBookmarks';
@@ -949,6 +950,9 @@ export default function TripDetailPage() {
 
         {/* ── Sidebar ────────────────────────────────────────────────────────── */}
         <aside className={`px-5 py-8 flex flex-col gap-6 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto ${cardBg}`}>
+
+          {/* Sponsored ad */}
+          <AffiliateAdSpot slot="sidebar" isDark={isDark} />
 
           {/* Points tip — placeholder */}
           <div className={`p-4 rounded-xl border ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200'}`}>
