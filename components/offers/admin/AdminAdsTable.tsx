@@ -77,7 +77,7 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
             <div>
               <div className={`text-sm font-semibold ${ink}`}>{ad.headline}</div>
               <div className={`text-[11px] font-mono mt-0.5 ${muted}`}>
-                {ad.partner} · {ad.product}
+                {ad.partner} · {ad.product} · {ad.country ?? 'US'}
               </div>
               {(ad.start_date || ad.end_date) && (
                 <div className={`text-[10px] font-mono mt-0.5 ${muted}`}>

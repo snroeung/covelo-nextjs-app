@@ -99,6 +99,7 @@ export const offersRouter = router({
           disclosure:  ad.disclosure,
           tone:        ad.tone,
           image_url:   ad.image_url,
+          country:     ad.country,
         };
       });
 
@@ -128,6 +129,68 @@ export const offersRouter = router({
         return { transferBonuses, spendingBonuses };
       }),
 
+    updateTransferBonus: adminProcedure("api:offers")
+      .input(z.object({
+        id:               z.string().uuid(),
+        issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']).optional(),
+        transfer_partner: z.string().min(1).optional(),
+        bonus_pct:        z.number().positive().optional(),
+        description:      z.string().nullable().optional(),
+        tags:             z.array(z.string()).optional(),
+        start_date:       z.string().nullable().optional(),
+        end_date:         z.string().min(1).optional(),
+        is_targeted:      z.boolean().optional(),
+        source_url:       z.string().nullable().optional(),
+        country:          z.string().min(1).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...fields } = input;
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("transfer_bonuses")
+          .update(fields)
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await redis.del(cacheKeys.transferBonuses()).catch(() => {});
+        return data as TransferBonus;
+      }),
+
+    updateSpendingBonus: adminProcedure("api:offers")
+      .input(z.object({
+        id:               z.string().uuid(),
+        issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']).optional(),
+        merchant_name:    z.string().min(1).optional(),
+        bonus_multiplier: z.number().positive().optional(),
+        bonus_type:       z.enum(['points_multiplier', 'cash_back_pct', 'dollar_amount']).optional(),
+        spending_minimum: z.number().positive().nullable().optional(),
+        minimum_nights:   z.number().int().positive().nullable().optional(),
+        description:      z.string().nullable().optional(),
+        tags:             z.array(z.string()).optional(),
+        card_ids:         z.array(z.string()).optional(),
+        start_date:       z.string().nullable().optional(),
+        end_date:         z.string().min(1).optional(),
+        is_targeted:      z.boolean().optional(),
+        source_url:       z.string().nullable().optional(),
+        country:          z.string().min(1).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...fields } = input;
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("spending_bonuses")
+          .update(fields)
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
+        return data as SpendingBonus;
+      }),
+
     updateStatus: adminProcedure("api:offers")
       .input(z.object({
         id:     z.string().uuid(),
@@ -145,6 +208,62 @@ export const offersRouter = router({
 
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
+      }),
+
+    createTransferBonus: adminProcedure("api:offers")
+      .input(z.object({
+        issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
+        transfer_partner: z.string().min(1),
+        bonus_pct:        z.number().positive(),
+        start_date:       z.string().nullable().optional(),
+        description:      z.string().nullable().optional(),
+        tags:             z.array(z.string()).default([]),
+        end_date:         z.string().min(1),
+        is_targeted:      z.boolean().default(false),
+        source_url:       z.string().nullable().optional(),
+        country:          z.string().min(1).default('US'),
+      }))
+      .mutation(async ({ input }) => {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("transfer_bonuses")
+          .insert({ ...input, status: "admin", active: true })
+          .select()
+          .single();
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await redis.del(cacheKeys.transferBonuses()).catch(() => {});
+        return data as TransferBonus;
+      }),
+
+    createSpendingBonus: adminProcedure("api:offers")
+      .input(z.object({
+        issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
+        merchant_name:    z.string().min(1),
+        bonus_multiplier: z.number().positive(),
+        bonus_type:       z.enum(['points_multiplier', 'cash_back_pct', 'dollar_amount']),
+        spending_minimum: z.number().positive().nullable().optional(),
+        minimum_nights:   z.number().int().positive().nullable().optional(),
+        description:      z.string().nullable().optional(),
+        tags:             z.array(z.string()).default([]),
+        card_ids:         z.array(z.string()),
+        start_date:       z.string().nullable().optional(),
+        end_date:         z.string().min(1),
+        is_targeted:      z.boolean().default(false),
+        source_url:       z.string().nullable().optional(),
+        country:          z.string().min(1).default('US'),
+      }))
+      .mutation(async ({ input }) => {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("spending_bonuses")
+          .insert({ ...input, status: "admin", active: true })
+          .select()
+          .single();
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
+        return data as SpendingBonus;
       }),
 
     listAds: adminProcedure("api:offers")
@@ -174,6 +293,7 @@ export const offersRouter = router({
         tone:        z.string().default("neutral"),
         image_url:   z.string().url().nullable().optional(),
         active:      z.boolean().default(false),
+        country:     z.string().min(1).default("US"),
         start_date:  z.string().nullable().optional(),
         end_date:    z.string().nullable().optional(),
       }))
@@ -206,6 +326,7 @@ export const offersRouter = router({
         tone:        z.string().optional(),
         image_url:   z.string().url().nullable().optional(),
         active:      z.boolean().optional(),
+        country:     z.string().min(1).optional(),
         start_date:  z.string().nullable().optional(),
         end_date:    z.string().nullable().optional(),
       }))

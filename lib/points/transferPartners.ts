@@ -213,7 +213,7 @@ function lookupAwardEstimate(iataCodes: string[], routeType: RouteType, cabin: C
 // Transfer partner configs
 // ---------------------------------------------------------------------------
 
-interface TransferPartnerConfig {
+export interface TransferPartnerConfig {
   program: string;
   type: 'hotel' | 'airline';
   ratio: string;
@@ -223,7 +223,7 @@ interface TransferPartnerConfig {
   iataCodes?: string[];
 }
 
-const TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
+export const TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
   chase: [
     { program: 'World of Hyatt',                type: 'hotel',   ratio: '1:1', chainKey: 'hyatt' },
     { program: 'IHG One Rewards',               type: 'hotel',   ratio: '1:1', chainKey: 'ihg' },

@@ -54,6 +54,7 @@ interface FormState {
   disclosure:  string;
   tone:        string;
   active:      boolean;
+  country:     string;
   start_date:  string;
   end_date:    string;
 }
@@ -74,6 +75,7 @@ function defaultForm(ad?: SponsoredAd): FormState {
     disclosure:  ad?.disclosure  ?? 'Advertiser disclosure · Covelo may receive compensation when you apply. Terms apply.',
     tone:        ad?.tone        ?? 'neutral',
     active:      ad?.active      ?? false,
+    country:     ad?.country     ?? 'US',
     start_date:  ad?.start_date  ?? '',
     end_date:    ad?.end_date    ?? '',
   };
@@ -124,6 +126,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
       tone:        form.tone,
       image_url:   null,
       active:      form.active,
+      country:     form.country,
       start_date:  form.start_date || null,
       end_date:    form.end_date   || null,
     }),
@@ -150,6 +153,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
       disclosure:  form.disclosure,
       tone:        form.tone,
       active:      form.active,
+      country:     form.country,
       start_date:  form.start_date || null,
       end_date:    form.end_date   || null,
     }),
@@ -384,9 +388,9 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
             </div>
           </section>
 
-          {/* 4. Schedule */}
+          {/* 4. Schedule & Targeting */}
           <section>
-            <div className={`mb-3 ${labelCls}`}>4 · SCHEDULE</div>
+            <div className={`mb-3 ${labelCls}`}>4 · SCHEDULE & TARGETING</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={`block mb-1.5 ${labelCls}`}>START DATE</label>
@@ -395,6 +399,16 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
               <div>
                 <label className={`block mb-1.5 ${labelCls}`}>END DATE</label>
                 <input type="date" className={inputCls} value={form.end_date} onChange={(e) => set('end_date', e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className={`block mb-1.5 ${labelCls}`}>COUNTRY / REGION</label>
+                <select className={inputCls} value={form.country} onChange={(e) => set('country', e.target.value)}>
+                  <option value="US">United States</option>
+                  <option value="Global">Global</option>
+                  <option value="CA">Canada</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="AU">Australia</option>
+                </select>
               </div>
             </div>
             <div className="flex items-center gap-3 mt-3">

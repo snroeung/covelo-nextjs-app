@@ -6,9 +6,10 @@ import { NavBar } from '@/components/NavBar';
 import { AdminOffersTable } from '@/components/offers/admin/AdminOffersTable';
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';
+import { AdminOfferEditor } from '@/components/offers/admin/AdminOfferEditor';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
-import type { SponsoredAd, OfferStatus } from '@/lib/types/offers';
+import type { SponsoredAd, OfferStatus, TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Tab = 'offers' | 'ads';
 type OfferFilter = OfferStatus | 'all';
@@ -36,6 +37,9 @@ export function OffersAdminShell() {
   const [offerFilter, setOfferFilter] = useState<OfferFilter>('all');
   const [adFilter, setAdFilter] = useState<AdStatusFilter>('all');
   const [editingAd, setEditingAd] = useState<SponsoredAd | null | undefined>(undefined); // undefined = hidden, null = new
+  const [editingOffer, setEditingOffer] = useState<
+    null | { mode: 'new' } | { mode: 'transfer'; offer: TransferBonus } | { mode: 'spending'; offer: SpendingBonus }
+  >(null);
 
   const { data: offersData, isLoading: loadingOffers } = useQuery({
     queryKey: ['offers.admin.listAll'],
@@ -97,6 +101,19 @@ export function OffersAdminShell() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {tab === 'offers' && (
+              <button
+                onClick={() => setEditingOffer({ mode: 'new' })}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                New offer
+              </button>
+            )}
             {tab === 'ads' && (
               <button
                 onClick={() => setEditingAd(null)}
@@ -135,6 +152,20 @@ export function OffersAdminShell() {
       <div className="px-4 md:px-8 py-8 max-w-6xl mx-auto w-full flex flex-col gap-6">
         {tab === 'offers' && (
           <>
+            {/* Create / edit offer editor */}
+            {editingOffer !== null && (
+              <AdminOfferEditor
+                initial={
+                  editingOffer.mode === 'transfer' ? { type: 'transfer', offer: editingOffer.offer } :
+                  editingOffer.mode === 'spending' ? { type: 'spending', offer: editingOffer.offer } :
+                  undefined
+                }
+                onSave={() => setEditingOffer(null)}
+                onCancel={() => setEditingOffer(null)}
+                isDark={isDark}
+              />
+            )}
+
             {/* Offer filter tabs */}
             <div className="flex items-center gap-1 flex-wrap">
               {OFFER_TABS.map((t) => {
@@ -153,6 +184,22 @@ export function OffersAdminShell() {
               })}
             </div>
 
+            {/* Disclaimer: user-submitted review coming soon */}
+            <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-[11px] font-mono leading-relaxed ${
+              isDark
+                ? 'bg-amber-900/20 border-amber-700/50 text-amber-400'
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <svg className="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25"/>
+                <path d="M8 5v3.5M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span>
+                <span className="font-bold">User-submitted offer review is coming soon.</span>
+                {' '}All current offers are admin-curated. Once community submissions launch, pending offers will appear here for moderation.
+              </span>
+            </div>
+
             {loadingOffers ? (
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
@@ -161,6 +208,13 @@ export function OffersAdminShell() {
                 spendingBonuses={offersData?.spendingBonuses ?? []}
                 filter={offerFilter}
                 isDark={isDark}
+                onEdit={(offer) => {
+                  if (offer._type === 'transfer') {
+                    setEditingOffer({ mode: 'transfer', offer });
+                  } else {
+                    setEditingOffer({ mode: 'spending', offer });
+                  }
+                }}
               />
             )}
           </>

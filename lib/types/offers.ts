@@ -1,6 +1,6 @@
 export type Issuer = 'chase' | 'amex' | 'c1' | 'bilt' | 'citi';
 export type OfferStatus = 'admin' | 'pending' | 'approved' | 'rejected';
-export type BonusType = 'points_multiplier' | 'cash_back_pct';
+export type BonusType = 'points_multiplier' | 'cash_back_pct' | 'dollar_amount';
 export type AdSlot = 'hero' | 'grid_inline' | 'below_grid' | 'sidebar';
 
 export interface TransferBonus {
@@ -9,10 +9,13 @@ export interface TransferBonus {
   transfer_partner: string;
   bonus_pct: number;
   effective_ratio: number;
+  description: string | null;
+  tags: string[];
   start_date: string | null;
   end_date: string;
   is_targeted: boolean;
   source_url: string | null;
+  country: string;
   status: OfferStatus;
   submitted_by: string | null;
   upvotes: number;
@@ -27,11 +30,16 @@ export interface SpendingBonus {
   merchant_name: string;
   bonus_multiplier: number;
   bonus_type: BonusType;
+  spending_minimum: number | null;
+  minimum_nights: number | null;
+  description: string | null;
+  tags: string[];
   card_ids: string[];
   start_date: string | null;
   end_date: string;
   is_targeted: boolean;
   source_url: string | null;
+  country: string;
   status: OfferStatus;
   submitted_by: string | null;
   upvotes: number;
@@ -55,6 +63,7 @@ export interface SponsoredAd {
   tone: string;
   image_url: string | null;
   active: boolean;
+  country: string;
   start_date: string | null;
   end_date: string | null;
   impressions: number;
@@ -78,4 +87,5 @@ export interface PublicSponsoredAd {
   disclosure: string;
   tone: string;
   image_url: string | null;
+  country: string;
 }

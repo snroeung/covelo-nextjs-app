@@ -36,9 +36,10 @@ interface Props {
   spendingBonuses: SpendingBonus[];
   filter: OfferStatus | 'all';
   isDark: boolean;
+  onEdit: (offer: AnyOffer) => void;
 }
 
-export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isDark }: Props) {
+export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isDark, onEdit }: Props) {
   const queryClient = useQueryClient();
 
   const { mutate: updateStatus, isPending } = useMutation({
@@ -79,9 +80,17 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
         const isTransfer = offer._type === 'transfer';
         const table = isTransfer ? 'transfer_bonuses' as const : 'spending_bonuses' as const;
 
+        const sp = offer as SpendingBonus;
         const bonusLabel = isTransfer
           ? `+${(offer as TransferBonus).bonus_pct}%`
-          : `${(offer as SpendingBonus).bonus_multiplier}×`;
+          : sp.bonus_type === 'dollar_amount'
+            ? `$${sp.bonus_multiplier} credit`
+            : sp.bonus_type === 'cash_back_pct'
+              ? `${sp.bonus_multiplier}% cash back`
+              : `${sp.bonus_multiplier}×`;
+        const spendMin = !isTransfer && sp.spending_minimum
+          ? ` · min. $${sp.spending_minimum}`
+          : '';
 
         const partnerLabel = isTransfer
           ? (offer as TransferBonus).transfer_partner
@@ -100,7 +109,7 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
                 {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {partnerLabel}
               </div>
               <div className={`text-[11px] font-mono mt-0.5 ${muted}`}>
-                {bonusLabel} · {offer.upvotes} upvotes
+                {bonusLabel}{spendMin} · {offer.upvotes} upvotes · {offer.country ?? 'US'}
                 {offer.is_targeted && <span className="ml-2 text-amber-500">TARGETED</span>}
               </div>
             </div>
@@ -122,6 +131,16 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
 
             {/* Actions */}
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => onEdit(offer)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                  isDark
+                    ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Edit
+              </button>
               {offer.status === 'pending' && (
                 <>
                   <button

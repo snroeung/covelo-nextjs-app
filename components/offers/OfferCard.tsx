@@ -1,22 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
-
-const ISSUER_COLORS: Record<string, string> = {
-  chase:  'bg-blue-100 text-blue-800',
-  amex:   'bg-green-100 text-green-800',
-  c1:     'bg-red-100 text-red-800',
-  bilt:   'bg-amber-100 text-amber-800',
-  citi:   'bg-purple-100 text-purple-800',
-};
-
-const ISSUER_COLORS_DARK: Record<string, string> = {
-  chase:  'bg-blue-900/40 text-blue-300',
-  amex:   'bg-green-900/40 text-green-300',
-  c1:     'bg-red-900/40 text-red-300',
-  bilt:   'bg-amber-900/40 text-amber-300',
-  citi:   'bg-purple-900/40 text-purple-300',
-};
+import { OfferDetailModal } from '@/components/offers/OfferDetailModal';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase',
@@ -26,8 +12,32 @@ const ISSUER_LABELS: Record<string, string> = {
   citi:  'Citi',
 };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const ISSUER_HERO_COLOR: Record<string, string> = {
+  chase: '#1d4ed8',
+  amex:  '#065f46',
+  c1:    '#991b1b',
+  bilt:  '#1e293b',
+  citi:  '#5b21b6',
+};
+
+const CROSSHATCH = `repeating-linear-gradient(
+  45deg,
+  rgba(255,255,255,0.06) 0px,
+  rgba(255,255,255,0.06) 1px,
+  transparent 1px,
+  transparent 13px
+), repeating-linear-gradient(
+  -45deg,
+  rgba(255,255,255,0.06) 0px,
+  rgba(255,255,255,0.06) 1px,
+  transparent 1px,
+  transparent 13px
+)`;
+
+function formatEndDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  }).toUpperCase();
 }
 
 function daysUntil(iso: string): number {
@@ -45,50 +55,65 @@ interface SpendingCardProps {
 }
 
 export function TransferOfferCard({ offer, isDark }: TransferCardProps) {
-  const days = daysUntil(offer.end_date);
-  const urgent = days <= 7 && days > 0;
+  const [open, setOpen] = useState(false);
+  const days      = daysUntil(offer.end_date);
+  const urgent    = days <= 7 && days > 0;
+  const heroColor = ISSUER_HERO_COLOR[offer.issuer] ?? '#1e293b';
+  const tags      = offer.tags ?? [];
 
-  const card   = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
-  const muted  = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const line   = isDark ? 'border-gph-dark-line' : 'border-gray-100';
-  const issuerCls = isDark ? (ISSUER_COLORS_DARK[offer.issuer] ?? '') : (ISSUER_COLORS[offer.issuer] ?? '');
+  const card  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const ink   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const line  = isDark ? 'border-gph-dark-line' : 'border-gray-100';
+
+  const heroText = `+${offer.bonus_pct}% transfer to ${offer.transfer_partner}`;
 
   return (
-    <div className={`rounded-xl border flex flex-col overflow-hidden ${card}`}>
-      <div className="p-4 flex flex-col gap-3 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${issuerCls}`}>
-              {ISSUER_LABELS[offer.issuer] ?? offer.issuer.toUpperCase()}
-            </span>
-            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-              isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
-            }`}>
-              TRANSFER BONUS
-            </span>
-            {offer.is_targeted && (
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                isDark ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'
-              }`}>
-                TARGETED
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => e.key === 'Enter' && setOpen(true)}
+        className={`rounded-xl border flex flex-col overflow-hidden cursor-pointer transition-shadow hover:shadow-md ${card}`}
+      >
+        {/* Hero */}
+        <div
+          className="relative h-36 flex flex-col justify-between p-3"
+          style={{ backgroundColor: heroColor, backgroundImage: CROSSHATCH }}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {tags.length > 0
+                ? tags.map((tag) => (
+                    <span key={tag} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/50 text-white">
+                      {tag.toUpperCase()}
+                    </span>
+                  ))
+                : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/50 text-white">
+                    TRANSFER BONUS
+                  </span>
+                )}
+            </div>
+            {urgent && (
+              <span className="shrink-0 text-[10px] font-mono font-bold text-red-300 bg-black/40 px-2 py-0.5 rounded">
+                {days}d left
               </span>
             )}
           </div>
-          {urgent && (
-            <span className="shrink-0 text-[10px] font-mono font-bold text-red-500">
-              {days}d left
-            </span>
-          )}
+          <p className="text-white/80 text-[11px] font-mono leading-snug line-clamp-2">
+            {heroText.toLowerCase()}
+          </p>
         </div>
 
-        <div>
-          <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${muted}`}>
-            {ISSUER_LABELS[offer.issuer]} → {offer.transfer_partner}
+        {/* Body */}
+        <div className="p-4 flex flex-col gap-2 flex-1">
+          <p className={`text-xs font-mono ${muted}`}>
+            {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {offer.transfer_partner}
           </p>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-4xl font-bold font-mono tabular-nums ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>
+          <div className="flex items-baseline gap-2 mt-auto pt-1">
+            <span className={`text-4xl font-bold font-mono tabular-nums ${ink}`}>
               +{offer.bonus_pct}%
             </span>
             <span className={`text-xs font-mono ${muted}`}>
@@ -96,110 +121,158 @@ export function TransferOfferCard({ offer, isDark }: TransferCardProps) {
             </span>
           </div>
         </div>
-      </div>
 
-      <div className={`px-4 py-3 border-t flex items-center justify-between ${line}`}>
-        <div className="flex items-center gap-3">
+        {/* Footer */}
+        <div className={`px-4 py-3 border-t flex items-center justify-between gap-3 ${line}`}>
           <span className={`text-[11px] font-mono ${muted}`}>
-            Ends {formatDate(offer.end_date)}
+            Ends {formatEndDate(offer.end_date)}
           </span>
           {offer.source_url && (
             <a
               href={offer.source_url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className={`text-[11px] font-mono hover:underline ${muted}`}
             >
               source ↗
             </a>
           )}
         </div>
-        <span className={`text-[11px] font-mono ${muted}`}>
-          {offer.upvotes} votes
-        </span>
       </div>
-    </div>
+
+      {open && (
+        <OfferDetailModal
+          type="transfer"
+          offer={offer}
+          isDark={isDark}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
 export function SpendingOfferCard({ offer, isDark }: SpendingCardProps) {
-  const days = daysUntil(offer.end_date);
-  const urgent = days <= 7 && days > 0;
+  const [open, setOpen] = useState(false);
+  const days      = daysUntil(offer.end_date);
+  const urgent    = days <= 7 && days > 0;
+  const heroColor = ISSUER_HERO_COLOR[offer.issuer] ?? '#1e293b';
+  const tags      = offer.tags ?? [];
 
-  const card   = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
-  const muted  = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const line   = isDark ? 'border-gph-dark-line' : 'border-gray-100';
-  const issuerCls = isDark ? (ISSUER_COLORS_DARK[offer.issuer] ?? '') : (ISSUER_COLORS[offer.issuer] ?? '');
+  const card  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const ink   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
+  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const line  = isDark ? 'border-gph-dark-line' : 'border-gray-100';
 
   const valueLabel = offer.bonus_type === 'cash_back_pct'
     ? `${offer.bonus_multiplier}%`
-    : `${offer.bonus_multiplier}×`;
+    : offer.bonus_type === 'dollar_amount'
+      ? `$${offer.bonus_multiplier}`
+      : `${offer.bonus_multiplier}×`;
+
+  const valueUnit = offer.bonus_type === 'cash_back_pct'
+    ? 'cash back'
+    : offer.bonus_type === 'dollar_amount'
+      ? 'credit'
+      : 'points';
+
+  const minimumLabel = offer.minimum_nights
+    ? `${offer.minimum_nights} night${offer.minimum_nights > 1 ? 's' : ''} minimum nights`
+    : offer.spending_minimum
+      ? `$${offer.spending_minimum} minimum spend`
+      : null;
+
+  const heroText = `${valueLabel} ${valueUnit} at ${offer.merchant_name}`;
 
   return (
-    <div className={`rounded-xl border flex flex-col overflow-hidden ${card}`}>
-      <div className="p-4 flex flex-col gap-3 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${issuerCls}`}>
-              {ISSUER_LABELS[offer.issuer] ?? offer.issuer.toUpperCase()}
-            </span>
-            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-              isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
-            }`}>
-              {offer.bonus_type === 'cash_back_pct' ? 'CASH BACK' : 'POINTS MULTIPLIER'}
-            </span>
-            {offer.is_targeted && (
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                isDark ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'
-              }`}>
-                TARGETED
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => e.key === 'Enter' && setOpen(true)}
+        className={`rounded-xl border flex flex-col overflow-hidden cursor-pointer transition-shadow hover:shadow-md ${card}`}
+      >
+        {/* Hero */}
+        <div
+          className="relative h-36 flex flex-col justify-between p-3"
+          style={{ backgroundColor: heroColor, backgroundImage: CROSSHATCH }}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {tags.length > 0
+                ? tags.map((tag) => (
+                    <span key={tag} className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/50 text-white">
+                      {tag.toUpperCase()}
+                    </span>
+                  ))
+                : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/50 text-white">
+                    {offer.bonus_type === 'cash_back_pct'
+                      ? 'CASH BACK'
+                      : offer.bonus_type === 'dollar_amount'
+                        ? 'STATEMENT CREDIT'
+                        : 'POINTS MULTIPLIER'}
+                  </span>
+                )}
+            </div>
+            {urgent && (
+              <span className="shrink-0 text-[10px] font-mono font-bold text-red-300 bg-black/40 px-2 py-0.5 rounded">
+                {days}d left
               </span>
             )}
           </div>
-          {urgent && (
-            <span className="shrink-0 text-[10px] font-mono font-bold text-red-500">
-              {days}d left
-            </span>
-          )}
+          <p className="text-white/80 text-[11px] font-mono leading-snug line-clamp-2">
+            {heroText.toLowerCase()}
+          </p>
         </div>
 
-        <div>
-          <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${muted}`}>
-            {offer.merchant_name}
+        {/* Body */}
+        <div className="p-4 flex flex-col gap-2 flex-1">
+          <p className={`text-xs font-mono ${muted}`}>
+            {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {offer.merchant_name}
           </p>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-4xl font-bold font-mono tabular-nums ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>
-              {valueLabel}
-            </span>
-            <span className={`text-xs font-mono ${muted}`}>
-              {offer.bonus_type === 'cash_back_pct' ? 'cash back' : 'points'}
-            </span>
+          <div className="mt-auto pt-1">
+            <div className="flex items-baseline gap-2">
+              <span className={`text-4xl font-bold font-mono tabular-nums ${ink}`}>
+                {valueLabel}
+              </span>
+              <span className={`text-xs font-mono ${muted}`}>{valueUnit}</span>
+            </div>
+            {minimumLabel && (
+              <p className={`text-[11px] font-mono mt-0.5 ${muted}`}>{minimumLabel}</p>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className={`px-4 py-3 border-t flex items-center justify-between ${line}`}>
-        <div className="flex items-center gap-3">
+        {/* Footer */}
+        <div className={`px-4 py-3 border-t flex items-center justify-between gap-3 ${line}`}>
           <span className={`text-[11px] font-mono ${muted}`}>
-            Ends {formatDate(offer.end_date)}
+            Ends {formatEndDate(offer.end_date)}
           </span>
           {offer.source_url && (
             <a
               href={offer.source_url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className={`text-[11px] font-mono hover:underline ${muted}`}
             >
               source ↗
             </a>
           )}
         </div>
-        <span className={`text-[11px] font-mono ${muted}`}>
-          {offer.upvotes} votes
-        </span>
       </div>
-    </div>
+
+      {open && (
+        <OfferDetailModal
+          type="spending"
+          offer={offer}
+          isDark={isDark}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
