@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image, { type StaticImageData } from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,7 +56,17 @@ type Issuer = typeof ISSUERS[number];
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingForm />
+    </Suspense>
+  );
+}
+
+function OnboardingForm() {
   const router           = useRouter();
+  const searchParams     = useSearchParams();
+  const verified         = searchParams.get('verified') === '1';
   const { user, profile, loading, completeOnboarding } = useAuth();
   const { isDark }       = useTheme();
 
@@ -127,6 +137,15 @@ export default function OnboardingPage() {
       <Link href="/" className={`text-2xl font-bold tracking-tight mb-10 ${textPrimary}`}>
         covelo<span className={textMuted}>.</span>
       </Link>
+
+      {/* Email verified banner */}
+      {verified && (
+        <div className={`flex text-center gap-2.5 w-full max-w-sm mb-6 px-4 py-3 rounded-xl text-sm font-medium ${
+          isDark ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-green-50 text-green-700 border border-green-200'
+        }`}>
+          Account verified - your account is now ready to use.
+        </div>
+      )}
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">

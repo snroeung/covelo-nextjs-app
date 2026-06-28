@@ -21,7 +21,7 @@ export async function GET(request: Request) {
           .eq('id', userId)
           .single();
         if (!profile?.onboarding_completed) {
-          return NextResponse.redirect(`${origin}/onboarding`);
+          return NextResponse.redirect(`${origin}/onboarding?verified=1`);
         }
       }
       return NextResponse.redirect(`${origin}/flights`);
