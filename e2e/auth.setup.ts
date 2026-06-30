@@ -1,4 +1,4 @@
-import { test as setup, expect } from '@playwright/test';
+import { test as setup } from '@playwright/test';
 import path from 'path';
 
 const authFile = path.join(__dirname, '.auth/admin.json');
@@ -13,20 +13,23 @@ setup('authenticate as admin', async ({ page }) => {
     );
   }
 
-  await page.goto('/');
+  // Go directly to the auth page — the home page "/" shows a loading skeleton
+  // until AuthContext resolves and has no sign-in button, only a Link to /auth
+  await page.goto('/auth');
 
-  // Find and click the sign-in button in the NavBar
-  await page.getByRole('button', { name: /sign in/i }).click();
+  // Default mode is "Create account"; switch to "Sign in"
+  await page.getByRole('button', { name: 'Sign in' }).click();
 
-  // Fill in credentials — adjust selectors to match the actual auth modal/page
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in|log in|continue/i }).click();
+  // Fill credentials — labels in /auth/page.tsx are not associated via htmlFor,
+  // so we target by input type/placeholder instead of getByLabel
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
 
-  // Wait for successful auth — avatar button appears in nav when logged in
-  await expect(page.getByRole('button', { name: /avatar|profile|account/i })).toBeVisible({
-    timeout: 10_000,
-  });
+  // Submit via the form button (scoped to <form> to avoid the "Sign in" tab)
+  await page.locator('form').getByRole('button', { name: /^sign in$/i }).click();
+
+  // Successful sign-in redirects to /flights or /onboarding
+  await page.waitForURL(/\/(flights|onboarding)/, { timeout: 15_000 });
 
   // Save auth state (cookies + localStorage) for reuse across all tests
   await page.context().storageState({ path: authFile });

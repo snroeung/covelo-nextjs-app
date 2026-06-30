@@ -74,7 +74,7 @@ function defaultForm(ad?: SponsoredAd): FormState {
     tracking_id: ad?.tracking_id ?? '',
     disclosure:  ad?.disclosure  ?? 'Advertiser disclosure · Covelo may receive compensation when you apply. Terms apply.',
     tone:        ad?.tone        ?? 'neutral',
-    active:      ad?.active      ?? false,
+    active:      ad?.active      ?? true,
     country:     ad?.country     ?? 'US',
     start_date:  ad?.start_date  ?? '',
     end_date:    ad?.end_date    ?? '',
@@ -118,7 +118,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
       slot:        'below_grid',
       headline:    form.headline,
       subheadline: form.subheadline || null,
-      bullets:     form.bullets,
+      bullets:     form.bullets.filter(Boolean),
       cta_label:   form.cta_label,
       cta_url:     form.cta_url,
       tracking_id: form.tracking_id,
@@ -146,7 +146,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
       image_url:   null,
       headline:    form.headline,
       subheadline: form.subheadline || null,
-      bullets:     form.bullets,
+      bullets:     form.bullets.filter(Boolean),
       cta_label:   form.cta_label,
       cta_url:     form.cta_url,
       tracking_id: form.tracking_id,
@@ -201,6 +201,27 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     { label: 'Tracking ID set',                        ok: form.tracking_id.trim().length > 0 },
     { label: 'Headline under 80 chars',                ok: form.headline.length <= 80 },
   ];
+
+  const REQUIRED_FIELDS: { key: keyof FormState; label: string; valid: (v: FormState) => boolean }[] = [
+    { key: 'product',     label: 'Card name',       valid: (f) => f.product.trim().length > 0 },
+    { key: 'headline',    label: 'Headline',        valid: (f) => f.headline.trim().length > 0 && f.headline.length <= 80 },
+    { key: 'cta_url',     label: 'Destination URL', valid: (f) => /^https?:\/\/.+/.test(f.cta_url) },
+    { key: 'tracking_id', label: 'Tracking ID',     valid: (f) => f.tracking_id.trim().length > 0 },
+    { key: 'disclosure',  label: 'Disclosure',      valid: (f) => f.disclosure.trim().length > 0 },
+  ];
+
+  function validate(): string | null {
+    const missing = REQUIRED_FIELDS.filter((f) => !f.valid(form)).map((f) => f.label);
+    if (missing.length === 0) return null;
+    return `Missing required fields: ${missing.join(', ')}`;
+  }
+
+  function handleSubmit() {
+    const validationError = validate();
+    if (validationError) { setError(validationError); return; }
+    setError(null);
+    ad ? updateAd() : createAd();
+  }
 
   const availableCards = form.card_issuer && form.card_issuer !== 'other'
     ? ISSUER_CARDS[form.card_issuer] ?? []
@@ -426,7 +447,19 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
           </section>
 
           {error && (
-            <p className="text-sm text-red-500 font-semibold">{error}</p>
+            <div role="alert" className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+              isDark
+                ? 'border-red-800 bg-red-950/40 text-red-300'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}>
+              <span className="mt-0.5 text-base leading-none">⚠</span>
+              <p className="flex-1 font-semibold">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-current opacity-60 hover:opacity-100"
+                aria-label="Dismiss"
+              >✕</button>
+            </div>
           )}
 
           <div className={`flex items-center justify-end gap-3 pt-4 border-t ${line}`}>
@@ -435,7 +468,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
             </button>
             <button
               disabled={isPending}
-              onClick={() => ad ? updateAd() : createAd()}
+              onClick={handleSubmit}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 ${
                 isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
               }`}

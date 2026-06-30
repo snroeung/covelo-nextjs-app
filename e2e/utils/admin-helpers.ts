@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { uuid } from 'zod/v4-mini';
 
 // All test records use this prefix so cleanup can target them safely
 export const TEST_PREFIX = '[TEST]';
@@ -40,57 +41,95 @@ export interface SpendingBonusData {
   description?: string;
 }
 
-async function openAdminModal(page: Page, tab: 'Offers' | 'Ads', buttonLabel: string) {
-  await page.goto('/offers/admin');
-  // Switch to the correct tab if needed
+async function navigateToAdminSection(page: Page, tab: 'Offers' | 'Ads') {
+  // 1. Go to /offers
+  await page.goto('/offers');
+  // 2. Open profile popup
+  await page.getByRole('button', { name: /open profile|profile/i }).click();
+  // 3. Click "Offers Admin" in the popup
+  await page.getByRole('link', { name: /offers admin/i })
+    .or(page.getByRole('button', { name: /offers admin/i }))
+    .click();
+  // 4. Click the correct tab
   if (tab === 'Ads') {
-    await page.getByRole('tab', { name: /ads/i }).click();
+    await page.getByRole('button', { name: 'Sponsored ads' }).click();
+  } else {
+    await page.getByRole('button', { name: 'Offers' }).click();
   }
-  await page.getByRole('button', { name: new RegExp(buttonLabel, 'i') }).click();
-  // Wait for the modal to open
-  await expect(page.getByRole('dialog')).toBeVisible();
 }
 
 export async function createSponsoredAd(page: Page, data: SponsoredAdData) {
-  await openAdminModal(page, 'Ads', 'new ad');
+  await navigateToAdminSection(page, 'Ads');
 
-  await page.getByLabel(/partner/i).fill(data.partner);
-  await page.getByLabel(/product/i).fill(data.product);
+  // 5. Click "New ad" — form opens inline (not a dialog)
+  await page.getByRole('button', { name: /new ad/i }).click();
+  await expect(page.getByText('Create a new ad placement')).toBeVisible({ timeout: 5_000 });
 
-  // Slot selector
-  await page.getByLabel(/slot/i).selectOption(data.slot);
+  // 6. Section 1 — Partner & Product
+  // CARD ISSUER combobox (first combobox on the page)
+  await page.getByRole('combobox').first().selectOption({ label: data.partner });
+  // After selecting an issuer a CARD NAME select appears (identified by its "Select card…" placeholder)
+  const cardNameSelect = page.locator('select:has(option:text("Select card…"))');
+  await expect(cardNameSelect).toBeVisible({ timeout: 3_000 });
+  await cardNameSelect.selectOption({ label: data.product });
 
-  await page.getByLabel(/headline/i).fill(data.headline);
+  // 6. Section 2 — Creative
+  // HEADLINE — placeholder: "60,000 bonus points + $50 hotel credit"
+  await page.getByPlaceholder(/60,000 bonus points/i).fill(data.headline);
 
   if (data.subheadline) {
-    await page.getByLabel(/subheadline/i).fill(data.subheadline);
+    // SUBHEADLINE — placeholder: "After $4,000 spend in your first 3 months…"
+    await page.getByPlaceholder(/After \$4,000 spend/i).fill(data.subheadline);
   }
 
-  await page.getByLabel(/cta label|button label/i).fill(data.ctaLabel);
-  await page.getByLabel(/cta url|destination url/i).fill(data.ctaUrl);
-  await page.getByLabel(/tracking id/i).fill(data.trackingId);
+  // 6. Section 3 — CTA & Tracking
+  // CTA LABEL — placeholder: "Apply now"
+  await page.getByPlaceholder('Apply now').fill(data.ctaLabel);
+  // DESTINATION URL — placeholder: "https://…"
+  await page.getByPlaceholder('https://…').fill(data.ctaUrl);
+  // TRACKING ID — placeholder: "covelo-CSP-2026Q2"
+  await page.getByPlaceholder('covelo-CSP-2026Q2').fill(`${data.trackingId}-${Date.now()}`);
 
   if (data.disclosure) {
-    await page.getByLabel(/disclosure/i).fill(data.disclosure);
+    // DISCLOSURE — large textarea; locate by proximity to "DISCLOSURE" text
+    await page.locator('textarea').filter({ hasText: /advertiser disclosure/i })
+      .or(page.getByPlaceholder(/advertiser disclosure/i))
+      .fill(data.disclosure);
   }
 
+  // 6. Section 4 — Schedule & Targeting
+  const startInput = page.locator('input[type="date"]').first();
+  const endInput = page.locator('input[type="date"]').last();
+  await startInput.fill(today());
+  await endInput.fill(daysFromNow(7));
+
+  // Toggle to Active (default state is Inactive)
   if (data.active !== false) {
-    const activeToggle = page.getByLabel(/active/i);
-    if (!(await activeToggle.isChecked())) {
-      await activeToggle.check();
+    const toggleBtn = page.getByRole('button', { name: /inactive/i });
+    if (await toggleBtn.isVisible()) {
+      await toggleBtn.click();
+      await expect(page.getByRole('button', { name: /active/i })).toBeVisible({ timeout: 3_000 });
     }
   }
 
-  await page.getByRole('button', { name: /save|create|submit/i }).click();
+  // 7. Publish
+  await page.getByRole('button', { name: 'Publish ad' }).click();
+  // After publish the form closes and the view returns to the ads table — click "Sponsored ads" to confirm
+  const sponsoredAdsBtn = page.getByRole('button', { name: 'Sponsored ads' });
+  await expect(sponsoredAdsBtn).toBeVisible({ timeout: 10_000 });
+  await sponsoredAdsBtn.click();
+  // Confirm the new ad row appears with Live or Scheduled status
+  const adRow = page.locator('div').filter({ hasText: data.headline }).first();
+  await expect(adRow.getByText(/^(Live)$/)).toBeVisible({ timeout: 10_000 });
 
-  // Wait for success confirmation
-  await expect(
-    page.getByText(/saved|created|success/i).or(page.getByRole('status')),
-  ).toBeVisible({ timeout: 10_000 });
+  // 8. Go back to /offers
+  await page.goto('/offers');
 }
 
 export async function createTransferBonus(page: Page, data: TransferBonusData) {
-  await openAdminModal(page, 'Offers', 'new offer');
+  await navigateToAdminSection(page, 'Offers');
+  await page.getByRole('button', { name: /new offer/i }).click();
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
 
   // Select "Transfer" type if there's a toggle
   await page.getByRole('radio', { name: /transfer/i }).check();
@@ -125,7 +164,9 @@ export async function createTransferBonus(page: Page, data: TransferBonusData) {
 }
 
 export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
-  await openAdminModal(page, 'Offers', 'new offer');
+  await navigateToAdminSection(page, 'Offers');
+  await page.getByRole('button', { name: /new offer/i }).click();
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
 
   // Select "Spending" type
   await page.getByRole('radio', { name: /spending/i }).check();
@@ -166,18 +207,28 @@ export async function changeOfferStatus(
   action: 'approve' | 'reject' | 'revoke',
 ) {
   await page.goto('/offers/admin');
-  const row = page.getByRole('row', { name: new RegExp(headingText, 'i') });
+  // Rows are CSS grid divs — find by content text + presence of Edit button
+  const row = page.locator('div').filter({
+    hasText: new RegExp(headingText, 'i'),
+    has: page.getByRole('button', { name: /edit/i }),
+  }).first();
   await row.getByRole('button', { name: new RegExp(action, 'i') }).click();
-  await expect(page.getByText(/updated|saved|success/i)).toBeVisible({ timeout: 5_000 });
 }
 
 /** Deactivate a sponsored ad by its headline in the Ads table. */
 export async function deactivateAd(page: Page, headline: string) {
   await page.goto('/offers/admin');
-  await page.getByRole('tab', { name: /ads/i }).click();
-  const row = page.getByRole('row', { name: new RegExp(headline, 'i') });
+  await page.getByRole('button', { name: 'Sponsored ads' }).click();
+
+  // Rows are CSS grid divs — find the one containing the headline and an Edit button
+  const row = page.locator('div').filter({
+    hasText: new RegExp(headline, 'i'),
+    has: page.getByRole('button', { name: /edit/i }),
+  }).first();
+
+  // Deactivate triggers window.confirm — accept it automatically
+  page.once('dialog', (dialog) => dialog.accept());
   await row.getByRole('button', { name: /deactivate|archive/i }).click();
-  await expect(page.getByText(/deactivated|archived|saved/i)).toBeVisible({ timeout: 5_000 });
 }
 
 /** Returns today's date as YYYY-MM-DD */

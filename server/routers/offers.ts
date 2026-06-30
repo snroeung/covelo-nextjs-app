@@ -292,7 +292,7 @@ export const offersRouter = router({
         disclosure:  z.string().min(1),
         tone:        z.string().default("neutral"),
         image_url:   z.string().url().nullable().optional(),
-        active:      z.boolean().default(false),
+        active:      z.boolean().default(true),
         country:     z.string().min(1).default("US"),
         start_date:  z.string().nullable().optional(),
         end_date:    z.string().nullable().optional(),
