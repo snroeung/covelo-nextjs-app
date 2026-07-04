@@ -25,8 +25,6 @@ export const cacheKeys = {
     `offers:transfer-bonuses`,
   spendingBonuses:  () =>
     `offers:spending-bonuses`,
-  sponsoredAd:      (slot: string) =>
-    `offers:ad:${slot}`,
 } as const;
 
 // Cache entry config — one place to change a TTL
@@ -39,5 +37,4 @@ export const CACHE = {
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
   transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
   spendingBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
-  sponsoredAd:      { ttl: TTL.ONE_HOUR },
 } as const;

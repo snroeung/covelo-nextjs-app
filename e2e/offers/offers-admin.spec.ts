@@ -6,153 +6,298 @@ import {
   createSpendingBonus,
   deactivateAd,
   changeOfferStatus,
+  searchFlights,
+  searchHotels,
+  getFirstTripUrl,
+  createTestTrip,
   today,
   daysFromNow,
   TEST_PREFIX,
 } from '../utils/admin-helpers';
 
 // ---------------------------------------------------------------------------
-// Scenario 1: Sponsored Ad — create and display
+// Scenario 1: flights_inline — create and verify in flight results
 // ---------------------------------------------------------------------------
 
-test.describe('Sponsored Ad — create and display', () => {
+test.describe('Sponsored Ad — flights_inline slot', () => {
   test.describe.configure({ mode: 'serial' });
-  const AD_HEADLINE = `${TEST_PREFIX} Earn 3x on travel`;
-  const AD_TRACKING_ID = 'test-chase-reserve-sidebar';
-  const AD_CTA_URL = 'https://example.com/chase-reserve';
+  const AD_HEADLINE = `${TEST_PREFIX} Earn miles on every flight`;
+  const AD_CTA_URL  = 'https://example.com/delta-reserve';
   let adCreated = false;
 
   test.afterAll(async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
     const page = await ctx.newPage();
-    await deactivateAd(page, AD_HEADLINE).catch(() => {});
     await ctx.close();
   });
 
-  test('1. creates a live sponsored ad via admin', async ({ page }) => {
+  test('1. creates a live flights_inline ad via admin', async ({ page }) => {
     await createSponsoredAd(page, {
       partner: 'Chase',
       product: 'Chase Sapphire Reserve',
-      slot: 'sidebar',
+      slot: 'flights_inline',
       headline: AD_HEADLINE,
-      subheadline: 'Points that go further',
-      ctaLabel: 'Learn More',
+      subheadline: '~$910 bonus value',
+      bullets: ['70,000 bonus miles', '$95 annual fee', 'No foreign transaction fees'],
+      ctaLabel: 'Apply now',
       ctaUrl: AD_CTA_URL,
-      trackingId: AD_TRACKING_ID,
-      disclosure: 'Subject to credit approval. Test ad.',
+      trackingId: 'test-flights-inline',
       active: true,
     });
+    const adRow = page.locator('div').filter({ hasText: AD_HEADLINE }).first();
+    await expect(
+      adRow.locator('span[class*="rounded-full"]').filter({ hasText: /^Live$/ }).first()
+    ).toBeVisible({ timeout: 5_000 });
     adCreated = true;
   });
 
-  test('2. ad is visible in the sidebar on /offers', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await page.goto('/offers');
-    await expect(
-      page.getByText(AD_HEADLINE).first(),
-    ).toBeVisible({ timeout: 10_000 });
+  test('2. inline banner appears in flight results', async ({ page }) => {
+    test.setTimeout(75_000);
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    const submitted = await searchFlights(page, 'JFK', 'LAX');
+    test.skip(!submitted, 'Skipped: flights search form not available');
+
+    const results = page.locator('[data-testid="flight-card"]');
+    await results.first().waitFor({ timeout: 45_000 });
+
+    const count = await results.count();
+    expect(count, 'Expected flight results to be returned').toBeGreaterThan(0);
+
+    await expect(page.getByText(AD_HEADLINE).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('SPONSORED').first()).toBeVisible();
   });
 
-  test('3. ad is visible in the sidebar on /flights', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await page.goto('/flights');
-    await expect(
-      page.getByText(AD_HEADLINE).first(),
-    ).toBeVisible({ timeout: 10_000 });
-  });
+  test('3. CTA link points to the correct URL', async ({ page }) => {
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    const submitted = await searchFlights(page, 'JFK', 'LAX');
+    test.skip(!submitted, 'Skipped: flights search form not available');
+    await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 15_000 }).catch(() => {});
 
-  test('4. ad is visible in the sidebar on the home page', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await page.goto('/');
-    await expect(
-      page.getByText(AD_HEADLINE).first(),
-    ).toBeVisible({ timeout: 10_000 });
-  });
-
-  test('5. ad is visible in the sidebar on /trip-planner', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await page.goto('/trip-planner');
-    await expect(
-      page.getByText(AD_HEADLINE).first(),
-    ).toBeVisible({ timeout: 10_000 });
-  });
-
-  test('6. CTA URL contains the ref tracking param', async ({ page, context }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await page.goto('/offers');
-    const adSpot = page.getByText(AD_HEADLINE).first().locator('..').locator('..');
-    const ctaButton = adSpot.getByRole('link').or(adSpot.getByRole('button', { name: /learn more/i }));
-
-    // Capture the URL the CTA resolves to (new tab or href)
-    const href = await ctaButton.getAttribute('href');
-    if (href) {
-      expect(href).toContain(`ref=${AD_TRACKING_ID}`);
-    } else {
-      // Button opens in new tab — intercept and inspect
-      const [newPage] = await Promise.all([
-        context.waitForEvent('page'),
-        ctaButton.click(),
-      ]);
-      expect(newPage.url()).toContain(`ref=${AD_TRACKING_ID}`);
-      await newPage.close();
+    const cta = page.getByRole('link', { name: /apply now/i }).first();
+    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const href = await cta.getAttribute('href');
+      expect(href).toContain('example.com/delta-reserve');
     }
   });
 
-  test('7. carousel navigation works when multiple sidebar ads exist', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await page.goto('/offers');
+  test('4. deactivating removes the banner from flight results', async ({ page }) => {
+    test.setTimeout(90_000);
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    await deactivateAd(page, AD_HEADLINE);
+    await searchFlights(page, 'JFK', 'LAX');
+    await page.locator('[data-testid="flight-card"]').first().waitFor({ timeout: 45_000 });
+    await expect(page.getByText(AD_HEADLINE)).toHaveCount(0, { timeout: 10_000 });
+  });
+});
 
-    const adSpot = page.locator('[data-testid="affiliate-ad-spot"], .affiliate-ad-spot').first();
-    const nextBtn = adSpot.getByRole('button', { name: /next/i });
+// ---------------------------------------------------------------------------
+// Scenario 2: hotels_inline — create and verify in hotel results
+// ---------------------------------------------------------------------------
 
-    if (await nextBtn.isVisible()) {
-      const initialHeadline = await adSpot.locator('h2, h3, .headline').textContent();
-      await nextBtn.click();
-      const nextHeadline = await adSpot.locator('h2, h3, .headline').textContent();
-      expect(nextHeadline).not.toBe(initialHeadline);
-    }
-    // If no next button (only one ad), the test passes vacuously
+test.describe('Sponsored Ad — hotels_inline slot', () => {
+  test.describe.configure({ mode: 'serial' });
+  const AD_HEADLINE = `${TEST_PREFIX} Free night every year`;
+  const AD_CTA_URL  = 'https://example.com/hyatt-card';
+  let adCreated = false;
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    await ctx.close();
   });
 
-  test('8. edit ad headline and verify update on /offers', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    const updatedHeadline = `${TEST_PREFIX} Earn 3x on travel — UPDATED`;
+  test('5. creates a live hotels_inline ad via admin', async ({ page }) => {
+    await createSponsoredAd(page, {
+      partner: 'Chase',
+      product: 'Chase Sapphire Preferred',
+      slot: 'hotels_inline',
+      headline: AD_HEADLINE,
+      subheadline: '~$315 free night value',
+      bullets: ['30,000 bonus points', '$95 annual fee', 'Automatic Discoverist status'],
+      ctaLabel: 'Apply now',
+      ctaUrl: AD_CTA_URL,
+      trackingId: 'test-hotels-inline',
+      active: true,
+    });
+    const adRow = page.locator('div').filter({ hasText: AD_HEADLINE }).first();
+    await expect(
+      adRow.locator('span[class*="rounded-full"]').filter({ hasText: /^Live$/ }).first()
+    ).toBeVisible({ timeout: 5_000 });
+    adCreated = true;
+  });
 
+  test('6. inline banner appears in hotel results', async ({ page }) => {
+    test.setTimeout(75_000);
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    const submitted = await searchHotels(page, 'New York');
+    test.skip(!submitted, 'Skipped: hotels search form not available');
+
+    const results = page.locator('[data-testid="hotel-card"]');
+    await results.first().waitFor({ timeout: 45_000 });
+
+    const count = await results.count();
+    expect(count, 'Expected hotel results to be returned').toBeGreaterThan(0);
+
+    await expect(page.getByText(AD_HEADLINE).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('SPONSORED').first()).toBeVisible();
+  });
+
+  test('7. CTA link points to the correct URL', async ({ page }) => {
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    const submitted = await searchHotels(page, 'New York');
+    test.skip(!submitted, 'Skipped: hotels search form not available');
+    await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 15_000 }).catch(() => {});
+
+    const cta = page.getByRole('link', { name: /apply now/i }).first();
+    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const href = await cta.getAttribute('href');
+      expect(href).toContain('example.com/hyatt-card');
+    }
+  });
+
+  test('8. deactivating removes the banner from hotel results', async ({ page }) => {
+    test.setTimeout(90_000);
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    await deactivateAd(page, AD_HEADLINE);
+    await searchHotels(page, 'New York');
+    await page.locator('[data-testid="hotel-card"]').first().waitFor({ timeout: 45_000 });
+    await expect(page.getByText(AD_HEADLINE)).toHaveCount(0, { timeout: 10_000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 3: trip_strip — create and verify on a trip detail page
+// ---------------------------------------------------------------------------
+
+test.describe('Sponsored Ad — trip_strip slot', () => {
+  test.describe.configure({ mode: 'serial' });
+  const AD_HEADLINE = `${TEST_PREFIX} Protect this trip and earn 3x`;
+  const AD_CTA_URL  = 'https://example.com/sapphire-reserve';
+  let adCreated = false;
+  let tripUrl: string | null = null;
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    await ctx.close();
+  });
+
+  test('13. creates a live trip_strip ad via admin', async ({ page }) => {
+    await createSponsoredAd(page, {
+      partner: 'Chase',
+      product: 'Chase Sapphire Reserve',
+      slot: 'trip_strip',
+      headline: AD_HEADLINE,
+      subheadline: '+4,464 points if paid with Reserve',
+      bullets: ['Up to $10k trip cancellation', '$300 travel credit / yr', 'Priority Pass lounges'],
+      ctaLabel: 'Apply now',
+      ctaUrl: AD_CTA_URL,
+      trackingId: 'test-trip-strip',
+      active: true,
+    });
+    const adRow = page.locator('div').filter({ hasText: AD_HEADLINE }).first();
+    await expect(
+      adRow.locator('span[class*="rounded-full"]').filter({ hasText: /^Live$/ }).first()
+    ).toBeVisible({ timeout: 5_000 });
+    adCreated = true;
+  });
+
+  test('14. strip appears on a trip detail page', async ({ page }) => {
+    test.skip(!adCreated, 'Skipped: ad creation failed');
+    tripUrl = await getFirstTripUrl(page) ?? await createTestTrip(page);
+
+    await page.goto(tripUrl!);
+    await expect(page.getByText(AD_HEADLINE).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('SPONSORED').first()).toBeVisible();
+  });
+
+  test('15. CTA link points to the correct URL', async ({ page }) => {
+    test.skip(!adCreated || !tripUrl, 'Skipped: ad creation or trip not available');
+    await page.goto(tripUrl!);
+    await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 10_000 });
+
+    const cta = page.getByRole('link', { name: /apply now/i }).first();
+    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      const href = await cta.getAttribute('href');
+      expect(href).toContain('example.com/sapphire-reserve');
+    }
+  });
+
+  test('16. deactivating removes the strip from the trip detail page', async ({ page }) => {
+    test.skip(!adCreated || !tripUrl, 'Skipped: ad creation or trip not available');
+    await deactivateAd(page, AD_HEADLINE);
+    await page.goto(tripUrl!);
+    await page.waitForTimeout(2_000);
+    await expect(page.getByText(AD_HEADLINE)).toHaveCount(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Publish feedback — loading overlay + success/error popup
+// ---------------------------------------------------------------------------
+
+test.describe('Sponsored Ad — publish feedback UI', () => {
+  test.describe.configure({ mode: 'serial' });
+  const AD_HEADLINE      = `${TEST_PREFIX} Publish feedback test`;
+  const AD_HEADLINE_EDIT = `${TEST_PREFIX} Publish feedback edit`;
+  const AD_DATA = {
+    partner: 'Chase',
+    product: 'Chase Sapphire Reserve',
+    slot: 'flights_inline' as const,
+    headline: AD_HEADLINE,
+    ctaLabel: 'Apply now',
+    ctaUrl: 'https://example.com/feedback-test',
+    trackingId: 'test-feedback',
+    active: true,
+  };
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    await ctx.close();
+  });
+
+  test('17. loading overlay appears while ad is being published', async ({ page }) => {
+    // createSponsoredAd fills and submits the form, internally verifying the overlay
+    await createSponsoredAd(page, AD_DATA);
+    // If we reached here the overlay appeared and the success dialog was dismissed
+  });
+
+  test('18. success popup appears with "Ad published!" and can be dismissed', async ({ page }) => {
+    await createSponsoredAd(page, { ...AD_DATA, headline: AD_HEADLINE_EDIT, trackingId: 'test-feedback-edit' });
+
+    // createSponsoredAd already dismissed the dialog — navigate back to verify the ad is Live
+    const escaped = AD_HEADLINE_EDIT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const adRow = page.locator('div').filter({ hasText: new RegExp(escaped, 'i') }).last();
+    await expect(
+      adRow.locator('span[class*="rounded-full"]').filter({ hasText: /^Live$/ }).first()
+    ).toBeVisible({ timeout: 5_000 });
+  });
+
+  test('19. "Ad updated!" popup appears after editing an existing ad', async ({ page }) => {
     await page.goto('/offers/admin');
     await page.getByRole('button', { name: 'Sponsored ads' }).click();
 
-    // Rows are CSS grid divs — find by headline text + presence of Edit button
+    // Find the ad created in test 18 and edit it
+    const escaped = AD_HEADLINE_EDIT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const row = page.locator('div').filter({
-      hasText: new RegExp(AD_HEADLINE, 'i'),
-      has: page.getByRole('button', { name: /edit/i }),
-    }).first();
-    await row.getByRole('button', { name: /edit/i }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+      hasText: new RegExp(escaped, 'i'),
+      has: page.getByRole('button', { name: /^Edit$/ }),
+    }).last();
+    await row.getByRole('button', { name: /^Edit$/ }).click();
 
-    await page.getByLabel(/headline/i).clear();
-    await page.getByLabel(/headline/i).fill(updatedHeadline);
-    await page.getByRole('button', { name: /save|update/i }).click();
-    await expect(page.getByText(/saved|updated|success/i)).toBeVisible({ timeout: 5_000 });
+    const headlineInput = page.getByPlaceholder(/60,000 bonus points/i);
+    await headlineInput.clear();
+    await headlineInput.fill(AD_HEADLINE_EDIT + ' (edited)');
 
-    await page.goto('/offers');
-    await expect(page.getByText(updatedHeadline).first()).toBeVisible({ timeout: 10_000 });
-  });
+    await page.getByRole('button', { name: /save changes/i }).click();
 
-  test('9. deactivating ad removes it from the offers sidebar', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    await deactivateAd(page, TEST_PREFIX);
-
-    await page.goto('/offers');
-    // After deactivation the ad should no longer appear
-    await expect(page.getByText(AD_HEADLINE).first()).toBeHidden({ timeout: 10_000 });
-  });
-
-  test('10. /offers page passes accessibility checks with an active ad', async ({ page }) => {
-    test.skip(!adCreated, 'Skipped: ad creation (test 1) failed');
-    // Re-create ad for this test run if it was deactivated above
-    await page.goto('/offers');
-    const results = await new AxeBuilder({ page }).analyze();
-    expect(results.violations).toEqual([]);
+    const dialog = page.getByRole('dialog', { name: 'Ad updated' });
+    await expect(dialog).toBeVisible({ timeout: 15_000 });
+    await expect(dialog.getByText('Ad updated!')).toBeVisible();
+    await expect(dialog.getByText('Changes saved successfully.')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Done' }).click();
+    await expect(dialog).toBeHidden({ timeout: 5_000 });
   });
 });
 

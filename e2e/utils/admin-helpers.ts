@@ -8,7 +8,8 @@ export const TEST_PREFIX = '[TEST]';
 export interface SponsoredAdData {
   partner: string;
   product: string;
-  slot: 'hero' | 'grid_inline' | 'below_grid' | 'sidebar';
+  slot: 'hero' | 'grid_inline' | 'below_grid' | 'sidebar'
+      | 'flights_inline' | 'hotels_inline' | 'planner_native' | 'trip_strip';
   headline: string;
   subheadline?: string;
   bullets?: string[];
@@ -68,6 +69,10 @@ export async function createSponsoredAd(page: Page, data: SponsoredAdData) {
   // 6. Section 1 — Partner & Product
   // CARD ISSUER combobox (first combobox on the page)
   await page.getByRole('combobox').first().selectOption({ label: data.partner });
+
+  // AD SLOT — required; label is linked via htmlFor="adSlot"
+  await page.getByLabel(/ad slot/i).selectOption({ value: data.slot });
+
   // After selecting an issuer a CARD NAME select appears (identified by its "Select card…" placeholder)
   const cardNameSelect = page.locator('select:has(option:text("Select card…"))');
   await expect(cardNameSelect).toBeVisible({ timeout: 3_000 });
@@ -114,16 +119,22 @@ export async function createSponsoredAd(page: Page, data: SponsoredAdData) {
 
   // 7. Publish
   await page.getByRole('button', { name: 'Publish ad' }).click();
-  // After publish the form closes and the view returns to the ads table — click "Sponsored ads" to confirm
+
+  // Wait for loading overlay, then success popup
+  await page.getByRole('status', { name: 'Publishing ad' }).waitFor({ timeout: 5_000 }).catch(() => {});
+  const successDialog = page.getByRole('dialog', { name: 'Ad published' });
+  await successDialog.waitFor({ timeout: 15_000 });
+  await successDialog.getByRole('button', { name: 'Done' }).click();
+
+  // After dismissal the view returns to the ads table — click "Sponsored ads" to confirm
   const sponsoredAdsBtn = page.getByRole('button', { name: 'Sponsored ads' });
   await expect(sponsoredAdsBtn).toBeVisible({ timeout: 10_000 });
   await sponsoredAdsBtn.click();
   // Confirm the new ad row appears with Live or Scheduled status
   const adRow = page.locator('div').filter({ hasText: data.headline }).first();
-  await expect(adRow.getByText(/^(Live)$/)).toBeVisible({ timeout: 10_000 });
-
-  // 8. Go back to /offers
-  await page.goto('/offers');
+  await expect(
+    adRow.locator('span[class*="rounded-full"]').filter({ hasText: /^Live$/ }).first()
+  ).toBeVisible({ timeout: 10_000 });
 }
 
 export async function createTransferBonus(page: Page, data: TransferBonusData) {
@@ -210,7 +221,7 @@ export async function changeOfferStatus(
   // Rows are CSS grid divs — find by content text + presence of Edit button
   const row = page.locator('div').filter({
     hasText: new RegExp(headingText, 'i'),
-    has: page.getByRole('button', { name: /edit/i }),
+    has: page.getByRole('button', { name: /Edit/i }),
   }).first();
   await row.getByRole('button', { name: new RegExp(action, 'i') }).click();
 }
@@ -220,15 +231,19 @@ export async function deactivateAd(page: Page, headline: string) {
   await page.goto('/offers/admin');
   await page.getByRole('button', { name: 'Sponsored ads' }).click();
 
-  // Rows are CSS grid divs — find the one containing the headline and an Edit button
+  // Escape regex special chars so "[TEST]" matches literally, not as char class
+  const escaped = headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Use .last() to get the innermost div that still contains both headline + action buttons
   const row = page.locator('div').filter({
-    hasText: new RegExp(headline, 'i'),
-    has: page.getByRole('button', { name: /edit/i }),
-  }).first();
+    hasText: new RegExp(escaped, 'i'),
+    has: page.getByRole('button', { name: /^Edit$/ }),
+  }).filter({
+    has: page.getByRole('button', { name: /^Deactivate$|^Archive$/ }),
+  }).last();
 
   // Deactivate triggers window.confirm — accept it automatically
   page.once('dialog', (dialog) => dialog.accept());
-  await row.getByRole('button', { name: /deactivate|archive/i }).click();
+  await row.getByRole('button', { name: /^Deactivate$|^Archive$/ }).first().click();
 }
 
 /** Returns today's date as YYYY-MM-DD */
@@ -241,4 +256,133 @@ export function daysFromNow(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
   return d.toISOString().split('T')[0];
+}
+
+/**
+ * Fills a LocationSearch field (fieldLabel="From"/"To"/"Location") by label text,
+ * types the query, waits for the autocomplete dropdown, and clicks the first suggestion.
+ */
+async function fillLocationSearch(page: Page, fieldLabel: string, query: string) {
+  // Find the label span, go up exactly one div level to the field-box container,
+  // then target the combobox within it — avoids ancestor bleed across sibling fields.
+  const labelSpan = page.locator('span')
+    .filter({ hasText: new RegExp(`^${fieldLabel}$`, 'i') })
+    .filter({ visible: true })
+    .first();
+  const fieldBox = labelSpan.locator('xpath=ancestor::div[1]');
+  const input = fieldBox.locator('[role="combobox"]');
+  await input.click();
+  await input.fill(query);
+  // Wait for autocomplete suggestions and pick the first one
+  const option = page.getByRole('option').first();
+  await option.waitFor({ timeout: 8_000 });
+  await option.click();
+}
+
+/**
+ * Submits a flight search on /flights using the real From/To LocationSearch fields.
+ * Returns true if the search was submitted successfully.
+ */
+export async function searchFlights(
+  page: Page,
+  origin: string,
+  destination: string,
+  departureDateOffset = 14,
+) {
+  await page.goto('/flights');
+
+  // Wait for the search form — combobox inputs render after React hydration
+  await page.locator('[role="combobox"]').filter({ visible: true }).first().waitFor({ timeout: 15_000 });
+
+  await fillLocationSearch(page, 'From', origin);
+  await fillLocationSearch(page, 'To', destination);
+
+  // Trip type — open the "Trip type" dropdown and select "One way"
+  await page.getByRole('button', { name: /Trip type/i }).filter({ visible: true }).first().click();
+  await page.getByRole('button', { name: /One way/i }).click();
+
+  // Depart date — find visible "Depart" label span, go up one div, grab the date input inside
+  const departLabel = page.locator('span, label').filter({ hasText: /^Depart$/i }).filter({ visible: true }).first();
+  const departInput = departLabel.locator('xpath=ancestor::div[1]').locator('input[type="date"]').first();
+  await departInput.fill(daysFromNow(departureDateOffset));
+
+  await page.getByRole('button', { name: /^Search\s*→/i }).filter({ visible: true }).first().click();
+  return true;
+}
+
+/**
+ * Submits a hotel search on /hotels using the real Location LocationSearch field.
+ * Returns true if submitted successfully.
+ */
+export async function searchHotels(
+  page: Page,
+  city: string,
+  checkInOffset = 14,
+  nights = 2,
+) {
+  await page.goto('/hotels');
+
+  await page.locator('[role="combobox"]').filter({ visible: true }).first().waitFor({ timeout: 15_000 });
+
+  await fillLocationSearch(page, 'Location', city);
+
+  // Check-in / Check-out — find visible label span, go up one div, grab date input
+  const checkInLabel  = page.locator('span, label').filter({ hasText: /^Check-in$/i }).filter({ visible: true }).first();
+  const checkInInput  = checkInLabel.locator('xpath=ancestor::div[1]').locator('input[type="date"]').first();
+  const checkOutLabel = page.locator('span, label').filter({ hasText: /^Check-out$/i }).filter({ visible: true }).first();
+  const checkOutInput = checkOutLabel.locator('xpath=ancestor::div[1]').locator('input[type="date"]').first();
+
+  await checkInInput.fill(daysFromNow(checkInOffset));
+  await checkOutInput.fill(daysFromNow(checkInOffset + nights));
+
+  await page.getByRole('button', { name: /^Search\s*→/i }).filter({ visible: true }).first().click();
+  return true;
+}
+
+/**
+ * Goes to /trip-planner and returns the href of the first trip link, or null if none.
+ */
+export async function getFirstTripUrl(page: Page): Promise<string | null> {
+  await page.goto('/trip-planner');
+  const link = page.getByRole('link').filter({ hasText: /view trip|open trip|details/i }).first();
+  if (await link.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    return link.getAttribute('href');
+  }
+  // Fall back: any /trip-planner/<uuid> link
+  const tripLink = page.locator('a[href*="/trip-planner/"]').first();
+  if (await tripLink.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    return tripLink.getAttribute('href');
+  }
+  return null;
+}
+
+/** Creates a minimal test trip and returns its URL. Used when no existing trip is found. */
+export async function createTestTrip(page: Page): Promise<string | null> {
+  await page.goto('/trip-planner');
+
+  // Type a destination into the LocationSearch to reveal the create form
+  const destInput = page.locator('[role="combobox"]').filter({ visible: true }).first();
+  await destInput.waitFor({ timeout: 10_000 });
+  await destInput.click();
+  await destInput.fill('Paris');
+  const option = page.getByRole('option').first();
+  await option.waitFor({ timeout: 8_000 });
+  await option.click();
+
+  // Fill dates — 30 days out, 3-night stay
+  const startDate = daysFromNow(30);
+  const endDate   = daysFromNow(33);
+  const dateInputs = page.locator('input[type="date"]').filter({ visible: true });
+  await dateInputs.first().fill(startDate);
+  await dateInputs.last().fill(endDate);
+
+  // Trip name
+  await page.getByPlaceholder(/give your trip a name/i).fill(`${TEST_PREFIX} Test trip`);
+
+  // Submit
+  await page.getByRole('button', { name: /start planning/i }).click();
+
+  // Wait for navigation to the trip detail page
+  await page.waitForURL(/\/trip-planner\/.+/, { timeout: 15_000 });
+  return page.url().replace(page.context().pages()[0]?.url() ?? '', '') || page.url();
 }

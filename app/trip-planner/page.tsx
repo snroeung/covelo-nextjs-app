@@ -719,6 +719,14 @@ export default function TripPlannerPage() {
                       </p>
                     </div>
                   )}
+                  <div
+                    className="mt-4 text-[10px]"
+                    style={{ color: mutedColor }}
+                  >
+
+                  </div>
+                      
+                  
                 </>
               ) : null}
             </div>

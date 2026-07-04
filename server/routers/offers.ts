@@ -61,12 +61,8 @@ export const offersRouter = router({
 
   // Public read works via "sponsored_ads_public_read" RLS policy (005_offers_rls_update.sql)
   getFeaturedAd: flaggedProcedure("api:offers")
-    .input(z.object({ slot: z.enum(["hero", "grid_inline", "below_grid", "sidebar"]) }))
+    .input(z.object({ slot: z.enum(["hero", "grid_inline", "below_grid", "sidebar", "flights_inline", "hotels_inline", "trip_strip"]) }))
     .query(async ({ input }): Promise<PublicSponsoredAd[]> => {
-      const key = cacheKeys.sponsoredAd(input.slot);
-      const cached = await cacheGet<PublicSponsoredAd[]>(key);
-      if (cached) return cached;
-
       const supabase = await createClient();
       const now = new Date().toISOString().split("T")[0];
       const { data, error } = await supabase
@@ -82,7 +78,7 @@ export const offersRouter = router({
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       if (!data || data.length === 0) return [];
 
-      const ads: PublicSponsoredAd[] = (data as SponsoredAd[]).map((ad) => {
+      return (data as SponsoredAd[]).map((ad) => {
         const ctaUrl = ad.cta_url.includes("?")
           ? `${ad.cta_url}&ref=${ad.tracking_id}`
           : `${ad.cta_url}?ref=${ad.tracking_id}`;
@@ -102,9 +98,6 @@ export const offersRouter = router({
           country:     ad.country,
         };
       });
-
-      await cacheSet(key, ads, CACHE.sponsoredAd.ttl);
-      return ads;
     }),
 
   // trackImpression, trackClick, and upvote removed — will be replaced with
@@ -282,7 +275,7 @@ export const offersRouter = router({
       .input(z.object({
         partner:     z.string().min(1),
         product:     z.string().min(1),
-        slot:        z.enum(["hero", "grid_inline", "below_grid", "sidebar"]),
+        slot:        z.enum(["hero", "grid_inline", "below_grid", "sidebar", "flights_inline", "hotels_inline", "trip_strip"]),
         headline:    z.string().min(1),
         subheadline: z.string().nullable().optional(),
         bullets:     z.array(z.string()).default([]),
@@ -306,7 +299,6 @@ export const offersRouter = router({
           .single();
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
-        await redis.del(cacheKeys.sponsoredAd(input.slot)).catch(() => {});
         return data as SponsoredAd;
       }),
 
@@ -315,7 +307,7 @@ export const offersRouter = router({
         id:          z.string().uuid(),
         partner:     z.string().min(1).optional(),
         product:     z.string().min(1).optional(),
-        slot:        z.enum(["hero", "grid_inline", "below_grid", "sidebar"]).optional(),
+        slot:        z.enum(["hero", "grid_inline", "below_grid", "sidebar", "flights_inline", "hotels_inline", "trip_strip"]).optional(),
         headline:    z.string().min(1).optional(),
         subheadline: z.string().nullable().optional(),
         bullets:     z.array(z.string()).optional(),
@@ -341,10 +333,7 @@ export const offersRouter = router({
           .single();
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
-
-        const ad = data as SponsoredAd;
-        await redis.del(cacheKeys.sponsoredAd(ad.slot)).catch(() => {});
-        return ad;
+        return data as SponsoredAd;
       }),
 
     deleteAd: adminProcedure("api:offers")
@@ -363,7 +352,6 @@ export const offersRouter = router({
           .eq("id", input.id);
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
-        if (ad?.slot) await redis.del(cacheKeys.sponsoredAd(ad.slot)).catch(() => {});
       }),
   }),
 });

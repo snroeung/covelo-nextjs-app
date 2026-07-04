@@ -1,7 +1,8 @@
 export type Issuer = 'chase' | 'amex' | 'c1' | 'bilt' | 'citi';
 export type OfferStatus = 'admin' | 'pending' | 'approved' | 'rejected';
 export type BonusType = 'points_multiplier' | 'cash_back_pct' | 'dollar_amount';
-export type AdSlot = 'hero' | 'grid_inline' | 'below_grid' | 'sidebar';
+export type AdSlot = 'hero' | 'grid_inline' | 'below_grid' | 'sidebar'
+  | 'flights_inline' | 'hotels_inline' | 'trip_strip';
 
 export interface TransferBonus {
   id: string;

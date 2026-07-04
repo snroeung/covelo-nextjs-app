@@ -312,14 +312,7 @@ describe('offers.getFeaturedAd()', () => {
     expect(result[0]).toHaveProperty('cta_url');
   });
 
-  it('13. returns cached ads and skips Supabase on Redis hit', async () => {
-    vi.mocked(redis.get).mockResolvedValue([mockSponsoredAd]);
-    const { mockFrom } = setupSupabase({ data: [], error: null });
 
-    await caller.offers.getFeaturedAd({ slot: 'sidebar' });
-
-    expect(mockFrom).not.toHaveBeenCalled();
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -530,22 +523,7 @@ describe('offers.admin.createAd()', () => {
     expect(result.partner).toBe('Chase');
   });
 
-  it('24. invalidates the slot cache after creation', async () => {
-    setupSupabase({ data: { ...mockSponsoredAd, slot: 'below_grid' }, error: null });
 
-    await caller.offers.admin.createAd({
-      partner: 'Amex',
-      product: 'Platinum',
-      slot: 'below_grid',
-      headline: 'The Platinum Card',
-      cta_label: 'Apply Now',
-      cta_url: 'https://example.com/amex',
-      tracking_id: 'amex-plat-below-q1',
-      disclosure: 'Terms apply.',
-    });
-
-    expect(redis.del).toHaveBeenCalledWith(cacheKeys.sponsoredAd('below_grid'));
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -554,11 +532,6 @@ describe('offers.admin.createAd()', () => {
 
 describe('offers.admin.updateAd()', () => {
   const caller = appRouter.createCaller({});
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(redis.del).mockResolvedValue(1);
-  });
 
   it('25. updates ad fields and returns updated ad', async () => {
     const updated = { ...mockSponsoredAd, headline: 'New Headline' };
@@ -571,14 +544,6 @@ describe('offers.admin.updateAd()', () => {
 
     expect(result.headline).toBe('New Headline');
   });
-
-  it('26. invalidates the slot cache for the updated ad', async () => {
-    setupSupabase({ data: { ...mockSponsoredAd, slot: 'sidebar' }, error: null });
-
-    await caller.offers.admin.updateAd({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', headline: 'Updated' });
-
-    expect(redis.del).toHaveBeenCalledWith(cacheKeys.sponsoredAd('sidebar'));
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -587,11 +552,6 @@ describe('offers.admin.updateAd()', () => {
 
 describe('offers.admin.deleteAd()', () => {
   const caller = appRouter.createCaller({});
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(redis.del).mockResolvedValue(1);
-  });
 
   it('27. sets active=false (soft delete) not a hard delete', async () => {
     // First from() call: fetch the slot; second: update active=false
@@ -603,16 +563,5 @@ describe('offers.admin.deleteAd()', () => {
     await caller.offers.admin.deleteAd({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' });
 
     expect(mockFrom).toHaveBeenCalledTimes(2);
-  });
-
-  it('28. invalidates the slot cache after soft delete', async () => {
-    setupSupabase([
-      { data: { slot: 'below_grid' }, error: null },
-      { data: null, error: null },
-    ]);
-
-    await caller.offers.admin.deleteAd({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' });
-
-    expect(redis.del).toHaveBeenCalledWith(cacheKeys.sponsoredAd('below_grid'));
   });
 });

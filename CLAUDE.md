@@ -194,6 +194,32 @@ onClick={() => { if (pinned) { close(); } else { setPinned(true); setOpen(true);
 ```
 
 See `components/NavBar.tsx` — Search dropdown — as the reference implementation.
+
+### Modal / Popup Pattern (Non-Negotiable)
+
+**Backdrop:** The full-page backdrop must be transparent — never a solid or heavily opaque overlay. Use `bg-black/30` or lighter with `backdrop-blur-sm` so the page content behind the modal remains visible.
+
+```tsx
+// ❌ Opaque backdrop hides the page — don't do this
+<div className="fixed inset-0 bg-black/80">
+
+// ✅ Transparent with blur — page stays readable behind it
+<div className="fixed inset-0 bg-black/30 backdrop-blur-sm">
+```
+
+**Centering:** Modals must appear at the center of the **visible viewport**, not the center of the document. Always use `fixed` positioning (not `absolute`) with `inset-0 flex items-center justify-center` so the popup snaps to the middle of the window regardless of scroll position.
+
+```tsx
+// ❌ Absolute positioning scrolls with the page — popup may be off-screen
+<div className="absolute inset-0 flex items-center justify-center">
+
+// ✅ Fixed to the viewport — always centered in the window
+<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+  <div className="rounded-xl p-8 shadow-xl ...">
+    {children}
+  </div>
+</div>
+```
 # CLAUDE.md — Covelo Developer Instructions
 
 You are a senior full-stack developer building **Covelo** (covelo.app), a consumer travel planning app that compares flight and hotel costs across Chase, Capital One, Amex, Bilt, and Citi travel portals in real time. The core value: one search, all five portals, points costs included.

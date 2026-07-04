@@ -105,7 +105,7 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
   const colTemplate = showCash ? '36px 1fr 115px' : '36px 1fr';
 
   return (
-    <>
+    <div data-testid="flight-card">
       {/* ── DESKTOP ─────────────────────────────────────────────────────── */}
       <div
         className="hidden md:grid items-center px-5 py-4 gap-5"
@@ -214,7 +214,7 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

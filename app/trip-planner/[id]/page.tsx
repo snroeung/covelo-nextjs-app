@@ -951,9 +951,6 @@ export default function TripDetailPage() {
         {/* ── Sidebar ────────────────────────────────────────────────────────── */}
         <aside className={`px-5 py-8 flex flex-col gap-6 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto ${cardBg}`}>
 
-          {/* Sponsored ad */}
-          <AffiliateAdSpot slot="sidebar" isDark={isDark} />
-
           {/* Points tip — placeholder */}
           <div className={`p-4 rounded-xl border ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200'}`}>
             <p className={`text-[9px] font-mono font-bold uppercase tracking-widest mb-2 text-cv-blue-600`}>✦ Pts tip</p>
@@ -963,6 +960,11 @@ export default function TripDetailPage() {
             <button className={`mt-3 text-[10px] font-mono font-bold uppercase tracking-[0.08em] px-3 py-1.5 rounded-md transition-colors ${
               isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
             }`}>Connect cards →</button>
+          </div>
+
+          {/* Post-booking card suggestion */}
+          <div>
+          <AffiliateAdSpot slot="trip_strip" isDark={isDark} />
           </div>
 
           {/* Map */}
@@ -1066,23 +1068,6 @@ export default function TripDetailPage() {
               })}
             </div>
             <p className={`text-[9px] font-mono text-center mt-2 ${muted}`}>Weather integration coming soon</p>
-          </div>
-
-          {/* Cards in play — placeholder */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <p className={`text-[10px] font-mono font-bold uppercase tracking-widest ${muted}`}>Cards in play</p>
-              <Link href="/" className={`text-[10px] font-mono font-bold tracking-[0.06em] ${ink}`}>Manage →</Link>
-            </div>
-            <div className={`rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-6 gap-2 ${borderCls}`}>
-              <svg className="w-6 h-6 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-              </svg>
-              <p className={`text-xs text-center ${muted}`}>Connect your cards to see points across Chase, Amex, Capital One & more.</p>
-              <Link href="/" className={`text-[10px] font-mono font-bold uppercase tracking-widest px-3 py-1.5 rounded-md transition-colors ${
-                isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-              }`}>Add cards</Link>
-            </div>
           </div>
         </aside>
       </div>

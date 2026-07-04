@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import { CARD_NAMES, type CardId } from '@/lib/points/types';
 import { CARD_IMAGES } from '@/lib/cardImages';
-import type { SponsoredAd } from '@/lib/types/offers';
+import type { AdSlot, SponsoredAd } from '@/lib/types/offers';
 
 const ISSUER_NAMES: Record<string, string> = {
   chase: 'Chase',
@@ -45,6 +45,7 @@ interface FormState {
   card_id_key: string;
   partner:     string;
   product:     string;
+  slot:        AdSlot;
   headline:    string;
   subheadline: string;
   bullets:     string[];
@@ -66,6 +67,7 @@ function defaultForm(ad?: SponsoredAd): FormState {
     card_id_key: cardId,
     partner:     ad?.partner     ?? '',
     product:     ad?.product     ?? '',
+    slot:        ad?.slot        ?? 'below_grid',
     headline:    ad?.headline    ?? '',
     subheadline: ad?.subheadline ?? '',
     bullets:     ad?.bullets     ?? [''],
@@ -96,7 +98,8 @@ function InputCls(isDark: boolean) {
 export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(() => defaultForm(ad));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [adResult, setAdResult] = useState<'published' | 'updated' | null>(null);
 
   const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -115,7 +118,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     mutationFn: () => trpc.offers.admin.createAd.mutate({
       partner:     form.partner,
       product:     form.product,
-      slot:        'below_grid',
+      slot:        form.slot,
       headline:    form.headline,
       subheadline: form.subheadline || null,
       bullets:     form.bullets.filter(Boolean),
@@ -133,7 +136,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
       queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
-      onSave();
+      setAdResult('published');
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
@@ -160,7 +163,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
       queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
-      onSave();
+      setAdResult('updated');
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
@@ -228,7 +231,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     : [];
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${card}`}>
+    <div className={`relative rounded-xl border overflow-hidden ${card}`}>
       <div className={`flex items-center justify-between px-5 py-4 border-b ${line}`}>
         <div>
           <div className={`text-[10px] font-mono font-bold tracking-widest mb-1 ${muted}`}>
@@ -324,6 +327,19 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
                   {['neutral', 'premium', 'aspirational', 'value'].map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="adSlot" className={`block mb-1.5 ${labelCls}`}>AD SLOT</label>
+                <select id="adSlot" className={inputCls} value={form.slot} onChange={(e) => set('slot', e.target.value as AdSlot)}>
+                  <option value="sidebar">Sidebar</option>
+                  <option value="below_grid">Below grid</option>
+                  <option value="hero">Hero</option>
+                  <option value="grid_inline">Grid inline</option>
+                  <option value="flights_inline">Flights — inline banner</option>
+                  <option value="hotels_inline">Hotels — inline banner</option>
+                  <option value="trip_strip">Trip detail — strip</option>
                 </select>
               </div>
             </div>
@@ -446,22 +462,6 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
             </div>
           </section>
 
-          {error && (
-            <div role="alert" className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-              isDark
-                ? 'border-red-800 bg-red-950/40 text-red-300'
-                : 'border-red-200 bg-red-50 text-red-700'
-            }`}>
-              <span className="mt-0.5 text-base leading-none">⚠</span>
-              <p className="flex-1 font-semibold">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="ml-auto text-current opacity-60 hover:opacity-100"
-                aria-label="Dismiss"
-              >✕</button>
-            </div>
-          )}
-
           <div className={`flex items-center justify-end gap-3 pt-4 border-t ${line}`}>
             <button onClick={onCancel} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-700'}`}>
               Cancel
@@ -549,6 +549,100 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Loading overlay */}
+      {isPending && (
+        <div
+          role="status"
+          aria-label="Publishing ad"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        >
+          <div className={`flex flex-col items-center gap-3 rounded-xl px-8 py-6 shadow-xl ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`}>
+            <svg
+              className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}
+              viewBox="0 0 24 24" fill="none"
+            >
+              <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+              {ad ? 'Saving changes…' : 'Publishing ad…'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Success popup */}
+      {adResult && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={adResult === 'published' ? 'Ad published' : 'Ad updated'}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        >
+          <div className={`flex flex-col items-center gap-4 rounded-xl px-10 py-8 shadow-xl max-w-xs w-full text-center mx-4 ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`}>
+            <div className="w-13 h-13 rounded-full bg-green-100 flex items-center justify-center">
+              <svg className="w-7 h-7 text-green-600" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" className="opacity-30"/>
+                <path d="M7 12.5l3.5 3.5 6.5-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+                {adResult === 'published' ? 'Ad published!' : 'Ad updated!'}
+              </p>
+              <p className={`text-sm mt-1 ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
+                {adResult === 'published' ? 'Your sponsored ad is now live.' : 'Changes saved successfully.'}
+              </p>
+            </div>
+            <button
+              onClick={onSave}
+              className={`w-full px-6 py-2.5 rounded-lg text-sm font-bold transition-colors ${isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'}`}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error popup */}
+      {error && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Publish failed"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        >
+          <div className={`flex flex-col items-center gap-4 rounded-xl px-10 py-8 shadow-xl max-w-xs w-full text-center mx-4 ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`}>
+            <div className="w-13 h-13 rounded-full bg-red-100 flex items-center justify-center">
+              <svg className="w-7 h-7 text-red-600" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" className="opacity-30"/>
+                <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>
+                Failed to publish
+              </p>
+              <p className={`text-sm mt-1 ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>{error}</p>
+            </div>
+            <div className="flex gap-2 w-full">
+              <button
+                onClick={() => { setError(null); handleSubmit(); }}
+                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'}`}
+              >
+                Try again
+              </button>
+              <button
+                onClick={() => setError(null)}
+                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold border transition-colors ${isDark ? 'border-gph-dark-line text-gph-dark-muted hover:text-gph-dark-ink' : 'border-gray-200 text-gray-500 hover:text-gray-700'}`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
