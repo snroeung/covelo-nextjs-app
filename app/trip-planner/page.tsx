@@ -256,6 +256,7 @@ function TripRailCard({
 
   return (
     <div
+      data-testid="trip-rail-card"
       className={`flex items-stretch rounded-xl border shrink-0 w-72 cursor-pointer group transition-colors overflow-hidden ${cardBg}`}
       onClick={() => router.push(`/trip-planner/${trip.id}`)}
     >

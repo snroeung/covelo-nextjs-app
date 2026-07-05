@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { uuid } from 'zod/v4-mini';
 
 // All test records use this prefix so cleanup can target them safely
@@ -42,7 +42,7 @@ export interface SpendingBonusData {
   description?: string;
 }
 
-async function navigateToAdminSection(page: Page, tab: 'Offers' | 'Ads') {
+export async function navigateToAdminSection(page: Page, tab: 'Offers' | 'Ads') {
   // 1. Go to /offers
   await page.goto('/offers');
   // 2. Open profile popup
@@ -233,17 +233,34 @@ export async function deactivateAd(page: Page, headline: string) {
 
   // Escape regex special chars so "[TEST]" matches literally, not as char class
   const escaped = headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Use .last() to get the innermost div that still contains both headline + action buttons
-  const row = page.locator('div').filter({
-    hasText: new RegExp(escaped, 'i'),
-    has: page.getByRole('button', { name: /^Edit$/ }),
-  }).filter({
-    has: page.getByRole('button', { name: /^Deactivate$|^Archive$/ }),
-  }).last();
+  const re = new RegExp(escaped, 'i');
 
-  // Deactivate triggers window.confirm — accept it automatically
-  page.once('dialog', (dialog) => dialog.accept());
-  await row.getByRole('button', { name: /^Deactivate$|^Archive$/ }).first().click();
+  // Wait for the table to render before counting
+  await page.getByText(re).first().waitFor({ timeout: 10_000 }).catch(() => {});
+
+  // Failed earlier runs can leave duplicate ads with the same headline —
+  // deactivate every Live/Scheduled row, not just one, or the ad keeps serving.
+  for (let i = 0; i < 20; i++) {
+    const liveRows = page.locator('div').filter({
+      hasText: re,
+      has: page.getByRole('button', { name: /^Edit$/ }),
+    }).filter({
+      has: page.getByRole('button', { name: /^Deactivate$|^Archive$/ }),
+    }).filter({
+      has: page.locator('span').filter({ hasText: /^Live$|^Scheduled$/ }),
+    });
+
+    if ((await liveRows.count()) === 0) break;
+
+    // .last() = innermost div containing headline + buttons + Live badge
+    const row = liveRows.last();
+    // Deactivate triggers window.confirm — accept it automatically
+    page.once('dialog', (dialog) => dialog.accept());
+    await row.getByRole('button', { name: /^Deactivate$|^Archive$/ }).first().click();
+    // Wait for the mutation to land before re-counting (or navigating away)
+    await row.locator('span').filter({ hasText: /^Live$|^Scheduled$/ }).first()
+      .waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
+  }
 }
 
 /** Returns today's date as YYYY-MM-DD */
@@ -340,20 +357,28 @@ export async function searchHotels(
 }
 
 /**
- * Goes to /trip-planner and returns the href of the first trip link, or null if none.
+ * Looks for the `[TEST] Test trip` rail card on /trip-planner and, if found,
+ * clicks into it and returns its URL. Trip cards are plain divs (no <a href>),
+ * so this clicks through rather than reading an href attribute.
  */
-export async function getFirstTripUrl(page: Page): Promise<string | null> {
-  await page.goto('/trip-planner');
-  const link = page.getByRole('link').filter({ hasText: /view trip|open trip|details/i }).first();
-  if (await link.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    return link.getAttribute('href');
+export async function getExistingTestTripUrl(page: Page): Promise<string | null> {
+  const card = await test.step(`Check for existing "${TEST_PREFIX} Test trip"`, async () => {
+    await page.goto('/trip-planner');
+    const el = page.locator('[data-testid="trip-rail-card"]').filter({ hasText: `${TEST_PREFIX} Test trip` }).first();
+    // isVisible() ignores its timeout option and returns immediately — must use waitFor
+    const found = await el.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    return found ? el : null;
+  });
+
+  if (!card) {
+    return test.step('No existing test trip found', async () => null);
   }
-  // Fall back: any /trip-planner/<uuid> link
-  const tripLink = page.locator('a[href*="/trip-planner/"]').first();
-  if (await tripLink.isVisible({ timeout: 2_000 }).catch(() => false)) {
-    return tripLink.getAttribute('href');
-  }
-  return null;
+
+  return test.step('Existing test trip found, reusing it', async () => {
+    await card.click();
+    await page.waitForURL(/\/trip-planner\/.+/, { timeout: 10_000 });
+    return page.url();
+  });
 }
 
 /** Creates a minimal test trip and returns its URL. Used when no existing trip is found. */

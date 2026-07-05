@@ -49,12 +49,12 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
   const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
   return (
-    <article className={`rounded-xl overflow-hidden border ${cardBg}`}>
-      <div className="flex flex-col md:flex-row">
+    <article data-testid="hotel-card" className={`rounded-xl overflow-hidden border ${cardBg} md:h-44`}>
+      <div className="flex flex-col md:flex-row h-full">
 
-        {/* Photo */}
+        {/* Photo — square crop, fixed size so all cards match */}
         <div
-          className={`relative md:w-44 shrink-0 ${onOpenDetail ? 'cursor-pointer' : ''}`}
+          className={`relative w-full aspect-square md:aspect-auto md:w-44 md:h-full shrink-0 ${onOpenDetail ? 'cursor-pointer' : ''}`}
           onClick={() => onOpenDetail?.(searchResult)}
           role={onOpenDetail ? 'button' : undefined}
           tabIndex={onOpenDetail ? 0 : undefined}
@@ -65,19 +65,19 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
             <img
               src={firstPhoto}
               alt={name}
-              className="w-full h-52 md:h-full object-cover"
+              className="w-full h-full object-cover"
             />
           ) : (
-            <div className={`w-full h-52 md:h-full flex items-center justify-center text-4xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>
+            <div className={`w-full h-full flex items-center justify-center text-4xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>
               🏨
             </div>
           )}
         </div>
 
         {/* Info */}
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           {/* Card body */}
-          <div className="flex-1 p-5">
+          <div className="flex-1 p-5 overflow-hidden">
             <div className="flex justify-between items-start gap-4">
 
               {/* Left: stars · name · address · rating */}
@@ -100,7 +100,7 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
 
                 {/* Hotel name */}
                 <h3
-                  className={`text-xl font-extrabold leading-tight tracking-tight mb-1 ${textPrimary} ${onOpenDetail ? 'cursor-pointer hover:underline underline-offset-2' : ''}`}
+                  className={`text-xl font-extrabold leading-tight tracking-tight mb-1 truncate ${textPrimary} ${onOpenDetail ? 'cursor-pointer hover:underline underline-offset-2' : ''}`}
                   onClick={() => onOpenDetail?.(searchResult)}
                 >
                   {name}
@@ -108,7 +108,7 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
 
                 {/* Address + nights */}
                 {location && (
-                  <p className={`text-sm mb-2.5 ${textMuted}`}>
+                  <p className={`text-sm mb-2.5 truncate ${textMuted}`}>
                     {location} · {nights} night{nights !== 1 ? 's' : ''}
                   </p>
                 )}
