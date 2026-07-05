@@ -33,6 +33,7 @@ export const offersRouter = router({
       const { data, error } = await supabase
         .from("transfer_bonuses")
         .select("*")
+        .in("status", ["approved", "admin"])
         .order("bonus_pct", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
@@ -51,6 +52,7 @@ export const offersRouter = router({
       const { data, error } = await supabase
         .from("spending_bonuses")
         .select("*")
+        .in("status", ["approved", "admin"])
         .order("bonus_multiplier", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });

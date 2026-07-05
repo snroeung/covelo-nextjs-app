@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
-import { AdminOffersTable } from '@/components/offers/admin/AdminOffersTable';
+import { AdminOffersTable, isExpired } from '@/components/offers/admin/AdminOffersTable';
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';
 import { AdminOfferEditor } from '@/components/offers/admin/AdminOfferEditor';
@@ -12,7 +12,7 @@ import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, OfferStatus, TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Tab = 'offers' | 'ads';
-type OfferFilter = OfferStatus | 'all';
+type OfferFilter = OfferStatus | 'all' | 'expired';
 type AdStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
 
 const OFFER_TABS: { key: OfferFilter; label: string }[] = [
@@ -21,6 +21,7 @@ const OFFER_TABS: { key: OfferFilter; label: string }[] = [
   { key: 'approved', label: 'Approved' },
   { key: 'admin',    label: 'Admin' },
   { key: 'rejected', label: 'Rejected' },
+  { key: 'expired', label: 'Expired' },
 ];
 
 const AD_STATUS_TABS: { key: AdStatusFilter; label: string }[] = [
@@ -169,10 +170,10 @@ export function OffersAdminShell() {
             {/* Offer filter tabs */}
             <div className="flex items-center gap-1 flex-wrap">
               {OFFER_TABS.map((t) => {
-                const count = t.key === 'all'
-                  ? (offersData?.transferBonuses.length ?? 0) + (offersData?.spendingBonuses.length ?? 0)
-                  : (offersData?.transferBonuses.filter((o) => o.status === t.key).length ?? 0)
-                    + (offersData?.spendingBonuses.filter((o) => o.status === t.key).length ?? 0);
+                const match = (o: { status: OfferStatus; end_date: string | null }) =>
+                  t.key === 'all' ? true : t.key === 'expired' ? isExpired(o) : o.status === t.key;
+                const count = (offersData?.transferBonuses.filter(match).length ?? 0)
+                  + (offersData?.spendingBonuses.filter(match).length ?? 0);
                 return (
                   <button key={t.key} onClick={() => setOfferFilter(t.key)} className={filterTabCls(offerFilter === t.key)}>
                     {t.label}

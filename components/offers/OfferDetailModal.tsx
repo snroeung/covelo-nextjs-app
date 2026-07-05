@@ -108,6 +108,8 @@ export function OfferDetailModal(props: Props) {
 
       {/* Panel */}
       <div
+        role="dialog"
+        aria-modal="true"
         className={`relative w-full max-w-md rounded-2xl overflow-hidden shadow-2xl ${body}`}
         onClick={(e) => e.stopPropagation()}
       >

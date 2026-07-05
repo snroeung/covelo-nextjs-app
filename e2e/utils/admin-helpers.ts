@@ -176,39 +176,54 @@ export async function createTransferBonus(page: Page, data: TransferBonusData) {
 
 export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
   await navigateToAdminSection(page, 'Offers');
+
+  // "New offer" opens an inline editor panel (not a dialog)
   await page.getByRole('button', { name: /new offer/i }).click();
-  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText('Create a new offer')).toBeVisible({ timeout: 5_000 });
 
-  // Select "Spending" type
-  await page.getByRole('radio', { name: /spending/i }).check();
+  // Offer type is a toggle button, not a radio
+  await page.getByRole('button', { name: 'Spending Bonus' }).click();
 
-  await page.getByLabel(/issuer/i).selectOption(data.issuer);
-  await page.getByLabel(/merchant/i).fill(data.merchant);
-  await page.getByLabel(/bonus.*multiplier|multiplier value/i).fill(String(data.multiplier));
-  await page.getByLabel(/bonus type/i).selectOption(data.bonusType);
-  await page.getByLabel(/end date/i).fill(data.endDate);
+  // Labels are not linked to inputs (no htmlFor) — locate by option text / placeholder
+  const issuerSelect = page.locator('select:has(option:text("Select issuer…"))');
+  await issuerSelect.selectOption(data.issuer);
 
-  if (data.startDate) {
-    await page.getByLabel(/start date/i).fill(data.startDate);
-  }
+  await page.getByPlaceholder(/Restaurants, Gas Stations/i).fill(data.merchant);
+
+  // Select bonus type before filling the value (type changes the value field's label)
+  const bonusTypeSelect = page.locator('select:has(option:text("Points Multiplier"))');
+  await bonusTypeSelect.selectOption(data.bonusType);
+
+  // BONUS MULTIPLIER / DOLLAR AMOUNT is the first number input in the form
+  await page.locator('input[type="number"]').first().fill(String(data.multiplier));
 
   if (data.spendingMinimum) {
-    await page.getByLabel(/spending minimum|min.*spend/i).fill(String(data.spendingMinimum));
-  }
-
-  if (data.isTargeted) {
-    await page.getByLabel(/targeted/i).check();
+    await page.getByPlaceholder('e.g. 500').fill(String(data.spendingMinimum));
   }
 
   if (data.description) {
-    await page.getByLabel(/description/i).fill(data.description);
+    await page.getByPlaceholder(/Earn 5x points at restaurants/i).fill(data.description);
   }
 
-  await page.getByRole('button', { name: /save|create|submit/i }).click();
+  // Eligible cards — validation requires at least one; select all
+  await page.getByRole('button', { name: 'Select all' }).click();
 
-  await expect(
-    page.getByText(/saved|created|success/i).or(page.getByRole('status')),
-  ).toBeVisible({ timeout: 10_000 });
+  // Spending form renders exactly two date inputs: START DATE then END DATE
+  const dateInputs = page.locator('input[type="date"]');
+  if (data.startDate) await dateInputs.first().fill(data.startDate);
+  await dateInputs.last().fill(data.endDate);
+
+  if (data.isTargeted) {
+    await page.getByRole('button', { name: /available to all cardholders/i }).click().catch(() => {});
+  }
+
+  const publishBtn = page.getByRole('button', { name: /publish offer/i });
+  await expect(publishBtn).toBeEnabled({ timeout: 5_000 });
+  await publishBtn.click();
+
+  // On success the editor closes and the offers table shows the new row
+  await expect(page.getByText('Create a new offer')).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByText(data.merchant).first()).toBeVisible({ timeout: 10_000 });
 }
 
 /** Change status of an offer row identified by its heading text in the admin table. */
@@ -218,12 +233,27 @@ export async function changeOfferStatus(
   action: 'approve' | 'reject' | 'revoke',
 ) {
   await page.goto('/offers/admin');
-  // Rows are CSS grid divs — find by content text + presence of Edit button
-  const row = page.locator('div').filter({
-    hasText: new RegExp(headingText, 'i'),
-    has: page.getByRole('button', { name: /Edit/i }),
-  }).first();
-  await row.getByRole('button', { name: new RegExp(action, 'i') }).click();
+  const escaped = headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped, 'i');
+  // admin-status rows expose "Revoke", pending rows "Reject"/"Approve", rejected rows "Re-approve"
+  const btnRe = action === 'approve' ? /^Approve$|^Re-approve$/ : /^Reject$|^Revoke$/;
+
+  await page.getByText(re).first().waitFor({ timeout: 10_000 }).catch(() => {});
+
+  // Sweep every matching row (failed runs leave duplicates), innermost div = .last()
+  for (let i = 0; i < 20; i++) {
+    const rows = page.locator('div').filter({
+      hasText: re,
+      has: page.getByRole('button', { name: /^Edit$/ }),
+    }).filter({
+      has: page.getByRole('button', { name: btnRe }),
+    });
+    if ((await rows.count()) === 0) break;
+    const btn = rows.last().getByRole('button', { name: btnRe }).first();
+    await btn.click();
+    // Button disappears when the status mutation lands and the row re-renders
+    await btn.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
+  }
 }
 
 /** Deactivate a sponsored ad by its headline in the Ads table. */

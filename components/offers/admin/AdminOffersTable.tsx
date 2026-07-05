@@ -31,10 +31,14 @@ function StatusPill({ status }: { status: OfferStatus }) {
   );
 }
 
+export function isExpired(o: { end_date: string | null }) {
+  return !!o.end_date && o.end_date < new Date().toISOString().split('T')[0];
+}
+
 interface Props {
   transferBonuses: TransferBonus[];
   spendingBonuses: SpendingBonus[];
-  filter: OfferStatus | 'all';
+  filter: OfferStatus | 'all' | 'expired';
   isDark: boolean;
   onEdit: (offer: AnyOffer) => void;
 }
@@ -58,7 +62,10 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
   const allOffers: AnyOffer[] = [
     ...transferBonuses.map((o) => ({ ...o, _type: 'transfer' as const })),
     ...spendingBonuses.map((o) => ({ ...o, _type: 'spending' as const })),
-  ].filter((o) => filter === 'all' || o.status === filter)
+  ].filter((o) =>
+    filter === 'all' ? true :
+    filter === 'expired' ? isExpired(o) :
+    o.status === filter)
    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
@@ -159,7 +166,7 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
                   </button>
                 </>
               )}
-              {offer.status === 'approved' && (
+              {(offer.status === 'approved' || offer.status === 'admin') && (
                 <button
                   disabled={isPending}
                   onClick={() => updateStatus({ id: offer.id, table, status: 'rejected' })}

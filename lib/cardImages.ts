@@ -1,3 +1,6 @@
+// SINGLE SOURCE OF TRUTH for card art. Never import from @/assets/cards/*
+// anywhere else — asset renames/format migrations must only touch this file.
+// Consumers render a placeholder when a CardId is absent from the map.
 import type { StaticImageData } from 'next/image';
 import type { CardId } from '@/lib/points/types';
 

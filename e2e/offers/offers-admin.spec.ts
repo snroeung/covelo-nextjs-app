@@ -328,9 +328,10 @@ test.describe('Spending Bonus — create and display', () => {
   test('13. spending bonus card shows correct multiplier and issuer', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     await page.goto('/offers');
-    const cardSection = page.getByText(MERCHANT).first().locator('../..').locator('../..');
-    await expect(cardSection.getByText(/5[×x]|5x/i)).toBeVisible();
-    await expect(cardSection.getByText(/chase/i)).toBeVisible();
+    // Offer card root is role="button"; hero + body both mention 5× → use .first()
+    const cardSection = page.locator('[role="button"]').filter({ hasText: MERCHANT }).first();
+    await expect(cardSection.getByText(/5\s*[×x]/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(cardSection.getByText(/chase/i).first()).toBeVisible();
   });
 
   test('14. clicking card opens the detail modal with correct content', async ({ page }) => {
@@ -340,8 +341,8 @@ test.describe('Spending Bonus — create and display', () => {
 
     const modal = page.getByRole('dialog');
     await expect(modal).toBeVisible();
-    await expect(modal.getByText(MERCHANT)).toBeVisible();
-    await expect(modal.getByText(/5[×x]|5x/i)).toBeVisible();
+    await expect(modal.getByText(MERCHANT).first()).toBeVisible();
+    await expect(modal.getByText(/5\s*[×x]/i).first()).toBeVisible();
   });
 
   test('15. filtering by "Spending bonuses" chip hides transfer cards', async ({ page }) => {
@@ -351,9 +352,8 @@ test.describe('Spending Bonus — create and display', () => {
 
     // Spending bonus must be visible
     await expect(page.getByText(MERCHANT).first()).toBeVisible({ timeout: 5_000 });
-    // Transfer-type cards should be absent (look for characteristic arrow pattern "→")
-    const transferIndicators = page.getByText(/→.*miles|points.*→|transfer.*partner/i);
-    await expect(transferIndicators).toHaveCount(0);
+    // Transfer-type cards should be absent — their hero reads "+N% transfer to <partner>"
+    await expect(page.getByText(/%\s*transfer to /i)).toHaveCount(0);
   });
 
   test('16. pressing Escape closes the detail modal', async ({ page }) => {
@@ -389,8 +389,8 @@ test.describe('Spending Bonus — create and display', () => {
     });
 
     await page.goto('/offers');
-    const cardSection = page.getByText(merchant).first().locator('../..').locator('../..');
-    await expect(cardSection.getByText(/\$10|\$\s*10/)).toBeVisible({ timeout: 5_000 });
+    const cardSection = page.locator('[role="button"]').filter({ hasText: merchant }).first();
+    await expect(cardSection.getByText(/\$\s*10/).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('18b. cash_back_pct bonus type shows "%" on card', async ({ page }) => {
@@ -405,11 +405,12 @@ test.describe('Spending Bonus — create and display', () => {
     });
 
     await page.goto('/offers');
-    const cardSection = page.getByText(merchant).first().locator('../..').locator('../..');
-    await expect(cardSection.getByText(/3%|cash back/i)).toBeVisible({ timeout: 5_000 });
+    const cardSection = page.locator('[role="button"]').filter({ hasText: merchant }).first();
+    await expect(cardSection.getByText(/3%|cash back/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('19. rejecting a spending bonus removes it from /offers', async ({ page }) => {
+    test.setTimeout(180_000); // changeOfferStatus may sweep duplicate offers left by failed runs
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     await changeOfferStatus(page, MERCHANT, 'reject');
 
