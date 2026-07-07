@@ -63,6 +63,7 @@ interface TransferForm {
   is_targeted:      boolean;
   source_url:       string;
   country:          string;
+  active:           boolean;
 }
 
 interface SpendingForm {
@@ -80,6 +81,7 @@ interface SpendingForm {
   is_targeted:      boolean;
   source_url:       string;
   country:          string;
+  active:           boolean;
 }
 
 type InitialOffer =
@@ -128,6 +130,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     is_targeted:      initT?.is_targeted      ?? false,
     source_url:       initT?.source_url       ?? '',
     country:          initT?.country          ?? 'US',
+    active:           initT?.active           ?? true,
   });
 
   const [spending, setSpending] = useState<SpendingForm>({
@@ -145,6 +148,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     is_targeted:      initS?.is_targeted             ?? false,
     source_url:       initS?.source_url              ?? '',
     country:          initS?.country                 ?? 'US',
+    active:           initS?.active                  ?? true,
   });
 
   const card  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
@@ -179,11 +183,12 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       bonus_pct:        parseFloat(transfer.bonus_pct),
       description:      transfer.description || null,
       tags:             transfer.tags,
-      start_date:       transfer.start_date || null,
+      start_date:       transfer.start_date,
       end_date:         transfer.end_date,
       is_targeted:      transfer.is_targeted,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
+      active:           transfer.active,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
@@ -203,11 +208,12 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       description:      spending.description || null,
       tags:             spending.tags,
       card_ids:         spending.card_ids,
-      start_date:       spending.start_date || null,
+      start_date:       spending.start_date,
       end_date:         spending.end_date,
       is_targeted:      spending.is_targeted,
       source_url:       spending.source_url || null,
       country:          spending.country,
+      active:           spending.active,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
@@ -229,6 +235,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       is_targeted:      transfer.is_targeted,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
+      active:           transfer.active,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
@@ -254,6 +261,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       is_targeted:      spending.is_targeted,
       source_url:       spending.source_url || null,
       country:          spending.country,
+      active:           spending.active,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
@@ -304,6 +312,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     { label: 'Issuer selected',           ok: !!transfer.issuer },
     { label: 'Transfer partner selected', ok: !!transfer.transfer_partner },
     { label: 'Bonus % is positive',       ok: !isNaN(bonusPctNum) && bonusPctNum > 0 },
+    { label: 'Start date set',            ok: !!transfer.start_date },
     { label: 'End date set',              ok: !!transfer.end_date },
     { label: 'Source URL valid (if set)', ok: !transfer.source_url || /^https?:\/\/.+/.test(transfer.source_url) },
   ];
@@ -314,6 +323,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     { label: 'Merchant name filled',      ok: spending.merchant_name.trim().length > 0 },
     { label: 'Bonus value is positive',   ok: !isNaN(spendingBonusNum) && spendingBonusNum > 0 },
     { label: 'At least one card',         ok: spending.card_ids.length > 0 },
+    { label: 'Start date set',            ok: !!spending.start_date },
     { label: 'End date set',              ok: !!spending.end_date },
     { label: 'Source URL valid (if set)', ok: !spending.source_url || /^https?:\/\/.+/.test(spending.source_url) },
   ];
@@ -514,6 +524,18 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     </button>
                     <span className={`text-sm font-semibold ${ink}`}>
                       {transfer.is_targeted ? 'Targeted — not available to all cardholders' : 'Available to all cardholders'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setT('active', !transfer.active)}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${transfer.active ? 'bg-green-500' : isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${transfer.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </button>
+                    <span className={`text-sm font-semibold ${ink}`}>
+                      {transfer.active ? 'Active — visible to users' : 'Inactive — hidden from users'}
                     </span>
                   </div>
                 </div>
@@ -722,6 +744,18 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     </button>
                     <span className={`text-sm font-semibold ${ink}`}>
                       {spending.is_targeted ? 'Targeted — not available to all cardholders' : 'Available to all cardholders'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setS('active', !spending.active)}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${spending.active ? 'bg-green-500' : isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${spending.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </button>
+                    <span className={`text-sm font-semibold ${ink}`}>
+                      {spending.active ? 'Active — visible to users' : 'Inactive — hidden from users'}
                     </span>
                   </div>
                 </div>

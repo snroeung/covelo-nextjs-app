@@ -50,3 +50,6 @@ next-env.d.ts
 .next
 
 .tokensave
+.temp
+
+.playwright-cli

@@ -42,7 +42,7 @@ function OffersPageInner() {
 
   const pageBg  = isDark ? 'bg-gph-dark-bg' : 'bg-gray-100';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const heroBg  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const filterBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
 

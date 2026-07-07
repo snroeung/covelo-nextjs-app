@@ -98,7 +98,6 @@ const mockTransferBonus: TransferBonus = {
   is_targeted: false,
   source_url: 'https://example.com',
   country: 'US',
-  status: 'admin',
   submitted_by: null,
   upvotes: 0,
   active: true,
@@ -122,7 +121,6 @@ const mockSpendingBonus: SpendingBonus = {
   is_targeted: false,
   source_url: null,
   country: 'US',
-  status: 'admin',
   submitted_by: null,
   upvotes: 0,
   active: true,
@@ -327,7 +325,7 @@ describe('offers.admin.createTransferBonus()', () => {
     vi.mocked(redis.del).mockResolvedValue(1);
   });
 
-  it('14. inserts with status=admin and active=true, returns created row', async () => {
+  it('14. inserts with active=true by default, returns created row', async () => {
     const created = { ...mockTransferBonus, id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' };
     setupSupabase({ data: created, error: null });
 
@@ -335,11 +333,11 @@ describe('offers.admin.createTransferBonus()', () => {
       issuer: 'chase',
       transfer_partner: 'Hyatt',
       bonus_pct: 30,
+      start_date: '2026-01-01',
       end_date: '2026-12-31',
     });
 
     expect(result.id).toBe('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
-    expect(result.status).toBe('admin');
     expect(result.active).toBe(true);
   });
 
@@ -350,6 +348,7 @@ describe('offers.admin.createTransferBonus()', () => {
       issuer: 'chase',
       transfer_partner: 'Hyatt',
       bonus_pct: 30,
+      start_date: '2026-01-01',
       end_date: '2026-12-31',
     });
 
@@ -364,6 +363,7 @@ describe('offers.admin.createTransferBonus()', () => {
         issuer: 'chase',
         transfer_partner: 'Hyatt',
         bonus_pct: 30,
+        start_date: '2026-01-01',
         end_date: '2026-12-31',
       }),
     ).rejects.toThrow('Insert failed');
@@ -382,7 +382,7 @@ describe('offers.admin.createSpendingBonus()', () => {
     vi.mocked(redis.del).mockResolvedValue(1);
   });
 
-  it('17. inserts with status=admin and active=true', async () => {
+  it('17. inserts with active=true by default', async () => {
     const created = { ...mockSpendingBonus, id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
     setupSupabase({ data: created, error: null });
 
@@ -392,10 +392,10 @@ describe('offers.admin.createSpendingBonus()', () => {
       bonus_multiplier: 5,
       bonus_type: 'points_multiplier',
       card_ids: ['amex_platinum'],
+      start_date: '2026-01-01',
       end_date: '2026-12-31',
     });
 
-    expect(result.status).toBe('admin');
     expect(result.active).toBe(true);
   });
 
@@ -404,7 +404,7 @@ describe('offers.admin.createSpendingBonus()', () => {
 
     const result = await caller.offers.admin.createSpendingBonus({
       issuer: 'amex', merchant_name: 'Amazon', bonus_multiplier: 5,
-      bonus_type: 'points_multiplier', card_ids: [], end_date: '2026-12-31',
+      bonus_type: 'points_multiplier', card_ids: [], start_date: '2026-01-01', end_date: '2026-12-31',
     });
     expect(result.bonus_type).toBe('points_multiplier');
   });
@@ -414,7 +414,7 @@ describe('offers.admin.createSpendingBonus()', () => {
 
     const result = await caller.offers.admin.createSpendingBonus({
       issuer: 'amex', merchant_name: 'Target', bonus_multiplier: 3,
-      bonus_type: 'cash_back_pct', card_ids: [], end_date: '2026-12-31',
+      bonus_type: 'cash_back_pct', card_ids: [], start_date: '2026-01-01', end_date: '2026-12-31',
     });
     expect(result.bonus_type).toBe('cash_back_pct');
   });
@@ -424,7 +424,7 @@ describe('offers.admin.createSpendingBonus()', () => {
 
     const result = await caller.offers.admin.createSpendingBonus({
       issuer: 'chase', merchant_name: 'Uber', bonus_multiplier: 10,
-      bonus_type: 'dollar_amount', card_ids: [], end_date: '2026-12-31',
+      bonus_type: 'dollar_amount', card_ids: [], start_date: '2026-01-01', end_date: '2026-12-31',
     });
     expect(result.bonus_type).toBe('dollar_amount');
   });
@@ -434,7 +434,7 @@ describe('offers.admin.createSpendingBonus()', () => {
 
     await caller.offers.admin.createSpendingBonus({
       issuer: 'amex', merchant_name: 'Amazon', bonus_multiplier: 5,
-      bonus_type: 'points_multiplier', card_ids: ['amex_platinum'], end_date: '2026-12-31',
+      bonus_type: 'points_multiplier', card_ids: ['amex_platinum'], start_date: '2026-01-01', end_date: '2026-12-31',
     });
 
     expect(redis.del).toHaveBeenCalledWith(cacheKeys.spendingBonuses());
@@ -445,7 +445,7 @@ describe('offers.admin.createSpendingBonus()', () => {
 // admin.updateStatus()
 // ---------------------------------------------------------------------------
 
-describe('offers.admin.updateStatus()', () => {
+describe('offers.admin.updateActive()', () => {
   const caller = appRouter.createCaller({});
 
   beforeEach(() => {
@@ -453,37 +453,37 @@ describe('offers.admin.updateStatus()', () => {
     vi.mocked(redis.del).mockResolvedValue(1);
   });
 
-  it('20. updates status pending → approved', async () => {
+  it('20. deactivates an offer (active → false)', async () => {
     setupSupabase({ data: null, error: null });
 
     await expect(
-      caller.offers.admin.updateStatus({
+      caller.offers.admin.updateActive({
         id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         table: 'transfer_bonuses',
-        status: 'approved',
+        active: false,
       }),
     ).resolves.toBeUndefined();
   });
 
-  it('21. updates status approved → rejected', async () => {
+  it('21. reactivates an offer (active → true)', async () => {
     setupSupabase({ data: null, error: null });
 
     await expect(
-      caller.offers.admin.updateStatus({
+      caller.offers.admin.updateActive({
         id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         table: 'transfer_bonuses',
-        status: 'rejected',
+        active: true,
       }),
     ).resolves.toBeUndefined();
   });
 
-  it('22. invalidates both bonus caches after status change', async () => {
+  it('22. invalidates both bonus caches after an active change', async () => {
     setupSupabase({ data: null, error: null });
 
-    await caller.offers.admin.updateStatus({
+    await caller.offers.admin.updateActive({
       id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       table: 'spending_bonuses',
-      status: 'approved',
+      active: true,
     });
 
     expect(redis.del).toHaveBeenCalledWith(cacheKeys.transferBonuses());

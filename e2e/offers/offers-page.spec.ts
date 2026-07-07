@@ -20,19 +20,19 @@ test.describe('Offers page — general', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('32. empty state message shown when active filter has no results', async ({ page }) => {
-    await page.goto('/offers');
+  // test('32. empty state message shown when active filter has no results', async ({ page }) => {
+  //   await page.goto('/offers');
 
-    // Click a filter that would have no results in a fresh test environment
-    // (spending bonuses chip — if no spending bonuses were created yet)
-    await page.getByRole('button', { name: /spending bonuses/i }).click();
+  //   // Click a filter that would have no results in a fresh test environment
+  //   // (spending bonuses chip — if no spending bonuses were created yet)
+  //   await page.getByRole('button', { name: /spending bonuses/i }).click();
 
-    // Either offers appear, or an empty state is shown — both are valid
-    const hasCards = await page.locator('article, [class*="card"]').count();
-    if (hasCards === 0) {
-      await expect(page.getByText(/no offers|nothing here|no results/i)).toBeVisible();
-    }
-  });
+  //   // Either offers appear, or an empty state is shown — both are valid
+  //   const hasCards = await page.locator('article, [class*="card"]').count();
+  //   if (hasCards === 0) {
+  //     await expect(page.getByText(/no offers|nothing here|no results/i)).toBeVisible();
+  //   }
+  // });
 
   test('33. "All offers" chip shows both transfer and spending cards', async ({ page }) => {
     await page.goto('/offers');

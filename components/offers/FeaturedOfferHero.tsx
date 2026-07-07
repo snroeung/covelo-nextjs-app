@@ -7,7 +7,11 @@ const ISSUER_LABELS: Record<string, string> = {
 };
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  // Parse as local calendar date, not UTC — `new Date(iso)` on a bare
+  // YYYY-MM-DD string parses as UTC midnight, which renders as the previous
+  // day in timezones behind UTC.
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 function daysUntil(iso: string) {
@@ -54,7 +58,7 @@ export function FeaturedOfferHero({ offer, isDark }: Props) {
         <div className={`flex-1 p-6 md:p-8 border-t md:border-t-0 md:border-l ${line}`}>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-              isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+              isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600'
             }`}>
               TRANSFER BONUS
             </span>

@@ -34,7 +34,9 @@ const CROSSHATCH = `repeating-linear-gradient(
 )`;
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
+  // Parse as local calendar date, not UTC — see OfferCard.tsx formatEndDate.
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   });
 }

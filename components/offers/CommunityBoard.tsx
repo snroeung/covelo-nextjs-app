@@ -42,7 +42,7 @@ export function CommunityBoard({ isDark }: Props) {
           </div>
           <div className={`w-px h-8 ${isDark ? 'bg-gph-dark-line' : 'bg-gray-200'}`} />
           <div>
-            <div className="text-xl font-bold font-mono tabular-nums text-green-500">100%</div>
+            <div className={`text-xl font-bold font-mono tabular-nums ${isDark ? 'text-green-400' : 'text-green-700'}`}>100%</div>
             <div className={`text-[10px] font-mono font-bold tracking-widest mt-0.5 ${muted}`}>HUMAN-CHECKED</div>
           </div>
         </div>
@@ -54,8 +54,8 @@ export function CommunityBoard({ isDark }: Props) {
           {PREVIEW_THREADS.map((thread, i) => (
             <div
               key={thread.author}
-              className={`flex items-center gap-4 px-6 py-4 transition-opacity ${sub} ${
-                i === 0 ? 'opacity-100' : i === 1 ? 'opacity-50 blur-[1px]' : 'opacity-30 blur-[2px]'
+              className={`flex items-center gap-4 px-6 py-4 ${sub} ${
+                i === 0 ? '' : i === 1 ? 'blur-[1px]' : 'blur-[2px]'
               }`}
               aria-hidden={i > 0}
             >

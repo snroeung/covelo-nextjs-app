@@ -139,39 +139,46 @@ export async function createSponsoredAd(page: Page, data: SponsoredAdData) {
 
 export async function createTransferBonus(page: Page, data: TransferBonusData) {
   await navigateToAdminSection(page, 'Offers');
+
+  // "New offer" opens an inline editor panel (not a dialog)
   await page.getByRole('button', { name: /new offer/i }).click();
-  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText('Create a new offer')).toBeVisible({ timeout: 5_000 });
 
-  // Select "Transfer" type if there's a toggle
-  await page.getByRole('radio', { name: /transfer/i }).check();
+  // Offer type is a toggle button, not a radio — Transfer Bonus is the default
+  await page.getByRole('button', { name: 'Transfer Bonus', exact: true }).click();
 
-  // Issuer selector
-  await page.getByLabel(/issuer/i).selectOption(data.issuer);
+  // Labels are not linked to inputs (no htmlFor) — locate by option text
+  const issuerSelect = page.locator('select:has(option:text("Select issuer…"))');
+  await issuerSelect.selectOption(data.issuer);
 
-  // Transfer partner — may be a dropdown or text input
-  const partnerField = page.getByLabel(/transfer partner|partner program/i);
-  await partnerField.fill(data.partner);
+  // Transfer partner is a dropdown of real programs from TRANSFER_PARTNERS,
+  // populated once an issuer is chosen — value is the program name itself
+  const partnerSelect = page.locator('select:has(option:text("Select partner…"))');
+  await expect(partnerSelect).toBeEnabled({ timeout: 3_000 });
+  await partnerSelect.selectOption(data.partner);
 
-  await page.getByLabel(/bonus.*(percent|%|pct)/i).fill(String(data.bonusPct));
-  await page.getByLabel(/end date/i).fill(data.endDate);
+  await page.locator('input[type="number"]').first().fill(String(data.bonusPct));
 
-  if (data.startDate) {
-    await page.getByLabel(/start date/i).fill(data.startDate);
-  }
+  const dateInputs = page.locator('input[type="date"]');
+  if (data.startDate) await dateInputs.first().fill(data.startDate);
+  await dateInputs.last().fill(data.endDate);
 
   if (data.isTargeted) {
-    await page.getByLabel(/targeted/i).check();
+    const targetedRow = page.locator('div').filter({ hasText: /available to all cardholders|not available to all cardholders/i }).last();
+    await targetedRow.getByRole('button').click();
   }
 
   if (data.description) {
-    await page.getByLabel(/description/i).fill(data.description);
+    await page.locator('textarea').fill(data.description);
   }
 
-  await page.getByRole('button', { name: /save|create|submit/i }).click();
+  const publishBtn = page.getByRole('button', { name: /publish offer/i });
+  await expect(publishBtn).toBeEnabled({ timeout: 5_000 });
+  await publishBtn.click();
 
-  await expect(
-    page.getByText(/saved|created|success/i).or(page.getByRole('status')),
-  ).toBeVisible({ timeout: 10_000 });
+  // On success the editor closes and the offers table shows the new row
+  await expect(page.getByText('Create a new offer')).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByText(data.partner).first()).toBeVisible({ timeout: 10_000 });
 }
 
 export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
@@ -226,33 +233,33 @@ export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
   await expect(page.getByText(data.merchant).first()).toBeVisible({ timeout: 10_000 });
 }
 
-/** Change status of an offer row identified by its heading text in the admin table. */
-export async function changeOfferStatus(
-  page: Page,
-  headingText: string,
-  action: 'approve' | 'reject' | 'revoke',
-) {
+/** Set the active/inactive state of an offer row identified by its heading text in the admin table. */
+export async function setOfferActive(page: Page, headingText: string, active: boolean) {
   await page.goto('/offers/admin');
   const escaped = headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(escaped, 'i');
-  // admin-status rows expose "Revoke", pending rows "Reject"/"Approve", rejected rows "Re-approve"
-  const btnRe = action === 'approve' ? /^Approve$|^Re-approve$/ : /^Reject$|^Revoke$/;
+  const btnRe = active ? /^Reactivate$/ : /^Deactivate$/;
+
+  // Each offer renders as one `div.grid` row (key={offer.id}); scoping to the row
+  // avoids matching ancestor wrapper divs, so this is exactly one toggle button per
+  // matching offer — no nesting inflation.
+  const buttons = () =>
+    page.locator('div.grid').filter({ hasText: re }).getByRole('button', { name: btnRe });
 
   await page.getByText(re).first().waitFor({ timeout: 10_000 }).catch(() => {});
 
-  // Sweep every matching row (failed runs leave duplicates), innermost div = .last()
+  // Sweep every matching row (failed runs leave duplicates). Clicking toggles the
+  // offer, but React reuses the button node and just flips its label
+  // (Reactivate ⇄ Deactivate), so waiting for the node to "hide" never fires. Wait
+  // for the matching-button count to drop instead — that's the true settle signal.
   for (let i = 0; i < 20; i++) {
-    const rows = page.locator('div').filter({
-      hasText: re,
-      has: page.getByRole('button', { name: /^Edit$/ }),
-    }).filter({
-      has: page.getByRole('button', { name: btnRe }),
-    });
-    if ((await rows.count()) === 0) break;
-    const btn = rows.last().getByRole('button', { name: btnRe }).first();
-    await btn.click();
-    // Button disappears when the status mutation lands and the row re-renders
-    await btn.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
+    const before = await buttons().count();
+    if (before === 0) break;
+    if (!active) page.once('dialog', (dialog) => dialog.accept()); // Deactivate triggers window.confirm
+    await buttons().last().click();
+    await expect
+      .poll(() => buttons().count(), { timeout: 15_000, intervals: [150, 250, 400, 700, 1000] })
+      .toBeLessThan(before);
   }
 }
 

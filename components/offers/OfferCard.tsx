@@ -35,7 +35,11 @@ const CROSSHATCH = `repeating-linear-gradient(
 )`;
 
 function formatEndDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
+  // Parse as local calendar date, not UTC — `new Date(iso)` on a bare
+  // YYYY-MM-DD string parses as UTC midnight, which renders as the previous
+  // day in timezones behind UTC.
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   }).toUpperCase();
 }

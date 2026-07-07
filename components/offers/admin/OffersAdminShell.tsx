@@ -3,25 +3,24 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
-import { AdminOffersTable, isExpired } from '@/components/offers/admin/AdminOffersTable';
+import { AdminOffersTable, offerStatus, type OfferStatusFilter } from '@/components/offers/admin/AdminOffersTable';
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';
 import { AdminOfferEditor } from '@/components/offers/admin/AdminOfferEditor';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
-import type { SponsoredAd, OfferStatus, TransferBonus, SpendingBonus } from '@/lib/types/offers';
+import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Tab = 'offers' | 'ads';
-type OfferFilter = OfferStatus | 'all' | 'expired';
+type OfferFilter = OfferStatusFilter;
 type AdStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
 
 const OFFER_TABS: { key: OfferFilter; label: string }[] = [
-  { key: 'all',      label: 'All' },
-  { key: 'pending',  label: 'Pending' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'admin',    label: 'Admin' },
-  { key: 'rejected', label: 'Rejected' },
-  { key: 'expired', label: 'Expired' },
+  { key: 'all',       label: 'All' },
+  { key: 'live',      label: 'Live' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'expired',   label: 'Expired' },
+  { key: 'paused',    label: 'Paused' },
 ];
 
 const AD_STATUS_TABS: { key: AdStatusFilter; label: string }[] = [
@@ -70,9 +69,6 @@ export function OffersAdminShell() {
     return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-700'}`;
   }
 
-  const pendingCount = (offersData?.transferBonuses ?? []).filter((o) => o.status === 'pending').length
-    + (offersData?.spendingBonuses ?? []).filter((o) => o.status === 'pending').length;
-
   const liveAdsCount = adsData.filter((a) => adStatus(a) === 'live').length;
   const filteredAds = adFilter === 'all' ? adsData : adsData.filter((a) => adStatus(a) === adFilter);
 
@@ -97,7 +93,6 @@ export function OffersAdminShell() {
             </h1>
             <p className={`text-sm mt-1 ${muted}`}>
               {(offersData?.transferBonuses.length ?? 0) + (offersData?.spendingBonuses.length ?? 0)} total ·{' '}
-              {pendingCount > 0 && <span className="text-amber-500 font-semibold">{pendingCount} pending review · </span>}
               {liveAdsCount} ads live
             </p>
           </div>
@@ -137,11 +132,6 @@ export function OffersAdminShell() {
         <div className="max-w-6xl mx-auto flex items-center gap-1">
           <button onClick={() => setTab('offers')} className={navTabCls(tab === 'offers')}>
             Offers
-            {pendingCount > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
-                {pendingCount}
-              </span>
-            )}
           </button>
           <button onClick={() => setTab('ads')} className={navTabCls(tab === 'ads')}>
             Sponsored ads
@@ -170,8 +160,8 @@ export function OffersAdminShell() {
             {/* Offer filter tabs */}
             <div className="flex items-center gap-1 flex-wrap">
               {OFFER_TABS.map((t) => {
-                const match = (o: { status: OfferStatus; end_date: string | null }) =>
-                  t.key === 'all' ? true : t.key === 'expired' ? isExpired(o) : o.status === t.key;
+                const match = (o: { active: boolean; start_date: string | null; end_date: string | null }) =>
+                  t.key === 'all' ? true : offerStatus(o) === t.key;
                 const count = (offersData?.transferBonuses.filter(match).length ?? 0)
                   + (offersData?.spendingBonuses.filter(match).length ?? 0);
                 return (
@@ -197,7 +187,7 @@ export function OffersAdminShell() {
               </svg>
               <span>
                 <span className="font-bold">User-submitted offer review is coming soon.</span>
-                {' '}All current offers are admin-curated. Once community submissions launch, pending offers will appear here for moderation.
+                {' '}All current offers are admin-curated.
               </span>
             </div>
 

@@ -33,7 +33,7 @@ export const offersRouter = router({
       const { data, error } = await supabase
         .from("transfer_bonuses")
         .select("*")
-        .in("status", ["approved", "admin"])
+        .eq("active", true)
         .order("bonus_pct", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
@@ -52,7 +52,7 @@ export const offersRouter = router({
       const { data, error } = await supabase
         .from("spending_bonuses")
         .select("*")
-        .in("status", ["approved", "admin"])
+        .eq("active", true)
         .order("bonus_multiplier", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
@@ -137,6 +137,7 @@ export const offersRouter = router({
         is_targeted:      z.boolean().optional(),
         source_url:       z.string().nullable().optional(),
         country:          z.string().min(1).optional(),
+        active:           z.boolean().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...fields } = input;
@@ -170,6 +171,7 @@ export const offersRouter = router({
         is_targeted:      z.boolean().optional(),
         source_url:       z.string().nullable().optional(),
         country:          z.string().min(1).optional(),
+        active:           z.boolean().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...fields } = input;
@@ -186,17 +188,17 @@ export const offersRouter = router({
         return data as SpendingBonus;
       }),
 
-    updateStatus: adminProcedure("api:offers")
+    updateActive: adminProcedure("api:offers")
       .input(z.object({
         id:     z.string().uuid(),
         table:  z.enum(["transfer_bonuses", "spending_bonuses"]),
-        status: z.enum(["admin", "pending", "approved", "rejected"]),
+        active: z.boolean(),
       }))
       .mutation(async ({ input }) => {
         const supabase = await createClient();
         const { error } = await supabase
           .from(input.table)
-          .update({ status: input.status })
+          .update({ active: input.active })
           .eq("id", input.id);
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
@@ -210,19 +212,20 @@ export const offersRouter = router({
         issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
         transfer_partner: z.string().min(1),
         bonus_pct:        z.number().positive(),
-        start_date:       z.string().nullable().optional(),
+        start_date:       z.string().min(1),
         description:      z.string().nullable().optional(),
         tags:             z.array(z.string()).default([]),
         end_date:         z.string().min(1),
         is_targeted:      z.boolean().default(false),
         source_url:       z.string().nullable().optional(),
         country:          z.string().min(1).default('US'),
+        active:           z.boolean().default(true),
       }))
       .mutation(async ({ input }) => {
         const supabase = await createClient();
         const { data, error } = await supabase
           .from("transfer_bonuses")
-          .insert({ ...input, status: "admin", active: true })
+          .insert(input)
           .select()
           .single();
 
@@ -242,17 +245,18 @@ export const offersRouter = router({
         description:      z.string().nullable().optional(),
         tags:             z.array(z.string()).default([]),
         card_ids:         z.array(z.string()),
-        start_date:       z.string().nullable().optional(),
+        start_date:       z.string().min(1),
         end_date:         z.string().min(1),
         is_targeted:      z.boolean().default(false),
         source_url:       z.string().nullable().optional(),
         country:          z.string().min(1).default('US'),
+        active:           z.boolean().default(true),
       }))
       .mutation(async ({ input }) => {
         const supabase = await createClient();
         const { data, error } = await supabase
           .from("spending_bonuses")
-          .insert({ ...input, status: "admin", active: true })
+          .insert(input)
           .select()
           .single();
 
