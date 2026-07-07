@@ -4,9 +4,9 @@ import { useState } from 'react';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { OfferDetailModal } from '@/components/offers/OfferDetailModal';
 
-const ISSUER_LABELS: Record<string, string> = {
+export const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase',
-  amex:  'Amex',
+  amex:  'American Express',
   c1:    'Capital One',
   bilt:  'Bilt',
   citi:  'Citi',

@@ -11,10 +11,12 @@ import { CommunityBoard } from '@/components/offers/CommunityBoard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { OfferCategory } from '@/components/offers/OfferCategoryChips';
+import type { Issuer } from '@/lib/types/offers';
 
 function OffersPageInner() {
   const { isDark } = useTheme();
   const [filter, setFilter] = useState<OfferCategory>('all');
+  const [issuer, setIssuer] = useState<Issuer | 'all'>('all');
 
   const { data: transferBonuses = [], isLoading: loadingTransfer } = useQuery({
     queryKey: ['offers.transferBonuses'],
@@ -36,9 +38,20 @@ function OffersPageInner() {
     : null;
 
   // Everything except the featured offer goes in the grid
-  const gridTransfer = featuredOffer
+  const gridTransferAll = featuredOffer
     ? transferBonuses.filter((o) => o.id !== featuredOffer.id)
     : transferBonuses;
+
+  // Issuers present across all offers → dropdown options
+  const availableIssuers = Array.from(
+    new Set([...transferBonuses, ...spendingBonuses].map((o) => o.issuer))
+  );
+
+  const byIssuer = <T extends { issuer: Issuer }>(list: T[]) =>
+    issuer === 'all' ? list : list.filter((o) => o.issuer === issuer);
+
+  const gridTransfer = byIssuer(gridTransferAll);
+  const gridSpending = byIssuer(spendingBonuses);
 
   const pageBg  = isDark ? 'bg-gph-dark-bg' : 'bg-gray-100';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -89,7 +102,14 @@ function OffersPageInner() {
         {/* Category filter bar */}
         <div className={`px-4 md:px-8 py-3 border-b sticky top-0 z-10 ${filterBg}`}>
           <div className="max-w-5xl mx-auto">
-            <OfferCategoryChips selected={filter} onChange={setFilter} isDark={isDark} />
+            <OfferCategoryChips
+              selected={filter}
+              onChange={setFilter}
+              issuer={issuer}
+              onIssuerChange={setIssuer}
+              availableIssuers={availableIssuers}
+              isDark={isDark}
+            />
           </div>
         </div>
 
@@ -124,15 +144,15 @@ function OffersPageInner() {
                   <h2 className={`text-xl font-bold tracking-tight ${ink}`}>
                     All offers
                     <span className={`ml-2 text-sm font-mono font-normal ${muted}`}>
-                      {(filter === 'all' ? gridTransfer.length + spendingBonuses.length
+                      {(filter === 'all' ? gridTransfer.length + gridSpending.length
                         : filter === 'transfer' ? gridTransfer.length
-                        : spendingBonuses.length)}
+                        : gridSpending.length)}
                     </span>
                   </h2>
                 </div>
                 <OffersGrid
                   transferBonuses={filter === 'all' || filter === 'transfer' ? gridTransfer : []}
-                  spendingBonuses={filter === 'all' || filter === 'spending' ? spendingBonuses : []}
+                  spendingBonuses={filter === 'all' || filter === 'spending' ? gridSpending : []}
                   filter={filter}
                   isDark={isDark}
                 />
