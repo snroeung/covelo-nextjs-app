@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
+import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { NavBar } from '@/components/NavBar';
 import { useTrips } from '@/hooks/useTrips';
 import { useBookmarks } from '@/hooks/useBookmarks';
@@ -961,6 +962,11 @@ export default function TripDetailPage() {
             }`}>Connect cards →</button>
           </div>
 
+          {/* Post-booking card suggestion */}
+          <div>
+          <AffiliateAdSpot slot="trip_strip" isDark={isDark} />
+          </div>
+
           {/* Map */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
@@ -1062,23 +1068,6 @@ export default function TripDetailPage() {
               })}
             </div>
             <p className={`text-[9px] font-mono text-center mt-2 ${muted}`}>Weather integration coming soon</p>
-          </div>
-
-          {/* Cards in play — placeholder */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <p className={`text-[10px] font-mono font-bold uppercase tracking-widest ${muted}`}>Cards in play</p>
-              <Link href="/" className={`text-[10px] font-mono font-bold tracking-[0.06em] ${ink}`}>Manage →</Link>
-            </div>
-            <div className={`rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-6 gap-2 ${borderCls}`}>
-              <svg className="w-6 h-6 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-              </svg>
-              <p className={`text-xs text-center ${muted}`}>Connect your cards to see points across Chase, Amex, Capital One & more.</p>
-              <Link href="/" className={`text-[10px] font-mono font-bold uppercase tracking-widest px-3 py-1.5 rounded-md transition-colors ${
-                isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-              }`}>Add cards</Link>
-            </div>
           </div>
         </aside>
       </div>

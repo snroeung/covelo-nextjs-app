@@ -1,15 +1,16 @@
+import { vi, beforeEach, describe, it, expect } from 'vitest';
 import { appRouter } from "@/server/routers/_app";
 
-jest.mock("@/lib/duffel", () => ({
+vi.mock("@/lib/duffel", () => ({
   duffel: {
     offerRequests: {
-      create: jest.fn(),
+      create: vi.fn(),
     },
   },
 }));
 
 // Enable all flags relevant to flights so unit tests are not coupled to flag config
-jest.mock("@/lib/feature-flags", () => ({
+vi.mock("@/lib/feature-flags", () => ({
   isEnabled: () => true,
 }));
 
@@ -45,7 +46,7 @@ describe("flights.searchOffers", () => {
   const caller = appRouter.createCaller({});
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it("returns an offer request for a one-way flight search", async () => {

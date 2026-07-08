@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
@@ -12,6 +12,7 @@ import { HotelMap } from '@/components/HotelMap';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
+import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 
 
 const STAR_OPTIONS: { label: string; value: number | null }[] = [
@@ -470,8 +471,18 @@ function HotelsPageInner() {
       ) : accommodations.length > 0 ? (
         <div className="space-y-4">
           {resultsHeader}
-          {accommodations.map((sr) => (
-            <HotelCard key={sr.id} searchResult={sr} onOpenDetail={setDetailResult} />
+          {accommodations.map((sr, i) => (
+            <Fragment key={sr.id}>
+              <HotelCard searchResult={sr} onOpenDetail={setDetailResult} />
+              {i === 1 && accommodations.length >= 3 && (
+                <AffiliateAdSpot
+                  slot="hotels_inline"
+                  variant="inline_banner"
+                  isDark={isDark}
+                  context={{ city: destPlace?.name }}
+                />
+              )}
+            </Fragment>
           ))}
         </div>
       ) : hotelSearch.isSuccess ? (

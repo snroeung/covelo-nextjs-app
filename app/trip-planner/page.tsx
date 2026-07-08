@@ -256,6 +256,7 @@ function TripRailCard({
 
   return (
     <div
+      data-testid="trip-rail-card"
       className={`flex items-stretch rounded-xl border shrink-0 w-72 cursor-pointer group transition-colors overflow-hidden ${cardBg}`}
       onClick={() => router.push(`/trip-planner/${trip.id}`)}
     >
@@ -719,6 +720,14 @@ export default function TripPlannerPage() {
                       </p>
                     </div>
                   )}
+                  <div
+                    className="mt-4 text-[10px]"
+                    style={{ color: mutedColor }}
+                  >
+
+                  </div>
+                      
+                  
                 </>
               ) : null}
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
@@ -9,6 +9,7 @@ import { FlightCard } from '@/components/FlightCard';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
+import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 
 type TripType   = 'roundtrip' | 'oneway';
 type CabinClass = 'economy' | 'premium_economy' | 'business' | 'first';
@@ -668,8 +669,18 @@ function FlightsPageInner() {
           {offers.length === 0 ? (
             <EmptyState message="No flights match your filters. Try adjusting Refine." />
           ) : (
-            offers.slice(0, 15).map((offer) => (
-              <FlightCard key={offer.id} offer={offer} />
+            offers.slice(0, 15).map((offer, i) => (
+              <Fragment key={offer.id}>
+                <FlightCard offer={offer} />
+                {i === 1 && offers.length >= 3 && (
+                  <AffiliateAdSpot
+                    slot="flights_inline"
+                    variant="inline_banner"
+                    isDark={isDark}
+                    context={{ route: [originCode, arrivalCode].filter(Boolean) }}
+                  />
+                )}
+              </Fragment>
             ))
           )}
         </div>

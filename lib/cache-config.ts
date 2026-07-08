@@ -21,6 +21,10 @@ export const cacheKeys = {
     `place:latlng:${placeId}`,
   placePhoto:       (name: string, address: string) =>
     `place:photo:ref:${name}:${address}`,
+  transferBonuses:  () =>
+    `offers:transfer-bonuses`,
+  spendingBonuses:  () =>
+    `offers:spending-bonuses`,
 } as const;
 
 // Cache entry config — one place to change a TTL
@@ -31,4 +35,6 @@ export const CACHE = {
   hotelBedsSearch:  { ttl: TTL.FIFTEEN_MINUTES },
   placeLatLng:      { ttl: TTL.THIRTY_DAYS },
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
+  transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
+  spendingBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
 } as const;

@@ -70,6 +70,55 @@ See `lib/points/transferPartners.ts` for the TODO marker.
 
 ## Testing
 
+### Unit tests (Jest)
+
 ```bash
 npm test
 ```
+
+Runs all unit tests in `__tests__/` using Jest + ts-jest. Covers the points engine, tRPC routers (offers, flights), adapters, and feature flags.
+
+### E2E tests (Playwright)
+
+#### Prerequisites
+
+1. Install Playwright browsers (one-time):
+   ```bash
+   npx playwright install
+   ```
+
+2. Add admin credentials to `.env`:
+   ```
+   PLAYWRIGHT_ADMIN_EMAIL=test_admin@covelo.app
+   PLAYWRIGHT_ADMIN_PASSWORD=your-password
+   ```
+
+3. The dev server must be running (Playwright starts it automatically via `webServer` in `playwright.config.ts`).
+
+#### Run E2E tests
+
+```bash
+# All specs (headless)
+npm run test:e2e
+
+# Interactive UI mode (recommended for development)
+npm run test:e2e:ui
+
+# Step-through debugger
+npm run test:e2e:debug
+
+# Single spec file
+npx playwright test e2e/offers-admin.spec.ts
+npx playwright test e2e/offers-page.spec.ts
+```
+
+#### E2E test structure
+
+| File | Covers |
+|---|---|
+| `e2e/auth.setup.ts` | Admin login — runs once, saves session to `e2e/.auth/admin.json` |
+| `e2e/offers-admin.spec.ts` | Create/publish/edit/deactivate sponsored ads, spending bonuses, and transfer bonuses (tests 1–29) |
+| `e2e/offers-page.spec.ts` | Offers page display, filtering, modals, accessibility, mobile layout (tests 30–38) |
+| `e2e/home.spec.ts` | Home page load and accessibility baseline |
+
+All E2E tests include `axe-core` accessibility assertions — `results.violations` must be empty.

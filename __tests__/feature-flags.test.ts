@@ -73,8 +73,7 @@ describe('isEnabled() — gating behaviour', () => {
 
   it('each UI route flag is independent', () => {
     withEnv('local', () => {
-      // ui:hotels is currently gated (enabledIn: []) — disabled everywhere
-      expect(isEnabled('ui:hotels')).toBe(false);
+      expect(isEnabled('ui:hotels')).toBe(true);
       expect(isEnabled('ui:flights')).toBe(true);
       expect(isEnabled('ui:trip-planner')).toBe(true);
     });
@@ -83,8 +82,7 @@ describe('isEnabled() — gating behaviour', () => {
   it('each tRPC router flag is independent', () => {
     withEnv('local', () => {
       expect(isEnabled('api:stays')).toBe(true);
-      // api:flights is currently gated (enabledIn: []) — disabled everywhere
-      expect(isEnabled('api:flights')).toBe(false);
+      expect(isEnabled('api:flights')).toBe(true);
       expect(isEnabled('api:places')).toBe(true);
     });
   });
@@ -97,37 +95,8 @@ describe('isEnabled() — gating behaviour', () => {
       expect(isEnabled('integration:google-places:places')).toBe(true);
       expect(isEnabled('integration:redis:stays')).toBe(true);
       expect(isEnabled('integration:redis:places')).toBe(true);
+      expect(isEnabled('integration:redis:offers')).toBe(true);
       expect(isEnabled('integration:supabase')).toBe(true);
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// isEnabled() — narrowed flag scenarios
-// ---------------------------------------------------------------------------
-
-describe('isEnabled() — narrowed flags', () => {
-  it('ui:hotels is disabled in all envs (enabledIn: [])', () => {
-    withEnv('local', () => {
-      expect(isEnabled('ui:hotels')).toBe(false);
-    });
-    withEnv('beta', () => {
-      expect(isEnabled('ui:hotels')).toBe(false);
-    });
-    withEnv('production', () => {
-      expect(isEnabled('ui:hotels')).toBe(false);
-    });
-  });
-
-  it('api:flights is disabled in all envs (enabledIn: [])', () => {
-    withEnv('local', () => {
-      expect(isEnabled('api:flights')).toBe(false);
-    });
-    withEnv('beta', () => {
-      expect(isEnabled('api:flights')).toBe(false);
-    });
-    withEnv('production', () => {
-      expect(isEnabled('api:flights')).toBe(false);
     });
   });
 });
@@ -138,27 +107,19 @@ describe('isEnabled() — narrowed flags', () => {
 
 describe('getEnabledFlags()', () => {
   const ALL_FLAGS: FlagName[] = [
-    'ui:hotels', 'ui:flights', 'ui:trip-planner',
-    'api:stays', 'api:flights', 'api:places',
+    'ui:hotels', 'ui:flights', 'ui:trip-planner', 'ui:offers', 'ui:settings',
+    'api:stays', 'api:flights', 'api:places', 'api:offers',
     'integration:duffel:flights', 'integration:duffel:stays',
     'integration:hotelbeds:stays', 'integration:google-places:places',
-    'integration:redis:stays', 'integration:redis:places',
+    'integration:redis:stays', 'integration:redis:places', 'integration:redis:offers',
     'integration:supabase',
   ];
-
-  // ui:hotels and api:flights are currently set to enabledIn: []
-  const DISABLED_FLAGS: FlagName[] = ['ui:hotels', 'api:flights'];
-  const ENABLED_FLAGS = ALL_FLAGS.filter((f) => !DISABLED_FLAGS.includes(f));
 
   it('returns only enabled flags for current config', () => {
     withEnv('local', () => {
       const enabled = getEnabledFlags();
-      expect(enabled).toHaveLength(ENABLED_FLAGS.length);
-      for (const flag of ENABLED_FLAGS) {
+      for (const flag of ALL_FLAGS) {
         expect(enabled).toContain(flag);
-      }
-      for (const flag of DISABLED_FLAGS) {
-        expect(enabled).not.toContain(flag);
       }
     });
   });
@@ -166,14 +127,16 @@ describe('getEnabledFlags()', () => {
   it('returns the same enabled set for beta', () => {
     withEnv('beta', () => {
       const enabled = getEnabledFlags();
-      expect(enabled).toHaveLength(ENABLED_FLAGS.length);
+      expect(enabled).toContain('ui:hotels');
+      expect(enabled).toContain('integration:redis:offers');
     });
   });
 
-  it('returns the same enabled set for production', () => {
+  it('ui:hotels is not enabled in production', () => {
     withEnv('production', () => {
       const enabled = getEnabledFlags();
-      expect(enabled).toHaveLength(ENABLED_FLAGS.length);
+      expect(enabled).not.toContain('ui:hotels');
+      expect(enabled).toContain('ui:flights');
     });
   });
 

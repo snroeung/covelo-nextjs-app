@@ -3,25 +3,11 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image, { type StaticImageData } from 'next/image';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { CardId } from '@/lib/points/types';
-
-import imgChaseReserve    from '@/assets/cards/card_sapphire_reserve.webp';
-import imgChasePreferred  from '@/assets/cards/chase_sapphire_preferred.jpeg';
-import imgChaseFreedom    from '@/assets/cards/chase_freedom.avif';
-import imgC1VentureX      from '@/assets/cards/capitalone_venture_x.avif';
-import imgC1Venture       from '@/assets/cards/capitalone_venture.avif';
-import imgC1Savor         from '@/assets/cards/capitalone_savor.avif';
-import imgAmexPlatinum    from '@/assets/cards/amex_platinum.avif';
-import imgAmexGold        from '@/assets/cards/amex_gold.avif';
-import imgAmexGreen       from '@/assets/cards/amex_green.avif';
-import imgBiltBlue        from '@/assets/cards/bilt_blue.webp';
-import imgBiltObsidian    from '@/assets/cards/bilt_obsidian.webp';
-import imgBiltPalladium   from '@/assets/cards/bilt_palladium.webp';
-import imgCitiPremier     from '@/assets/cards/citi_strata_premier.webp';
-import imgCitiElite       from '@/assets/cards/citi_strata_elite.png';
+import { CARD_IMAGES } from '@/lib/cardImages';
 
 type Step = 'cards' | 'username';
 
@@ -30,25 +16,33 @@ interface OnboardingCard {
   issuer: string;
   name: string;
   annualFee: number;
-  image: StaticImageData;
 }
 
 const ONBOARDING_CARDS: OnboardingCard[] = [
-  { id: 'chase_reserve',           issuer: 'Chase',       name: 'Sapphire Reserve',   annualFee: 550, image: imgChaseReserve },
-  { id: 'chase_preferred',         issuer: 'Chase',       name: 'Sapphire Preferred', annualFee: 95,  image: imgChasePreferred },
-  { id: 'chase_freedom_unlimited', issuer: 'Chase',       name: 'Freedom Unlimited',  annualFee: 0,   image: imgChaseFreedom },
-  { id: 'c1_venture_x',            issuer: 'Capital One', name: 'Venture X',          annualFee: 395, image: imgC1VentureX },
-  { id: 'c1_venture',              issuer: 'Capital One', name: 'Venture',            annualFee: 95,  image: imgC1Venture },
-  { id: 'c1_savor',                issuer: 'Capital One', name: 'Savor',              annualFee: 0,   image: imgC1Savor },
-  { id: 'amex_platinum',           issuer: 'American Express',        name: 'Platinum',           annualFee: 695, image: imgAmexPlatinum },
-  { id: 'amex_gold',               issuer: 'American Express',        name: 'Gold',               annualFee: 325, image: imgAmexGold },
-  { id: 'amex_green',              issuer: 'American Express',        name: 'Green',              annualFee: 150, image: imgAmexGreen },
-  { id: 'bilt_blue',               issuer: 'Bilt',        name: 'Blue',               annualFee: 0,   image: imgBiltBlue },
-  { id: 'bilt_obsidian',           issuer: 'Bilt',        name: 'Obsidian',           annualFee: 95,  image: imgBiltObsidian },
-  { id: 'bilt_palladium',          issuer: 'Bilt',        name: 'Palladium',          annualFee: 495, image: imgBiltPalladium },
-  { id: 'citi_strata_premier',     issuer: 'Citi',        name: 'Strata Premier',     annualFee: 95,  image: imgCitiPremier },
-  { id: 'citi_strata_elite',       issuer: 'Citi',        name: 'Strata Elite',       annualFee: 595, image: imgCitiElite },
+  { id: 'chase_reserve',           issuer: 'Chase',       name: 'Sapphire Reserve',   annualFee: 550 },
+  { id: 'chase_preferred',         issuer: 'Chase',       name: 'Sapphire Preferred', annualFee: 95 },
+  { id: 'chase_freedom_unlimited', issuer: 'Chase',       name: 'Freedom Unlimited',  annualFee: 0 },
+  { id: 'c1_venture_x',            issuer: 'Capital One', name: 'Venture X',          annualFee: 395 },
+  { id: 'c1_venture',              issuer: 'Capital One', name: 'Venture',            annualFee: 95 },
+  { id: 'c1_savor',                issuer: 'Capital One', name: 'Savor',              annualFee: 0 },
+  { id: 'amex_platinum',           issuer: 'American Express',        name: 'Platinum',           annualFee: 695 },
+  { id: 'amex_gold',               issuer: 'American Express',        name: 'Gold',               annualFee: 325 },
+  { id: 'amex_green',              issuer: 'American Express',        name: 'Green',              annualFee: 150 },
+  { id: 'bilt_blue',               issuer: 'Bilt',        name: 'Blue',               annualFee: 0 },
+  { id: 'bilt_obsidian',           issuer: 'Bilt',        name: 'Obsidian',           annualFee: 95 },
+  { id: 'bilt_palladium',          issuer: 'Bilt',        name: 'Palladium',          annualFee: 495 },
+  { id: 'citi_strata_premier',     issuer: 'Citi',        name: 'Strata Premier',     annualFee: 95 },
+  { id: 'citi_strata_elite',       issuer: 'Citi',        name: 'Strata Elite',       annualFee: 595 },
 ];
+
+// Placeholder tones for cards whose image isn't in CARD_IMAGES yet
+const ISSUER_PLACEHOLDER: Record<string, string> = {
+  'Chase':            'from-blue-900 to-blue-700',
+  'Capital One':      'from-slate-800 to-slate-600',
+  'American Express': 'from-emerald-900 to-emerald-700',
+  'Bilt':             'from-zinc-900 to-zinc-700',
+  'Citi':             'from-indigo-900 to-indigo-700',
+};
 
 const ISSUERS = ['All', 'Chase', 'Capital One', 'American Express', 'Bilt', 'Citi'] as const;
 type Issuer = typeof ISSUERS[number];
@@ -224,13 +218,23 @@ function OnboardingForm() {
                 >
                   {/* Card image */}
                   <div className="relative w-full aspect-[1.586/1] overflow-hidden rounded-t-xl">
-                    <Image
-                      src={card.image}
-                      alt={`${card.issuer} ${card.name}`}
-                      fill
-                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                      className="object-cover"
-                    />
+                    {CARD_IMAGES[card.id] ? (
+                      <Image
+                        src={CARD_IMAGES[card.id]!}
+                        alt={`${card.issuer} ${card.name}`}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div
+                        className={`absolute inset-0 flex items-end p-3 bg-linear-to-br ${ISSUER_PLACEHOLDER[card.issuer] ?? 'from-gray-800 to-gray-600'}`}
+                      >
+                        <span className="text-white text-xs font-bold leading-tight">
+                          {card.issuer} {card.name}
+                        </span>
+                      </div>
+                    )}
                     {/* Selection overlay */}
                     {selected && (
                       <div className="absolute inset-0 bg-lime-500/10" />

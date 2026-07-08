@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { BalancePanel } from '@/components/BalancePanel';
 import { CardSelector } from '@/components/CardSelector';
 import { NavBar } from '@/components/NavBar';
@@ -83,6 +84,7 @@ export function AppShell({
           )}
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {sidebar}
+            <AffiliateAdSpot slot="sidebar" isDark={isDark} />
             {user ? <BalancePanel /> : <CardSelector />}
           </div>
         </aside>

@@ -5,10 +5,13 @@ export type FlagName =
   | "ui:hotels"
   | "ui:flights"
   | "ui:trip-planner"
+  | "ui:offers"
+  | "ui:settings"
   // tRPC routers
   | "api:stays"
   | "api:flights"
   | "api:places"
+  | "api:offers"
   // External integrations — scoped per API surface
   | "integration:duffel:flights"
   | "integration:duffel:stays"
@@ -16,6 +19,7 @@ export type FlagName =
   | "integration:google-places:places"
   | "integration:redis:stays"
   | "integration:redis:places"
+  | "integration:redis:offers"
   | "integration:supabase";
 
 interface FlagDef {
@@ -28,12 +32,12 @@ interface FlagDef {
 // "beta"       → main branch preview deployments
 // "production" → covelo.app (production branch)
 const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
-  "ui:hotels":                 { enabledIn: [], description: "/hotels page" },
+  "ui:hotels":                 { enabledIn: ["local", "beta",], description: "/hotels page" },
   "ui:flights":                { enabledIn: ["local", "beta", "production"], description: "/flights page" },
   "ui:trip-planner":           { enabledIn: ["local", "beta", "production"], description: "/trip-planner pages" },
 
   "api:stays":                 { enabledIn: ["local", "beta", "production"], description: "stays tRPC router" },
-  "api:flights":               { enabledIn: [], description: "flights tRPC router" },
+  "api:flights":               { enabledIn: ["local", "beta", "production"], description: "flights tRPC router" },
   "api:places":                { enabledIn: ["local", "beta", "production"], description: "places tRPC router" },
 
   "integration:duffel:flights":        { enabledIn: ["local", "beta", "production"], description: "Duffel API — flights router" },
@@ -42,7 +46,12 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:google-places:places":  { enabledIn: ["local", "beta", "production"], description: "Google Places API — places router" },
   "integration:redis:stays":           { enabledIn: ["local", "beta", "production"], description: "Redis caching — stays router" },
   "integration:redis:places":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — places lib" },
+  "integration:redis:offers":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — offers router" },
   "integration:supabase":              { enabledIn: ["local", "beta", "production"], description: "Supabase (auth — keep always-on)" },
+
+  "ui:offers":                         { enabledIn: ["local", "beta", "production"], description: "/offers page" },
+  "ui:settings":                       { enabledIn: ["local", "beta", "production"], description: "/settings page" },
+  "api:offers":                        { enabledIn: ["local", "beta", "production"], description: "offers tRPC router" },
 } as const;
 
 // Called lazily inside isEnabled() — never at module load time.
