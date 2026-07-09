@@ -133,6 +133,8 @@ function RefineContent({
     : 'border-gray-900 bg-gray-100 text-gray-900';
 
   const availableStopKeys = ([0, 1, 2] as const).filter(s => stopCounts[s] !== undefined);
+  const [showAllAirlines, setShowAllAirlines] = useState(false);
+  const visibleAirlines = showAllAirlines ? availableAirlines : availableAirlines.slice(0, 3);
 
   return (
     <div className="space-y-4">
@@ -175,8 +177,8 @@ function RefineContent({
       {availableAirlines.length > 1 && (
         <div>
           <div className={`text-[10px] font-bold font-mono uppercase tracking-widest mb-2 ${mutedCls}`}>Airlines</div>
-          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {availableAirlines.map(({ code, name, count }) => {
+          <div className={`flex flex-col gap-1.5 ${showAllAirlines ? 'max-h-40 overflow-y-auto' : ''}`}>
+            {visibleAirlines.map(({ code, name, count }) => {
               const excluded = excludedAirlines.has(code);
               return (
                 <button
@@ -190,6 +192,14 @@ function RefineContent({
               );
             })}
           </div>
+          {availableAirlines.length > 3 && (
+            <button
+              onClick={() => setShowAllAirlines(v => !v)}
+              className={`mt-1.5 text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls} hover:${isDark ? 'text-gph-dark-ink' : 'text-gray-900'} transition-colors`}
+            >
+              {showAllAirlines ? 'Show less' : `Show ${availableAirlines.length - 3} more`}
+            </button>
+          )}
         </div>
       )}
 
@@ -489,6 +499,13 @@ function FlightsPageInner() {
     });
   }
 
+  // Cabin isn't a client-side filter like stops/airlines — Duffel prices per cabin at
+  // search time, so switching cabin re-runs the search instead of just updating state.
+  function handleCabinChange(c: CabinClass) {
+    setCabinClass(c);
+    if (committed) setCommitted({ ...committed, cabinClass: c });
+  }
+
   const header = (
     <FlightSearchForm
       tripType={tripType}
@@ -542,7 +559,7 @@ function FlightsPageInner() {
       setFilterMaxPrice(null);
     },
     cabinClass,
-    onCabinChange: setCabinClass,
+    onCabinChange: handleCabinChange,
   };
 
   return (
@@ -576,7 +593,7 @@ function FlightsPageInner() {
                   ? `${offers.length} of ${rawOffers.length}`
                   : rawOffers.length}{' '}
                 flight{rawOffers.length !== 1 ? 's' : ''}
-                {' · '}{originCode} → {arrivalCode}
+                {' · '}{committed?.origin} → {committed?.destination}
               </h2>
               <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-1.5 ${subTextCls}`}>
                 {startDate} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'} · {CABIN_LABELS[cabinClass]}

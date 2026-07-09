@@ -25,6 +25,8 @@ export const cacheKeys = {
     `place:latlng:${placeId}`,
   placePhoto:       (name: string, address: string) =>
     `place:photo:ref:${name}:${address}`,
+  countryAirports:  (iso2: string) =>
+    `place:country-airports:${iso2}`,
   transferBonuses:  () =>
     `offers:transfer-bonuses`,
   spendingBonuses:  () =>
@@ -41,6 +43,7 @@ export const CACHE = {
   flightBoard:      { ttl: TTL.ONE_DAY },
   placeLatLng:      { ttl: TTL.THIRTY_DAYS },
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
+  countryAirports:  { ttl: TTL.ONE_DAY },
   transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
   spendingBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
 } as const;

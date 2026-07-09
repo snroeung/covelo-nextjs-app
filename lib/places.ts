@@ -15,22 +15,30 @@ export interface PlaceLatLng {
   name: string;
 }
 
+interface RawPrediction {
+  place_id: string;
+  description: string;
+  types?: string[];
+}
+
 /**
- * Calls Places Autocomplete API.
- * All autocomplete calls in a session share the same sessionToken — they are free.
- * Only the final Place Details call (getPlaceLatLng) is billed.
+ * Shared fetch behind Places Autocomplete. Callers that only need {placeId, description}
+ * should use getPlaceAutocomplete below; resolveCountryIso2 also needs the raw `types`
+ * array (to detect a country prediction), so it calls this directly.
  */
-export async function getPlaceAutocomplete(
+async function fetchAutocompletePredictions(
   input: string,
   sessionToken: string,
   types?: string,
-): Promise<PlaceSuggestion[]> {
+  components?: string,
+): Promise<RawPrediction[]> {
   if (!GMAPS_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set');
 
   const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
   url.searchParams.set('input', input);
   url.searchParams.set('sessiontoken', sessionToken);
   if (types) url.searchParams.set('types', types);
+  if (components) url.searchParams.set('components', components);
   url.searchParams.set('key', GMAPS_KEY);
 
   const res = await fetch(url.toString());
@@ -40,11 +48,98 @@ export async function getPlaceAutocomplete(
     throw new Error(`Places autocomplete failed: ${data.status}`);
   }
 
+  return data.predictions ?? [];
+}
+
+/**
+ * Calls Places Autocomplete API.
+ * All autocomplete calls in a session share the same sessionToken — they are free.
+ * Only the final Place Details call (getPlaceLatLng) is billed.
+ */
+export async function getPlaceAutocomplete(
+  input: string,
+  sessionToken: string,
+  types?: string,
+  components?: string,
+): Promise<PlaceSuggestion[]> {
+  const predictions = await fetchAutocompletePredictions(input, sessionToken, types, components);
+  return predictions.map((p) => ({ placeId: p.place_id, description: p.description }));
+}
+
+/**
+ * Resolves free text to an ISO-3166-1 alpha-2 country code, if it names a country.
+ * Used as a fallback when an airport-restricted search finds nothing — e.g. "Japan"
+ * doesn't match any airport's name directly. Uses its own session token so this
+ * detection doesn't end the caller's billing session.
+ */
+async function resolveCountryIso2(input: string): Promise<string | null> {
+  if (!GMAPS_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set');
+  const sessionToken = crypto.randomUUID();
+
+  const predictions = await fetchAutocompletePredictions(input, sessionToken, '(regions)');
+  const top = predictions[0];
+  if (!top || !top.types?.includes('country')) return null;
+
+  const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
+  detailsUrl.searchParams.set('place_id', top.place_id);
+  detailsUrl.searchParams.set('fields', 'address_component');
+  detailsUrl.searchParams.set('sessiontoken', sessionToken);
+  detailsUrl.searchParams.set('key', GMAPS_KEY);
+
+  const detailsRes = await fetch(detailsUrl.toString());
+  const detailsData = await detailsRes.json();
+  if (detailsData.status !== 'OK') return null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data.predictions ?? []).map((p: any) => ({
-    placeId: p.place_id,
-    description: p.description,
-  }));
+  const countryComponent = (detailsData.result?.address_components ?? []).find((c: any) =>
+    c.types?.includes('country'),
+  );
+  return countryComponent?.short_name ?? null;
+}
+
+/**
+ * Returns Google's top public airports (with IATA codes) for a country.
+ * Cached in Redis for 24h — airport lists per country are effectively static.
+ */
+async function getAirportsInCountry(iso2: string): Promise<PlaceSuggestion[]> {
+  const cacheKey = cacheKeys.countryAirports(iso2);
+
+  if (isEnabled("integration:redis:places")) {
+    try {
+      const cached = await redis.get<PlaceSuggestion[]>(cacheKey);
+      if (cached) return cached;
+    } catch (err) {
+      console.warn('[places] Redis read failed, falling through to Places API:', err);
+    }
+  }
+
+  const sessionToken = crypto.randomUUID();
+  const result = await getPlaceAutocomplete('airport', sessionToken, 'airport', `country:${iso2}`);
+
+  if (isEnabled("integration:redis:places")) {
+    try {
+      await redis.set(cacheKey, result, { ex: CACHE.countryAirports.ttl });
+    } catch (err) {
+      console.warn('[places] Redis write failed:', err);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Airport-mode autocomplete: tries a direct name match first, then falls back to
+ * listing a country's airports when the input names a country instead of an airport
+ * (e.g. "Japan" → NRT, HND, KIX, ...).
+ */
+export async function getAirportsForQuery(input: string, sessionToken: string): Promise<PlaceSuggestion[]> {
+  const direct = await getPlaceAutocomplete(input, sessionToken, 'airport');
+  if (direct.length > 0) return direct;
+
+  const iso2 = await resolveCountryIso2(input);
+  if (!iso2) return [];
+
+  return getAirportsInCountry(iso2);
 }
 
 export interface NearestAirport extends PlaceLatLng {
