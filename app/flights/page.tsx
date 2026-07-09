@@ -1,12 +1,12 @@
 'use client';
 
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
-import { DateInput } from '@/components/DateInput';
 import { FlightCard } from '@/components/FlightCard';
-import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
+import { FlightSearchForm } from '@/components/search/FlightSearchForm';
+import { type SelectedPlace } from '@/components/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
@@ -311,20 +311,31 @@ function EmptyState({ message }: { message: string }) {
 function FlightsPageInner() {
   const searchParams = useSearchParams();
   const paramDest     = searchParams.get('destination') ?? '';
+  const paramDestCode = searchParams.get('destinationCode') ?? ''; // IATA from /search hub
+  const paramOrigin   = searchParams.get('origin') ?? '';          // IATA from /search hub
+  const paramOriginNm = searchParams.get('originName') ?? '';
   const paramDepart   = searchParams.get('departDate')  ?? '';
   const paramReturn   = searchParams.get('returnDate')  ?? '';
   const paramTripType = (searchParams.get('tripType') as TripType | null) ?? 'roundtrip';
+
+  // A place seeded from an IATA URL param — flight search only needs the code, not lat/lng.
+  const seedFromIata = (code: string, name: string): SelectedPlace | null =>
+    code.length === 3
+      ? { latitude: 0, longitude: 0, name: name || code, description: name || code, iataCode: code }
+      : null;
 
   const [tripType,     setTripType]     = useState<TripType>(paramTripType);
   const [cabinClass,   setCabinClass]   = useState<CabinClass>('economy');
   const [sort,         setSort]         = useState<FlightSort>('best');
   const [startDate,    setStartDate]    = useState(paramDepart);
   const [endDate,      setEndDate]      = useState(paramReturn);
-  const [originPlace,  setOriginPlace]  = useState<SelectedPlace | null>(null);
-  const [arrivalPlace, setArrivalPlace] = useState<SelectedPlace | null>(null);
+  const [originPlace,  setOriginPlace]  = useState<SelectedPlace | null>(() => seedFromIata(paramOrigin, paramOriginNm));
+  const [arrivalPlace, setArrivalPlace] = useState<SelectedPlace | null>(() => seedFromIata(paramDestCode, paramDest));
+  const [fromInitial]                   = useState(paramOriginNm || paramOrigin);
+  const [fromCommitted]                 = useState(paramOrigin.length === 3);
   const [toKey,        setToKey]        = useState(0);
   const [toInitial,    setToInitial]    = useState(paramDest);
-  const [toCommitted,  setToCommitted]  = useState(false);
+  const [toCommitted,  setToCommitted]  = useState(paramDestCode.length === 3);
 
   // Refine filters
   const [excludedStops,    setExcludedStops]    = useState<Set<number>>(new Set());
@@ -337,7 +348,8 @@ function FlightsPageInner() {
   const { data: nearestAirport } = useQuery({
     queryKey: ['places.nearestAirport', paramDest],
     queryFn:  () => trpc.places.nearestAirport.query({ cityName: paramDest }),
-    enabled:  !!paramDest && !!paramDepart,
+    // Skip when the /search hub already handed us a resolved IATA code.
+    enabled:  !!paramDest && !!paramDepart && paramDestCode.length !== 3,
     staleTime: 1000 * 60 * 60 * 24,
     retry: 1,
   });
@@ -356,10 +368,37 @@ function FlightsPageInner() {
     setToKey((k) => k + 1);
   }, [nearestAirport]);
 
-  const flightSearch = useMutation({
+  // Committed search params drive the query. Seeded from the URL so arriving from the
+  // /search hub runs the search declaratively. This deliberately replaces an
+  // auto-fired mutation-in-useEffect: under React 18 StrictMode + Next soft navigation
+  // that mutation resolves against the discarded mount and the live component stays
+  // stuck on the spinner. A useQuery keyed on committed params is StrictMode/soft-nav safe.
+  type FlightQueryVars = {
+    origin: string; destination: string; departureDate: string;
+    returnDate?: string; passengers: number; cabinClass: CabinClass;
+  };
+  const [committed, setCommitted] = useState<FlightQueryVars | null>(() =>
+    paramOrigin.length === 3 && paramDestCode.length === 3 && paramDepart
+      ? {
+          origin: paramOrigin,
+          destination: paramDestCode,
+          departureDate: paramDepart,
+          returnDate: paramTripType === 'roundtrip' && paramReturn ? paramReturn : undefined,
+          passengers: 1,
+          cabinClass: 'economy',
+        }
+      : null,
+  );
+
+  const flightSearch = useQuery({
+    queryKey: ['flights.searchOffers', committed],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mutationFn: (vars: any) => trpc.flights.searchOffers.mutate(vars),
+    queryFn: () => trpc.flights.searchOffers.mutate(committed!) as Promise<any>,
+    enabled: !!committed,
+    staleTime: 1000 * 60 * 15,
+    retry: 1,
   });
+  const searching = flightSearch.isFetching;
 
   // Reset filters when new results arrive
   useEffect(() => {
@@ -436,9 +475,11 @@ function FlightsPageInner() {
     && !!startDate && startDate >= todayStr
     && (tripType === 'oneway' || (!!endDate && endDate >= startDate));
 
+  // Committing new params changes the query key → useQuery fetches. Arriving from the
+  // /search hub is handled by seeding `committed` above, so no auto-run effect is needed.
   function handleSearch() {
     if (!canSearch) return;
-    flightSearch.mutate({
+    setCommitted({
       origin:       originCode,
       destination:  arrivalCode,
       departureDate: startDate,
@@ -448,127 +489,27 @@ function FlightsPageInner() {
     });
   }
 
-  const fieldBoxCls   = isDark ? 'border-gph-dark-line bg-gph-dark-card' : 'border-gray-200 bg-white';
-  const fieldLabelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
-  const fieldInkCls   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-
-  const TRIP_TYPE_LABELS: Record<TripType, string> = {
-    roundtrip: 'Round trip',
-    oneway:    'One way',
-  };
-
-  const tripTypeRef = useRef<HTMLDivElement>(null);
-  const [tripTypeOpen, setTripTypeOpen] = useState(false);
-
-  useEffect(() => {
-    if (!tripTypeOpen) return;
-    function handle(e: MouseEvent) {
-      if (tripTypeRef.current && !tripTypeRef.current.contains(e.target as Node)) setTripTypeOpen(false);
-    }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [tripTypeOpen]);
-
-  // Trip type dropdown
-  const tripField = (
-    <div ref={tripTypeRef} className="relative">
-      <button
-        onClick={() => setTripTypeOpen(v => !v)}
-        className={`w-full flex flex-col rounded-lg border px-3 py-2 text-left transition-colors ${fieldBoxCls}`}
-      >
-        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${fieldLabelCls}`}>
-          Trip type
-        </span>
-        <div className="flex items-center justify-between gap-3 mt-1.5">
-          <span className={`text-sm font-semibold whitespace-nowrap ${fieldInkCls}`}>
-            {TRIP_TYPE_LABELS[tripType]}
-          </span>
-          <svg
-            className={`w-3 h-3 shrink-0 transition-transform ${tripTypeOpen ? 'rotate-180' : ''} ${fieldLabelCls}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-
-      {tripTypeOpen && (
-        <div className={`absolute left-0 top-full mt-1 z-50 rounded-xl border shadow-lg overflow-hidden min-w-35 ${
-          isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'
-        }`}>
-          {(['roundtrip', 'oneway'] as TripType[]).map((t) => (
-            <button
-              key={t}
-              onMouseDown={() => { setTripType(t); setTripTypeOpen(false); }}
-              className={`w-full px-4 py-2.5 text-sm text-left transition-colors ${
-                t === tripType
-                  ? isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-                  : isDark ? 'text-gph-dark-ink hover:bg-gph-dark-linesoft' : 'text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {TRIP_TYPE_LABELS[t]}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const searchButton = (
-    <button
-      onClick={handleSearch}
-      disabled={!canSearch || flightSearch.isPending}
-      className={`rounded-lg px-6 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-        isDark
-          ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi focus:ring-gph-dark-action'
-          : 'bg-gray-900 text-white hover:bg-gray-700 focus:ring-gray-900'
-      }`}
-    >
-      {flightSearch.isPending ? 'Searching…' : 'Search →'}
-    </button>
-  );
-
   const header = (
-    <div className="w-full flex flex-col gap-2.5">
-
-      {/* Mobile */}
-      <div className="flex flex-col gap-2.5 md:hidden">
-        {tripField}
-        <LocationSearch fieldLabel="From" forAirport onSelect={(p) => setOriginPlace(p)} onClear={() => setOriginPlace(null)} />
-        <LocationSearch fieldLabel="To"   forAirport onSelect={(p) => setArrivalPlace(p)} onClear={() => setArrivalPlace(null)} />
-        <div className="flex gap-2.5">
-          <div className="flex-1"><DateInput label="Depart" value={startDate} onChange={(v) => { setStartDate(v); if (endDate && endDate <= v) setEndDate(''); }} /></div>
-          {tripType === 'roundtrip' && (
-            <div className="flex-1"><DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} /></div>
-          )}
-        </div>
-        {searchButton}
-      </div>
-
-      {/* Desktop — single grid row */}
-      <div
-        className="hidden md:grid items-stretch gap-2.5"
-        style={{ gridTemplateColumns: 'auto 1fr 1fr 150px 150px auto' }}
-      >
-        {tripField}
-        <LocationSearch fieldLabel="From" forAirport onSelect={(p) => setOriginPlace(p)} onClear={() => setOriginPlace(null)} />
-        <LocationSearch
-          key={toKey}
-          fieldLabel="To"
-          forAirport
-          initialValue={toInitial}
-          initialCommitted={toCommitted}
-          onSelect={(p) => setArrivalPlace(p)}
-          onClear={() => setArrivalPlace(null)}
-        />
-        <DateInput label="Depart" value={startDate} onChange={(v) => { setStartDate(v); if (endDate && endDate <= v) setEndDate(''); }} />
-        <div className={tripType === 'oneway' ? 'invisible' : ''}>
-          <DateInput label="Return" value={endDate} onChange={setEndDate} min={startDate || undefined} />
-        </div>
-        {searchButton}
-      </div>
-
-    </div>
+    <FlightSearchForm
+      tripType={tripType}
+      onTripTypeChange={setTripType}
+      onOriginSelect={setOriginPlace}
+      onOriginClear={() => setOriginPlace(null)}
+      originInitialValue={fromInitial}
+      originInitialCommitted={fromCommitted}
+      onArrivalSelect={setArrivalPlace}
+      onArrivalClear={() => setArrivalPlace(null)}
+      arrivalInitialValue={toInitial}
+      arrivalInitialCommitted={toCommitted}
+      arrivalFieldKey={toKey}
+      startDate={startDate}
+      onStartDateChange={setStartDate}
+      endDate={endDate}
+      onEndDateChange={setEndDate}
+      onSearch={handleSearch}
+      searchDisabled={!canSearch}
+      searchPending={searching}
+    />
   );
 
   const headingCls = isDark ? 'text-white'           : 'text-gray-900';
@@ -610,7 +551,7 @@ function FlightsPageInner() {
       hasResults={rawOffers.length > 0}
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
-      {flightSearch.isPending ? (
+      {searching ? (
         <div className="flex items-center justify-center py-24">
           <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

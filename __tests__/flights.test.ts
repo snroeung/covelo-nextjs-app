@@ -9,12 +9,21 @@ vi.mock("@/lib/duffel", () => ({
   },
 }));
 
+// Cache-first path depends on Redis — mock it so tests control hit/miss.
+vi.mock("@/lib/redis", () => ({
+  redis: {
+    get: vi.fn(),
+    set: vi.fn(),
+  },
+}));
+
 // Enable all flags relevant to flights so unit tests are not coupled to flag config
 vi.mock("@/lib/feature-flags", () => ({
   isEnabled: () => true,
 }));
 
 import { duffel } from "@/lib/duffel";
+import { redis } from "@/lib/redis";
 
 const mockOfferRequest = {
   id: "orq_0000AJyFCYScL8vOSuyfJ0",
@@ -47,12 +56,13 @@ describe("flights.searchOffers", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: cache miss, writes succeed.
+    (redis.get as any).mockResolvedValue(null);
+    (redis.set as any).mockResolvedValue("OK");
   });
 
   it("returns an offer request for a one-way flight search", async () => {
-    (duffel.offerRequests.create as jest.Mock).mockResolvedValue({
-      data: mockOfferRequest,
-    });
+    (duffel.offerRequests.create as any).mockResolvedValue({ data: mockOfferRequest });
 
     const result = await caller.flights.searchOffers({
       origin: "LHR",
@@ -70,9 +80,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("throws when the Duffel API fails", async () => {
-    (duffel.offerRequests.create as jest.Mock).mockRejectedValue(
-      new Error("Duffel API unavailable")
-    );
+    (duffel.offerRequests.create as any).mockRejectedValue(new Error("Duffel API unavailable"));
 
     await expect(
       caller.flights.searchOffers({
@@ -96,9 +104,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("passes cabin class when provided", async () => {
-    (duffel.offerRequests.create as jest.Mock).mockResolvedValue({
-      data: mockOfferRequest,
-    });
+    (duffel.offerRequests.create as any).mockResolvedValue({ data: mockOfferRequest });
 
     await caller.flights.searchOffers({
       origin: "LHR",
@@ -114,5 +120,37 @@ describe("flights.searchOffers", () => {
         passengers: [{ type: "adult" }, { type: "adult" }],
       })
     );
+  });
+
+  it("returns cached offers without calling Duffel on a cache hit", async () => {
+    (redis.get as any).mockResolvedValue(mockOfferRequest);
+
+    const result = await caller.flights.searchOffers({
+      origin: "LHR",
+      destination: "JFK",
+      departureDate: "2026-06-01",
+      passengers: 1,
+    });
+
+    expect(result).toEqual(mockOfferRequest);
+    expect(duffel.offerRequests.create).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it("writes the Duffel response to the cache on a miss", async () => {
+    (duffel.offerRequests.create as any).mockResolvedValue({ data: mockOfferRequest });
+
+    await caller.flights.searchOffers({
+      origin: "LHR",
+      destination: "JFK",
+      departureDate: "2026-06-01",
+      passengers: 1,
+    });
+
+    expect(duffel.offerRequests.create).toHaveBeenCalledTimes(1);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const [key, value] = (redis.set as any).mock.calls[0];
+    expect(key).toMatch(/^flight:search:/);
+    expect(value).toEqual(mockOfferRequest);
   });
 });

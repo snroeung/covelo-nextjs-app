@@ -17,6 +17,10 @@ export const cacheKeys = {
     `stay:accommodation:${accommodationId}:${checkIn}:${checkOut}:${rooms}`,
   hotelBedsSearch:  (hash: string) =>
     `hb:search:${hash}`,
+  flightSearch:     (hash: string) =>
+    `flight:search:${hash}`,
+  flightBoard:      (hash: string) =>
+    `flight:board:${hash}`,
   placeLatLng:      (placeId: string) =>
     `place:latlng:${placeId}`,
   placePhoto:       (name: string, address: string) =>
@@ -33,6 +37,8 @@ export const CACHE = {
   stayRooms:        { ttl: TTL.FIFTEEN_MINUTES },
   staySearchResult: { ttl: TTL.ONE_HOUR },
   hotelBedsSearch:  { ttl: TTL.FIFTEEN_MINUTES },
+  flightSearch:     { ttl: TTL.FIFTEEN_MINUTES },
+  flightBoard:      { ttl: TTL.ONE_DAY },
   placeLatLng:      { ttl: TTL.THIRTY_DAYS },
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
   transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },

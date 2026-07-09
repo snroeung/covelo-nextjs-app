@@ -4,6 +4,7 @@ export type FlagName =
   // UI routes
   | "ui:hotels"
   | "ui:flights"
+  | "ui:search"
   | "ui:trip-planner"
   | "ui:offers"
   | "ui:settings"
@@ -18,6 +19,7 @@ export type FlagName =
   | "integration:hotelbeds:stays"
   | "integration:google-places:places"
   | "integration:redis:stays"
+  | "integration:redis:flights"
   | "integration:redis:places"
   | "integration:redis:offers"
   | "integration:supabase";
@@ -34,6 +36,7 @@ interface FlagDef {
 const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "ui:hotels":                 { enabledIn: ["local", "beta",], description: "/hotels page" },
   "ui:flights":                { enabledIn: ["local", "beta", "production"], description: "/flights page" },
+  "ui:search":                 { enabledIn: ["local", "beta", "production"], description: "/search hub page" },
   "ui:trip-planner":           { enabledIn: ["local", "beta", "production"], description: "/trip-planner pages" },
 
   "api:stays":                 { enabledIn: ["local", "beta", "production"], description: "stays tRPC router" },
@@ -45,6 +48,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:hotelbeds:stays":       { enabledIn: ["local", "beta", "production"], description: "HotelBeds API — stays router" },
   "integration:google-places:places":  { enabledIn: ["local", "beta", "production"], description: "Google Places API — places router" },
   "integration:redis:stays":           { enabledIn: ["local", "beta", "production"], description: "Redis caching — stays router" },
+  "integration:redis:flights":         { enabledIn: ["local", "beta", "production"], description: "Redis caching — flights router" },
   "integration:redis:places":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — places lib" },
   "integration:redis:offers":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — offers router" },
   "integration:supabase":              { enabledIn: ["local", "beta", "production"], description: "Supabase (auth — keep always-on)" },

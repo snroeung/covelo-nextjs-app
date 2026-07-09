@@ -22,12 +22,11 @@ export function NavBar() {
   const searchRef    = useRef<HTMLDivElement>(null);
   const [popupOpen, setPopupOpen]   = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchPinned, setSearchPinned] = useState(false);
 
   const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
-  const searchActive = pathname === '/flights' || pathname === '/hotels';
+  const searchActive = pathname === '/search' || pathname === '/flights' || pathname === '/hotels';
   const searchLabel  = pathname === '/flights' ? 'Flights' : pathname === '/hotels' ? 'Hotels' : null;
 
   function navLinkCls(active: boolean) {
@@ -42,7 +41,6 @@ export function NavBar() {
 
   function closeSearch() {
     setSearchOpen(false);
-    setSearchPinned(false);
   }
 
   // Close the Search dropdown when clicking outside
@@ -80,17 +78,10 @@ export function NavBar() {
           ref={searchRef}
           className="relative"
           onMouseEnter={() => setSearchOpen(true)}
-          onMouseLeave={() => { if (!searchPinned) setSearchOpen(false); }}
+          onMouseLeave={() => setSearchOpen(false)}
         >
           <button
-            onClick={() => {
-              if (searchPinned) {
-                closeSearch();
-              } else {
-                setSearchPinned(true);
-                setSearchOpen(true);
-              }
-            }}
+            onClick={() => { closeSearch(); router.push('/search'); }}
             className={`${navLinkCls(searchActive)} flex items-center gap-1.5`}
             aria-haspopup="true"
             aria-expanded={searchOpen}

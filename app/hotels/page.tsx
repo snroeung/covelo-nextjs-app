@@ -4,12 +4,12 @@ import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/AppShell';
-import { DateInput } from '@/components/DateInput';
-import { GuestsDropdown, type GuestsValue } from '@/components/GuestsDropdown';
+import { type GuestsValue } from '@/components/GuestsDropdown';
 import { HotelCard } from '@/components/HotelCard';
 import { HotelDetailModal } from '@/components/HotelDetailModal';
 import { HotelMap } from '@/components/HotelMap';
-import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
+import { HotelSearchForm } from '@/components/search/HotelSearchForm';
+import { type SelectedPlace } from '@/components/LocationSearch';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
@@ -179,6 +179,7 @@ function HotelsPageInner() {
   const paramCheckOut = searchParams.get('checkOut') ?? '';
   const paramAdults   = parseInt(searchParams.get('adults') ?? '2', 10);
   const paramChildren = parseInt(searchParams.get('children') ?? '0', 10);
+  const paramRooms    = parseInt(searchParams.get('rooms') ?? '1', 10);
   const fromTrip      = !!(paramLat && paramLng && paramCheckIn && paramCheckOut);
 
   const [destPlace, setDestPlace] = useState<SelectedPlace | null>(
@@ -223,7 +224,7 @@ function HotelsPageInner() {
       longitude: paramLng,
       checkInDate: paramCheckIn,
       checkOutDate: paramCheckOut,
-      rooms: 1,
+      rooms: paramRooms,
       guests: buildGuests({ adults: paramAdults, children: paramChildren, pets: 0 }),
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -327,52 +328,21 @@ function HotelsPageInner() {
     </svg>
   );
 
-  const fieldBoxCls = isDark
-    ? 'border-gph-dark-line bg-gph-dark-card'
-    : 'border-gray-200 bg-white';
-  const fieldLabelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
-  const fieldValueCls = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-
   const header = (
-    <div className="w-full flex flex-col gap-2.5 md:grid md:items-stretch"
-      style={{ gridTemplateColumns: 'minmax(0,1fr) 140px 140px 90px auto auto' }}>
-
-      {/* Location */}
-      <LocationSearch
-        fieldLabel="Location"
-        onSelect={setDestPlace}
-        onClear={() => setDestPlace(null)}
-      />
-
-      {/* Check-in */}
-      <DateInput
-        label="Check-in"
-        value={checkIn}
-        onChange={(v) => {
-          setCheckIn(v);
-          if (checkOut && checkOut <= v) setCheckOut('');
-        }}
-      />
-
-      {/* Check-out */}
-      <DateInput label="Check-out" value={checkOut} onChange={setCheckOut} min={checkIn || undefined} />
-
-      {/* Guests */}
-      <GuestsDropdown value={guests} onChange={setGuests} />
-
-      {/* Search */}
-      <button
-        onClick={handleSearch}
-        disabled={!canSearch || hotelSearch.isPending}
-        className={`rounded-lg px-6 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-          isDark
-            ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi focus:ring-gph-dark-action'
-            : 'bg-gray-900 text-white hover:bg-gray-700 focus:ring-gray-900'
-        }`}
-      >
-        {hotelSearch.isPending ? 'Searching…' : 'Search →'}
-      </button>
-    </div>
+    <HotelSearchForm
+      onDestSelect={setDestPlace}
+      onDestClear={() => setDestPlace(null)}
+      destInitialValue={fromTrip ? paramDest : undefined}
+      checkIn={checkIn}
+      onCheckInChange={setCheckIn}
+      checkOut={checkOut}
+      onCheckOutChange={setCheckOut}
+      guests={guests}
+      onGuestsChange={setGuests}
+      onSearch={handleSearch}
+      searchDisabled={!canSearch}
+      searchPending={hotelSearch.isPending}
+    />
   );
 
   const resultsHeader = accommodations.length > 0 && (

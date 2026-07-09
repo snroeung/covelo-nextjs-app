@@ -5,6 +5,7 @@ import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { BalancePanel } from '@/components/BalancePanel';
 import { CardSelector } from '@/components/CardSelector';
 import { NavBar } from '@/components/NavBar';
+import { Footer } from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -95,6 +96,8 @@ export function AppShell({
         </main>
 
       </div>
+
+      <Footer />
     </div>
   );
 }
