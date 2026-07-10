@@ -49,6 +49,15 @@ export interface PortalResult {
   pointsEarned: number;
   estimated: true;
   bookingType: BookingType;
+  /**
+   * Set only for chase_reserve/chase_preferred rows. Chase Travel replaced its
+   * fixed redemption rates with "Points Boost" for cardholders who applied
+   * 2025-06-23 or later; we don't ask which cohort the user is in, so both
+   * rates are surfaced as separate rows — 'legacy' is the old fixed rate
+   * (grandfathered until CHASE_LEGACY_RATE_SUNSET_DATE), 'new' is the flat
+   * 1.0¢/pt baseline (actual per-booking boost, up to 2.0¢/pt, isn't modeled).
+   */
+  chaseRateVariant?: 'legacy' | 'new';
 }
 
 /**
@@ -63,6 +72,14 @@ export interface PortalGroup {
   priceUsd: number;
   /** Unique-CPP card results, sorted best (highest CPP) first */
   results: PortalResult[];
+}
+
+export interface EligibleTransferCard {
+  cardId: CardId;
+  cardName: string;
+  portalId: PortalId;
+  /** This card's transfer ratio to the partner (e.g. Amex → Hilton is '1:2') */
+  ratio: string;
 }
 
 export interface TransferResult {
@@ -80,6 +97,8 @@ export interface TransferResult {
   estimated: true;
   routeType?: RouteType;
   cabin?: Cabin;
+  /** Every one of the user's selected cards that can reach this partner program */
+  eligibleCards: EligibleTransferCard[];
 }
 
 export interface PointsResult {
@@ -96,13 +115,26 @@ export interface PointsResult {
 }
 
 /**
+ * Chase Points Boost replaced the old fixed Chase Travel redemption rates on
+ * 2025-06-23. Cardholders who applied before that date keep the legacy fixed
+ * rate, grandfathered until this date — after which everyone is on the
+ * baseline+boost model and CHASE_LEGACY_CPP no longer applies.
+ */
+export const CHASE_LEGACY_RATE_SUNSET_DATE = '2027-10-26';
+
+/**
  * Cents per point when redeeming through each card's travel portal.
  * Higher = more value per point = fewer points needed.
- * Source: published portal redemption values (as of 2025).
+ * Source: published portal redemption values, reconfirmed July 2026.
+ *
+ * chase_reserve/chase_preferred here hold the "new cardholder" Points Boost
+ * baseline (1.0¢/pt flat). We don't ask the user which cohort they're in, so
+ * calcPoints() also checks CHASE_LEGACY_CPP below and — when present — emits
+ * a second row at the old fixed rate alongside this baseline row.
  */
 export const PORTAL_CPP: Record<CardId, number | { hotel: number; flight: number }> = {
-  chase_reserve:           1.5,   // 50% travel portal bonus
-  chase_preferred:         1.25,  // 25% travel portal bonus
+  chase_reserve:           1.0,   // Points Boost baseline; actual per-booking boost (up to 2.0) not modeled
+  chase_preferred:         1.0,   // Points Boost baseline; actual per-booking boost (up to 1.75 flight/1.5 hotel) not modeled
   chase_freedom_unlimited: 1.0,   // no portal bonus
   c1_venture_x:            1.0,   // 1¢/mile fixed
   c1_venture:              1.0,
@@ -115,6 +147,17 @@ export const PORTAL_CPP: Record<CardId, number | { hotel: number; flight: number
   bilt_palladium:               1.00,
   citi_strata_premier:     1.0,
   citi_strata_elite:       1.0,
+};
+
+/**
+ * Old fixed Chase Travel redemption rates, grandfathered for cardholders who
+ * applied before 2025-06-23 until CHASE_LEGACY_RATE_SUNSET_DATE. calcPoints()
+ * emits an extra row at this rate (tagged chaseRateVariant: 'legacy') next to
+ * the baseline PORTAL_CPP row (tagged 'new') for any selected card present here.
+ */
+export const CHASE_LEGACY_CPP: Partial<Record<CardId, number>> = {
+  chase_reserve:   1.5,   // legacy 50% travel portal bonus
+  chase_preferred: 1.25,  // legacy 25% travel portal bonus
 };
 
 /**

@@ -11,8 +11,10 @@ import {
   CARD_PORTAL_MAP,
   CARD_NAMES,
   PORTAL_NAMES,
+  CHASE_LEGACY_CPP,
 } from './types';
 import { calcTransferAlternatives } from './transferPartners';
+import { PORTAL_FLIGHT_MARKUP, PORTAL_HOTEL_MARKUP } from './portalMarkup';
 
 const ALL_CARD_IDS = Object.keys(PORTAL_CPP) as CardId[];
 const VALID_CARD_IDS = new Set<string>(ALL_CARD_IDS);
@@ -58,23 +60,42 @@ export function calcPoints(
   const portalGroups: PortalGroup[] = [];
 
   for (const [portalId, cards] of cardsByPortal.entries()) {
-    const portalPrice = portalPrices?.[portalId] ?? priceUsd;
+    const markup =
+      (bookingType === 'flight' ? PORTAL_FLIGHT_MARKUP : PORTAL_HOTEL_MARKUP)[portalId];
+    // Overrides are real portal quotes (already marked up); otherwise estimate
+    // the portal's price from the base price using the calibrated markup.
+    const portalPrice = portalPrices?.[portalId] ?? priceUsd * markup;
+
+    // Chase Points Boost means we don't know which redemption rate applies to
+    // a selected chase_reserve/chase_preferred card, so both candidate rates
+    // (legacy fixed + new baseline) enter the dedup pool as separate entries.
+    type Candidate = { cardId: CardId; cpp: number; rateVariant?: 'legacy' | 'new' };
+    const candidates: Candidate[] = [];
+    for (const cardId of cards) {
+      const legacyCpp = CHASE_LEGACY_CPP[cardId];
+      if (legacyCpp !== undefined) {
+        candidates.push({ cardId, cpp: legacyCpp, rateVariant: 'legacy' });
+        candidates.push({ cardId, cpp: resolveCpp(cardId, bookingType), rateVariant: 'new' });
+      } else {
+        candidates.push({ cardId, cpp: resolveCpp(cardId, bookingType) });
+      }
+    }
 
     // Deduplicate by CPP within this portal — one row per distinct CPP tier.
-    // When two cards share a CPP, keep the one with the higher earn rate.
-    const byCpp = new Map<number, CardId>();
-    for (const cardId of cards) {
-      const cpp = resolveCpp(cardId, bookingType);
-      const existing = byCpp.get(cpp);
-      if (!existing || resolveEarnRate(cardId, bookingType) > resolveEarnRate(existing, bookingType)) {
-        byCpp.set(cpp, cardId);
+    // When two candidates share a CPP, keep the one with the higher earn rate.
+    const byCpp = new Map<number, Candidate>();
+    for (const candidate of candidates) {
+      const existing = byCpp.get(candidate.cpp);
+      if (!existing || resolveEarnRate(candidate.cardId, bookingType) > resolveEarnRate(existing.cardId, bookingType)) {
+        byCpp.set(candidate.cpp, candidate);
       }
     }
 
     // Sort highest CPP first (best value first within the group)
     const results: PortalResult[] = Array.from(byCpp.entries())
       .sort(([a], [b]) => b - a)
-      .map(([cpp, cardId]) => {
+      .map(([cpp, candidate]) => {
+        const { cardId, rateVariant } = candidate;
         const earnRate = resolveEarnRate(cardId, bookingType);
         return {
           portalId,
@@ -83,11 +104,16 @@ export function calcPoints(
           cardName: CARD_NAMES[cardId],
           priceUsd: portalPrice,
           pointsNeeded: Math.ceil(portalPrice / (cpp / 100)),
-          centsPerPoint: cpp,
+          // Effective value: portal charges points on its marked-up price, so
+          // each point buys cpp × (true price / portal price) cents of real
+          // cash value. Derived from the actual portalPrice so overrides with
+          // real quotes stay consistent (= cpp / markup when estimated).
+          centsPerPoint: Math.round(cpp * (priceUsd / portalPrice) * 100) / 100,
           earnRate,
           pointsEarned: Math.floor(portalPrice * earnRate),
           estimated: true as const,
           bookingType,
+          chaseRateVariant: rateVariant,
         };
       });
 

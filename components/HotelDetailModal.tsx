@@ -526,6 +526,17 @@ function RoomCard({
                   {perNight.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}/room/night
                 </p>
               </div>
+
+              {/* Per-portal cash prices (est. portal markups) */}
+              {pointsResult && pointsResult.portalGroups.length > 1 && (
+                <p className={`text-[10px] font-mono mt-1 ${textMuted}`}>
+                  Portal cash{' '}
+                  {Math.min(...pointsResult.portalGroups.map(g => g.priceUsd)).toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}
+                  –
+                  {Math.max(...pointsResult.portalGroups.map(g => g.priceUsd)).toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}
+                  {' '}~est.
+                </p>
+              )}
             </>
           )}
         </div>

@@ -1,22 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { PointsResult, PortalGroup, TransferResult, PORTAL_NAMES } from '@/lib/points/types';
+import { useQuery } from '@tanstack/react-query';
+import { PointsResult, PortalGroup, TransferResult, PortalId, PORTAL_NAMES, CHASE_LEGACY_RATE_SUNSET_DATE } from '@/lib/points/types';
 import { useTheme } from '@/contexts/ThemeContext';
+import { trpc } from '@/lib/trpc-client';
+import type { TransferBonus, Issuer } from '@/lib/types/offers';
+
+const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
+  chase: 'chase', amex: 'amex', c1: 'capital_one', bilt: 'bilt', citi: 'citi',
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function pointCurrency(portalId: string): string {
-  switch (portalId) {
-    case 'chase':       return 'UR';
-    case 'amex':        return 'MR';
-    case 'capital_one': return 'miles';
-    case 'bilt':        return 'pts';
-    case 'citi':        return 'TY';
-    default:            return 'pts';
-  }
+  return portalId === 'capital_one' ? 'mi' : 'pts';
 }
 
 function fmtUsd(n: number): string {
@@ -40,6 +40,16 @@ function ptsCostLabel(pts: number, allPts: number[]): string {
   if (pts === min) return 'lowest cost';
   if (pts === max) return 'highest cost';
   return 'moderate';
+}
+
+// Chase Travel replaced fixed redemption rates with Points Boost for cardholders
+// who applied 2025-06-23+. We don't ask which cohort the user is in, so when a
+// chase_reserve/chase_preferred card is selected, calcPoints() emits both a
+// legacy-rate row and a new-baseline-rate row — surface both here.
+function chaseVariants(group: PortalGroup): { legacy: PortalGroup['results'][number]; newRate: PortalGroup['results'][number] } | null {
+  const legacy = group.results.find(r => r.chaseRateVariant === 'legacy');
+  const newRate = group.results.find(r => r.chaseRateVariant === 'new');
+  return legacy && newRate ? { legacy, newRate } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +98,7 @@ function PortalRow({
   isDark: boolean;
 }) {
   const best    = group.results[0];
+  const chaseVariant = chaseVariants(group);
   const program = pointCurrency(group.portalId);
   const tier    = cppTier(best.centsPerPoint);
   const barPct  = Math.min(100, (best.centsPerPoint / CPP_MAX) * 100);
@@ -132,9 +143,12 @@ function PortalRow({
               ↑ Best value
             </div>
           )}
-          {group.results.length > 1 && (
-            <div className={`mt-0.5 ml-4 text-[9px] font-mono ${mutedCls}`}>
-              {group.results.length} card tiers
+          <div className={`mt-0.5 ml-4 text-[9px] font-mono ${mutedCls}`}>
+            {best.cardName}{group.results.length > 1 ? ` · ${group.results.length} card tiers` : ''}
+          </div>
+          {chaseVariant && (
+            <div className={`mt-1 ml-4 text-[9px] font-mono leading-relaxed ${isDark ? 'text-cv-amber-400' : 'text-amber-700'}`}>
+              Rate depends on card-open date — legacy {chaseVariant.legacy.centsPerPoint}¢/pt ({chaseVariant.legacy.pointsNeeded.toLocaleString()} pts) vs. Points Boost {chaseVariant.newRate.centsPerPoint}¢/pt ({chaseVariant.newRate.pointsNeeded.toLocaleString()} pts)
             </div>
           )}
         </div>
@@ -152,6 +166,7 @@ function PortalRow({
               {best.pointsNeeded.toLocaleString()}
             </span>
             <span className={`text-xs font-medium ${mutedCls}`}>{program}</span>
+            <span className={`text-[10px] font-mono ${mutedCls}`}>~est.</span>
           </div>
           {costLabel && <div className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{costLabel}</div>}
         </div>
@@ -219,6 +234,12 @@ function PortalRow({
           </div>
           <button className={bookBtn}>Book →</button>
         </div>
+        <div className={`text-[9px] font-mono ml-4 -mt-1 ${mutedCls}`}>{best.cardName}</div>
+        {chaseVariant && (
+          <div className={`text-[9px] font-mono ml-4 leading-relaxed ${isDark ? 'text-cv-amber-400' : 'text-amber-700'}`}>
+            Legacy {chaseVariant.legacy.centsPerPoint}¢/pt ({chaseVariant.legacy.pointsNeeded.toLocaleString()} pts) vs. Points Boost {chaseVariant.newRate.centsPerPoint}¢/pt ({chaseVariant.newRate.pointsNeeded.toLocaleString()} pts)
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           <div>
@@ -234,7 +255,8 @@ function PortalRow({
             <div className={`text-[9px] font-mono uppercase tracking-widest ${mutedCls}`}>Redeem</div>
             <div className={`text-sm font-bold font-mono tabular-nums ${inkCls}`}>
               {best.pointsNeeded.toLocaleString()}{' '}
-              <span className={`text-xs font-normal ${mutedCls}`}>{program}</span>
+              <span className={`text-xs font-normal ${mutedCls}`}>{program}</span>{' '}
+              <span className={`text-[10px] font-normal ${mutedCls}`}>~est.</span>
             </div>
           </div>
           <div>
@@ -262,6 +284,49 @@ function PortalRow({
 }
 
 // ---------------------------------------------------------------------------
+// TransferCardChips — one chip per user card that can reach this partner
+// ---------------------------------------------------------------------------
+
+function TransferCardChips({
+  transfer,
+  tier,
+  isDark,
+}: {
+  transfer: TransferResult;
+  tier: ReturnType<typeof cppTier> | null;
+  isDark: boolean;
+}) {
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+
+  if (transfer.eligibleCards.length === 0) {
+    return (
+      <div className={`mt-0.5 ml-4 text-[9px] font-mono ${mutedCls}`}>
+        via {PORTAL_NAMES[transfer.sourcePortalId]} · {transfer.transferRatio}
+      </div>
+    );
+  }
+
+  const chipBg = tier?.chipBg ?? (isDark ? '#2a2a2d' : '#f0f0ee');
+  const chipFg = tier?.chipFg ?? (isDark ? '#a8a8ae' : '#5f6066');
+
+  return (
+    <div className="mt-1 ml-4 flex flex-wrap gap-1">
+      {transfer.eligibleCards.map(c => (
+        <span
+          key={c.cardId}
+          tabIndex={0}
+          title={`Transfer ratio ${c.ratio}`}
+          className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono cursor-default focus:outline-none focus:ring-1 focus:ring-cv-lime-500"
+          style={{ background: chipBg, color: chipFg }}
+        >
+          {c.cardName}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TransferRow — transfer partner alternative, styled like PortalRow
 // ---------------------------------------------------------------------------
 
@@ -270,12 +335,21 @@ function TransferRow({
   isBest,
   priceUsd,
   isDark,
+  bonus,
 }: {
   transfer: TransferResult;
   isBest: boolean;
   priceUsd: number;
   isDark: boolean;
+  bonus?: TransferBonus;
 }) {
+  const bonusBadge = bonus && (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wide shrink-0 ${
+      isDark ? 'bg-cv-amber-900 text-cv-amber-400' : 'bg-amber-100 text-amber-800'
+    }`}>
+      +{bonus.bonus_pct}% bonus
+    </span>
+  );
   const tier     = transfer.transferCpp !== null ? cppTier(transfer.transferCpp) : null;
   const barPct   = transfer.transferCpp !== null ? Math.min(100, (transfer.transferCpp / CPP_MAX) * 100) : 0;
   const srcCur   = pointCurrency(transfer.sourcePortalId);
@@ -309,15 +383,14 @@ function TransferRow({
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full shrink-0 ${isBest ? 'bg-green-500' : 'bg-cv-amber-400'}`} />
             <span className={`text-sm font-semibold ${inkCls}`}>{transfer.partnerProgram}</span>
+            {bonusBadge}
           </div>
           {isBest && (
             <div className="mt-1 ml-4 text-[9px] font-bold font-mono tracking-widest uppercase text-green-600">
               ↑ Best value
             </div>
           )}
-          <div className={`mt-0.5 ml-4 text-[9px] font-mono ${mutedCls}`}>
-            via {PORTAL_NAMES[transfer.sourcePortalId]} · {transfer.transferRatio}
-          </div>
+          <TransferCardChips transfer={transfer} tier={tier} isDark={isDark} />
         </div>
 
         {/* Cash */}
@@ -333,6 +406,7 @@ function TransferRow({
                 {transfer.estimatedPointsNeeded.toLocaleString()}
               </span>
               <span className={`text-xs font-medium ${mutedCls}`}>{srcCur}</span>
+              <span className={`text-[10px] font-mono ${mutedCls}`}>~est.</span>
             </div>
           ) : (
             <span className={`text-xs italic ${mutedCls}`}>check program</span>
@@ -390,6 +464,7 @@ function TransferRow({
           <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full shrink-0 ${isBest ? 'bg-green-500' : 'bg-cv-amber-400'}`} />
             <span className={`text-sm font-semibold ${inkCls}`}>{transfer.partnerProgram}</span>
+            {bonusBadge}
             {isBest && (
               <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-green-600">Best</span>
             )}
@@ -397,9 +472,7 @@ function TransferRow({
           <button className={bookBtn}>Transfer →</button>
         </div>
 
-        <div className={`text-[9px] font-mono ml-4 ${mutedCls}`}>
-          via {PORTAL_NAMES[transfer.sourcePortalId]} · {transfer.transferRatio}
-        </div>
+        <TransferCardChips transfer={transfer} tier={tier} isDark={isDark} />
 
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           <div>
@@ -411,7 +484,8 @@ function TransferRow({
               <div className={`text-[9px] font-mono uppercase tracking-widest ${mutedCls}`}>Redeem</div>
               <div className={`text-sm font-bold font-mono tabular-nums ${inkCls}`}>
                 {transfer.estimatedPointsNeeded.toLocaleString()}{' '}
-                <span className={`text-xs font-normal ${mutedCls}`}>{srcCur}</span>
+                <span className={`text-xs font-normal ${mutedCls}`}>{srcCur}</span>{' '}
+                <span className={`text-[10px] font-normal ${mutedCls}`}>~est.</span>
               </div>
             </div>
           )}
@@ -458,12 +532,31 @@ export function PointsGrid({
   itemMeta?: string;
 }) {
   const { isDark } = useTheme();
-  const [hackExpanded, setHackExpanded] = useState(false);
+  const [hackExpanded, setHackExpanded] = useState(true);
   const [groupsExpanded, setGroupsExpanded] = useState(false);
 
-  const betterTransfers = result.transferAlternatives.filter(t => t.isBetterThanPortal);
-  const hasHack  = betterTransfers.length > 0;
-  const cashOnly = result.bestPortalResult.centsPerPoint === 1.0;
+  const { data: transferBonuses = [] } = useQuery({
+    queryKey: ['offers.transferBonuses'],
+    queryFn:  () => trpc.offers.listTransferBonuses.query(),
+    staleTime: 15 * 60 * 1000,
+  });
+  // Server orders by bonus_pct desc, so find() returns the biggest match.
+  // Date-window guard: admin sessions bypass the public RLS end_date filter,
+  // so re-check here to only badge bonuses currently live on the offers page.
+  const now = Date.now();
+  const bonusFor = (t: TransferResult): TransferBonus | undefined =>
+    transferBonuses.find(
+      b =>
+        ISSUER_TO_PORTAL[b.issuer] === t.sourcePortalId &&
+        b.transfer_partner === t.partnerProgram &&
+        new Date(b.end_date).getTime() > now &&
+        (!b.start_date || new Date(b.start_date).getTime() <= now),
+    );
+
+  // Show whenever transfer partners exist for the user's cards, regardless of
+  // whether the estimate beats the best portal row.
+  const transfers = result.transferAlternatives;
+  const hasHack   = transfers.length > 0;
 
   const allBestPts   = result.portalGroups.map(g => g.results[0].pointsNeeded);
   const globalBestPts = Math.min(...allBestPts);
@@ -479,7 +572,7 @@ export function PointsGrid({
   const visible     = groupsExpanded ? result.portalGroups : result.portalGroups.slice(0, limit);
   const hiddenCount = result.portalGroups.length - limit;
 
-  const transferMinPts = betterTransfers
+  const transferMinPts = transfers
     .map(t => t.estimatedPointsNeeded ?? Infinity)
     .reduce((a, b) => Math.min(a, b), Infinity);
   const globalBestAll = Math.min(globalBestPts, transferMinPts);
@@ -490,14 +583,7 @@ export function PointsGrid({
   const mutedCls     = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
   const moreButtonBg = isDark ? 'bg-gph-dark-bg text-gph-dark-muted hover:bg-gph-dark-linesoft' : 'bg-gray-50 text-gray-500 hover:bg-gray-100';
 
-  const disclaimer =
-    hasHack && cashOnly
-      ? 'Best portal matches cash value only (1¢/pt) — transfer partners above offer better value. Award estimates are flat saver rates; availability varies.'
-      : hasHack
-      ? 'Transfer partners may beat portal value — see above. Award estimates are flat saver rates; availability varies.'
-      : cashOnly
-      ? 'Best portal redeems at 1¢/pt — equivalent to paying cash. No points uplift available with your current cards.'
-      : 'Estimates based on market rates — actual portal prices may differ.';
+
 
   return (
     <div className={`overflow-hidden ${containerBg}`}>
@@ -570,11 +656,11 @@ export function PointsGrid({
           >
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cv-amber-400 shrink-0" />
-              <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>
-                Airline Transfer Partners
+              <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-amber-400' : 'text-amber-700'}`}>
+                Can transfer to
               </span>
               <span className={`text-[9px] font-mono ${mutedCls}`}>
-                · {betterTransfers.length} option{betterTransfers.length !== 1 ? 's' : ''}
+                · {transfers.length} option{transfers.length !== 1 ? 's' : ''}
               </span>
             </div>
             <svg
@@ -585,13 +671,14 @@ export function PointsGrid({
             </svg>
           </button>
           {hackExpanded &&
-            betterTransfers.map((t, i) => (
+            transfers.map((t, i) => (
               <TransferRow
                 key={`${t.sourcePortalId}-${t.partnerProgram}-${i}`}
                 transfer={t}
                 isBest={(t.estimatedPointsNeeded ?? Infinity) === globalBestAll}
                 priceUsd={result.priceUsd}
                 isDark={isDark}
+                bonus={bonusFor(t)}
               />
             ))}
         </div>
@@ -599,8 +686,10 @@ export function PointsGrid({
 
       {/* ── Footer */}
       <p className={`px-5 py-2.5 text-[10px] leading-relaxed border-t ${isDark ? 'border-gph-dark-line text-gph-dark-muted' : 'border-gray-200 text-gray-400'}`}>
-        {disclaimer}
-        {' '}Bar = ¢/pt vs face value (1¢). Earn-back assumes current card multipliers. UR ≠ MR ≠ miles.
+        ~est. Points costs are estimates based on portal pricing data from TPG (Nov 2025) and
+        AwardWallet (Aug 2025). Actual portal prices may vary. Transfer partner estimates use
+        simplified saver award rates. Chase Sapphire rows show both rates since redemption value
+        depends on card-open date — legacy fixed rates are grandfathered until {CHASE_LEGACY_RATE_SUNSET_DATE}.
       </p>
     </div>
   );

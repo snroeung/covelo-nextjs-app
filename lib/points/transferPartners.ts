@@ -4,10 +4,12 @@ import {
   BookingType,
   PortalResult,
   TransferResult,
+  EligibleTransferCard,
   RouteType,
   Cabin,
   FlightContext,
   CARD_PORTAL_MAP,
+  CARD_NAMES,
   PORTAL_CPP,
 } from './types';
 
@@ -314,6 +316,34 @@ function resolveChainKey(hotelChain: string): string | null {
   return null;
 }
 
+/** Every one of the user's cards whose portal reaches this partner program (dedupe by card). */
+function findEligibleCards(
+  partnerProgram: string,
+  expectedPartnerType: 'hotel' | 'airline',
+  chainKey: string | null,
+  filterIata: string | null,
+  userCards: CardId[],
+): EligibleTransferCard[] {
+  const seen = new Set<CardId>();
+  const eligible: EligibleTransferCard[] = [];
+  for (const cardId of userCards) {
+    if (seen.has(cardId)) continue;
+    const portalId = CARD_PORTAL_MAP[cardId];
+    if (!portalId) continue;
+    const partner = TRANSFER_PARTNERS[portalId].find(p => {
+      if (p.type !== expectedPartnerType || p.program !== partnerProgram) return false;
+      if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
+      if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
+      return true;
+    });
+    if (partner) {
+      seen.add(cardId);
+      eligible.push({ cardId, cardName: CARD_NAMES[cardId], portalId, ratio: partner.ratio });
+    }
+  }
+  return eligible;
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -343,12 +373,13 @@ export function calcTransferAlternatives(
   const cabin: Cabin = flightCtx?.cabin ?? 'economy';
 
   const chainKey = hotelChain ? resolveChainKey(hotelChain) : null;
+  const expectedPartnerType = bookingType === 'flight' ? 'airline' : 'hotel';
+  const filterIata = airlineIata ?? flightCtx?.airlineIata ?? null;
   const results: TransferResult[] = [];
 
   for (const [portalId, sourceCardId] of portalCardMap.entries()) {
     const partners = TRANSFER_PARTNERS[portalId];
 
-    const expectedPartnerType = bookingType === 'flight' ? 'airline' : 'hotel';
     for (const partner of partners) {
       if (partner.type !== expectedPartnerType) continue;
 
@@ -358,7 +389,6 @@ export function calcTransferAlternatives(
       }
 
       // For flights: if airline IATA provided, only include matching partner
-      const filterIata = airlineIata ?? flightCtx?.airlineIata;
       if (bookingType === 'flight' && filterIata != null) {
         if (!partner.iataCodes?.includes(filterIata.toUpperCase())) continue;
       }
@@ -407,6 +437,7 @@ export function calcTransferAlternatives(
         estimated: true,
         routeType: bookingType === 'flight' ? routeType : undefined,
         cabin: bookingType === 'flight' ? cabin : undefined,
+        eligibleCards: [],
       });
     }
   }
@@ -428,6 +459,12 @@ export function calcTransferAlternatives(
         : (PORTAL_CPP[existing.sourceCardId] as { hotel: number; flight: number })[bookingType];
       if (newCpp > prevCpp) deduped.set(r.partnerProgram, r);
     }
+  }
+
+  // Attach every one of the user's cards that can reach this partner (across all
+  // portals, not just the winning one picked above) for the chip UI.
+  for (const r of deduped.values()) {
+    r.eligibleCards = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards);
   }
 
   // isBetterThanPortal: true results first
