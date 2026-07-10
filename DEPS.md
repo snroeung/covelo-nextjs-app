@@ -7,7 +7,7 @@ Auto-regenerated each session by scripts/dep-graph.mjs (SessionStart hook) — d
 
 ```
 contexts/ThemeContext.tsx << app/auth/page.tsx, app/auth/update-password/page.tsx, app/flights/page.tsx, app/hotels/page.tsx, app/layout.tsx, app/offers/page.tsx, app/onboarding/page.tsx, app/page.tsx, app/search/page.tsx, app/settings/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AddToTripButton.tsx, components/AppShell.tsx, components/BalancePanel.tsx, components/CardSelector.tsx, components/DateInput.tsx, components/FlightCard.tsx, components/Footer.tsx, components/GuestsDropdown.tsx, components/HotelCard.tsx, components/HotelDetailModal.tsx, components/HotelMap.tsx, components/LocationSearch.tsx, components/NavBar.tsx, components/PointsGrid.tsx, components/ProfilePopup.tsx, components/ThemeToggle.tsx, components/offers/admin/OffersAdminShell.tsx, components/search/FlightSearchForm.tsx, components/search/HotelSearchForm.tsx, components/search/SearchBoard.tsx, components/search/SearchModeToggle.tsx
-lib/points/types.ts << app/onboarding/page.tsx, app/search/page.tsx, components/BalancePanel.tsx, components/CardSelector.tsx, components/FlightCard.tsx, components/HotelDetailModal.tsx, components/PointsGrid.tsx, components/ProfilePopup.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminOfferEditor.tsx, components/search/SearchBoard.tsx, contexts/AuthContext.tsx, contexts/SelectedCardsContext.tsx, hooks/usePointsCalc.ts, lib/cardImages.ts, lib/points/calcPoints.ts, lib/points/index.ts, lib/points/portalMarkup.ts, lib/points/transferPartners.ts
+lib/points/types.ts << app/onboarding/page.tsx, app/search/page.tsx, components/BalancePanel.tsx, components/BestPortalPanel.tsx, components/CardSelector.tsx, components/FlightCard.tsx, components/HotelDetailModal.tsx, components/PointsGrid.tsx, components/ProfilePopup.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminOfferEditor.tsx, components/search/SearchBoard.tsx, contexts/AuthContext.tsx, contexts/SelectedCardsContext.tsx, hooks/usePointsCalc.ts, lib/cardImages.ts, lib/points/calcPoints.ts, lib/points/index.ts, lib/points/portalMarkup.ts, lib/points/rankOptions.ts, lib/points/transferPartners.ts
 lib/trpc-client.ts << app/flights/page.tsx, app/hotels/page.tsx, app/offers/page.tsx, app/search/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/HotelDetailModal.tsx, components/LocationSearch.tsx, components/PointsGrid.tsx, components/TripMap.tsx, components/offers/AffiliateAdSpot.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminAdsTable.tsx, components/offers/admin/AdminOfferEditor.tsx, components/offers/admin/AdminOffersTable.tsx, components/offers/admin/OffersAdminShell.tsx
 lib/types/offers.ts << app/offers/page.tsx, components/PointsGrid.tsx, components/offers/AffiliateAdSpot.tsx, components/offers/FeaturedOfferHero.tsx, components/offers/OfferCard.tsx, components/offers/OfferCategoryChips.tsx, components/offers/OfferDetailModal.tsx, components/offers/OffersGrid.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminAdsTable.tsx, components/offers/admin/AdminOfferEditor.tsx, components/offers/admin/AdminOffersTable.tsx, components/offers/admin/OffersAdminShell.tsx, server/routers/offers.ts
 contexts/AuthContext.tsx << app/layout.tsx, app/onboarding/page.tsx, app/page.tsx, app/search/page.tsx, app/settings/page.tsx, app/trip-planner/page.tsx, components/AppShell.tsx, components/NavBar.tsx, components/ProfilePopup.tsx, hooks/useTrips.ts
@@ -27,6 +27,7 @@ lib/redis.ts << lib/places.ts, server/routers/flights.ts, server/routers/offers.
 lib/cache-config.ts << lib/places.ts, server/routers/flights.ts, server/routers/offers.ts, server/routers/stays.ts
 components/Footer.tsx << app/offers/page.tsx, app/search/page.tsx, components/AppShell.tsx
 hooks/useTrips.ts << app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AddToTripButton.tsx
+components/PointsGrid.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx, components/search/SearchBoard.tsx
 server/routers/_app.ts << app/api/trpc/[trpc]/route.ts, lib/trpc-client.ts
 components/AppShell.tsx << app/flights/page.tsx, app/hotels/page.tsx
 components/FlightCard.tsx << app/flights/page.tsx, app/trip-planner/[id]/page.tsx
@@ -37,9 +38,10 @@ components/offers/OfferCategoryChips.tsx << app/offers/page.tsx, components/offe
 lib/cardImages.ts << app/onboarding/page.tsx, components/offers/admin/AdminAdEditor.tsx
 lib/searchUrls.ts << app/search/page.tsx, components/search/FlightSearchForm.tsx
 lib/bookmarks.ts << components/AddToTripButton.tsx, hooks/useBookmarks.ts
+lib/points/rankOptions.ts << components/BestPortalPanel.tsx, components/PointsGrid.tsx
 hooks/usePointsCalc.ts << components/FlightCard.tsx, components/search/SearchBoard.tsx
-components/PointsGrid.tsx << components/FlightCard.tsx, components/search/SearchBoard.tsx
 components/AddToTripButton.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx
+components/BestPortalPanel.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx
 lib/places.ts << components/LocationSearch.tsx, server/routers/places.ts
 components/offers/OfferCard.tsx << components/offers/OfferCategoryChips.tsx, components/offers/OffersGrid.tsx
 components/DateInput.tsx << components/search/FlightSearchForm.tsx, components/search/HotelSearchForm.tsx

@@ -23,6 +23,7 @@ export interface BoardCard {
   cpp?: number;
   flightCtx?: FlightContext;
   portalPrices?: Partial<Record<PortalId, number>>;
+  hotelChain?: string;
 }
 
 // Map a hotel name to its parent brand (label + logo domain) by sub-brand keyword.
@@ -51,9 +52,9 @@ const brandLogo = (domain: string) => `https://www.google.com/s2/favicons?sz=64&
 const airlineLogo = (iata: string) => `https://pics.avs.io/60/60/${iata}@2x.png`;
 
 // Best-portal points/cpp estimate for the tile. Pure — safe to call in a map.
-function estimate(priceUsd: number, kind: 'flight' | 'hotel', flightCtx?: FlightContext, portalPrices?: BoardCard['portalPrices']) {
+function estimate(priceUsd: number, kind: 'flight' | 'hotel', flightCtx?: FlightContext, portalPrices?: BoardCard['portalPrices'], hotelChain?: string) {
   try {
-    const r = calcPoints(priceUsd, kind, undefined, flightCtx, portalPrices);
+    const r = calcPoints(priceUsd, kind, undefined, flightCtx, portalPrices, hotelChain);
     return { pointsNeeded: r.bestPortalResult.pointsNeeded, cpp: r.bestPortalResult.centsPerPoint };
   } catch {
     return {};
@@ -105,7 +106,8 @@ export function adaptStay(sr: any, nights = 3): BoardCard | null {
     stars,
     priceUsd: price,
     portalPrices: sr?.portalPrices,
-    ...estimate(price, 'hotel', undefined, sr?.portalPrices),
+    hotelChain: name,
+    ...estimate(price, 'hotel', undefined, sr?.portalPrices, name),
   };
 }
 
@@ -120,7 +122,8 @@ function fallback(kind: 'flight' | 'hotel', id: string, eyebrow: string, title: 
     const brand = detectHotelBrand(title);
     if (brand) { label = brand.label; logoUrl = brandLogo(brand.domain); }
   }
-  return { id, kind, eyebrow: label, title, subtitle, logoUrl, stars, priceUsd, flightCtx, ...estimate(priceUsd, kind, flightCtx) };
+  const hotelChain = kind === 'hotel' ? title : undefined;
+  return { id, kind, eyebrow: label, title, subtitle, logoUrl, stars, priceUsd, flightCtx, hotelChain, ...estimate(priceUsd, kind, flightCtx, undefined, hotelChain) };
 }
 export const FALLBACK_FLIGHTS: BoardCard[] = [
   fallback('flight', 'fb-f1', 'United',     'Philadelphia → San Francisco', 'PHL → SFO · Nonstop', 214, { airlineIata: 'UA', originIata: 'PHL', destIata: 'SFO', routeType: 'domestic', cabin: 'economy' }),
@@ -256,46 +259,22 @@ function Marquee({ cards, onOpen, isDark }: { cards: BoardCard[]; onOpen: (c: Bo
   );
 }
 
-// ── Compare modal (reuses PointsGrid) ────────────────────────────────────────
-function CompareModal({ card, onClose }: { card: BoardCard; onClose: () => void }) {
-  const { isDark } = useTheme();
-  const result = usePointsCalc(card.priceUsd, card.kind, card.flightCtx, card.portalPrices);
-  const panel = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-white border-gray-200';
-  const ink   = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
-  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
-      <div
-        className={`w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border shadow-xl p-6 ${panel}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <div className={`text-base font-bold ${ink}`}>{card.title}</div>
-            <div className={`text-xs ${muted}`}>{card.subtitle}</div>
-          </div>
-          <button onClick={onClose} className={`text-2xl leading-none min-h-11 min-w-11 ${muted}`} aria-label="Close">×</button>
-        </div>
-        {result ? (
-          <PointsGrid result={result} itemName={card.title} itemMeta={card.subtitle} />
-        ) : (
-          <p className={`text-sm ${muted}`}>Points comparison unavailable for this option.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Board ────────────────────────────────────────────────────────────────────
 export function SearchBoard({ items, loading }: { items: BoardCard[]; loading?: boolean }) {
   const { isDark } = useTheme();
   const [selected, setSelected] = useState<BoardCard | null>(null);
   const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const dashed = isDark ? 'border-gph-dark-line' : 'border-gray-300';
+  const panel = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-white border-gray-200';
+  const ink   = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
+
+  const result = usePointsCalc(
+    selected?.priceUsd ?? 0,
+    selected?.kind ?? 'hotel',
+    selected?.flightCtx,
+    selected?.portalPrices,
+    selected?.hotelChain,
+  );
 
   if (loading) {
     return <div className={`py-14 text-center text-sm font-mono tracking-widest ${muted}`}>LOADING LIVE BOARD…</div>;
@@ -311,7 +290,30 @@ export function SearchBoard({ items, loading }: { items: BoardCard[]; loading?: 
   return (
     <>
       <Marquee cards={items} onOpen={setSelected} isDark={isDark} />
-      {selected && <CompareModal card={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className={`w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border shadow-xl p-6 ${panel}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <div className={`text-base font-bold ${ink}`}>{selected.title}</div>
+                <div className={`text-xs ${muted}`}>{selected.subtitle}</div>
+              </div>
+              <button onClick={() => setSelected(null)} className={`text-2xl leading-none min-h-11 min-w-11 ${muted}`} aria-label="Close">×</button>
+            </div>
+            {result ? (
+              <PointsGrid result={result} itemName={selected.title} itemMeta={selected.subtitle} />
+            ) : (
+              <p className={`text-sm ${muted}`}>Points comparison unavailable for this option.</p>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

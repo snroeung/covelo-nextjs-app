@@ -99,6 +99,8 @@ export interface TransferResult {
   cabin?: Cabin;
   /** Every one of the user's selected cards that can reach this partner program */
   eligibleCards: EligibleTransferCard[];
+  /** When eligibleCards is empty, cards (not owned) that would unlock this partner */
+  recommendedCards: EligibleTransferCard[];
 }
 
 export interface PointsResult {
@@ -222,4 +224,8 @@ export const PORTAL_NAMES: Record<PortalId, string> = {
   capital_one: 'Capital One Travel',
   bilt:        'Bilt Travel',
   citi:        'Citi Travel',
+};
+
+export const PORTAL_ABBR: Record<PortalId, string> = {
+  chase: 'UR', amex: 'MR', capital_one: 'miles', bilt: 'Bilt', citi: 'TY',
 };

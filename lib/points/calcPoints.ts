@@ -42,6 +42,8 @@ export function calcPoints(
    * Defaults to priceUsd for any portal not listed.
    */
   portalPrices?: Partial<Record<PortalId, number>>,
+  /** Hotel name/brand — narrows transfer-partner results to this property's chain. */
+  hotelChain?: string | null,
 ): PointsResult {
   if (priceUsd <= 0) throw new Error('priceUsd must be greater than 0');
 
@@ -134,9 +136,10 @@ export function calcPoints(
     bookingType,
     ALL_CARD_IDS,
     bestPortalResult,
-    undefined,
+    hotelChain,
     undefined,
     flightCtx,
+    validCards,
   );
 
   const betterTransfers  = transferAlternatives.filter((t) => t.isBetterThanPortal);

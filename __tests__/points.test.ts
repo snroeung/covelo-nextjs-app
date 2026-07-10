@@ -179,11 +179,12 @@ const mockBestPortalResult: PortalResult = {
 };
 
 describe('calcTransferAlternatives()', () => {
-  it('1. Chase card + Hyatt hotel → Hyatt transfer with estimatedPointsNeeded = null', () => {
+  it('1. Chase card + Hyatt hotel → Hyatt transfer computes real cpp/points estimate', () => {
     const results = calcTransferAlternatives(620, 'hotel', ['chase_reserve'], mockBestPortalResult, 'Hyatt');
     const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
     expect(hyatt).toBeDefined();
-    expect(hyatt?.estimatedPointsNeeded).toBeNull();
+    expect(hyatt?.transferCpp).toBe(1.7);
+    expect(hyatt?.estimatedPointsNeeded).toBe(Math.ceil((620 / 1.7) * 100));
     expect(hyatt?.partnerType).toBe('hotel');
   });
 
@@ -214,18 +215,59 @@ describe('calcTransferAlternatives()', () => {
     expect(results).toEqual([]);
   });
 
-  it('6. isBetterThanPortal = false when estimatedPointsNeeded is null', () => {
+  it('6. isBetterThanPortal = true when hotel transfer cpp beats portal cpp', () => {
     const results = calcTransferAlternatives(620, 'hotel', ['chase_reserve'], mockBestPortalResult, 'Hyatt');
     const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
-    expect(hyatt?.isBetterThanPortal).toBe(false);
+    expect(hyatt?.estimatedPointsNeeded).toBeLessThan(mockBestPortalResult.pointsNeeded);
+    expect(hyatt?.isBetterThanPortal).toBe(true);
+  });
+
+  it('6b. calcPoints() with hotelChain filters transferAlternatives to only that chain', () => {
+    const result = calcPoints(620, 'hotel', ['chase_reserve'], undefined, undefined, 'Hyatt Regency Chicago');
+    expect(result.transferAlternatives.length).toBeGreaterThan(0);
+    for (const t of result.transferAlternatives) {
+      expect(t.partnerProgram).toBe('World of Hyatt');
+    }
+  });
+
+  it('6a2. calcPoints() with hotelChain matching no known chain returns zero transfer alternatives', () => {
+    const result = calcPoints(620, 'hotel', ['chase_reserve'], undefined, undefined, 'The Local Inn Philadelphia');
+    expect(result.transferAlternatives).toHaveLength(0);
+  });
+
+  it('6c. calcPoints() without hotelChain returns transfer partners across all chains', () => {
+    const result = calcPoints(620, 'hotel', ['chase_reserve']);
+    const programs = new Set(result.transferAlternatives.map((t) => t.partnerProgram));
+    expect(programs.size).toBeGreaterThan(1);
   });
 
   it('7. isBetterThanPortal = true when transfer estimate < bestPortalResult.pointsNeeded', () => {
-    // Portal costs 41,334 pts; UA long-haul economy saver = 30,000 → better
+    // Portal costs 41,334 pts; UA economy value (1.3¢/pt) on a $400 fare needs fewer points
     const flightBest: PortalResult = { ...mockBestPortalResult, bookingType: 'flight', pointsNeeded: 41_334 };
-    const results = calcTransferAlternatives(620, 'flight', ['chase_reserve'], flightBest, null, 'UA');
+    const results = calcTransferAlternatives(400, 'flight', ['chase_reserve'], flightBest, null, 'UA');
     const united = results.find((r) => r.partnerProgram === 'United MileagePlus');
     expect(united?.isBetterThanPortal).toBe(true);
-    expect(united?.estimatedPointsNeeded).toBe(30_000);
+    expect(united?.transferCpp).toBe(1.3);
+    expect(united?.estimatedPointsNeeded).toBe(30_770);
+  });
+
+  it('8. estimatedPointsNeeded scales with price (regression: transfer rows must not share one fixed value)', () => {
+    const flightBest: PortalResult = { ...mockBestPortalResult, bookingType: 'flight', pointsNeeded: 41_334 };
+    const cheap = calcTransferAlternatives(200, 'flight', ['chase_reserve'], flightBest, null, 'UA');
+    const expensive = calcTransferAlternatives(800, 'flight', ['chase_reserve'], flightBest, null, 'UA');
+    const cheapUnited = cheap.find((r) => r.partnerProgram === 'United MileagePlus');
+    const expensiveUnited = expensive.find((r) => r.partnerProgram === 'United MileagePlus');
+    expect(cheapUnited?.estimatedPointsNeeded).not.toBe(expensiveUnited?.estimatedPointsNeeded);
+    expect(expensiveUnited!.estimatedPointsNeeded!).toBeGreaterThan(cheapUnited!.estimatedPointsNeeded!);
+  });
+
+  it('9. different airline programs at the same price get different points (no coincidental clustering)', () => {
+    const flightBest: PortalResult = { ...mockBestPortalResult, bookingType: 'flight', pointsNeeded: 41_334 };
+    const results = calcTransferAlternatives(400, 'flight', ['chase_reserve', 'amex_platinum'], flightBest);
+    const united = results.find((r) => r.partnerProgram === 'United MileagePlus');
+    const delta = results.find((r) => r.partnerProgram === 'Delta SkyMiles');
+    expect(united?.estimatedPointsNeeded).not.toBeNull();
+    expect(delta?.estimatedPointsNeeded).not.toBeNull();
+    expect(united?.estimatedPointsNeeded).not.toBe(delta?.estimatedPointsNeeded);
   });
 });

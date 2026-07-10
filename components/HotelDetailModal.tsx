@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AddToTripButton } from '@/components/AddToTripButton';
+import { BestPortalPanel } from '@/components/BestPortalPanel';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { calcPoints } from '@/lib/points/calcPoints';
-import type { PointsResult, PortalId } from '@/lib/points/types';
+import type { PointsResult } from '@/lib/points/types';
+import { PointsGrid } from '@/components/PointsGrid';
 import { trpc } from '@/lib/trpc-client';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
@@ -47,165 +49,6 @@ const BOARD_LABELS: Record<string, string> = {
   all_inclusive: 'All-inclusive',
 };
 
-const PORTAL_ABBR: Record<PortalId, string> = {
-  chase: 'UR', amex: 'MR', capital_one: 'miles', bilt: 'Bilt', citi: 'TY',
-};
-
-const CPP_VMAX = 2.0; // bar scale ceiling in ¢/pt
-
-function portalTier(cpp: number): { label: string; fg: string; bg: string; bar: string } {
-  if (cpp >= 1.2) return { label: 'Above face', fg: '#166534', bg: '#dcfce7', bar: '#22c55e' };
-  if (cpp >= 0.95) return { label: 'At face',    fg: '#6b7280', bg: '#f3f4f6', bar: '#9ca3af' };
-  return              { label: 'Below face', fg: '#92400e', bg: '#fef3c7', bar: '#f59e0b' };
-}
-
-// Vertical ranked portal comparison — fits a narrow card without clipping
-function RoomPointsCompare({
-  pointsResult,
-  isDark,
-  selectedPortalId,
-  onSelectPortal,
-}: {
-  pointsResult: PointsResult;
-  isDark: boolean;
-  selectedPortalId: PortalId;
-  onSelectPortal: (id: PortalId) => void;
-}) {
-  const groups = [...pointsResult.portalGroups].sort(
-    (a, b) => (b.results[0]?.centsPerPoint ?? 0) - (a.results[0]?.centsPerPoint ?? 0),
-  );
-  const cardBg   = isDark ? '#1B2D42' : '#ffffff';
-  const lineCls  = isDark ? 'rgba(255,255,255,0.08)' : '#e5e7eb';
-  const inkCls   = isDark ? '#e2eaf4' : '#111827';
-  const mutedCls = isDark ? '#6b8aa8' : '#6b7280';
-  const lineSoft = isDark ? 'rgba(255,255,255,0.05)' : '#f3f4f6';
-  const hoverBg  = isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc';
-
-  return (
-    <div className="mt-3">
-      <div className="flex justify-between items-baseline px-0.5 pb-2">
-        <span className="text-[9.5px] font-bold font-mono tracking-widest uppercase" style={{ color: mutedCls }}>
-          ALL {groups.length} PORTALS
-        </span>
-        <span className="text-[9.5px] font-bold font-mono tracking-widest uppercase" style={{ color: mutedCls }}>
-          SORTED BY VALUE →
-        </span>
-      </div>
-
-      <div className="rounded-xl overflow-hidden border" style={{ borderColor: lineCls }}>
-        {groups.map((group, i) => {
-          const res = group.results[0];
-          if (!res) return null;
-          const { centsPerPoint, pointsNeeded, pointsEarned, earnRate, portalId } = res;
-          const tier     = portalTier(centsPerPoint);
-          const isBest   = i === 0;
-          const isSelected = portalId === selectedPortalId;
-          const barPct   = Math.min(100, (centsPerPoint / CPP_VMAX) * 100);
-          const abbr     = PORTAL_ABBR[portalId] ?? 'pts';
-          const tickPct  = (1 / CPP_VMAX) * 100;
-
-          let rowBg = cardBg;
-          if (isSelected) rowBg = isDark ? 'rgba(31,111,191,0.15)' : '#eff6ff';
-          else if (isBest) rowBg = isDark ? 'rgba(34,197,94,0.06)' : '#f0fdf4';
-
-          return (
-            <div
-              key={group.portalId}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelectPortal(portalId)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectPortal(portalId); }}
-              className="relative px-4 py-3.5 cursor-pointer transition-colors"
-              style={{
-                borderBottom: i < groups.length - 1 ? `1px solid ${lineSoft}` : 'none',
-                background: rowBg,
-              }}
-              onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = hoverBg; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = rowBg; }}
-            >
-              {/* selected left-edge accent (blue); best-value gets green */}
-              {isSelected && (
-                <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l" style={{ background: '#1F6FBF' }} />
-              )}
-              {isBest && !isSelected && (
-                <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l" style={{ background: '#22c55e' }} />
-              )}
-
-              {/* portal name + points */}
-              <div className="flex justify-between items-start gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    {/* radio dot: filled = selected, ring = unselected */}
-                    <div
-                      className="w-3.5 h-3.5 rounded-full shrink-0 flex items-center justify-center border-2 transition-colors"
-                      style={{
-                        borderColor: isSelected ? '#1F6FBF' : lineCls,
-                        background:  isSelected ? '#1F6FBF' : 'transparent',
-                      }}
-                    >
-                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                    </div>
-                    <span className="text-sm font-bold leading-none" style={{ color: inkCls }}>{group.portalName}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1.5 ml-5.5 flex-wrap">
-                    {isBest && (
-                      <span className="text-[8.5px] font-extrabold font-mono tracking-widest uppercase" style={{ color: '#166534' }}>
-                        ✦ BEST VALUE
-                      </span>
-                    )}
-                    <span className="text-[9px] font-bold font-mono tracking-wider uppercase" style={{ color: mutedCls }}>
-                      {i === 0 ? 'lowest cost' : i === groups.length - 1 ? 'highest cost' : 'mid cost'}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="flex items-baseline gap-1 justify-end">
-                    <span className="text-lg font-extrabold font-mono leading-none" style={{ color: inkCls }}>
-                      {pointsNeeded.toLocaleString()}
-                    </span>
-                    <span className="text-[11px] font-bold" style={{ color: mutedCls }}>{abbr}</span>
-                  </div>
-                  <div className="text-[10px] font-mono mt-0.5" style={{ color: mutedCls }}>
-                    ${group.priceUsd.toLocaleString()} cash
-                  </div>
-                </div>
-              </div>
-
-              {/* value bar */}
-              <div className="flex items-center gap-2 mt-2.5">
-                <span className="text-[10.5px] font-extrabold font-mono rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap"
-                  style={{ color: tier.fg, background: tier.bg }}>
-                  {centsPerPoint.toFixed(1).replace(/\.0$/, '')}¢ · {tier.label}
-                </span>
-                <div className="relative flex-1 h-1 rounded-full" style={{ background: lineSoft }}>
-                  <div className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${barPct}%`, background: tier.bar }} />
-                  <div className="absolute -top-0.75 -bottom-0.75 w-px opacity-40" style={{ left: `${tickPct}%`, background: mutedCls }} />
-                </div>
-              </div>
-
-              {/* alt-path row — selected row only */}
-              {isSelected && (
-                <div className="mt-2.5 pt-2.5 text-[10.5px] leading-relaxed" style={{ borderTop: `1px dashed ${lineCls}`, color: mutedCls }}>
-                  Or pay{' '}
-                  <span className="font-bold" style={{ color: inkCls }}>${group.priceUsd.toLocaleString()}</span>
-                  {' '}cash and earn{' '}
-                  <span className="font-extrabold font-mono" style={{ color: '#166534' }}>+{pointsEarned.toLocaleString()} {abbr}</span>
-                  {' '}
-                  <span className="font-mono">({earnRate}× card)</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="mt-2 text-[9px] font-mono leading-relaxed" style={{ color: mutedCls }}>
-        Bar = ¢/pt vs face (1¢). Currencies aren't interchangeable — UR ≠ TY ≠ miles.
-      </p>
-    </div>
-  );
-}
-
 // Popup overlay — z-[60] sits above the hotel modal (z-50).
 // Uses capture-phase Escape so it doesn't bubble to the parent modal's handler.
 function RoomComparePopup({
@@ -227,19 +70,10 @@ function RoomComparePopup({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  const [selectedPortalId, setSelectedPortalId] = useState<PortalId>(
-    pointsResult.bestPortalResult.portalId,
-  );
-
   const rate     = cheapestRoomRate(room);
   const price    = rate ? parseFloat(rate.total_amount) : 0;
   const perNight = nights > 0 && price > 0 ? price / nights : price;
   const beds     = bedLabel(room.beds);
-
-  const selectedGroup  = pointsResult.portalGroups.find(g => g.portalId === selectedPortalId)
-    ?? pointsResult.portalGroups[0];
-  const selectedRes    = selectedGroup?.results[0] ?? pointsResult.bestPortalResult;
-  const abbr           = PORTAL_ABBR[selectedRes.portalId] ?? 'pts';
 
   const cardBg  = isDark ? 'bg-gph-dark-card'     : 'bg-white';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
@@ -248,13 +82,11 @@ function RoomComparePopup({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-200 flex items-center justify-center p-5"
-      style={{ background: 'rgba(8,9,12,0.35)', backdropFilter: 'blur(8px)' }}
+      className="fixed inset-0 z-200 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className={`w-full max-w-md rounded-2xl shadow-2xl border flex flex-col ${cardBg} ${borderCls}`}
-        style={{ maxHeight: '85vh' }}
+        className={`w-full max-w-2xl max-h-[85vh] rounded-xl shadow-xl border flex flex-col ${cardBg} ${borderCls}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* header */}
@@ -288,23 +120,8 @@ function RoomComparePopup({
         </div>
 
         {/* scrollable ranked comparison */}
-        <div className="px-6 py-2 overflow-y-auto flex-1">
-          <RoomPointsCompare
-            pointsResult={pointsResult}
-            isDark={isDark}
-            selectedPortalId={selectedPortalId}
-            onSelectPortal={setSelectedPortalId}
-          />
-        </div>
-
-        {/* CTA — updates with selection */}
-        <div className={`px-6 pb-6 pt-3 border-t shrink-0 ${borderCls}`}>
-          <button className="w-full bg-lime-500 hover:bg-lime-400 text-cv-navy-950 font-extrabold text-sm py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-            Reserve with {selectedGroup.portalName} · {selectedRes.pointsNeeded.toLocaleString()} {abbr}
-            <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} fill="none">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-            </svg>
-          </button>
+        <div className="px-6 py-4 overflow-y-auto flex-1">
+          <PointsGrid result={pointsResult} />
         </div>
       </div>
     </div>,
@@ -405,6 +222,7 @@ function RoomCard({
   guestCount,
   selectedCards,
   portalPrices,
+  hotelChain,
   isDark,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -417,6 +235,7 @@ function RoomCard({
   selectedCards: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   portalPrices: any;
+  hotelChain?: string;
   isDark: boolean;
 }) {
   const [showPopup, setShowPopup] = useState(false);
@@ -437,11 +256,8 @@ function RoomCard({
   const totalPrice      = pricePerRoom * roomQty;
 
   const pointsResult = totalPrice > 0
-    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices)
+    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain)
     : null;
-  const best        = pointsResult?.bestPortalResult;
-  const isBestValue = best ? best.centsPerPoint > 1.0 : false;
-  const abbr        = best ? (PORTAL_ABBR[best.portalId] ?? 'pts') : 'pts';
 
   const cardBg      = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-gray-50 border-gray-200';
   const textPrimary = isDark ? 'text-gph-dark-ink'                   : 'text-gray-900';
@@ -542,41 +358,14 @@ function RoomCard({
         </div>
 
         {/* Best portal panel */}
-        {best && (
-          <div className="bg-cv-navy-950 px-4 pt-3.5 pb-4 mt-auto">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[8.5px] font-bold font-mono tracking-widest text-cv-navy-400 uppercase truncate pr-2">
-                {best.portalName}
-              </p>
-              {isBestValue && (
-                <span className="text-[8.5px] font-extrabold font-mono text-cv-green-500 uppercase shrink-0 flex items-center gap-0.5">
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                  Above face
-                </span>
-              )}
-            </div>
-            <div className="flex items-baseline gap-1.5 mb-3">
-              <span className="font-mono text-lg font-extrabold text-lime-400 leading-none">
-                {best.pointsNeeded.toLocaleString()}
-              </span>
-              <span className="text-xs text-cv-navy-300">{abbr} · {best.centsPerPoint}¢/pt</span>
-            </div>
-            <button className="w-full bg-lime-500 hover:bg-lime-400 text-cv-navy-950 font-extrabold text-xs py-2.5 rounded-lg transition-colors">
-              Reserve →
-            </button>
-            {pointsResult && (
-              <button
-                onClick={() => setShowPopup(true)}
-                className="w-full mt-1.5 bg-transparent text-white border border-white/20 hover:border-white/40 font-bold text-xs py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
-              >
-                Compare {pointsResult.portalGroups.length} portals
-                <svg width="11" height="11" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2} fill="none">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-                </svg>
-              </button>
-            )}
-          </div>
-        )}
+        <BestPortalPanel
+          result={pointsResult}
+          isDark={isDark}
+          variant="stacked"
+          primaryCta={{ label: 'Reserve →' }}
+          compareLabel={`Compare ${pointsResult?.portalGroups.length ?? 0} portals`}
+          onCompareClick={() => setShowPopup(true)}
+        />
       </div>
 
       {showPopup && pointsResult && (
@@ -913,6 +702,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                         guestCount={(searchResult.guests as { type: string }[])?.length ?? 2}
                         selectedCards={selectedCards}
                         portalPrices={searchResult.portalPrices}
+                        hotelChain={name}
                         isDark={isDark}
                       />
                     ))
@@ -983,7 +773,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                               {r.score.toFixed(1)}
                             </span>
                           </div>
-                          <p className={`text-sm leading-relaxed flex-1 ${textMuted}`}>{r.text}</p>
+                          <p className={`text-sm leading-relaxed flex-1 max-h-30 overflow-y-auto ${textMuted}`}>{r.text}</p>
                           <div className="flex items-center gap-1.5 mt-3 text-[10px] font-bold font-mono tracking-widest uppercase text-cv-green-500">
                             <svg width="11" height="11" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} fill="none">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
