@@ -25,7 +25,7 @@ export function DateInput({
   const boxCls = isDark
     ? 'border-gph-dark-line bg-gph-dark-card'
     : 'border-gray-200 bg-white';
-  const labelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
+  const labelCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const valueCls = isDark ? 'text-gph-dark-ink scheme-dark' : 'text-gray-900 scheme-light';
 
   return (
@@ -39,6 +39,7 @@ export function DateInput({
       <input
         ref={inputRef}
         type="date"
+        aria-label={label}
         value={value}
         min={min ?? today}
         onChange={(e) => onChange(e.target.value)}

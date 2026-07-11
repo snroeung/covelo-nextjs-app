@@ -60,7 +60,7 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
             className={`rounded-md px-4 py-1.5 text-xs font-bold transition-colors ${
               active
                 ? isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-                : isDark ? 'text-gph-dark-muted' : 'text-gray-500'
+                : isDark ? 'text-gph-dark-muted' : 'text-gray-600'
             }`}
           >
             {TRIP_LABELS[t]}

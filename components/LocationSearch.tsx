@@ -156,7 +156,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
       {fieldLabel ? (
         /* Field-box mode: label inside the bordered container */
         <div className={`flex flex-col rounded-lg border px-3 py-2 focus-within:ring-2 focus-within:border-gray-900 focus-within:ring-gray-900/20 transition-colors ${boxCls}`}>
-          <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+          <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
             {fieldLabel}
           </span>
           <div className="flex items-center gap-2 mt-1.5">

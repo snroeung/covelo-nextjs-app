@@ -132,7 +132,7 @@ function SearchHome() {
   const surface = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const tray    = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-gray-100 border-gray-200';
   const ink = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
-  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
 
   // "Searching with" chips: signed-in users see the issuers they selected + their
   // points (entered in the profile popup); everyone else sees all brands, no points.

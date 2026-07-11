@@ -29,7 +29,7 @@ export function SearchModeToggle({ mode, onChange }: { mode: SearchMode; onChang
       {opts.map(({ k, label, Icon }) => {
         const active = mode === k;
         const activeCls = isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white';
-        const idleCls   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+        const idleCls   = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
         return (
           <button
             key={k}

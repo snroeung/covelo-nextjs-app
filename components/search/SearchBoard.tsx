@@ -181,7 +181,7 @@ function cppChip(cpp: number | undefined, isDark: boolean): { label: string; cls
   if (!cpp) return null;
   const label = `${cpp.toFixed(2)}¢/pt`;
   if (cpp >= 1.8) return { label, cls: 'bg-cv-green-800 text-white' };
-  if (cpp >= 1.4) return { label, cls: 'bg-cv-green-500 text-white' };
+  if (cpp >= 1.4) return { label, cls: 'bg-cv-green-800 text-white' };
   return { label, cls: isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500' };
 }
 
@@ -263,7 +263,7 @@ function Marquee({ cards, onOpen, isDark }: { cards: BoardCard[]; onOpen: (c: Bo
 export function SearchBoard({ items, loading }: { items: BoardCard[]; loading?: boolean }) {
   const { isDark } = useTheme();
   const [selected, setSelected] = useState<BoardCard | null>(null);
-  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const dashed = isDark ? 'border-gph-dark-line' : 'border-gray-300';
   const panel = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-white border-gray-200';
   const ink   = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
