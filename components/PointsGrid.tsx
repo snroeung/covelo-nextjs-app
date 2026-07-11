@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PointsResult, PortalGroup, TransferResult, PortalId, EligibleTransferCard, PORTAL_NAMES, CHASE_LEGACY_RATE_SUNSET_DATE } from '@/lib/points/types';
 import { rankOptions } from '@/lib/points/rankOptions';
@@ -10,6 +10,14 @@ import type { TransferBonus, Issuer } from '@/lib/types/offers';
 
 const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
   chase: 'chase', amex: 'amex', c1: 'capital_one', bilt: 'bilt', citi: 'citi',
+};
+
+const ISSUER_LOYALTY_NAME: Record<Issuer, string> = {
+  chase: 'Chase Ultimate Rewards',
+  amex: 'Amex Membership Rewards',
+  c1: 'Capital One Miles',
+  bilt: 'Bilt Rewards',
+  citi: 'Citi ThankYou Rewards',
 };
 
 // ---------------------------------------------------------------------------
@@ -309,6 +317,71 @@ function TransferChip({
   );
 }
 
+function CardSourceDropdown({
+  label, cards, bg, fg, dashed, partnerType, partnerProgram,
+}: {
+  label: string;
+  cards: EligibleTransferCard[];
+  bg: string;
+  fg: string;
+  dashed?: boolean;
+  partnerType: 'hotel' | 'airline';
+  partnerProgram: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pinned) return;
+    function onMouseDown(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setPinned(false);
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [pinned]);
+
+  function toggle() {
+    if (pinned) {
+      setOpen(false);
+      setPinned(false);
+    } else {
+      setPinned(true);
+      setOpen(true);
+    }
+  }
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="relative inline-block"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => { if (!pinned) setOpen(false); }}
+    >
+      <button
+        type="button"
+        onClick={toggle}
+        className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono cursor-pointer focus:outline-none focus:ring-1 focus:ring-cv-lime-500 ${dashed ? 'border border-dashed border-current bg-transparent' : ''}`}
+        style={dashed ? { color: fg } : { background: bg, color: fg }}
+      >
+        {label} · {cards.length} cards ⌄
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full pt-1 z-20 whitespace-nowrap">
+          <div className="rounded bg-cv-navy-950 text-white text-[9px] font-mono px-2 py-1.5 shadow-lg flex flex-col gap-1">
+            {cards.map(c => (
+              <span key={c.cardName}>{c.cardName} · {formatRatioUnits(c.ratio, partnerType, partnerProgram)}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TransferCardChips({
   transfer,
   tier,
@@ -337,7 +410,11 @@ function TransferCardChips({
     return (
       <div className="mt-1 ml-4 flex flex-wrap gap-1">
         {groupByPortal(owned).map(([portalId, cards]) => (
-          <TransferChip key={portalId} label={PORTAL_NAMES[portalId]} cards={cards} bg={chipBg} fg={chipFg} partnerType={transfer.partnerType} partnerProgram={transfer.partnerProgram} />
+          cards.length > 1 ? (
+            <CardSourceDropdown key={portalId} label={PORTAL_NAMES[portalId]} cards={cards} bg={chipBg} fg={chipFg} partnerType={transfer.partnerType} partnerProgram={transfer.partnerProgram} />
+          ) : (
+            <TransferChip key={portalId} label={PORTAL_NAMES[portalId]} cards={cards} bg={chipBg} fg={chipFg} partnerType={transfer.partnerType} partnerProgram={transfer.partnerProgram} />
+          )
         ))}
       </div>
     );
@@ -350,7 +427,11 @@ function TransferCardChips({
     <div className="mt-1 ml-4 flex flex-wrap items-center gap-1">
       <span className={`text-[9px] font-mono ${mutedCls}`}>Get:</span>
       {groupByPortal(recommended).map(([portalId, cards]) => (
-        <TransferChip key={portalId} label={cards[0].cardName} cards={cards} bg={recBg} fg={recFg} dashed partnerType={transfer.partnerType} partnerProgram={transfer.partnerProgram} />
+        cards.length > 1 ? (
+          <CardSourceDropdown key={portalId} label={PORTAL_NAMES[portalId]} cards={cards} bg={recBg} fg={recFg} dashed partnerType={transfer.partnerType} partnerProgram={transfer.partnerProgram} />
+        ) : (
+          <TransferChip key={portalId} label={cards[0].cardName} cards={cards} bg={recBg} fg={recFg} dashed partnerType={transfer.partnerType} partnerProgram={transfer.partnerProgram} />
+        )
       ))}
     </div>
   );
@@ -380,7 +461,14 @@ function TransferRow({
       +{bonus.bonus_pct}% bonus
     </span>
   );
-  const tier   = transfer.transferCpp !== null ? cppTier(transfer.transferCpp) : null;
+  const multiplier = bonus ? 1 + bonus.bonus_pct / 100 : 1;
+  const displayCpp = transfer.transferCpp !== null
+    ? Math.round(transfer.transferCpp * multiplier * 100) / 100
+    : null;
+  const displayPts = transfer.estimatedPointsNeeded !== null
+    ? Math.round(transfer.estimatedPointsNeeded / multiplier)
+    : null;
+  const tier   = displayCpp !== null ? cppTier(displayCpp) : null;
   const srcCur = pointCurrency(transfer.sourcePortalId);
 
   const inkCls    = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -417,9 +505,9 @@ function TransferRow({
 
         {/* Value */}
         <div>
-          {tier && transfer.transferCpp !== null ? (
+          {tier && displayCpp !== null ? (
             <div className="flex items-center gap-2">
-              <span className={`text-lg font-bold font-mono tabular-nums ${inkCls}`}>{transfer.transferCpp}¢</span>
+              <span className={`text-lg font-bold font-mono tabular-nums ${inkCls}`}>{displayCpp}¢</span>
               <span
                 className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono uppercase tracking-wide"
                 style={{ background: tier.chipBg, color: tier.chipFg }}
@@ -434,10 +522,10 @@ function TransferRow({
 
         {/* Cost to redeem */}
         <div>
-          {transfer.estimatedPointsNeeded !== null ? (
+          {displayPts !== null ? (
             <div className="flex items-baseline gap-1.5">
               <span className={`text-sm font-semibold font-mono tabular-nums ${inkCls}`}>
-                {transfer.estimatedPointsNeeded.toLocaleString()}
+                {displayPts.toLocaleString()}
               </span>
               <span className={`text-xs font-medium ${mutedCls}`}>{srcCur}</span>
               <EstMark isDark={isDark} title="Simplified saver award rate — actual pricing varies" />
@@ -472,9 +560,9 @@ function TransferRow({
 
         {/* Row 2: value + redeem + earn */}
         <div className="flex items-center flex-wrap gap-x-5 gap-y-1">
-          {tier && transfer.transferCpp !== null && (
+          {tier && displayCpp !== null && (
             <div className="flex items-center gap-1.5">
-              <span className={`text-base font-bold font-mono tabular-nums ${inkCls}`}>{transfer.transferCpp}¢</span>
+              <span className={`text-base font-bold font-mono tabular-nums ${inkCls}`}>{displayCpp}¢</span>
               <span
                 className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase"
                 style={{ background: tier.chipBg, color: tier.chipFg }}
@@ -484,9 +572,9 @@ function TransferRow({
             </div>
           )}
           <div className={`text-xs font-mono ${mutedCls}`}>
-            {transfer.estimatedPointsNeeded !== null ? (
+            {displayPts !== null ? (
               <>
-                <span className={`font-semibold tabular-nums ${inkCls}`}>{transfer.estimatedPointsNeeded.toLocaleString()}</span>{' '}
+                <span className={`font-semibold tabular-nums ${inkCls}`}>{displayPts.toLocaleString()}</span>{' '}
                 {srcCur} <EstMark isDark={isDark} title="Simplified saver award rate — actual pricing varies" />
               </>
             ) : (
@@ -499,6 +587,25 @@ function TransferRow({
 
         <TransferCardChips transfer={transfer} tier={tier} isDark={isDark} />
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BonusBanner — top-of-card banner when a live transfer bonus applies
+// ---------------------------------------------------------------------------
+
+function formatBonusEndDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function BonusBanner({ bonus, isDark }: { bonus: TransferBonus; isDark: boolean }) {
+  return (
+    <div className={`px-5 py-2 text-[11px] font-semibold font-mono border-b ${
+      isDark ? 'bg-cv-amber-900 text-cv-amber-400 border-gph-dark-line' : 'bg-amber-100 text-amber-800 border-gray-200'
+    }`}>
+      ⚡ +{bonus.bonus_pct}% transfer bonus to {bonus.transfer_partner} from {ISSUER_LOYALTY_NAME[bonus.issuer]} · Ends {formatBonusEndDate(bonus.end_date)}
     </div>
   );
 }
@@ -546,9 +653,13 @@ export function PointsGrid({
   const rows = rankOptions(result);
   const globalBest = rows[0];
 
-  const limit       = collapseAfter ?? rows.length;
+  const limit       = collapseAfter ?? 3;
   const visible     = groupsExpanded ? rows : rows.slice(0, limit);
   const hiddenCount = rows.length - limit;
+
+  const liveBonus = visible
+    .map(row => (row.kind === 'transfer' ? bonusFor(row.transfer) : undefined))
+    .find(Boolean);
 
   const containerBg  = isDark ? 'bg-gph-dark-card'    : 'bg-white';
   const borderCls    = isDark ? 'border-gph-dark-line' : 'border-gray-200';
@@ -556,6 +667,9 @@ export function PointsGrid({
 
   return (
     <div className={`overflow-hidden ${containerBg}`}>
+
+      {/* ── Live transfer bonus banner */}
+      {liveBonus && <BonusBanner bonus={liveBonus} isDark={isDark} />}
 
       {/* ── Column headers (desktop) */}
       <ColHeaders isDark={isDark} compact={compact} />
@@ -588,7 +702,7 @@ export function PointsGrid({
           onClick={() => setGroupsExpanded(true)}
           className={`w-full px-5 py-2.5 text-xs font-medium text-center border-t transition-colors ${borderCls} ${moreButtonBg}`}
         >
-          +{hiddenCount} more option{hiddenCount > 1 ? 's' : ''}
+          Show {hiddenCount} more portal{hiddenCount > 1 ? 's' : ''}
         </button>
       )}
       {groupsExpanded && hiddenCount > 0 && (
@@ -607,6 +721,7 @@ export function PointsGrid({
         out of your account — no earn-back applies. Chase Sapphire rows show both rates since
         redemption value depends on card-open date — legacy fixed rates are grandfathered until{' '}
         {CHASE_LEGACY_RATE_SUNSET_DATE}.
+        {liveBonus && ' Point cost for bonused transfer rows already reflects the live bonus.'}
       </p>
     </div>
   );
