@@ -426,6 +426,12 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
     staleTime: 15 * 60 * 1000,
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const validRooms = (details?.rooms ?? []).filter((room: any) => {
+    const rate = cheapestRoomRate(room);
+    return rate !== null && parseFloat(rate.total_amount) > 0;
+  });
+
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -649,7 +655,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
           </div>
 
           {/* ── Rooms carousel ── */}
-          {(detailsLoading || (details?.rooms && details.rooms.length > 0)) && (
+          {(detailsLoading || validRooms.length > 0) && (
             <div className={`px-6 md:px-8 py-6 border-t ${borderCls}`}>
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -657,7 +663,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                     Choose your room
                   </p>
                   <p className={`text-lg font-extrabold tracking-tight mt-0.5 ${textPrimary}`}>
-                    {details?.rooms ? `${details.rooms.length} room type${details.rooms.length !== 1 ? 's' : ''}` : 'Room types'}
+                    {details?.rooms ? `${validRooms.length} room type${validRooms.length !== 1 ? 's' : ''}` : 'Room types'}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -692,7 +698,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                         </div>
                       </div>
                     ))
-                  : details?.rooms.map((room, i) => (
+                  : validRooms.map((room, i) => (
                       <RoomCard
                         key={i}
                         room={room}

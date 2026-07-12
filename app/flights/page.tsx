@@ -140,7 +140,6 @@ function RefineContent({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>Refine results</div>
         {filterCount > 0 && (
           <button
             onClick={onClearAll}

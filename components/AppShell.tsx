@@ -78,7 +78,7 @@ export function AppShell({
         <aside className={`hidden md:flex w-64 shrink-0 border-r flex-col overflow-hidden ${surfaceBg} ${borderCls}`}>
           {allCardsMode && (
             <div className={`px-4 py-3 border-b ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
-              <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'}`}>
+              <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-900'}`}>
                 Showing all cards. Select yours for a personalized estimate.
               </p>
             </div>

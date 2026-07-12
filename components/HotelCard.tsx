@@ -121,7 +121,7 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
                       <span className={`font-normal ${textMuted}`}>/10</span>
                     </span>
                     {scoreLabel && (
-                      <span className="text-sm font-bold text-cv-green-500">{scoreLabel}</span>
+                      <span className={`text-sm font-bold ${isDark ? 'text-cv-green-500' : 'text-cv-green-800'}`}>{scoreLabel}</span>
                     )}
                   </div>
                 )}

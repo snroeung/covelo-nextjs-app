@@ -51,7 +51,6 @@ function HotelFiltersContent({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className={`text-[10px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>Filters</div>
         {filterCount > 0 && (
           <button
             onClick={onClearAll}
@@ -351,7 +350,7 @@ function HotelsPageInner() {
         <h2 className={`text-3xl font-extrabold tracking-tight leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {accommodations.length} hotel{accommodations.length !== 1 ? 's' : ''}{destPlace?.name ? ` in ${destPlace.name}` : ' found'}
         </h2>
-        <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-2 ${isDark ? 'text-gph-dark-muted' : 'text-gray-500'}`}>
+        <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-2 ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>
           {[
             destPlace?.name,
             guests.adults + guests.children > 0 ? `${guests.adults + guests.children} guest${guests.adults + guests.children !== 1 ? 's' : ''}` : null,
@@ -418,6 +417,7 @@ function HotelsPageInner() {
         />
       ) : undefined}
     >
+      <h1 className="sr-only">Hotel search results</h1>
       {showBackToTop && (
         <button
           onClick={() => document.getElementById('app-main-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}
