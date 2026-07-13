@@ -1,0 +1,115 @@
+name: CI - Full Pipeline (QA / Production Gate)
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+    branches: [main, production]
+
+concurrency:
+  group: ci-full-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  determine-target:
+    name: Determine QA/Production target
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.set.outputs.env_name }}
+      is_production: ${{ steps.set.outputs.is_production }}
+    steps:
+      - id: set
+        run: |
+          BASE="${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}"
+          if [ "$BASE" = "production" ]; then
+            echo "env_name=production" >> "$GITHUB_OUTPUT"
+            echo "is_production=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "env_name=qa" >> "$GITHUB_OUTPUT"
+            echo "is_production=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  security:
+    name: Security (npm audit + CodeQL)
+    needs: determine-target
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ needs.determine-target.outputs.is_production != 'true' }}
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
+
+  code-review:
+    name: Code review (Claude Code Action)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Pin to a verified commit SHA (not a mutable tag) before relying on this for
+      # production gating, and use a scoped/budgeted ANTHROPIC_API_KEY, not a personal one.
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  live-dependency-test:
+    name: Live dependency test (E2E against real APIs)
+    needs: [determine-target, security]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-target.outputs.env_name }}
+    continue-on-error: ${{ needs.determine-target.outputs.is_production != 'true' }}
+    env:
+      NEXT_PUBLIC_APP_ENV: ${{ needs.determine-target.outputs.env_name }}
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      HOTELBEDS_URL: ${{ secrets.HOTELBEDS_URL }}
+      HOTELBEDS_API_KEY: ${{ secrets.HOTELBEDS_API_KEY }}
+      HOTELBEDS_API_SECRET: ${{ secrets.HOTELBEDS_API_SECRET }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      DUFFEL_API_KEY: ${{ secrets.DUFFEL_API_KEY }}
+      PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  dependency-freshness:
+    name: Dependency freshness (fresh install against latest)
+    needs: determine-target
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ needs.determine-target.outputs.is_production != 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Fresh install against latest registry versions
+        run: |
+          rm -f package-lock.json
+          npm install
+      - run: npm run build
+      - run: npm test
