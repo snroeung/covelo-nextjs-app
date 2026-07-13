@@ -70,7 +70,7 @@ function getActivityTagCls(name: string, isDark: boolean): string {
   if (tag === 'FOOD')   return isDark ? 'bg-amber-950/60 text-amber-400'  : 'bg-amber-50 text-amber-700';
   if (tag === 'DRINK')  return isDark ? 'bg-purple-950/60 text-purple-400' : 'bg-purple-50 text-purple-700';
   if (tag === 'TRAVEL') return isDark ? 'bg-sky-950/60 text-sky-400'       : 'bg-sky-50 text-sky-600';
-  return isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500';
+  return isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700';
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -164,10 +164,10 @@ function PlaceholderSection({ label, description, isDark }: { label: string; des
         isDark ? 'border-gph-dark-line' : 'border-gray-200'
       }`}>
         <span className={`text-[10px] font-mono font-bold uppercase tracking-[0.12em] px-2.5 py-1 rounded ${
-          isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+          isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
         }`}>Coming soon</span>
         <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-700'}`}>{label}</p>
-        <p className={`text-xs text-center max-w-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{description}</p>
+        <p className={`text-xs text-center max-w-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>{description}</p>
       </div>
     </div>
   );
@@ -466,6 +466,7 @@ export default function TripDetailPage() {
     <div className={`min-h-screen font-sans ${pageBg}`}>
       <NavBar />
 
+      <main>
       {/* ── Hero / Overview ──────────────────────────────────────────────────── */}
       <div ref={overviewRef} className={`${cardBg}`}>
         <div className="px-6 pt-8 pb-6">
@@ -479,7 +480,7 @@ export default function TripDetailPage() {
               All trips
             </Link>
             <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`} />
-            <span className={`px-2 py-0.5 rounded ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'}`}>
+            <span className={`px-2 py-0.5 rounded ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'}`}>
               In progress
             </span>
             <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`} />
@@ -679,7 +680,7 @@ export default function TripDetailPage() {
               >
                 {label}
                 {count !== undefined && (
-                  <span className={`text-[10px] font-mono ${isActive ? 'opacity-60' : isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{count}</span>
+                  <span className={`text-[10px] font-mono ${isActive ? 'opacity-60' : isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>{count}</span>
                 )}
               </button>
             );
@@ -842,16 +843,16 @@ export default function TripDetailPage() {
                   <div className="flex-1" />
                   {isFirst && (
                     <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-widest ${
-                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
                     }`}>↓ ARRIVAL</span>
                   )}
                   {isLast && (
                     <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-widest ${
-                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
                     }`}>DEPARTURE ↑</span>
                   )}
                   <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-widest ${
-                    isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                    isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
                   }`}>{dayActivities.length} STOP{dayActivities.length !== 1 ? 'S' : ''}</span>
                 </div>
 
@@ -1008,7 +1009,7 @@ export default function TripDetailPage() {
 
                 <button
                   className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 border-dashed text-xs font-medium transition-colors ${
-                    isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-muted hover:text-gph-dark-ink' : 'border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600'
+                    isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-muted hover:text-gph-dark-ink' : 'border-gray-200 text-gray-600 hover:border-gray-500 hover:text-gray-800'
                   }`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1176,8 +1177,8 @@ export default function TripDetailPage() {
               <svg className="w-8 h-8 opacity-20" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
               </svg>
-              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>No flights saved yet</p>
-              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>Heart a flight from search to save it here</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>No flights saved yet</p>
+              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>Heart a flight from search to save it here</p>
               <Link
                 href={`/flights?destination=${encodeURIComponent(trip.destination)}&departDate=${trip.start_date}&returnDate=${trip.end_date}&tripType=roundtrip`}
                 className="px-4 py-2 rounded-lg bg-lime-500 hover:bg-lime-400 text-black text-xs font-bold transition-colors"
@@ -1238,8 +1239,8 @@ export default function TripDetailPage() {
               <svg className="w-8 h-8 opacity-20" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
               </svg>
-              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>No hotels saved yet</p>
-              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>Heart a hotel from search to save it here</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>No hotels saved yet</p>
+              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>Heart a hotel from search to save it here</p>
               <Link
                 href={`/hotels?destination=${encodeURIComponent(trip.destination)}&lat=${trip.destination_lat ?? ''}&lng=${trip.destination_lng ?? ''}&checkIn=${trip.start_date}&checkOut=${trip.end_date}&adults=${trip.travelers.adults}`}
                 className="px-4 py-2 rounded-lg bg-lime-500 hover:bg-lime-400 text-black text-xs font-bold transition-colors"
@@ -1304,13 +1305,14 @@ export default function TripDetailPage() {
           description="Notes anchored to flights, hotels, and itinerary stops will be aggregated here automatically. Add notes inside each section above."
         />
       </section>
+      </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
       <footer className={`flex items-center justify-between px-6 py-5 border-t font-mono text-[11px] font-bold tracking-[0.06em] ${
-        isDark ? 'bg-gph-dark-navy border-gph-dark-line text-gph-dark-muted' : 'bg-gray-900 border-gray-800 text-gray-400'
+        isDark ? 'bg-gph-dark-navy border-gph-dark-line text-gph-dark-muted' : 'bg-gray-900 border-gray-800 text-gray-300'
       }`}>
         <span className="text-white opacity-60">COVELO · {trip.destination.split(',')[0].toUpperCase()} · Continue building this trip →</span>
-        <Link href="/trip-planner" className="text-white opacity-40 hover:opacity-80 transition-opacity">
+        <Link href="/trip-planner" className="text-white opacity-70 hover:opacity-100 transition-opacity">
           All trips ↗
         </Link>
       </footer>

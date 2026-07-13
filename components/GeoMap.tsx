@@ -28,6 +28,7 @@ interface GeoMapProps {
   isDark: boolean;
   markerVariant: 'teardrop' | 'dot';
   zoomControls?: 'navigation' | 'hover-buttons' | 'none';
+  allowFullscreen?: boolean;
   onPinClick?: (pin: GeoPin) => void;
   onBackgroundClick?: () => void;
 
@@ -92,7 +93,7 @@ const ChevronUp = (
 );
 
 export function GeoMap({
-  isDark, markerVariant, zoomControls = 'none', onPinClick, onBackgroundClick,
+  isDark, markerVariant, zoomControls = 'none', allowFullscreen = false, onPinClick, onBackgroundClick,
   pins, center, renderPinCard,
   lat, lng, destinationLabel, borderCls = '', enableSearch, enablePoiPopup,
   showPinTabs, draggableMarkers, initialPins, onPinsChange,
@@ -102,6 +103,21 @@ export function GeoMap({
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const t = setTimeout(() => mapRef.current?.resize(), 60);
+    return () => clearTimeout(t);
+  }, [isFullscreen]);
 
   // ── Dock-card mode state (Hotel) ────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -557,6 +573,26 @@ export function GeoMap({
     : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
   const pillOn    = isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white';
 
+  const fullscreenBtn = allowFullscreen && (
+    <button
+      type="button"
+      onClick={() => setIsFullscreen((v) => !v)}
+      aria-label={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'}
+      title={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'}
+      className={`absolute top-3 right-3 z-30 min-h-11 min-w-11 rounded-lg flex items-center justify-center backdrop-blur-sm transition-colors ${btnCls}`}
+    >
+      {isFullscreen ? (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+        </svg>
+      )}
+    </button>
+  );
+
   const openPinCard = openPin && renderPinCard ? renderPinCard(openPin) : null;
 
   const cardOverlay = (
@@ -599,8 +635,12 @@ export function GeoMap({
 
   if (dockMode) {
     return (
-      <div data-testid="hotel-map" className="relative w-full h-full rounded-xl overflow-hidden">
+      <div
+        data-testid="hotel-map"
+        className={isFullscreen ? `fixed inset-0 z-50 ${bg}` : 'relative w-full h-full rounded-xl overflow-hidden'}
+      >
         <div ref={containerRef} className="w-full h-full" />
+        {fullscreenBtn}
         {cardOverlay}
       </div>
     );
@@ -609,7 +649,7 @@ export function GeoMap({
   const showHeader = !!header;
 
   return (
-    <div className={`flex flex-col h-full border-l overflow-hidden ${borderCls} ${bg}`}>
+    <div className={`flex flex-col overflow-hidden ${bg} ${isFullscreen ? 'fixed inset-0 z-50' : `h-full border-l ${borderCls}`}`}>
 
       {showHeader && header && (
         <div className={`shrink-0 flex items-center justify-between px-3 py-2.5 border-b ${borderCls}`}>
@@ -747,6 +787,8 @@ export function GeoMap({
               className="w-full h-full"
               style={{ visibility: minimized ? 'hidden' : 'visible' }}
             />
+
+            {!minimized && fullscreenBtn}
 
             {zoomControls === 'hover-buttons' && !minimized && mapHovered && (
               <div className="absolute right-3 bottom-6 flex flex-col gap-1 z-10">

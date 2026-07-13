@@ -624,6 +624,7 @@ function HotelsPageInner() {
                 isDark={isDark}
                 markerVariant="teardrop"
                 zoomControls="navigation"
+                allowFullscreen
                 header={false}
                 renderPinCard={renderHotelPinCard}
               />
