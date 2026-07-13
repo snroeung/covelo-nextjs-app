@@ -123,3 +123,75 @@ test.describe('Hotels page — results', () => {
     await expect(page.getByRole('button', { name: 'Close comparison' })).not.toBeVisible();
   });
 });
+
+test.describe('Hotels page — map', () => {
+  test('map toggle shows and hides the map', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    const toggleBtn = page.getByRole('button', { name: /^(Show|Hide) map$/ });
+    const hasToggle = await toggleBtn.isVisible({ timeout: 5_000 }).catch(() => false);
+    test.skip(!hasToggle, 'No mappable hotels (missing geographic coordinates) for this query');
+
+    // Map is visible by default when mappable hotels exist.
+    await expect(page.getByRole('button', { name: 'Hide map' })).toBeVisible();
+    await toggleBtn.click();
+    await expect(page.getByRole('button', { name: 'Show map' })).toBeVisible();
+    await toggleBtn.click();
+    await expect(page.getByRole('button', { name: 'Hide map' })).toBeVisible();
+  });
+
+  test('clicking a map pin opens its card, and "View details" opens the hotel modal', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    const hotelMap = page.getByTestId('hotel-map');
+    const pinButtons = hotelMap.getByRole('button', { name: /^View / });
+    const hasMap = await pinButtons.first().waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasMap, 'No mappable hotels (missing geographic coordinates) for this query');
+
+    await pinButtons.first().click({ force: true });
+
+    const pinCard = page.getByTestId('map-pin-card');
+    const viewDetailsBtn = pinCard.getByRole('button', { name: 'View details', exact: true });
+    await expect(viewDetailsBtn).toBeVisible({ timeout: 10_000 });
+
+    await viewDetailsBtn.click();
+
+    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { level: 2 }).last()).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Close' })).not.toBeVisible();
+  });
+
+  test('clicking the map background closes the pin card', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    const hotelMap = page.getByTestId('hotel-map');
+    const pinButtons = hotelMap.getByRole('button', { name: /^View / });
+    const hasMap = await pinButtons.first().waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasMap, 'No mappable hotels (missing geographic coordinates) for this query');
+
+    await pinButtons.first().click({ force: true });
+
+    const pinCard = page.getByTestId('map-pin-card');
+    await expect(pinCard).toBeVisible({ timeout: 10_000 });
+
+    // Click the map canvas, away from any pin, to dismiss the open card.
+    const mapCanvas = page.locator('.mapboxgl-canvas');
+    await mapCanvas.click({ position: { x: 5, y: 5 } });
+
+    await expect(pinCard).not.toBeVisible();
+  });
+});

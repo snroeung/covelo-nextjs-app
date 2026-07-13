@@ -7,7 +7,7 @@ import { AppShell } from '@/components/AppShell';
 import { type GuestsValue } from '@/components/GuestsDropdown';
 import { HotelCard } from '@/components/HotelCard';
 import { HotelDetailModal } from '@/components/HotelDetailModal';
-import { HotelMap } from '@/components/HotelMap';
+import { GeoMap, type GeoPin } from '@/components/GeoMap';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { type SelectedPlace } from '@/components/LocationSearch';
 import { trpc } from '@/lib/trpc-client';
@@ -160,6 +160,60 @@ function buildGuests(guests: GuestsValue) {
   return [...adults, ...children];
 }
 
+interface HotelPinData {
+  name: string;
+  photo: string | null;
+  address: string;
+  priceLabel: string;
+  stars: number | null;
+  reviewScore: number | null;
+  reviewCount: number | null;
+  scoreLabel: string | null;
+}
+
+function ratingLabel(score: number): string | null {
+  if (score >= 9.0) return 'Exceptional';
+  if (score >= 8.5) return 'Excellent';
+  if (score >= 7.5) return 'Very Good';
+  if (score >= 6.5) return 'Good';
+  return null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function accommodationsToPins(accommodations: any[]): GeoPin[] {
+  return accommodations
+    .filter((sr) => sr.accommodation?.location?.geographic_coordinates)
+    .map((sr) => {
+      const acc = sr.accommodation;
+      const totalAmount = parseFloat(sr.cheapest_rate_total_amount ?? '0');
+      const currency = sr.cheapest_rate_currency ?? 'USD';
+      const lineOne = acc.location?.address?.line_one ?? '';
+      const city = acc.location?.address?.city_name ?? '';
+      const country = acc.location?.address?.country_code ?? '';
+      const streetPart = lineOne && !acc.name?.toLowerCase().includes(lineOne.toLowerCase()) ? lineOne : '';
+      const address = [streetPart, city, country].filter(Boolean).join(', ');
+      const reviewScore = (acc.review_score ?? null) as number | null;
+
+      const data: HotelPinData = {
+        name: acc.name ?? 'Hotel',
+        photo: acc.photos?.[0]?.url ?? null,
+        address,
+        priceLabel: totalAmount.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }),
+        stars: (acc.rating ?? null) as number | null,
+        reviewScore,
+        reviewCount: (acc.review_count ?? null) as number | null,
+        scoreLabel: reviewScore !== null && reviewScore !== undefined ? ratingLabel(reviewScore) : null,
+      };
+
+      return {
+        id: sr.id,
+        lat: acc.location.geographic_coordinates.latitude,
+        lng: acc.location.geographic_coordinates.longitude,
+        data,
+      };
+    });
+}
+
 function EmptyState({ message }: { message: string }) {
   const { isDark } = useTheme();
   return (
@@ -198,6 +252,7 @@ function HotelsPageInner() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [detailResult, setDetailResult] = useState<any | null>(null);
   const [showBackToTop, setShowBackToTop]     = useState(false);
+  const [mapVisible, setMapVisible]     = useState(true);
 
   useEffect(() => {
     const el = document.getElementById('app-main-scroll');
@@ -269,6 +324,119 @@ function HotelsPageInner() {
       if (sortOrder === 'highest') return parseFloat(b.cheapest_rate_total_amount) - parseFloat(a.cheapest_rate_total_amount);
       return 0;
     }), [allAccommodations, minStars, requiredAmenities, sortOrder]);
+
+  const hasMappableHotels = useMemo(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => accommodations.some((sr: any) => sr.accommodation?.location?.geographic_coordinates),
+    [accommodations],
+  );
+
+  const hotelPins = useMemo(() => accommodationsToPins(accommodations), [accommodations]);
+
+  const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
+  const textMuted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const scoreCls = isDark ? 'text-cv-green-500' : 'text-cv-green-800';
+  const starOnCls = 'text-cv-amber-400';
+  const starOffCls = isDark ? 'text-gph-dark-line' : 'text-gray-200';
+  const viewBtnCls = isDark
+    ? 'bg-cv-lime-500 text-gph-dark-card hover:bg-cv-lime-400'
+    : 'bg-gray-900 text-white hover:bg-gray-800';
+  const photoFallbackCls = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100';
+
+  function renderHotelPinCard(pin: GeoPin): { expanded: React.ReactNode; tuck: React.ReactNode } {
+    const data = pin.data as HotelPinData;
+
+    const tuck = (
+      <>
+        {data.photo ? (
+          <img src={data.photo} alt={data.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+        ) : (
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-base shrink-0 ${photoFallbackCls}`}>
+            🏨
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className={`text-xs font-bold truncate ${textPrimary}`}>{data.name}</p>
+          <p className={`text-[11px] font-mono font-bold ${textMuted}`}>{data.priceLabel} · from</p>
+        </div>
+      </>
+    );
+
+    const expanded = (
+      <>
+        <div className="mx-2.5 rounded-xl overflow-hidden h-24">
+          {data.photo ? (
+            <img src={data.photo} alt={data.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className={`w-full h-full flex items-center justify-center text-2xl ${photoFallbackCls}`}>
+              🏨
+            </div>
+          )}
+        </div>
+
+        <div className="p-3">
+          {(data.stars !== null || data.reviewCount !== null) && (
+            <div className="flex items-center gap-1.5 mb-1">
+              {data.stars !== null && (
+                <div className="flex gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i} className={`text-[10px] ${i < data.stars! ? starOnCls : starOffCls}`}>★</span>
+                  ))}
+                </div>
+              )}
+              {data.reviewCount !== null && (
+                <span className={`text-[9px] font-bold font-mono tracking-wide uppercase ${textMuted}`}>
+                  {data.reviewCount.toLocaleString()} reviews
+                </span>
+              )}
+            </div>
+          )}
+
+          <p className={`text-xs font-extrabold leading-snug line-clamp-2 mb-1 ${textPrimary}`}>
+            {data.name}
+          </p>
+
+          {data.address && (
+            <p className={`text-[11px] leading-snug line-clamp-1 mb-1.5 ${textMuted}`}>
+              {data.address}
+            </p>
+          )}
+
+          {data.reviewScore !== null && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className={`text-xs font-bold font-mono ${textPrimary}`}>
+                {data.reviewScore.toFixed(1)}
+                <span className={`font-normal ${textMuted}`}>/10</span>
+              </span>
+              {data.scoreLabel && (
+                <span className={`text-xs font-bold ${scoreCls}`}>{data.scoreLabel}</span>
+              )}
+            </div>
+          )}
+
+          <p className={`text-[10px] font-bold font-mono tracking-widest uppercase ${textMuted}`}>
+            FROM · CASH
+          </p>
+          <p className={`text-lg font-extrabold tracking-tight leading-none mb-2.5 ${textPrimary}`}>
+            {data.priceLabel}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              const sr = accommodations.find((a) => a.id === pin.id);
+              if (sr) setDetailResult(sr);
+            }}
+            className={`w-full min-h-11 rounded-lg text-xs font-bold ${viewBtnCls}`}
+          >
+            View details
+          </button>
+        </div>
+      </>
+    );
+
+    return { expanded, tuck };
+  }
 
   const canSearch = !!destPlace && !!checkIn && !!checkOut;
 
@@ -371,6 +539,13 @@ function HotelsPageInner() {
           onClearAll={handleClearFilters}
         />
 
+        {/* Map toggle */}
+        {hasMappableHotels && (
+          <button onClick={() => setMapVisible((v) => !v)} className={ghostBtn}>
+            {mapVisible ? 'Hide map' : 'Show map'}
+          </button>
+        )}
+
         {/* Sort */}
         <div className="relative" ref={sortRef}>
           <button
@@ -441,6 +616,19 @@ function HotelsPageInner() {
       ) : accommodations.length > 0 ? (
         <div className="space-y-4">
           {resultsHeader}
+          {mapVisible && destPlace && (
+            <div className={`w-full h-72 md:h-96 relative rounded-xl overflow-hidden border ${isDark ? 'border-gph-dark-line' : 'border-gray-200'}`}>
+              <GeoMap
+                pins={hotelPins}
+                center={{ lat: destPlace.latitude, lng: destPlace.longitude }}
+                isDark={isDark}
+                markerVariant="teardrop"
+                zoomControls="navigation"
+                header={false}
+                renderPinCard={renderHotelPinCard}
+              />
+            </div>
+          )}
           {accommodations.map((sr, i) => (
             <Fragment key={sr.id}>
               <HotelCard searchResult={sr} onOpenDetail={setDetailResult} />

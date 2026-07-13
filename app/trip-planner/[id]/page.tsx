@@ -10,7 +10,7 @@ import { useTrips } from '@/hooks/useTrips';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { FlightCard } from '@/components/FlightCard';
 import { HotelCard } from '@/components/HotelCard';
-import { TripMap } from '@/components/TripMap';
+import { GeoMap, type GeoPin } from '@/components/GeoMap';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import type { GuestsValue } from '@/components/GuestsDropdown';
 import type { Trip, TripTravelers } from '@/lib/trips';
@@ -342,6 +342,80 @@ export default function TripDetailPage() {
     : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:ring-gray-400';
   const panelBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const dividerCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const iconBoxCls = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100';
+  const addBtnCls = isDark
+    ? 'bg-cv-lime-500 text-gph-dark-card hover:bg-cv-lime-400'
+    : 'bg-gray-900 text-white hover:bg-gray-800';
+
+  function renderTripPinCard(pin: GeoPin): { expanded: React.ReactNode; tuck: React.ReactNode } {
+    const coords = `${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}`;
+    const placeInfo = pin.data as { address?: string; photoUrl?: string | null } | undefined;
+    const displayAddress = placeInfo?.address || '';
+    const storedAddress = placeInfo?.address || coords;
+    const photoUrl = placeInfo?.photoUrl;
+
+    const tuck = (
+      <>
+        {photoUrl ? (
+          <img src={photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+        ) : (
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 ${iconBoxCls}`}>
+            📍
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className={`text-xs font-bold truncate ${ink}`}>{pin.label || 'Pin'}</p>
+          {displayAddress && <p className={`text-[11px] truncate ${muted}`}>{displayAddress}</p>}
+        </div>
+      </>
+    );
+
+    const expanded = (
+      <>
+        {photoUrl ? (
+          <div className="mx-2.5 rounded-xl overflow-hidden h-24">
+            <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className={`mx-2.5 rounded-xl overflow-hidden h-24 flex items-center justify-center text-2xl ${iconBoxCls}`}>
+            📍
+          </div>
+        )}
+
+        <div className="p-3">
+          <p className={`text-xs font-extrabold leading-snug line-clamp-2 mb-1 ${ink}`}>
+            {pin.label || 'Pin'}
+          </p>
+          {displayAddress && (
+            <p className={`text-[11px] leading-snug mb-2.5 line-clamp-2 ${muted}`}>
+              {displayAddress}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!trip) return;
+              const name = pin.label || 'Pin';
+              const activityId = addActivity(trip.id, name, storedAddress);
+              if (photoUrl) {
+                patchActivity(trip.id, activityId, { photo_url: photoUrl });
+              } else {
+                trpc.places.getPhoto.query({ name, address: coords }).then((url) => {
+                  if (url) patchActivity(trip.id, activityId, { photo_url: url });
+                }).catch(() => {});
+              }
+            }}
+            className={`w-full min-h-11 rounded-lg text-xs font-bold ${addBtnCls}`}
+          >
+            Add to trip
+          </button>
+        </div>
+      </>
+    );
+
+    return { expanded, tuck };
+  }
 
   // Loading states
   if (!trip && trips.length === 0) return <div className={`h-screen ${pageBg}`} />;
@@ -982,23 +1056,26 @@ export default function TripDetailPage() {
               </button>
             </div>
             <div className={`h-[480px] relative rounded-xl overflow-hidden border ${borderCls}`}>
-              <TripMap
+              <GeoMap
+                markerVariant="dot"
                 lat={trip.destination_lat}
                 lng={trip.destination_lng}
-                destination={trip.destination}
+                destinationLabel={trip.destination}
                 isDark={isDark}
                 borderCls={borderCls}
+                header={false}
                 minimized={false}
                 onToggleMinimize={() => {}}
-                hideHeader
-                onAddActivity={(name, address) => {
-                  const activityId = addActivity(trip.id, name, address);
-                  trpc.places.getPhoto.query({ name, address }).then((url) => {
-                    if (url) patchActivity(trip.id, activityId, { photo_url: url });
-                  }).catch(() => {});
-                }}
+                enableSearch
+                enablePoiPopup
+                showPinTabs
+                draggableMarkers
+                renderPinCard={renderTripPinCard}
+                zoomControls="hover-buttons"
                 initialPins={trip.pins ?? []}
-                onPinsChange={(pins) => updateTrip(trip.id, { pins })}
+                onPinsChange={(pins) => updateTrip(trip.id, {
+                  pins: pins.map((p) => ({ id: p.id, label: p.label ?? '', lng: p.lng, lat: p.lat })),
+                })}
               />
             </div>
           </div>
@@ -1029,22 +1106,26 @@ export default function TripDetailPage() {
               </div>
               {/* Full map */}
               <div className="flex-1 relative">
-                <TripMap
+                <GeoMap
+                  markerVariant="dot"
                   lat={trip.destination_lat}
                   lng={trip.destination_lng}
-                  destination={trip.destination}
+                  destinationLabel={trip.destination}
                   isDark={isDark}
                   borderCls={borderCls}
+                  header={false}
                   minimized={false}
                   onToggleMinimize={() => {}}
-                  onAddActivity={(name, address) => {
-                    const activityId = addActivity(trip.id, name, address);
-                    trpc.places.getPhoto.query({ name, address }).then((url) => {
-                      if (url) patchActivity(trip.id, activityId, { photo_url: url });
-                    }).catch(() => {});
-                  }}
+                  enableSearch
+                  enablePoiPopup
+                  showPinTabs
+                  draggableMarkers
+                  renderPinCard={renderTripPinCard}
+                  zoomControls="hover-buttons"
                   initialPins={trip.pins ?? []}
-                  onPinsChange={(pins) => updateTrip(trip.id, { pins })}
+                  onPinsChange={(pins) => updateTrip(trip.id, {
+                    pins: pins.map((p) => ({ id: p.id, label: p.label ?? '', lng: p.lng, lat: p.lat })),
+                  })}
                 />
               </div>
             </div>
