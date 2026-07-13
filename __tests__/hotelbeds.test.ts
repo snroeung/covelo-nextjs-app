@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { haversineMeters, matchHotels } from '@/lib/hotelbeds-match';
 import { adaptHotelBedsHotel, adaptHotelBedsResults } from '@/lib/adapters/hotelbeds-adapter';
 import type { HotelBedsHotel, HotelBedsSearchResponse } from '@/lib/hotelbeds';
