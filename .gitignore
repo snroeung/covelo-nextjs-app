@@ -39,6 +39,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# husky internal helper (auto-generated, not the hooks themselves)
+.husky/_
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
