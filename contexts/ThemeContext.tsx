@@ -13,7 +13,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDark] = useState(false); // default: light
 
   useEffect(() => {
+    // Deliberately not a lazy useState initializer: SSR always renders the
+    // light default, so the first client render must match it exactly to
+    // avoid a hydration mismatch. Syncing the real value one tick later
+    // here is the tradeoff, not an oversight.
     const stored = localStorage.getItem('covelo_theme');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored) setIsDark(stored === 'dark');
   }, []);
 

@@ -162,7 +162,7 @@ function OnboardingForm() {
         <div className="w-full max-w-4xl">
           <div className="text-center mb-8">
             <h1 className={`text-2xl font-bold mb-2 ${textPrimary}`}>What cards do you have?</h1>
-            <p className={`text-sm ${textMuted}`}>We'll find your best redemption value across all your cards.</p>
+            <p className={`text-sm ${textMuted}`}>We&apos;ll find your best redemption value across all your cards.</p>
           </div>
 
           {/* Issuer filter tabs */}
@@ -288,7 +288,7 @@ function OnboardingForm() {
       {step === 'username' && (
         <div className={`w-full max-w-sm rounded-2xl border p-8 ${cardBg} ${border}`}>
           <h1 className={`text-lg font-bold mb-1 ${textPrimary}`}>Set up your profile</h1>
-          <p className={`text-sm mb-6 ${textMuted}`}>This is how you'll appear on shared trips and leaderboards.</p>
+          <p className={`text-sm mb-6 ${textMuted}`}>This is how you&apos;ll appear on shared trips and leaderboards.</p>
 
           <div className="flex flex-col gap-5">
             <div>

@@ -21,8 +21,13 @@ export function SelectedCardsProvider({ children }: { children: React.ReactNode 
   const [cardBalances, setCardBalances] = useState<Partial<Record<CardId, number>>>({});
 
   useEffect(() => {
+    // Deliberately not lazy useState initializers: SSR always renders the
+    // empty defaults, so the first client render must match them exactly
+    // to avoid a hydration mismatch. Syncing from localStorage one tick
+    // later here is the tradeoff, not an oversight.
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (stored) setSelectedCards(JSON.parse(stored));
     } catch {}
     try {
