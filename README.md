@@ -180,11 +180,11 @@ Three workflows under `.github/workflows/`:
 |---|---|---|
 | `dependency-review.yml` | PRs into `main` or `production` | `dependency-review` — flags vulnerable/license-problem dependencies introduced by the PR |
 | `ci-fast.yml` | Every push and PR, any branch | `syntax` (lint + typecheck), `component-tests` (`npm test`) |
-| `ci-full.yml` | Push/PR targeting `main` or `production` only | `determine-target`, `security` (npm audit + CodeQL), `code-review` (Claude Code Action, PR-only), `live-dependency-test` (Playwright E2E against real integrations), `dependency-freshness` (fresh `npm install` + build + test) |
+| `ci-full.yml` | Push/PR targeting `main` or `production` only | `determine-target`, `security` (npm audit + CodeQL), `code-review` (requests a GitHub Copilot review, PR-only), `live-dependency-test` (Playwright E2E against real integrations, `production`-only) |
 
-`ci-fast.yml` runs everywhere so lint/type/unit-test regressions surface immediately on every commit, even on feature branches. `ci-full.yml` only runs against `main`/`production` since its jobs are heavier (real API calls, static analysis, an AI review pass) and only matter once code is headed toward a shared environment.
+`ci-fast.yml` runs everywhere so lint/type/unit-test regressions surface immediately on every commit, even on feature branches. `ci-full.yml` only runs against `main`/`production` since its jobs are heavier (real API calls, static analysis, a Copilot review request) and only matter once code is headed toward a shared environment.
 
-**`main` is the QA gate, `production` is the strict production gate:** the `determine-target` job resolves which one a run is targeting (`github.base_ref` for PRs, `github.ref_name` for direct pushes) and exposes it to the other jobs. On `main`, `security`, `live-dependency-test`, and `dependency-freshness` run but are `continue-on-error: true` — failures are visible but don't block. On `production`, none of them have that escape hatch — every job must pass.
+**`main` is the QA gate, `production` is the strict production gate:** the `determine-target` job resolves which one a run is targeting (`github.base_ref` for PRs, `github.ref_name` for direct pushes) and exposes it to the other jobs. On `main`, `security` runs but is `continue-on-error: true` — failures are visible but don't block. `live-dependency-test` is skipped outright on `main` (not just non-blocking) since it hits real external APIs and is reserved for the production gate. On `production`, `security` has no escape hatch and `live-dependency-test` runs and blocks like every other job.
 
 ## Environments
 
