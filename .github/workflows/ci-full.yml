@@ -70,9 +70,9 @@ jobs:
   live-dependency-test:
     name: Live dependency test (E2E against real APIs)
     needs: [determine-target, security]
+    if: needs.determine-target.outputs.is_production == 'true'
     runs-on: ubuntu-latest
     environment: ${{ needs.determine-target.outputs.env_name }}
-    continue-on-error: ${{ needs.determine-target.outputs.is_production != 'true' }}
     env:
       NEXT_PUBLIC_APP_ENV: ${{ needs.determine-target.outputs.env_name }}
       GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
