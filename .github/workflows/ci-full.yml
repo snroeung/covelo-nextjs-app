@@ -56,16 +56,16 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      # continue-on-error while we confirm the default GITHUB_TOKEN can
-      # actually add a bot reviewer here — docs conflict on this, and the
-      # step's own success shouldn't gate anything either way. Also a no-op
-      # on fork PRs: GITHUB_TOKEN is forced read-only there regardless of
-      # this permissions block — repo Settings > Copilot auto-review is the
-      # reliable native fallback if this turns out not to work.
+      # The raw bot login (copilot-pull-request-reviewer[bot]) fails with
+      # "Could not resolve user with login" — gh's requestReviewsByLogin
+      # GraphQL path doesn't resolve it. The @copilot special handle is the
+      # documented, working syntax (gh >= 2.88.0). continue-on-error stays
+      # since this is a no-op on fork PRs (GITHUB_TOKEN is forced read-only
+      # there) — repo Settings > Copilot auto-review is the native fallback.
       - continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh pr edit ${{ github.event.pull_request.number }} --add-reviewer copilot-pull-request-reviewer[bot] --repo ${{ github.repository }}
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-reviewer "@copilot" --repo ${{ github.repository }}
 
   live-dependency-test:
     name: Live dependency test (E2E against real APIs)
