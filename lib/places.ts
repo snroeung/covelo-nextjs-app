@@ -206,7 +206,6 @@ export async function getPlacePhoto(name: string, address: string): Promise<stri
   const findRes = await fetch(findUrl.toString());
   const findData = await findRes.json();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const photoRef: string | undefined = findData.candidates?.[0]?.photos?.[0]?.photo_reference;
   if (!photoRef) return null;
 

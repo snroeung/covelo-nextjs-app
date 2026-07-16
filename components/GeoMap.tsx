@@ -547,7 +547,6 @@ export function GeoMap({
     if (geocodeDebRef.current) clearTimeout(geocodeDebRef.current);
     geocodeDebRef.current = setTimeout(() => runGeocode(searchQuery), 300);
     return () => { if (geocodeDebRef.current) clearTimeout(geocodeDebRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dockMode, enableSearch, searchQuery]);
 
   useEffect(() => {

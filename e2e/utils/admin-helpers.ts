@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
-import { uuid } from 'zod/v4-mini';
 
 // All test records use this prefix so cleanup can target them safely
 export const TEST_PREFIX = '[TEST]';

@@ -141,7 +141,7 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
 
   if (variant === 'inline_banner') return <InlineBanner ad={ad} isDark={isDark} context={context} isMulti={isMulti} index={index} total={ads.length} goTo={goTo} />;
   if (variant === 'native')        return <NativeAd     ad={ad} isDark={isDark} context={context} />;
-  if (variant === 'strip')         return <StripAd      ad={ad} isDark={isDark} context={context} />;
+  if (variant === 'strip')         return <StripAd      ad={ad} context={context} />;
   return <CompactAd ad={ad} isDark={isDark} isMulti={isMulti} index={index} total={ads.length} goTo={goTo} />;
 }
 
@@ -391,8 +391,8 @@ function NativeAd({ ad, isDark, context }: {
 
 // ─── Strip (trip detail post-booking) ────────────────────────────────────────
 
-function StripAd({ ad, isDark, context }: {
-  ad: AdData; isDark: boolean; context?: Props['context'];
+function StripAd({ ad, context }: {
+  ad: AdData; context?: Props['context'];
 }) {
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: '#0c0c0d', color: '#fff' }}>

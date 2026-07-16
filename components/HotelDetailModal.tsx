@@ -207,7 +207,6 @@ function HotelMiniMap({ lat, lng, isDark }: { lat: number; lng: number; isDark: 
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng, isDark]);
 
   return <div ref={containerRef} className="w-full h-full" />;
