@@ -49,7 +49,7 @@ function getCabin(seg: any): Cabin {
 
 const AIRLINE_COLORS: Record<string, string> = {
   AA: '#c0212b', DL: '#003c7d', UA: '#172649', B6: '#0075ff',
-  WN: '#ff4500', AS: '#0074c8', NK: '#ffd300', F9: '#00a651',
+  WN: '#ff4500', AS: '#0074c8', NK: '#ffd300', F9: '#007a3d',
   HA: '#7b1fa2', QR: '#5c0716', EK: '#c8102e', LH: '#05164d',
   BA: '#075aaa', AC: '#c0202d', AF: '#002157', KL: '#00a1de',
   SQ: '#0032a0', CX: '#006564', JL: '#e11931', NH: '#003087',

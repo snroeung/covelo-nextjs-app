@@ -209,6 +209,7 @@ function accommodationsToPins(accommodations: any[]): GeoPin[] {
         id: sr.id,
         lat: acc.location.geographic_coordinates.latitude,
         lng: acc.location.geographic_coordinates.longitude,
+        label: acc.name ?? 'Hotel',
         data,
       };
     });

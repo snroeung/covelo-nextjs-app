@@ -186,7 +186,7 @@ function cppChip(cpp: number | undefined, isDark: boolean): { label: string; cls
 }
 
 // ── Slide card (hook-free — full detail lives in the modal) ──────────────────
-function SlideCard({ card, onOpen, isDark }: { card: BoardCard; onOpen: (c: BoardCard) => void; isDark: boolean }) {
+function SlideCard({ card, onOpen, isDark, inert }: { card: BoardCard; onOpen: (c: BoardCard) => void; isDark: boolean; inert?: boolean }) {
   const surface = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const ink     = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
@@ -196,6 +196,8 @@ function SlideCard({ card, onOpen, isDark }: { card: BoardCard; onOpen: (c: Boar
   return (
     <button
       onClick={() => onOpen(card)}
+      tabIndex={inert ? -1 : undefined}
+      aria-hidden={inert || undefined}
       className={`w-64 shrink-0 text-left rounded-xl border p-4 mx-1.5 transition-shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-cv-lime-500 ${surface}`}
     >
       <div className="flex items-center justify-between gap-2">
@@ -244,7 +246,7 @@ function Marquee({ cards, onOpen, isDark }: { cards: BoardCard[]; onOpen: (c: Bo
   const half = (aria: boolean) => (
     <div className="flex" aria-hidden={aria || undefined}>
       {filled.map((c, i) => (
-        <SlideCard key={`${c.id}-${i}`} card={c} onOpen={onOpen} isDark={isDark} />
+        <SlideCard key={`${c.id}-${i}`} card={c} onOpen={onOpen} isDark={isDark} inert={aria} />
       ))}
     </div>
   );

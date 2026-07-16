@@ -273,8 +273,18 @@ export function GeoMap({
       mapRef.current = null;
       setOpenPin(null);
     };
+    // isDark/zoomControls intentionally excluded: rebuilding the whole map+markers
+    // here would tear markers down mid-interaction (e.g. right after ThemeContext's
+    // post-mount localStorage hydration flips isDark). Style is patched in-place
+    // by the effect below instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dockMode, pins, centerLat, centerLng, isDark, zoomControls]);
+  }, [dockMode, pins, centerLat, centerLng]);
+
+  // Theme change: patch style in-place. Markers are DOM-based, unaffected by setStyle.
+  useEffect(() => {
+    if (!dockMode) return;
+    mapRef.current?.setStyle(isDark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11');
+  }, [dockMode, isDark]);
 
   // ── Interactive mode state (Trip) ───────────────────────────────────────
   const geocodeDebRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -577,8 +587,8 @@ export function GeoMap({
     <button
       type="button"
       onClick={() => setIsFullscreen((v) => !v)}
-      aria-label={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'}
-      title={isFullscreen ? 'Exit fullscreen' : 'View fullscreen'}
+      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
       className={`absolute top-3 right-3 z-30 min-h-11 min-w-11 rounded-lg flex items-center justify-center backdrop-blur-sm transition-colors ${btnCls}`}
     >
       {isFullscreen ? (

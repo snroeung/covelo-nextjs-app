@@ -59,7 +59,7 @@ function getMaxStops(offer: any): number {
 function PriceTrendPlaceholder({ isDark }: { isDark: boolean }) {
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const bgCls     = isDark ? 'bg-gph-dark-bg'       : 'bg-gray-50';
-  const mutedCls  = isDark ? 'text-gph-dark-muted'  : 'text-gray-400';
+  const mutedCls  = isDark ? 'text-gph-dark-muted'  : 'text-gray-600';
   const barCls    = isDark ? 'bg-gph-dark-linesoft'  : 'bg-gray-200';
 
   const heights = [55, 40, 60, 35, 30, 45, 65, 70, 50, 55, 72];
@@ -124,7 +124,7 @@ function RefineContent({
   const sliderValue = filterMaxPrice ?? sliderMax;
 
   const inkCls     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const mutedCls   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls   = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const rowIdleCls = isDark
     ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink'
     : 'border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-900';
@@ -229,6 +229,7 @@ function RefineContent({
           </div>
           <input
             type="range"
+            aria-label="Max price"
             min={Math.floor(priceRange.min)}
             max={sliderMax}
             step={10}
@@ -538,7 +539,7 @@ function FlightsPageInner() {
   );
 
   const headingCls = isDark ? 'text-white'           : 'text-gray-900';
-  const subTextCls = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
+  const subTextCls = isDark ? 'text-gph-dark-muted'  : 'text-gray-600';
   const borderAccent = isDark ? 'border-gph-dark-action' : 'border-gray-900';
 
   const refineProps: RefineProps = {
@@ -576,6 +577,7 @@ function FlightsPageInner() {
       hasResults={rawOffers.length > 0}
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
+      <h1 className="sr-only">Flight search results</h1>
       {searching ? (
         <div className="flex items-center justify-center py-24">
           <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
@@ -618,7 +620,7 @@ function FlightsPageInner() {
                     className={`px-3 py-1.5 text-[10px] font-bold font-mono uppercase tracking-widest transition-colors ${
                       sort === key
                         ? isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-                        : isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-900'
+                        : isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
                     {label}
