@@ -363,19 +363,25 @@ function FlightsPageInner() {
     retry: 1,
   });
 
-  useEffect(() => {
-    if (!nearestAirport) return;
-    setArrivalPlace({
-      latitude:    nearestAirport.latitude,
-      longitude:   nearestAirport.longitude,
-      name:        nearestAirport.name,
-      description: nearestAirport.description,
-      iataCode:    nearestAirport.iataCode,
-    });
-    setToInitial(nearestAirport.description);
-    setToCommitted(!!nearestAirport.iataCode);
-    setToKey((k) => k + 1);
-  }, [nearestAirport]);
+  // react-query keeps a stable reference for unchanged data across
+  // re-renders, so this only fires once per actual new result — adjusted
+  // during render (React's documented alternative to an effect for this).
+  const [prevNearestAirport, setPrevNearestAirport] = useState(nearestAirport);
+  if (nearestAirport !== prevNearestAirport) {
+    setPrevNearestAirport(nearestAirport);
+    if (nearestAirport) {
+      setArrivalPlace({
+        latitude:    nearestAirport.latitude,
+        longitude:   nearestAirport.longitude,
+        name:        nearestAirport.name,
+        description: nearestAirport.description,
+        iataCode:    nearestAirport.iataCode,
+      });
+      setToInitial(nearestAirport.description);
+      setToCommitted(!!nearestAirport.iataCode);
+      setToKey((k) => k + 1);
+    }
+  }
 
   // Committed search params drive the query. Seeded from the URL so arriving from the
   // /search hub runs the search declaratively. This deliberately replaces an
@@ -409,13 +415,16 @@ function FlightsPageInner() {
   });
   const searching = flightSearch.isFetching;
 
-  // Reset filters when new results arrive
-  useEffect(() => {
+  // Reset filters when new results arrive — adjusted during render
+  // (React's documented alternative to an effect for this).
+  const [prevFlightSearchData, setPrevFlightSearchData] = useState(flightSearch.data);
+  if (flightSearch.data !== prevFlightSearchData) {
+    setPrevFlightSearchData(flightSearch.data);
     setExcludedStops(new Set());
     setExcludedAirlines(new Set());
     setFilterMaxPrice(null);
     setSort('best');
-  }, [flightSearch.data]);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawOffers: any[] = flightSearch.data?.offers ?? [];

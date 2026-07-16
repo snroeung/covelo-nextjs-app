@@ -1,0 +1,98 @@
+name: CI - Full Pipeline (QA / Production Gate)
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+    branches: [main, production]
+
+concurrency:
+  group: ci-full-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  determine-target:
+    name: Determine QA/Production target
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.set.outputs.env_name }}
+      is_production: ${{ steps.set.outputs.is_production }}
+    steps:
+      - id: set
+        run: |
+          BASE="${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}"
+          if [ "$BASE" = "production" ]; then
+            echo "env_name=production" >> "$GITHUB_OUTPUT"
+            echo "is_production=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "env_name=qa" >> "$GITHUB_OUTPUT"
+            echo "is_production=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  security:
+    name: Security (npm audit + CodeQL)
+    needs: determine-target
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ needs.determine-target.outputs.is_production != 'true' }}
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
+
+  code-review:
+    name: Code review (GitHub Copilot)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      # The raw bot login (copilot-pull-request-reviewer[bot]) fails with
+      # "Could not resolve user with login" — gh's requestReviewsByLogin
+      # GraphQL path doesn't resolve it. The @copilot special handle is the
+      # documented, working syntax (gh >= 2.88.0). continue-on-error stays
+      # since this is a no-op on fork PRs (GITHUB_TOKEN is forced read-only
+      # there) — repo Settings > Copilot auto-review is the native fallback.
+      - continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr edit ${{ github.event.pull_request.number }} --add-reviewer "@copilot" --repo ${{ github.repository }}
+
+  live-dependency-test:
+    name: Live dependency test (E2E against real APIs)
+    needs: [determine-target, security]
+    if: needs.determine-target.outputs.is_production == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-target.outputs.env_name }}
+    env:
+      NEXT_PUBLIC_APP_ENV: ${{ needs.determine-target.outputs.env_name }}
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      HOTELBEDS_URL: ${{ secrets.HOTELBEDS_URL }}
+      HOTELBEDS_API_KEY: ${{ secrets.HOTELBEDS_API_KEY }}
+      HOTELBEDS_API_SECRET: ${{ secrets.HOTELBEDS_API_SECRET }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      DUFFEL_API_KEY: ${{ secrets.DUFFEL_API_KEY }}
+      PLAYWRIGHT_ADMIN_EMAIL: ${{ secrets.PLAYWRIGHT_ADMIN_EMAIL }}
+      PLAYWRIGHT_ADMIN_PASSWORD: ${{ secrets.PLAYWRIGHT_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

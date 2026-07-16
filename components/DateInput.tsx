@@ -18,6 +18,11 @@ export function DateInput({
   const [today, setToday] = useState<string | undefined>(undefined);
 
   useEffect(() => {
+    // Deliberately not a lazy useState initializer: SSR can't know "today"
+    // in the client's timezone, so the first client render must match the
+    // SSR'd `undefined` exactly to avoid a hydration mismatch on the
+    // input's `min` attribute. Syncing one tick later is the tradeoff.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToday(new Date().toISOString().split('T')[0]);
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);

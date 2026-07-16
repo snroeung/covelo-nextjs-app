@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { BalancePanel } from '@/components/BalancePanel';
 import { CardSelector } from '@/components/CardSelector';
@@ -25,9 +25,14 @@ export function AppShell({
   const { user } = useAuth();
   const { selectedCards } = useSelectedCards();
   const [headerOpen, setHeaderOpen] = useState(true);
-  useEffect(() => {
+  // Auto-collapse once when results load, without fighting a manual reopen
+  // afterward — adjusted during render (React's documented alternative to
+  // an effect for this), not via useEffect.
+  const [prevHasResults, setPrevHasResults] = useState(hasResults);
+  if (hasResults !== prevHasResults) {
+    setPrevHasResults(hasResults);
     if (hasResults) setHeaderOpen(false);
-  }, [hasResults]);
+  }
 
   const pageBg    = isDark ? 'bg-gph-dark-bg'   : 'bg-gray-100';
   const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';

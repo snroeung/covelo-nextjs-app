@@ -1,4 +1,4 @@
-import { vi, beforeEach, describe, it, expect } from 'vitest';
+import { vi, beforeEach, describe, it, expect, type Mock } from 'vitest';
 import { appRouter } from "@/server/routers/_app";
 
 vi.mock("@/lib/duffel", () => ({
@@ -63,7 +63,9 @@ describe("flights.searchOffers", () => {
   });
 
   it("returns an offer request for a one-way flight search", async () => {
-    (duffel.offerRequests.create as any).mockResolvedValue({ data: mockOfferRequest });
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
+      data: mockOfferRequest,
+    });
 
     const result = await caller.flights.searchOffers({
       origin: "LHR",
@@ -81,7 +83,9 @@ describe("flights.searchOffers", () => {
   });
 
   it("throws when the Duffel API fails", async () => {
-    (duffel.offerRequests.create as any).mockRejectedValue(new Error("Duffel API unavailable"));
+    (duffel.offerRequests.create as Mock).mockRejectedValue(
+      new Error("Duffel API unavailable")
+    );
 
     await expect(
       caller.flights.searchOffers({
@@ -105,7 +109,9 @@ describe("flights.searchOffers", () => {
   });
 
   it("passes cabin class when provided", async () => {
-    (duffel.offerRequests.create as any).mockResolvedValue({ data: mockOfferRequest });
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
+      data: mockOfferRequest,
+    });
 
     await caller.flights.searchOffers({
       origin: "LHR",
