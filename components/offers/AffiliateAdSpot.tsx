@@ -110,7 +110,14 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
 
   const ads = Array.isArray(rawData) ? rawData : rawData ? [rawData] : [];
 
-  useEffect(() => { setIndex(0); setResetKey(0); }, [ads.length]);
+  // Reset carousel position when the ad count changes — adjusted during
+  // render (React's documented alternative to an effect for this).
+  const [prevAdsLength, setPrevAdsLength] = useState(ads.length);
+  if (ads.length !== prevAdsLength) {
+    setPrevAdsLength(ads.length);
+    setIndex(0);
+    setResetKey(0);
+  }
 
   useEffect(() => {
     if (ads.length <= 1) return;

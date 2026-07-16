@@ -57,8 +57,13 @@ export function NavBar() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [searchOpen]);
 
-  // Close Search dropdown on navigation
-  useEffect(() => { closeSearch(); }, [pathname]);
+  // Close Search dropdown on navigation — adjusted during render (React's
+  // documented alternative to an effect for this), not via useEffect.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    closeSearch();
+  }
 
   const initials = profile?.display_name
     ? profile.display_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()

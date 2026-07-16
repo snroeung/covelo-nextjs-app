@@ -77,7 +77,7 @@ function setupSupabase(
       }),
     },
     from: mockFrom,
-  } as ReturnType<typeof createClient> extends Promise<infer T> ? T : never);
+  } as unknown as ReturnType<typeof createClient> extends Promise<infer T> ? T : never);
   return { mockFrom };
 }
 

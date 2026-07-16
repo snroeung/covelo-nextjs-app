@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { calcPoints } from '@/lib/points/calcPoints';
 import { calcTransferAlternatives } from '@/lib/points/transferPartners';
 import { PortalResult } from '@/lib/points/types';

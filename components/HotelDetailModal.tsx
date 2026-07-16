@@ -200,7 +200,7 @@ function RoomPointsCompare({
       </div>
 
       <p className="mt-2 text-[9px] font-mono leading-relaxed" style={{ color: mutedCls }}>
-        Bar = ¢/pt vs face (1¢). Currencies aren't interchangeable — UR ≠ TY ≠ miles.
+        Bar = ¢/pt vs face (1¢). Currencies aren&apos;t interchangeable — UR ≠ TY ≠ miles.
       </p>
     </div>
   );

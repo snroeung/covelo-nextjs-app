@@ -1,23 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import {
   addBookmark as _add,
   removeBookmark as _remove,
   getBookmarksForTrip,
-  type Bookmark,
   type BookmarkType,
 } from '@/lib/bookmarks';
 
-export function useBookmarks(trip_id: string) {
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+function subscribe(callback: () => void) {
+  window.addEventListener('covelo:bookmarks', callback);
+  return () => window.removeEventListener('covelo:bookmarks', callback);
+}
 
-  useEffect(() => {
-    setBookmarks(getBookmarksForTrip(trip_id));
-    function sync() { setBookmarks(getBookmarksForTrip(trip_id)); }
-    window.addEventListener('covelo:bookmarks', sync);
-    return () => window.removeEventListener('covelo:bookmarks', sync);
-  }, [trip_id]);
+export function useBookmarks(trip_id: string) {
+  const bookmarks = useSyncExternalStore(
+    subscribe,
+    () => getBookmarksForTrip(trip_id),
+    () => [],
+  );
 
   const add = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,7 +27,6 @@ export function useBookmarks(trip_id: string) {
         ...input, trip_id,
         item_id: ''
       });
-      setBookmarks(getBookmarksForTrip(trip_id));
       return bm;
     },
     [trip_id],
@@ -35,9 +35,8 @@ export function useBookmarks(trip_id: string) {
   const remove = useCallback(
     (id: string) => {
       _remove(id);
-      setBookmarks(getBookmarksForTrip(trip_id));
     },
-    [trip_id],
+    [],
   );
 
   const flights = bookmarks.filter((b) => b.type === 'flight');

@@ -1,4 +1,4 @@
-import { vi, beforeEach, describe, it, expect } from 'vitest';
+import { vi, beforeEach, describe, it, expect, type Mock } from 'vitest';
 import { appRouter } from "@/server/routers/_app";
 
 vi.mock("@/lib/duffel", () => ({
@@ -50,7 +50,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("returns an offer request for a one-way flight search", async () => {
-    (duffel.offerRequests.create as jest.Mock).mockResolvedValue({
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
       data: mockOfferRequest,
     });
 
@@ -70,7 +70,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("throws when the Duffel API fails", async () => {
-    (duffel.offerRequests.create as jest.Mock).mockRejectedValue(
+    (duffel.offerRequests.create as Mock).mockRejectedValue(
       new Error("Duffel API unavailable")
     );
 
@@ -96,7 +96,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("passes cabin class when provided", async () => {
-    (duffel.offerRequests.create as jest.Mock).mockResolvedValue({
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
       data: mockOfferRequest,
     });
 

@@ -1,0 +1,6 @@
+npm run lint && npm run typecheck && npm test
+status=$?
+if [ $status -eq 0 ]; then
+  timeout 120 claude -p "/code-review" || true
+fi
+exit $status
