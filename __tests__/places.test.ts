@@ -1,4 +1,4 @@
-import { vi, beforeEach, describe, it, expect } from 'vitest';
+import { vi, beforeEach, describe, it, expect, type Mock } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 
@@ -49,8 +49,8 @@ function mockJapanAirports(onCountryCall?: () => void) {
 describe('getAirportsForQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (redis.get as any).mockResolvedValue(null);
-    (redis.set as any).mockResolvedValue('OK');
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue('OK');
   });
 
   it('returns direct airport matches without any country fallback calls', async () => {
@@ -104,7 +104,7 @@ describe('getAirportsForQuery', () => {
 
     await getAirportsForQuery('Japan', 'session-1');
     expect(redis.set).toHaveBeenCalledTimes(1);
-    const [key, value, opts] = (redis.set as any).mock.calls[0];
+    const [key, value, opts] = (redis.set as Mock).mock.calls[0];
     expect(key).toBe('place:country-airports:JP');
     expect(value).toEqual([
       { placeId: 'nrt_id', description: NRT.description },
@@ -114,7 +114,7 @@ describe('getAirportsForQuery', () => {
     expect(countryCallCount).toBe(1);
 
     // Second lookup: cache hit skips the live country-restricted autocomplete call.
-    (redis.get as any).mockResolvedValue([
+    (redis.get as Mock).mockResolvedValue([
       { placeId: 'nrt_id', description: NRT.description },
       { placeId: 'hnd_id', description: HND.description },
     ]);

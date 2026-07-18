@@ -58,8 +58,8 @@ describe("flights.searchOffers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: cache miss, writes succeed.
-    (redis.get as any).mockResolvedValue(null);
-    (redis.set as any).mockResolvedValue("OK");
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue("OK");
   });
 
   it("returns an offer request for a one-way flight search", async () => {
@@ -130,7 +130,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("returns cached offers without calling Duffel on a cache hit", async () => {
-    (redis.get as any).mockResolvedValue(mockOfferRequest);
+    (redis.get as Mock).mockResolvedValue(mockOfferRequest);
 
     const result = await caller.flights.searchOffers({
       origin: "LHR",
@@ -145,7 +145,7 @@ describe("flights.searchOffers", () => {
   });
 
   it("writes the Duffel response to the cache on a miss", async () => {
-    (duffel.offerRequests.create as any).mockResolvedValue({ data: mockOfferRequest });
+    (duffel.offerRequests.create as Mock).mockResolvedValue({ data: mockOfferRequest });
 
     await caller.flights.searchOffers({
       origin: "LHR",
@@ -156,7 +156,7 @@ describe("flights.searchOffers", () => {
 
     expect(duffel.offerRequests.create).toHaveBeenCalledTimes(1);
     expect(redis.set).toHaveBeenCalledTimes(1);
-    const [key, value] = (redis.set as any).mock.calls[0];
+    const [key, value] = (redis.set as Mock).mock.calls[0];
     expect(key).toMatch(/^flight:search:/);
     expect(value).toEqual(mockOfferRequest);
   });
@@ -171,13 +171,13 @@ describe("flights.board", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (isEnabled as any).mockReturnValue(true);
-    (redis.get as any).mockResolvedValue(null);
-    (redis.set as any).mockResolvedValue("OK");
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue("OK");
   });
 
   it("fans out one Duffel call per destination and returns the cheapest offer per route", async () => {
-    (duffel.offerRequests.create as any)
+    (duffel.offerRequests.create as Mock)
       .mockResolvedValueOnce({ data: { offers: [makeOffer("off_sfo", "210.00")] } })
       .mockResolvedValueOnce({ data: { offers: [makeOffer("off_lax", "198.00")] } });
 
@@ -192,7 +192,7 @@ describe("flights.board", () => {
   });
 
   it("drops a route whose Duffel call rejects without affecting other routes", async () => {
-    (duffel.offerRequests.create as any)
+    (duffel.offerRequests.create as Mock)
       .mockRejectedValueOnce(new Error("Duffel API unavailable"))
       .mockResolvedValueOnce({ data: { offers: [makeOffer("off_lax", "198.00")] } });
 
@@ -206,7 +206,7 @@ describe("flights.board", () => {
   });
 
   it("picks the lowest total_amount when a route returns multiple offers", async () => {
-    (duffel.offerRequests.create as any).mockResolvedValue({
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
       data: { offers: [makeOffer("off_expensive", "500.00"), makeOffer("off_cheap", "150.00"), makeOffer("off_mid", "300.00")] },
     });
 
@@ -220,7 +220,7 @@ describe("flights.board", () => {
   });
 
   it("skips offers with missing or zero total_amount when finding the cheapest", async () => {
-    (duffel.offerRequests.create as any).mockResolvedValue({
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
       data: { offers: [makeOffer("off_zero", "0"), { id: "off_missing" }, makeOffer("off_valid", "220.00")] },
     });
 
@@ -235,7 +235,7 @@ describe("flights.board", () => {
 
   it("returns the cached payload without calling Duffel on a cache hit", async () => {
     const cached = [makeOffer("off_cached", "199.00")];
-    (redis.get as any).mockResolvedValue(cached);
+    (redis.get as Mock).mockResolvedValue(cached);
 
     const result = await caller.flights.board({
       origin: "PHL",
@@ -249,7 +249,7 @@ describe("flights.board", () => {
   });
 
   it("writes to the cache on a miss, even when the result is empty", async () => {
-    (duffel.offerRequests.create as any).mockRejectedValue(new Error("Duffel API unavailable"));
+    (duffel.offerRequests.create as Mock).mockRejectedValue(new Error("Duffel API unavailable"));
 
     const result = await caller.flights.board({
       origin: "PHL",
@@ -259,13 +259,13 @@ describe("flights.board", () => {
 
     expect(result).toEqual([]);
     expect(redis.set).toHaveBeenCalledTimes(1);
-    const [key, value] = (redis.set as any).mock.calls[0];
+    const [key, value] = (redis.set as Mock).mock.calls[0];
     expect(key).toMatch(/^flight:board:/);
     expect(value).toEqual([]);
   });
 
   it("returns an empty array without calling Duffel when integration:duffel:flights is disabled", async () => {
-    (isEnabled as any).mockImplementation((flag: string) => flag !== "integration:duffel:flights");
+    (isEnabled as Mock).mockImplementation((flag: string) => flag !== "integration:duffel:flights");
 
     const result = await caller.flights.board({
       origin: "PHL",

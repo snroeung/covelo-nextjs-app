@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rankOptions, getBestOption } from '@/lib/points/rankOptions';
+import { rankOptions, getBestOption, type RankedOption } from '@/lib/points/rankOptions';
 import type { PortalGroup, PortalResult, TransferResult, PointsResult } from '@/lib/points/types';
 
 function makePortalResult(overrides: Partial<PortalResult> = {}): PortalResult {
@@ -97,7 +97,7 @@ describe('rankOptions', () => {
 
     expect(ranked).toHaveLength(1);
     expect(ranked[0].kind).toBe('portal');
-    expect((ranked[0] as any).group.portalId).toBe('chase');
+    expect((ranked[0] as Extract<RankedOption, { kind: 'portal' }>).group.portalId).toBe('chase');
   });
 
   it('gives each transfer row a unique key when two transfers share a partner program', () => {

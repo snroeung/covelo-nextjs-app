@@ -13,7 +13,7 @@ import { CARD_PORTAL_MAP, type PortalId } from '@/lib/points/types';
 import { SearchModeToggle, type SearchMode } from '@/components/search/SearchModeToggle';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
-import { SearchBoard, adaptFlightOffer, adaptStay, FALLBACK_FLIGHTS, FALLBACK_STAYS, type BoardCard } from '@/components/search/SearchBoard';
+import { SearchBoard, adaptFlightOffer, adaptStay, FALLBACK_FLIGHTS, FALLBACK_STAYS, type BoardCard, type FlightOfferSlice, type StaySearchResultSlice } from '@/components/search/SearchBoard';
 import type { GuestsValue } from '@/components/GuestsDropdown';
 import type { SelectedPlace } from '@/components/LocationSearch';
 import {
@@ -113,12 +113,12 @@ function SearchHome() {
   });
 
   const flightCards: BoardCard[] = useMemo(
-    () => ((flightBoard.data as any[]) ?? []).map(adaptFlightOffer).filter((c: BoardCard | null): c is BoardCard => c !== null),
+    () => ((flightBoard.data as FlightOfferSlice[] | undefined) ?? []).map(adaptFlightOffer).filter((c: BoardCard | null): c is BoardCard => c !== null),
     [flightBoard.data],
   );
   const nights = useMemo(() => Math.max(1, Math.round((Date.parse(bReturn) - Date.parse(bDepart)) / 86400000)), [bDepart, bReturn]);
   const stayCards: BoardCard[] = useMemo(
-    () => ((stayBoard.data as any[]) ?? []).map((sr) => adaptStay(sr, nights)).filter((c: BoardCard | null): c is BoardCard => c !== null).slice(0, 8),
+    () => ((stayBoard.data as StaySearchResultSlice[] | undefined) ?? []).map((sr) => adaptStay(sr, nights)).filter((c: BoardCard | null): c is BoardCard => c !== null).slice(0, 8),
     [stayBoard.data, nights],
   );
 

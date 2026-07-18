@@ -1,4 +1,4 @@
-import { vi, beforeEach, describe, it, expect } from 'vitest';
+import { vi, beforeEach, describe, it, expect, type Mock } from 'vitest';
 
 vi.mock('@/lib/points/calcPoints', () => ({
   calcPoints: vi.fn(),
@@ -8,7 +8,7 @@ import { calcPoints } from '@/lib/points/calcPoints';
 import { adaptFlightOffer, adaptStay } from '@/components/search/SearchBoard';
 
 function mockCalcPoints(pointsNeeded: number, cpp: number) {
-  (calcPoints as any).mockReturnValue({
+  (calcPoints as Mock).mockReturnValue({
     bestPortalResult: { pointsNeeded, centsPerPoint: cpp },
   });
 }
@@ -139,7 +139,7 @@ describe('adaptFlightOffer', () => {
   });
 
   it('omits pointsNeeded/cpp without throwing when calcPoints throws', () => {
-    (calcPoints as any).mockImplementation(() => { throw new Error('boom'); });
+    (calcPoints as Mock).mockImplementation(() => { throw new Error('boom'); });
 
     const offer = {
       id: 'off_9',

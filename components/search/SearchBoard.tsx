@@ -7,6 +7,32 @@ import { calcPoints } from '@/lib/points/calcPoints';
 import { PointsGrid } from '@/components/PointsGrid';
 import type { FlightContext, PortalId } from '@/lib/points/types';
 
+// Subset of a Duffel flight offer actually read by adaptFlightOffer. The
+// `flights.board` router returns Duffel's raw (untyped) offer shape — this
+// interface mirrors just the fields consumed here rather than the full SDK type.
+export interface FlightOfferSlice {
+  id: string;
+  total_amount?: string;
+  owner?: { iata_code?: string | null; name?: string | null };
+  slices?: {
+    segments?: {
+      origin?: { iata_code?: string | null; city_name?: string | null };
+      destination?: { iata_code?: string | null; city_name?: string | null };
+      marketing_carrier?: { iata_code?: string | null; name?: string | null };
+    }[];
+  }[];
+}
+
+// Subset of a `stays.search` result actually read by adaptStay — the router
+// returns Duffel's full StaysSearchResult (dozens of required fields) optionally
+// augmented with portalPrices; this mirrors just what's consumed here.
+export interface StaySearchResultSlice {
+  id?: string;
+  cheapest_rate_total_amount?: string;
+  accommodation?: { id?: string; name?: string; rating?: number | null };
+  portalPrices?: BoardCard['portalPrices'];
+}
+
 // A normalized card for the example board — the minimum needed to render a tile
 // and drive the points-comparison modal. Adapted from the raw Duffel
 // flight-offer / stay-accommodation shapes returned by the tRPC search.
@@ -62,7 +88,7 @@ function estimate(priceUsd: number, kind: 'flight' | 'hotel', flightCtx?: Flight
 }
 
 // ── Adapters ────────────────────────────────────────────────────────────────
-export function adaptFlightOffer(offer: any): BoardCard | null {
+export function adaptFlightOffer(offer: FlightOfferSlice): BoardCard | null {
   const price = parseFloat(offer?.total_amount ?? '');
   if (!price) return null;
   const segments = offer?.slices?.[0]?.segments ?? [];
@@ -89,7 +115,7 @@ export function adaptFlightOffer(offer: any): BoardCard | null {
   };
 }
 
-export function adaptStay(sr: any, nights = 3): BoardCard | null {
+export function adaptStay(sr: StaySearchResultSlice, nights = 3): BoardCard | null {
   const price = parseFloat(sr?.cheapest_rate_total_amount ?? '');
   if (!price) return null;
   const acc = sr?.accommodation ?? {};
@@ -156,6 +182,7 @@ function BrandIcon({ logoUrl, label }: { logoUrl?: string; label: string }) {
   const code = (label.replace(/[^a-z]/gi, '') || '?').slice(0, 2).toUpperCase();
   if (logoUrl && !err) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
       <img
         src={logoUrl}
         alt={label}

@@ -630,23 +630,32 @@ export function PointsGrid({
   const { isDark } = useTheme();
   const [groupsExpanded, setGroupsExpanded] = useState(false);
 
-  const { data: transferBonuses = [] } = useQuery({
+  // `fetchedAt` is captured inside queryFn (not the render body) so the
+  // date-window check below doesn't call the impure Date.now() during render —
+  // react-hooks/purity forbids that even inside useMemo.
+  const { data } = useQuery({
     queryKey: ['offers.transferBonuses'],
-    queryFn:  () => trpc.offers.listTransferBonuses.query(),
+    queryFn:  async () => ({
+      bonuses:   await trpc.offers.listTransferBonuses.query(),
+      fetchedAt: Date.now(),
+    }),
     staleTime: 15 * 60 * 1000,
   });
+  const transferBonuses = data?.bonuses ?? [];
+  const now = data?.fetchedAt ?? null;
   // Server orders by bonus_pct desc, so find() returns the biggest match.
   // Date-window guard: admin sessions bypass the public RLS end_date filter,
   // so re-check here to only badge bonuses currently live on the offers page.
-  const now = Date.now();
   const bonusFor = (t: TransferResult): TransferBonus | undefined =>
-    transferBonuses.find(
-      b =>
-        ISSUER_TO_PORTAL[b.issuer] === t.sourcePortalId &&
-        b.transfer_partner === t.partnerProgram &&
-        new Date(b.end_date).getTime() > now &&
-        (!b.start_date || new Date(b.start_date).getTime() <= now),
-    );
+    now === null
+      ? undefined
+      : transferBonuses.find(
+          b =>
+            ISSUER_TO_PORTAL[b.issuer] === t.sourcePortalId &&
+            b.transfer_partner === t.partnerProgram &&
+            new Date(b.end_date).getTime() > now &&
+            (!b.start_date || new Date(b.start_date).getTime() <= now),
+        );
 
   // Unified ¢/pt-ranked list — direct-book portals and transfer partners
   // compete on the same axis; a transfer partner can lead the list.
@@ -663,10 +672,20 @@ export function PointsGrid({
 
   const containerBg  = isDark ? 'bg-gph-dark-card'    : 'bg-white';
   const borderCls    = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const inkCls       = isDark ? 'text-gph-dark-ink'    : 'text-gray-900';
+  const mutedCls     = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
   const moreButtonBg = isDark ? 'bg-gph-dark-bg text-gph-dark-muted hover:bg-gph-dark-linesoft' : 'bg-gray-50 text-gray-500 hover:bg-gray-100';
 
   return (
     <div className={`overflow-hidden ${containerBg}`}>
+
+      {/* ── Header: item context (hotel/flight name) */}
+      {itemName && (
+        <div className={`px-5 py-3 border-b ${borderCls} ${isDark ? 'bg-gph-dark-bg' : 'bg-gray-50'}`}>
+          <div className={`text-sm font-semibold truncate ${inkCls}`}>{itemName}</div>
+          {itemMeta && <div className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{itemMeta}</div>}
+        </div>
+      )}
 
       {/* ── Live transfer bonus banner */}
       {liveBonus && <BonusBanner bonus={liveBonus} isDark={isDark} />}
