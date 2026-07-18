@@ -168,10 +168,14 @@ export function GeoMap({
     if (!dockMode) return;
     pinElsRef.current.forEach((el, id) => {
       const active = id === openPin?.id;
-      el.innerHTML = active ? PIN_SVG_ACTIVE : PIN_SVG;
-      el.style.transform = active ? 'scale(1.15)' : 'scale(1)';
+      if (markerVariant === 'dot') {
+        el.style.cssText = active ? ACTIVE_PIN_CSS : IDLE_PIN_CSS;
+      } else {
+        el.innerHTML = active ? PIN_SVG_ACTIVE : PIN_SVG;
+        el.style.transform = active ? 'scale(1.15)' : 'scale(1)';
+      }
     });
-  }, [dockMode, openPin]);
+  }, [dockMode, openPin, markerVariant]);
 
   useEffect(() => {
     if (!openPin) return;
@@ -190,6 +194,9 @@ export function GeoMap({
     if (!dockMode) return;
     if (!containerRef.current || centerLat == null || centerLng == null) return;
 
+    // Captured up front so the cleanup below reads the same Map instance
+    // rather than pinElsRef.current, which may point elsewhere by then.
+    const pinEls = pinElsRef.current;
     let cancelled = false;
 
     (async () => {
@@ -231,9 +238,14 @@ export function GeoMap({
           wrapper.setAttribute('aria-label', `View ${pin.label ?? 'location'}`);
 
           const pinEl = document.createElement('div');
-          pinEl.style.cssText = 'width: 28px; height: 36px; transition: transform 0.15s; transform-origin: bottom center;';
-          pinEl.innerHTML = pin.id === openPinIdRef.current ? PIN_SVG_ACTIVE : PIN_SVG;
-          if (pin.id === openPinIdRef.current) pinEl.style.transform = 'scale(1.15)';
+          const isPinActive = pin.id === openPinIdRef.current;
+          if (markerVariant === 'dot') {
+            pinEl.style.cssText = isPinActive ? ACTIVE_PIN_CSS : IDLE_PIN_CSS;
+          } else {
+            pinEl.style.cssText = 'width: 28px; height: 36px; transition: transform 0.15s; transform-origin: bottom center;';
+            pinEl.innerHTML = isPinActive ? PIN_SVG_ACTIVE : PIN_SVG;
+            if (isPinActive) pinEl.style.transform = 'scale(1.15)';
+          }
           wrapper.appendChild(pinEl);
           pinElsRef.current.set(pin.id, pinEl);
 
@@ -268,7 +280,7 @@ export function GeoMap({
       cancelled = true;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
-      pinElsRef.current.clear();
+      pinEls.clear();
       mapRef.current?.remove();
       mapRef.current = null;
       setOpenPin(null);

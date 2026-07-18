@@ -285,7 +285,8 @@ function HotelsPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const allAccommodations: any[] = hotelSearch.data ?? []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allAccommodations: any[] = useMemo(() => hotelSearch.data ?? [], [hotelSearch.data]);
 
   const availableAmenities = useMemo(() => {
     const map = new Map<string, { description: string; count: number }>();
@@ -350,6 +351,7 @@ function HotelsPageInner() {
     const tuck = (
       <>
         {data.photo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
           <img src={data.photo} alt={data.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
         ) : (
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-base shrink-0 ${photoFallbackCls}`}>
@@ -367,6 +369,7 @@ function HotelsPageInner() {
       <>
         <div className="mx-2.5 rounded-xl overflow-hidden h-24">
           {data.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
             <img src={data.photo} alt={data.name} className="w-full h-full object-cover" />
           ) : (
             <div className={`w-full h-full flex items-center justify-center text-2xl ${photoFallbackCls}`}>
@@ -465,7 +468,7 @@ function HotelsPageInner() {
   function handleToggleAmenity(type: string) {
     setRequiredAmenities(prev => {
       const next = new Set(prev);
-      next.has(type) ? next.delete(type) : next.add(type);
+      if (next.has(type)) next.delete(type); else next.add(type);
       return next;
     });
   }

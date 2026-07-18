@@ -44,7 +44,7 @@ export function AddToTripButton({ type, itemId, title, data }: Props) {
     sync();
     window.addEventListener('covelo:bookmarks', sync);
     return () => window.removeEventListener('covelo:bookmarks', sync);
-  }, [trips, type, title]);
+  }, [trips, type, title, itemId]);
 
   // Position the fixed dropdown below the button
   useLayoutEffect(() => {

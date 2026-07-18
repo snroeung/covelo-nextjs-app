@@ -428,7 +428,7 @@ function FlightsPageInner() {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawOffers: any[] = flightSearch.data?.offers ?? [];
+  const rawOffers: any[] = useMemo(() => flightSearch.data?.offers ?? [], [flightSearch.data]);
 
   // Derived filter data (from full result set)
   const stopCounts = useMemo(() => {
@@ -548,14 +548,14 @@ function FlightsPageInner() {
     excludedStops,
     onToggleStop: (stop) => setExcludedStops(prev => {
       const next = new Set(prev);
-      next.has(stop) ? next.delete(stop) : next.add(stop);
+      if (next.has(stop)) next.delete(stop); else next.add(stop);
       return next;
     }),
     availableAirlines,
     excludedAirlines,
     onToggleAirline: (code) => setExcludedAirlines(prev => {
       const next = new Set(prev);
-      next.has(code) ? next.delete(code) : next.add(code);
+      if (next.has(code)) next.delete(code); else next.add(code);
       return next;
     }),
     priceRange,

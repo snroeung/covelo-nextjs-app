@@ -195,9 +195,9 @@ export default function TripDetailPage() {
   const [bookedFlights, setBookedFlights] = useState<Set<string>>(new Set());
   const [bookedHotels, setBookedHotels] = useState<Set<string>>(new Set());
   const toggleBookedFlight = (id: string) =>
-    setBookedFlights((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setBookedFlights((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleBookedHotel = (id: string) =>
-    setBookedHotels((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setBookedHotels((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // Edit state
   const [editField, setEditField] = useState<EditField>(null);
@@ -215,7 +215,7 @@ export default function TripDetailPage() {
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   function toggleNotes(key: string) {
-    setExpandedNotes((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setExpandedNotes((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   }
 
   // Drag state
@@ -357,6 +357,7 @@ export default function TripDetailPage() {
     const tuck = (
       <>
         {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
           <img src={photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
         ) : (
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 ${iconBoxCls}`}>
@@ -374,6 +375,7 @@ export default function TripDetailPage() {
       <>
         {photoUrl ? (
           <div className="mx-2.5 rounded-xl overflow-hidden h-24">
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet */}
             <img src={photoUrl} alt="" className="w-full h-full object-cover" />
           </div>
         ) : (
@@ -714,6 +716,7 @@ export default function TripDetailPage() {
                     <div key={a.id} className={`rounded-xl border ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
                       <div className="flex items-stretch">
                         {a.photo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
                           <img src={a.photo_url} alt={a.name} className="w-16 h-16 shrink-0 object-cover rounded-l-xl" />
                         ) : (
                           <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl rounded-l-xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>📍</div>
@@ -927,6 +930,7 @@ export default function TripDetailPage() {
                               {/* Content column */}
                               <div className="flex items-center gap-2.5 min-w-0">
                                 {a.photo_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
                                   <img src={a.photo_url} alt={a.name} className="w-11 h-11 shrink-0 rounded-lg object-cover" draggable={false} />
                                 ) : (
                                   <div className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center text-base ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>📍</div>

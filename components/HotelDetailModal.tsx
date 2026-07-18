@@ -272,6 +272,7 @@ function RoomCard({
         {/* Room photo */}
         <div className="relative h-40 shrink-0">
           {photo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
             <img src={photo} alt={room.name} className="w-full h-full object-cover" />
           ) : (
             <div className={`w-full h-full flex items-center justify-center text-3xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-200'}`}>
@@ -476,6 +477,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
           <div className="relative">
             {photos.length > 0 ? (
               <>
+                {/* eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet */}
                 <img
                   src={photos[photoIdx].url}
                   alt={`${name} photo ${photoIdx + 1}`}
@@ -550,6 +552,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                   {photos.map((p, i) => (
                     <button key={i} onClick={() => setPhotoIdx(i)} className="shrink-0 rounded-md overflow-hidden cursor-pointer transition-all"
                       style={{ border: i === photoIdx ? '2px solid #4A9ED6' : '2px solid transparent', lineHeight: 0, background: 'transparent', padding: 0 }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet */}
                       <img src={p.url} alt="" className="object-cover rounded" style={{ width: 60, height: 42, opacity: i === photoIdx ? 1 : 0.6, display: 'block' }} />
                     </button>
                   ))}
