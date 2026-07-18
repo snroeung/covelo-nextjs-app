@@ -37,6 +37,11 @@
   --color-gph-dark-actionsoft:#222226;
   --color-gph-dark-navy:      #000000;
 
+  /* Lime — graphite accent: hero period, compare links, wallet dots, focus rings */
+  --color-cv-lime-400: #A3E635;
+  --color-cv-lime-500: #84CC16;
+  --color-cv-lime-700: #4D7C0F;
+
   /* Green — savings & confirmation */
   --color-cv-green-800: #2D7A3A;
   --color-cv-green-700: #3F8F4E;
@@ -61,6 +66,28 @@ body {
   background: #F3F4F6;
   color: #111827;
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ── Search hub marquee (example board) ───────────────────────────────────── */
+@keyframes tkL { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.tk-track {
+  display: flex;
+  width: max-content;
+  align-items: stretch;
+  animation-name: tkL;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.tk-paused:hover .tk-track { animation-play-state: paused; }
+/* Fade the left/right edges so cards slide in and out of view softly. */
+.tk-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+          mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-track { animation: none !important; }
+  .tk-mask { overflow-x: auto !important; -webkit-mask-image: none; mask-image: none; }
 }
 
 /* ── Mapbox POI popup card ────────────────────────────────────────────────── */

@@ -5,6 +5,7 @@ import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { BalancePanel } from '@/components/BalancePanel';
 import { CardSelector } from '@/components/CardSelector';
 import { NavBar } from '@/components/NavBar';
+import { Footer } from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -82,7 +83,7 @@ export function AppShell({
         <aside className={`hidden md:flex w-64 shrink-0 border-r flex-col overflow-hidden ${surfaceBg} ${borderCls}`}>
           {allCardsMode && (
             <div className={`px-4 py-3 border-b ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
-              <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'}`}>
+              <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-900'}`}>
                 Showing all cards. Select yours for a personalized estimate.
               </p>
             </div>
@@ -100,6 +101,8 @@ export function AppShell({
         </main>
 
       </div>
+
+      <Footer />
     </div>
   );
 }

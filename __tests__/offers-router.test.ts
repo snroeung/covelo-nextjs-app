@@ -554,14 +554,12 @@ describe('offers.admin.deleteAd()', () => {
   const caller = appRouter.createCaller({});
 
   it('27. sets active=false (soft delete) not a hard delete', async () => {
-    // First from() call: fetch the slot; second: update active=false
     const { mockFrom } = setupSupabase([
-      { data: { slot: 'sidebar' }, error: null },
       { data: null, error: null },
     ]);
 
     await caller.offers.admin.deleteAd({ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' });
 
-    expect(mockFrom).toHaveBeenCalledTimes(2);
+    expect(mockFrom).toHaveBeenCalledTimes(1);
   });
 });

@@ -263,6 +263,7 @@ function TripRailCard({
       {/* Photo / colour swatch */}
       <div className="w-20 shrink-0 relative">
         {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
           <img
             src={photoUrl}
             alt={cityName}

@@ -5,6 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
 import { AddToTripButton } from '@/components/AddToTripButton';
+import { BestPortalPanel } from '@/components/BestPortalPanel';
 import { classifyRoute } from '@/lib/points/transferPartners';
 import { Cabin, FlightContext } from '@/lib/points/types';
 
@@ -48,7 +49,7 @@ function getCabin(seg: any): Cabin {
 
 const AIRLINE_COLORS: Record<string, string> = {
   AA: '#c0212b', DL: '#003c7d', UA: '#172649', B6: '#0075ff',
-  WN: '#ff4500', AS: '#0074c8', NK: '#ffd300', F9: '#00a651',
+  WN: '#ff4500', AS: '#0074c8', NK: '#ffd300', F9: '#007a3d',
   HA: '#7b1fa2', QR: '#5c0716', EK: '#c8102e', LH: '#05164d',
   BA: '#075aaa', AC: '#c0202d', AF: '#002157', KL: '#00a1de',
   SQ: '#0032a0', CX: '#006564', JL: '#e11931', NH: '#003087',
@@ -247,8 +248,6 @@ export function FlightCard({ offer }: { offer: any }) {
     cabin:      getCabin(leg0First),
   };
   const ptsResult  = usePointsCalc(totalAmount, 'flight', ptsCtx);
-  const best       = ptsResult?.bestPortalResult ?? null;
-  const isBestValue = best ? best.centsPerPoint > 1.0 : false;
   const nPortals   = ptsResult?.portalGroups.length ?? 0;
 
   const cardBg      = isDark ? 'bg-gph-dark-card' : 'bg-white border border-gray-200';
@@ -256,7 +255,6 @@ export function FlightCard({ offer }: { offer: any }) {
   const textPrimary = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
   const textMuted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const sectionBg   = isDark ? 'bg-gph-dark-bg'      : 'bg-gray-50';
-  const navyBar     = isDark ? 'bg-cv-navy-900'       : 'bg-cv-navy-950';
 
   const airline    = offer.owner?.name ?? leg0First?.marketing_carrier?.name ?? 'Unknown airline';
   const originCode = leg0First?.origin?.iata_code ?? '';
@@ -282,45 +280,15 @@ export function FlightCard({ offer }: { offer: any }) {
         <LegRow {...legProps} slice={leg0Slice} showCash />
 
         {/* Dark navy portal bar */}
-        {best ? (
-          <div className={`flex flex-wrap items-center gap-4 md:gap-6 px-5 py-3.5 ${navyBar}`}>
-            <div>
-              <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Best Portal</p>
-              <p className="text-sm font-bold text-white leading-tight">{best.portalName}</p>
-            </div>
-
-            <div>
-              <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Redeem</p>
-              <p className="text-sm font-bold font-mono text-cv-sky-400 leading-tight">
-                {best.pointsNeeded.toLocaleString()} pts
-                <span className="text-cv-navy-300 font-normal ml-1.5">· {best.centsPerPoint}¢/pt</span>
-              </p>
-            </div>
-
-            <div className="hidden md:block">
-              <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Value</p>
-              <p className={`text-sm font-bold flex items-center gap-1 ${isBestValue ? 'text-cv-green-500' : 'text-cv-navy-300'}`}>
-                {isBestValue && (
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  </svg>
-                )}
-                {isBestValue ? 'Above Face' : 'At Face'}
-              </p>
-            </div>
-
-            <div className="ml-auto flex items-center gap-2">
-              {nPortals > 0 && (
-                <button
-                  onClick={() => setExpanded(v => !v)}
-                  className="bg-lime-500 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-lime-400 transition-colors"
-                >
-                  {expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
-                </button>
-              )}
-              {addToTrip}
-            </div>
-          </div>
+        {ptsResult ? (
+          <BestPortalPanel
+            result={ptsResult}
+            isDark={isDark}
+            variant="bar"
+            compareLabel={expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
+            onCompareClick={() => setExpanded(v => !v)}
+            trailingSlot={addToTrip}
+          />
         ) : (
           /* Fallback footer when no points data */
           <div className={`px-5 py-2.5 border-t ${divider} flex items-center justify-end`}>
@@ -368,55 +336,26 @@ export function FlightCard({ offer }: { offer: any }) {
       <LegRow {...legProps} slice={leg1Slice} showCash={false} />
 
       {/* Dark navy portal bar with total cash */}
-      {best ? (
-        <div className={`flex flex-wrap items-center gap-4 md:gap-6 px-5 py-3.5 ${navyBar}`}>
-          <div>
-            <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Total Cash</p>
-            <p className="text-xl font-extrabold font-mono tabular-nums text-white leading-tight">
-              {totalAmount.toLocaleString('en-US', {
-                style: 'currency', currency: offer.total_currency, maximumFractionDigits: 0,
-              })}
-            </p>
-            <p className="text-[10px] font-mono text-cv-navy-400">per person · round trip</p>
-          </div>
-
-          <div>
-            <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Best Portal</p>
-            <p className="text-sm font-bold text-white leading-tight">{best.portalName}</p>
-          </div>
-
-          <div>
-            <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Redeem</p>
-            <p className="text-sm font-bold font-mono text-lime-500 leading-tight">
-              {best.pointsNeeded.toLocaleString()} pts
-              <span className="text-cv-navy-300 font-normal ml-1.5">· {best.centsPerPoint}¢/pt</span>
-            </p>
-          </div>
-
-          <div className="hidden md:block">
-            <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Value</p>
-            <p className={`text-sm font-bold flex items-center gap-1 ${isBestValue ? 'text-cv-green-500' : 'text-cv-navy-300'}`}>
-              {isBestValue && (
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                </svg>
-              )}
-              {isBestValue ? 'Above Face' : 'At Face'}
-            </p>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            {nPortals > 0 && (
-              <button
-                onClick={() => setExpanded(v => !v)}
-                className="bg-green-500 text-cv-blue-950 font-extrabold text-xs px-3.5 py-2 rounded-lg whitespace-nowrap hover:bg-green-300 transition-colors"
-              >
-                {expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
-              </button>
-            )}
-            {addToTrip}
-          </div>
-        </div>
+      {ptsResult ? (
+        <BestPortalPanel
+          result={ptsResult}
+          isDark={isDark}
+          variant="bar"
+          compareLabel={expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
+          onCompareClick={() => setExpanded(v => !v)}
+          trailingSlot={addToTrip}
+          leadingSlot={
+            <div>
+              <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Total Cash</p>
+              <p className="text-xl font-extrabold font-mono tabular-nums text-white leading-tight">
+                {totalAmount.toLocaleString('en-US', {
+                  style: 'currency', currency: offer.total_currency, maximumFractionDigits: 0,
+                })}
+              </p>
+              <p className="text-[10px] font-mono text-cv-navy-400">per person · round trip</p>
+            </div>
+          }
+        />
       ) : (
         /* Fallback footer when no points data */
         <div className={`px-5 py-3 border-t ${divider} ${sectionBg} flex items-center justify-between gap-4`}>

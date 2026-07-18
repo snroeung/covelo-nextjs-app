@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
-import { uuid } from 'zod/v4-mini';
 
 // All test records use this prefix so cleanup can target them safely
 export const TEST_PREFIX = '[TEST]';
@@ -431,6 +430,17 @@ export async function createTestTrip(page: Page): Promise<string | null> {
   await option.waitFor({ timeout: 8_000 });
   await option.click();
 
+  // A prior run's trip in the same area triggers a dupe-warning screen instead
+  // of the create form — dismiss it so creation is idempotent across runs.
+  const createAnyway = page.getByRole('button', { name: 'Create anyway' });
+  const hasDupeWarning = await createAnyway
+    .waitFor({ state: 'visible', timeout: 3_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (hasDupeWarning) {
+    await createAnyway.click();
+  }
+
   // Fill dates — 30 days out, 3-night stay
   const startDate = daysFromNow(30);
   const endDate   = daysFromNow(33);
@@ -447,4 +457,37 @@ export async function createTestTrip(page: Page): Promise<string | null> {
   // Wait for navigation to the trip detail page
   await page.waitForURL(/\/trip-planner\/.+/, { timeout: 15_000 });
   return page.url().replace(page.context().pages()[0]?.url() ?? '', '') || page.url();
+}
+
+/** Deletes the `[TEST] Test trip` rail card on /trip-planner, if present. No-op if not found. */
+export async function deleteTestTrip(page: Page): Promise<void> {
+  await page.goto('/trip-planner');
+  // Fresh contexts (e.g. browser.newContext() in afterAll) can race client-side
+  // session/trip-list hydration on the very first navigation — wait for the rail
+  // to finish loading before searching, and reload once if the card still isn't
+  // there, rather than trusting a single cold-start render.
+  await page.waitForLoadState('networkidle');
+
+  const card = page
+    .locator('[data-testid="trip-rail-card"]')
+    .filter({ hasText: `${TEST_PREFIX} Test trip` })
+    .first();
+
+  let found = await card
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!found) {
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    found = await card
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+  }
+
+  if (!found) return;
+  await card.getByRole('button', { name: 'Remove trip' }).click();
+  await card.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
 }

@@ -96,7 +96,7 @@ export function GuestsDropdown({
         onClick={() => setOpen((o) => !o)}
         className={`flex flex-col rounded-lg border px-3 py-2 text-left w-full focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 transition-colors ${boxCls}`}
       >
-        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+        <span className={`text-[9.5px] font-bold font-mono uppercase tracking-widest leading-none ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>
           Guests
         </span>
         <span className={`text-sm font-semibold mt-1.5 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>

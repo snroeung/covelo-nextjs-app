@@ -4,10 +4,12 @@ import {
   BookingType,
   PortalResult,
   TransferResult,
+  EligibleTransferCard,
   RouteType,
   Cabin,
   FlightContext,
   CARD_PORTAL_MAP,
+  CARD_NAMES,
   PORTAL_CPP,
 } from './types';
 
@@ -51,162 +53,80 @@ export function classifyRoute(originIata?: string | null, destIata?: string | nu
 // Award rate tables  (one-way, saver/economy-level rates, approximate)
 // ---------------------------------------------------------------------------
 
-type AwardRates = Partial<Record<RouteType, Partial<Record<Cabin, number>>>>;
+type TransferValueCpp = Partial<Record<Cabin, number>>;
 
 /**
- * Flat award estimates in miles/points (one-way, saver rates).
- * Sources: published partner award charts as of 2025.
- * These are approximate mid-range saver rates — actual availability varies.
+ * Typical redemption value (cents per point) for each airline program's saver
+ * awards. The `economy` figure approximates The Points Guy's blended monthly
+ * valuation (thepointsguy.com/guide/monthly-valuations/) as of 2025 — TPG
+ * publishes one number per program, not a cabin breakdown. `business`/`first`
+ * are NOT sourced from TPG: they're an unverified estimate (~1.2-1.6x economy,
+ * reflecting that premium-cabin awards are typically better value) and should
+ * be replaced with real award-chart data before this is treated as accurate.
+ * Unlike a flat miles chart, this scales with the flight's actual price the
+ * same way PORTAL_CPP drives PortalResult.pointsNeeded in calcPoints.ts —
+ * estimatedPointsNeeded = priceUsd / (cpp / 100), so two flights on the same
+ * program never coincidentally land on the same points figure.
  */
-const AWARD_RATES: Record<string, AwardRates> = {
-  // United MileagePlus
-  UA: {
-    domestic:   { economy: 12500, business: 25000, first: 40000 },
-    short_haul: { economy: 15000, business: 25000, first: 40000 },
-    long_haul:  { economy: 30000, business: 70000, first: 110000 },
-  },
-  // Southwest Rapid Rewards (dynamic / cash-based, estimate ~1.5cpp)
-  WN: {
-    domestic:   { economy: 10000 },
-    short_haul: { economy: 12000 },
-  },
-  // British Airways Avios (distance-based; using Avios zone estimates)
-  BA: {
-    domestic:   { economy: 7500,  business: 15000 },
-    short_haul: { economy: 9000,  business: 18000 },
-    long_haul:  { economy: 30000, business: 68000, first: 85000 },
-  },
-  // Air France / KLM Flying Blue
-  AF: {
-    domestic:   { economy: 10000, business: 20000 },
-    short_haul: { economy: 12000, business: 25000 },
-    long_haul:  { economy: 30000, business: 75000, first: 110000 },
-  },
-  KL: {
-    domestic:   { economy: 10000, business: 20000 },
-    short_haul: { economy: 12000, business: 25000 },
-    long_haul:  { economy: 30000, business: 75000, first: 110000 },
-  },
-  // Singapore KrisFlyer
-  SQ: {
-    short_haul: { economy: 20000, business: 40000 },
-    long_haul:  { economy: 45000, business: 97500, first: 145000 },
-  },
-  // ANA Mileage Club
-  NH: {
-    short_haul: { economy: 20000, business: 40000 },
-    long_haul:  { economy: 55000, business: 88000, first: 120000 },
-  },
-  // Virgin Atlantic Flying Club
-  VS: {
-    domestic:   { economy: 10000, business: 20000 },
-    short_haul: { economy: 13000, business: 28000 },
-    long_haul:  { economy: 30000, business: 60000, first: 95000 },
-  },
-  // Air Canada Aeroplan
-  AC: {
-    domestic:   { economy: 12500, business: 25000 },
-    short_haul: { economy: 15000, business: 35000 },
-    long_haul:  { economy: 35000, business: 65000, first: 110000 },
-  },
-  // Emirates Skywards
-  EK: {
-    short_haul: { economy: 20000, business: 42000 },
-    long_haul:  { economy: 58500, business: 148500, first: 250000 },
-  },
-  // Etihad Guest
-  EY: {
-    short_haul: { economy: 18000, business: 40000 },
-    long_haul:  { economy: 40000, business: 80000, first: 120000 },
-  },
-  // Hawaiian Miles
-  HA: {
-    domestic:   { economy: 12500, business: 25000 },
-    short_haul: { economy: 15000, business: 30000 },
-    long_haul:  { economy: 40000, business: 60000 },
-  },
-  // Iberia Plus Avios
-  IB: {
-    domestic:   { economy: 7500,  business: 15000 },
-    short_haul: { economy: 9000,  business: 18000 },
-    long_haul:  { economy: 34000, business: 68000 },
-  },
-  // Aer Lingus AerClub Avios
-  EI: {
-    domestic:   { economy: 7500,  business: 15000 },
-    short_haul: { economy: 9500,  business: 19000 },
-    long_haul:  { economy: 26500, business: 60000 },
-  },
-  // JetBlue TrueBlue (dynamic)
-  B6: {
-    domestic:   { economy: 15000 },
-    short_haul: { economy: 17500 },
-    long_haul:  { economy: 35000, business: 50000 },
-  },
-  // Qantas Frequent Flyer
-  QF: {
-    short_haul: { economy: 18000, business: 36000 },
-    long_haul:  { economy: 36000, business: 72000, first: 110000 },
-  },
-  // Delta SkyMiles (dynamic; rough estimates)
-  DL: {
-    domestic:   { economy: 15000, business: 30000 },
-    short_haul: { economy: 18000, business: 35000 },
-    long_haul:  { economy: 35000, business: 75000, first: 120000 },
-  },
-  // American AAdvantage
-  AA: {
-    domestic:   { economy: 12500, business: 25000, first: 50000 },
-    short_haul: { economy: 15000, business: 25000 },
-    long_haul:  { economy: 30000, business: 57500, first: 115000 },
-  },
-  // Alaska Mileage Plan
-  AS: {
-    domestic:   { economy: 12500, business: 25000 },
-    short_haul: { economy: 15000, business: 30000 },
-    long_haul:  { economy: 40000, business: 80000 },
-  },
-  // Avianca LifeMiles
-  AV: {
-    domestic:   { economy: 12500, business: 25000 },
-    short_haul: { economy: 15000, business: 30000 },
-    long_haul:  { economy: 30000, business: 63000 },
-  },
-  // Turkish Miles&Smiles
-  TK: {
-    short_haul: { economy: 15000, business: 30000 },
-    long_haul:  { economy: 45000, business: 90000 },
-  },
-  // Cathay Pacific Asia Miles
-  CX: {
-    short_haul: { economy: 20000, business: 40000 },
-    long_haul:  { economy: 50000, business: 95000, first: 150000 },
-  },
-  // TAP Miles&Go
-  TP: {
-    short_haul: { economy: 10000, business: 20000 },
-    long_haul:  { economy: 30000, business: 60000 },
-  },
-  // EVA Air
-  BR: {
-    short_haul: { economy: 20000, business: 40000 },
-    long_haul:  { economy: 35000, business: 70000, first: 110000 },
-  },
+const TRANSFER_CPP: Record<string, TransferValueCpp> = {
+  UA: { economy: 1.3, business: 1.5, first: 1.7 },
+  WN: { economy: 1.4 },
+  BA: { economy: 1.3, business: 1.6, first: 1.8 },
+  AF: { economy: 1.3, business: 1.6, first: 1.9 },
+  KL: { economy: 1.3, business: 1.6, first: 1.9 },
+  SQ: { economy: 1.7, business: 2.3, first: 3.0 },
+  NH: { economy: 1.5, business: 2.0, first: 2.6 },
+  VS: { economy: 1.5, business: 2.0, first: 2.4 },
+  AC: { economy: 1.3, business: 1.6, first: 1.9 },
+  EK: { economy: 1.0, business: 1.6, first: 2.2 },
+  EY: { economy: 1.2, business: 1.6, first: 2.0 },
+  HA: { economy: 1.0, business: 1.3 },
+  IB: { economy: 1.4, business: 1.7 },
+  EI: { economy: 1.4, business: 1.7 },
+  B6: { economy: 1.3 },
+  QF: { economy: 1.4, business: 1.8, first: 2.2 },
+  DL: { economy: 1.1, business: 1.3, first: 1.5 },
+  AA: { economy: 1.5, business: 1.8, first: 2.1 },
+  AS: { economy: 1.6, business: 2.0 },
+  AV: { economy: 1.4, business: 1.7 },
+  TK: { economy: 1.5, business: 2.0 },
+  CX: { economy: 1.5, business: 2.2, first: 2.8 },
+  TP: { economy: 1.3, business: 1.6 },
+  BR: { economy: 1.4, business: 1.8, first: 2.2 },
 };
 
-function lookupAwardEstimate(iataCodes: string[], routeType: RouteType, cabin: Cabin): number | null {
+function lookupTransferCpp(iataCodes: string[], cabin: Cabin): number | null {
   for (const code of iataCodes) {
-    const rates = AWARD_RATES[code.toUpperCase()];
+    const rates = TRANSFER_CPP[code.toUpperCase()];
     if (!rates) continue;
-    const routeRates = rates[routeType];
-    if (!routeRates) continue;
     // Fall back from first → business → economy if the specific cabin isn't listed
-    if (cabin === 'first' && routeRates.first) return routeRates.first;
-    if (cabin === 'business' && routeRates.business) return routeRates.business;
-    if (cabin === 'first' && routeRates.business) return routeRates.business; // no first data, use biz
-    if (routeRates.economy) return routeRates.economy;
+    if (cabin === 'first' && rates.first) return rates.first;
+    if ((cabin === 'first' || cabin === 'business') && rates.business) return rates.business;
+    if (rates.economy) return rates.economy;
   }
   return null;
+}
+
+/**
+ * Typical redemption value (cents per point) for each hotel chain's standard
+ * award pricing. Same role as TRANSFER_CPP for airlines: approximates TPG's
+ * monthly hotel-points valuations (thepointsguy.com/guide/monthly-valuations/)
+ * as of 2025. Hotels have no cabin tiers, so this is a single flat rate per
+ * chain rather than economy/business/first — real award cost still varies by
+ * property category, which the accompanying note callout communicates.
+ */
+const HOTEL_CPP: Record<string, number> = {
+  hyatt:    1.7,
+  wyndham:  0.9,
+  marriott: 0.8,
+  choice:   0.6,
+  ihg:      0.5,
+  hilton:   0.5,
+};
+
+function lookupHotelCpp(chainKey: string | undefined): number | null {
+  if (!chainKey) return null;
+  return HOTEL_CPP[chainKey] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -306,12 +226,42 @@ const HOTEL_CHAIN_NOTES: Record<string, string> = {
   choice:   'Award pricing varies by property category — check Choice Privileges award chart',
 };
 
+const UNMATCHED_CHAIN = '__unmatched_chain__';
+
 function resolveChainKey(hotelChain: string): string | null {
   const lower = hotelChain.toLowerCase();
   for (const key of Object.keys(HOTEL_CHAIN_NOTES)) {
     if (lower.includes(key)) return key;
   }
   return null;
+}
+
+/** Every one of the user's cards whose portal reaches this partner program (dedupe by card). */
+function findEligibleCards(
+  partnerProgram: string,
+  expectedPartnerType: 'hotel' | 'airline',
+  chainKey: string | null,
+  filterIata: string | null,
+  userCards: CardId[],
+): EligibleTransferCard[] {
+  const seen = new Set<CardId>();
+  const eligible: EligibleTransferCard[] = [];
+  for (const cardId of userCards) {
+    if (seen.has(cardId)) continue;
+    const portalId = CARD_PORTAL_MAP[cardId];
+    if (!portalId) continue;
+    const partner = TRANSFER_PARTNERS[portalId].find(p => {
+      if (p.type !== expectedPartnerType || p.program !== partnerProgram) return false;
+      if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
+      if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
+      return true;
+    });
+    if (partner) {
+      seen.add(cardId);
+      eligible.push({ cardId, cardName: CARD_NAMES[cardId], portalId, ratio: partner.ratio });
+    }
+  }
+  return eligible;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,7 +276,10 @@ export function calcTransferAlternatives(
   hotelChain?: string | null,
   airlineIata?: string | null,
   flightCtx?: FlightContext,
+  /** User's actually-selected cards (owned) — defaults to userCards when omitted */
+  selectedCards?: CardId[],
 ): TransferResult[] {
+  const ownedCards = selectedCards ?? userCards;
   // Collect unique portals the user has access to, mapped to their best card per portal
   const portalCardMap = new Map<PortalId, CardId>();
   for (const cardId of userCards) {
@@ -342,13 +295,17 @@ export function calcTransferAlternatives(
     classifyRoute(flightCtx?.originIata, flightCtx?.destIata);
   const cabin: Cabin = flightCtx?.cabin ?? 'economy';
 
-  const chainKey = hotelChain ? resolveChainKey(hotelChain) : null;
+  // hotelChain given but not part of any known transferable chain (e.g. an
+  // independent property) → sentinel that matches no partner.chainKey, so
+  // every hotel transfer partner is filtered out instead of all showing.
+  const chainKey = hotelChain ? resolveChainKey(hotelChain) ?? UNMATCHED_CHAIN : null;
+  const expectedPartnerType = bookingType === 'flight' ? 'airline' : 'hotel';
+  const filterIata = airlineIata ?? flightCtx?.airlineIata ?? null;
   const results: TransferResult[] = [];
 
   for (const [portalId, sourceCardId] of portalCardMap.entries()) {
     const partners = TRANSFER_PARTNERS[portalId];
 
-    const expectedPartnerType = bookingType === 'flight' ? 'airline' : 'hotel';
     for (const partner of partners) {
       if (partner.type !== expectedPartnerType) continue;
 
@@ -358,7 +315,6 @@ export function calcTransferAlternatives(
       }
 
       // For flights: if airline IATA provided, only include matching partner
-      const filterIata = airlineIata ?? flightCtx?.airlineIata;
       if (bookingType === 'flight' && filterIata != null) {
         if (!partner.iataCodes?.includes(filterIata.toUpperCase())) continue;
       }
@@ -369,21 +325,31 @@ export function calcTransferAlternatives(
       let note: string;
 
       if (bookingType === 'hotel') {
-        note = HOTEL_CHAIN_NOTES[partner.chainKey ?? ''] ?? 'Award pricing varies — check program award chart';
+        // Typical redemption value for this chain, applied to the actual stay
+        // price — same price/cpp formula as the airline branch below.
+        const cpp = lookupHotelCpp(partner.chainKey);
+        const chainNote = HOTEL_CHAIN_NOTES[partner.chainKey ?? ''] ?? 'Award pricing varies — check program award chart';
+
+        if (cpp !== null) {
+          transferCpp = cpp;
+          estimatedCentsPerPoint = cpp;
+          estimatedPointsNeeded = Math.ceil((priceUsd / cpp) * 100);
+          note = `Est. using ${partner.program}'s typical ${cpp}¢/pt award value — ${chainNote.charAt(0).toLowerCase()}${chainNote.slice(1)}`;
+        } else {
+          note = chainNote;
+        }
       } else {
-        // Look up flat award estimate for this partner, route type, and cabin
-        const awardMiles = partner.iataCodes
-          ? lookupAwardEstimate(partner.iataCodes, routeType, cabin)
+        // Typical redemption value for this partner + cabin, applied to the
+        // actual flight price — same price/cpp formula as PortalResult.
+        const cpp = partner.iataCodes
+          ? lookupTransferCpp(partner.iataCodes, cabin)
           : null;
 
-        if (awardMiles !== null) {
-          // All partners are 1:1 ratio, so card points needed = award miles needed
-          estimatedPointsNeeded = awardMiles;
-          // Effective CPP: how many cents of flight value each transferred point buys
-          transferCpp = parseFloat(((priceUsd / awardMiles) * 100).toFixed(2));
-          estimatedCentsPerPoint = transferCpp;
-          const routeLabel = routeType === 'domestic' ? 'domestic' : routeType === 'short_haul' ? 'short-haul' : 'long-haul';
-          note = `Approx. ${cabin} saver rate for ${routeLabel} — award availability varies`;
+        if (cpp !== null) {
+          transferCpp = cpp;
+          estimatedCentsPerPoint = cpp;
+          estimatedPointsNeeded = Math.ceil((priceUsd / cpp) * 100);
+          note = `Est. using ${partner.program}'s typical ${cpp}¢/pt ${cabin} value — actual award pricing varies`;
         } else {
           note = 'Award pricing varies by route and availability — check the partner program\'s award chart';
         }
@@ -407,6 +373,8 @@ export function calcTransferAlternatives(
         estimated: true,
         routeType: bookingType === 'flight' ? routeType : undefined,
         cabin: bookingType === 'flight' ? cabin : undefined,
+        eligibleCards: [],
+        recommendedCards: [],
       });
     }
   }
@@ -428,6 +396,16 @@ export function calcTransferAlternatives(
         : (PORTAL_CPP[existing.sourceCardId] as { hotel: number; flight: number })[bookingType];
       if (newCpp > prevCpp) deduped.set(r.partnerProgram, r);
     }
+  }
+
+  // Attach the user's owned cards that can reach this partner for the chip UI;
+  // when none are owned, surface cards (from the full pool) that would unlock it.
+  for (const r of deduped.values()) {
+    const owned = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards);
+    r.eligibleCards = owned;
+    r.recommendedCards = owned.length === 0
+      ? findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards)
+      : [];
   }
 
   // isBetterThanPortal: true results first

@@ -254,7 +254,11 @@ export const staysRouter = router({
         throw duffelOutcome.reason;
       }
 
-      const searchResults = duffelOutcome.value.data.results;
+      // Drop results with no bookable rate — no rooms means no point in
+      // paying for a fetchAllRates call later, and nothing to show in the UI.
+      const searchResults = duffelOutcome.value.data.results.filter(
+        (sr) => sr.cheapest_rate_total_amount && parseFloat(sr.cheapest_rate_total_amount) > 0
+      );
 
       // Build portalPrices map if HotelBeds succeeded
       let portalPricesMap = new Map<string, { amex: number; citi: number }>();

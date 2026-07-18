@@ -29,7 +29,6 @@ test.describe('Sponsored Ad — flights_inline slot', () => {
 
   test.afterAll(async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
-    const page = await ctx.newPage();
     await ctx.close();
   });
 
@@ -157,7 +156,6 @@ test.describe('Sponsored Ad — hotels_inline slot', () => {
 
   test.afterAll(async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
-    const page = await ctx.newPage();
     await ctx.close();
   });
 
@@ -233,7 +231,6 @@ test.describe('Sponsored Ad — trip_strip slot', () => {
 
   test.afterAll(async ({ browser }) => {
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
-    const page = await ctx.newPage();
     await ctx.close();
   });
 

@@ -103,7 +103,6 @@ export function useTrips() {
       if (updated) persist(updated);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addActivity = useCallback((tripId: string, name: string, address: string): string => {
@@ -122,7 +121,6 @@ export function useTrips() {
       return next;
     });
     return newActivity.id;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const patchActivity = useCallback((tripId: string, activityId: string, patch: Partial<Omit<Activity, 'id' | 'added_at'>>) => {
@@ -136,7 +134,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const removeActivity = useCallback((tripId: string, activityId: string) => {
@@ -148,7 +145,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const assignActivityToDay = useCallback((tripId: string, date: string, activity: Activity) => {
@@ -164,7 +160,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const removeActivityFromDay = useCallback((tripId: string, date: string, activityId: string) => {
@@ -178,7 +173,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const patchItineraryActivity = useCallback((tripId: string, date: string, activityId: string, patch: Partial<Omit<Activity, 'id' | 'added_at'>>) => {
@@ -198,7 +192,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reorderActivityInDay = useCallback((tripId: string, date: string, fromIndex: number, toIndex: number) => {
@@ -217,7 +210,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const moveActivityToDay = useCallback((tripId: string, sourceDate: string, targetDate: string, activityId: string, targetIndex: number) => {
@@ -237,7 +229,6 @@ export function useTrips() {
       if (trip) persist(trip);
       return next;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

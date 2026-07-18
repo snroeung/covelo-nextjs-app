@@ -346,12 +346,6 @@ export const offersRouter = router({
       .input(z.object({ id: z.string().uuid() }))
       .mutation(async ({ input }) => {
         const supabase = await createClient();
-        const { data: ad } = await supabase
-          .from("sponsored_ads")
-          .select("slot")
-          .eq("id", input.id)
-          .single();
-
         const { error } = await supabase
           .from("sponsored_ads")
           .update({ active: false })

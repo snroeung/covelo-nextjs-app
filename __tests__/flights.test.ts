@@ -9,12 +9,22 @@ vi.mock("@/lib/duffel", () => ({
   },
 }));
 
+// Cache-first path depends on Redis — mock it so tests control hit/miss.
+vi.mock("@/lib/redis", () => ({
+  redis: {
+    get: vi.fn(),
+    set: vi.fn(),
+  },
+}));
+
 // Enable all flags relevant to flights so unit tests are not coupled to flag config
 vi.mock("@/lib/feature-flags", () => ({
-  isEnabled: () => true,
+  isEnabled: vi.fn(() => true),
 }));
 
 import { duffel } from "@/lib/duffel";
+import { redis } from "@/lib/redis";
+import { isEnabled } from "@/lib/feature-flags";
 
 const mockOfferRequest = {
   id: "orq_0000AJyFCYScL8vOSuyfJ0",
@@ -47,6 +57,9 @@ describe("flights.searchOffers", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: cache miss, writes succeed.
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue("OK");
   });
 
   it("returns an offer request for a one-way flight search", async () => {
@@ -114,5 +127,153 @@ describe("flights.searchOffers", () => {
         passengers: [{ type: "adult" }, { type: "adult" }],
       })
     );
+  });
+
+  it("returns cached offers without calling Duffel on a cache hit", async () => {
+    (redis.get as Mock).mockResolvedValue(mockOfferRequest);
+
+    const result = await caller.flights.searchOffers({
+      origin: "LHR",
+      destination: "JFK",
+      departureDate: "2026-06-01",
+      passengers: 1,
+    });
+
+    expect(result).toEqual(mockOfferRequest);
+    expect(duffel.offerRequests.create).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it("writes the Duffel response to the cache on a miss", async () => {
+    (duffel.offerRequests.create as Mock).mockResolvedValue({ data: mockOfferRequest });
+
+    await caller.flights.searchOffers({
+      origin: "LHR",
+      destination: "JFK",
+      departureDate: "2026-06-01",
+      passengers: 1,
+    });
+
+    expect(duffel.offerRequests.create).toHaveBeenCalledTimes(1);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const [key, value] = (redis.set as Mock).mock.calls[0];
+    expect(key).toMatch(/^flight:search:/);
+    expect(value).toEqual(mockOfferRequest);
+  });
+});
+
+function makeOffer(id: string, totalAmount: string) {
+  return { id, total_amount: totalAmount };
+}
+
+describe("flights.board", () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue("OK");
+  });
+
+  it("fans out one Duffel call per destination and returns the cheapest offer per route", async () => {
+    (duffel.offerRequests.create as Mock)
+      .mockResolvedValueOnce({ data: { offers: [makeOffer("off_sfo", "210.00")] } })
+      .mockResolvedValueOnce({ data: { offers: [makeOffer("off_lax", "198.00")] } });
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO", "LAX"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(duffel.offerRequests.create).toHaveBeenCalledTimes(2);
+    expect(result).toEqual([makeOffer("off_sfo", "210.00"), makeOffer("off_lax", "198.00")]);
+  });
+
+  it("drops a route whose Duffel call rejects without affecting other routes", async () => {
+    (duffel.offerRequests.create as Mock)
+      .mockRejectedValueOnce(new Error("Duffel API unavailable"))
+      .mockResolvedValueOnce({ data: { offers: [makeOffer("off_lax", "198.00")] } });
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO", "LAX"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(result).toEqual([makeOffer("off_lax", "198.00")]);
+  });
+
+  it("picks the lowest total_amount when a route returns multiple offers", async () => {
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
+      data: { offers: [makeOffer("off_expensive", "500.00"), makeOffer("off_cheap", "150.00"), makeOffer("off_mid", "300.00")] },
+    });
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(result).toEqual([makeOffer("off_cheap", "150.00")]);
+  });
+
+  it("skips offers with missing or zero total_amount when finding the cheapest", async () => {
+    (duffel.offerRequests.create as Mock).mockResolvedValue({
+      data: { offers: [makeOffer("off_zero", "0"), { id: "off_missing" }, makeOffer("off_valid", "220.00")] },
+    });
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(result).toEqual([makeOffer("off_valid", "220.00")]);
+  });
+
+  it("returns the cached payload without calling Duffel on a cache hit", async () => {
+    const cached = [makeOffer("off_cached", "199.00")];
+    (redis.get as Mock).mockResolvedValue(cached);
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(result).toEqual(cached);
+    expect(duffel.offerRequests.create).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it("writes to the cache on a miss, even when the result is empty", async () => {
+    (duffel.offerRequests.create as Mock).mockRejectedValue(new Error("Duffel API unavailable"));
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(result).toEqual([]);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    const [key, value] = (redis.set as Mock).mock.calls[0];
+    expect(key).toMatch(/^flight:board:/);
+    expect(value).toEqual([]);
+  });
+
+  it("returns an empty array without calling Duffel when integration:duffel:flights is disabled", async () => {
+    (isEnabled as Mock).mockImplementation((flag: string) => flag !== "integration:duffel:flights");
+
+    const result = await caller.flights.board({
+      origin: "PHL",
+      destinations: ["SFO", "LAX"],
+      departureDate: "2026-08-01",
+    });
+
+    expect(result).toEqual([]);
+    expect(duffel.offerRequests.create).not.toHaveBeenCalled();
   });
 });

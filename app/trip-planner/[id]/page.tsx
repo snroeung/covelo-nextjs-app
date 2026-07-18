@@ -10,7 +10,7 @@ import { useTrips } from '@/hooks/useTrips';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { FlightCard } from '@/components/FlightCard';
 import { HotelCard } from '@/components/HotelCard';
-import { TripMap } from '@/components/TripMap';
+import { GeoMap, type GeoPin } from '@/components/GeoMap';
 import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
 import type { GuestsValue } from '@/components/GuestsDropdown';
 import type { Trip, TripTravelers } from '@/lib/trips';
@@ -70,7 +70,7 @@ function getActivityTagCls(name: string, isDark: boolean): string {
   if (tag === 'FOOD')   return isDark ? 'bg-amber-950/60 text-amber-400'  : 'bg-amber-50 text-amber-700';
   if (tag === 'DRINK')  return isDark ? 'bg-purple-950/60 text-purple-400' : 'bg-purple-50 text-purple-700';
   if (tag === 'TRAVEL') return isDark ? 'bg-sky-950/60 text-sky-400'       : 'bg-sky-50 text-sky-600';
-  return isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500';
+  return isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700';
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -164,10 +164,10 @@ function PlaceholderSection({ label, description, isDark }: { label: string; des
         isDark ? 'border-gph-dark-line' : 'border-gray-200'
       }`}>
         <span className={`text-[10px] font-mono font-bold uppercase tracking-[0.12em] px-2.5 py-1 rounded ${
-          isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+          isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
         }`}>Coming soon</span>
         <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-ink' : 'text-gray-700'}`}>{label}</p>
-        <p className={`text-xs text-center max-w-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{description}</p>
+        <p className={`text-xs text-center max-w-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>{description}</p>
       </div>
     </div>
   );
@@ -195,9 +195,9 @@ export default function TripDetailPage() {
   const [bookedFlights, setBookedFlights] = useState<Set<string>>(new Set());
   const [bookedHotels, setBookedHotels] = useState<Set<string>>(new Set());
   const toggleBookedFlight = (id: string) =>
-    setBookedFlights((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setBookedFlights((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleBookedHotel = (id: string) =>
-    setBookedHotels((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setBookedHotels((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   // Edit state
   const [editField, setEditField] = useState<EditField>(null);
@@ -215,7 +215,7 @@ export default function TripDetailPage() {
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   function toggleNotes(key: string) {
-    setExpandedNotes((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setExpandedNotes((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   }
 
   // Drag state
@@ -342,6 +342,82 @@ export default function TripDetailPage() {
     : 'border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:ring-gray-400';
   const panelBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const dividerCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const iconBoxCls = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100';
+  const addBtnCls = isDark
+    ? 'bg-cv-lime-500 text-gph-dark-card hover:bg-cv-lime-400'
+    : 'bg-gray-900 text-white hover:bg-gray-800';
+
+  function renderTripPinCard(pin: GeoPin): { expanded: React.ReactNode; tuck: React.ReactNode } {
+    const coords = `${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}`;
+    const placeInfo = pin.data as { address?: string; photoUrl?: string | null } | undefined;
+    const displayAddress = placeInfo?.address || '';
+    const storedAddress = placeInfo?.address || coords;
+    const photoUrl = placeInfo?.photoUrl;
+
+    const tuck = (
+      <>
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
+          <img src={photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+        ) : (
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 ${iconBoxCls}`}>
+            📍
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className={`text-xs font-bold truncate ${ink}`}>{pin.label || 'Pin'}</p>
+          {displayAddress && <p className={`text-[11px] truncate ${muted}`}>{displayAddress}</p>}
+        </div>
+      </>
+    );
+
+    const expanded = (
+      <>
+        {photoUrl ? (
+          <div className="mx-2.5 rounded-xl overflow-hidden h-24">
+            {/* eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet */}
+            <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className={`mx-2.5 rounded-xl overflow-hidden h-24 flex items-center justify-center text-2xl ${iconBoxCls}`}>
+            📍
+          </div>
+        )}
+
+        <div className="p-3">
+          <p className={`text-xs font-extrabold leading-snug line-clamp-2 mb-1 ${ink}`}>
+            {pin.label || 'Pin'}
+          </p>
+          {displayAddress && (
+            <p className={`text-[11px] leading-snug mb-2.5 line-clamp-2 ${muted}`}>
+              {displayAddress}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!trip) return;
+              const name = pin.label || 'Pin';
+              const activityId = addActivity(trip.id, name, storedAddress);
+              if (photoUrl) {
+                patchActivity(trip.id, activityId, { photo_url: photoUrl });
+              } else {
+                trpc.places.getPhoto.query({ name, address: coords }).then((url) => {
+                  if (url) patchActivity(trip.id, activityId, { photo_url: url });
+                }).catch(() => {});
+              }
+            }}
+            className={`w-full min-h-11 rounded-lg text-xs font-bold ${addBtnCls}`}
+          >
+            Add to trip
+          </button>
+        </div>
+      </>
+    );
+
+    return { expanded, tuck };
+  }
 
   // Loading states
   if (!trip && trips.length === 0) return <div className={`h-screen ${pageBg}`} />;
@@ -392,6 +468,7 @@ export default function TripDetailPage() {
     <div className={`min-h-screen font-sans ${pageBg}`}>
       <NavBar />
 
+      <main>
       {/* ── Hero / Overview ──────────────────────────────────────────────────── */}
       <div ref={overviewRef} className={`${cardBg}`}>
         <div className="px-6 pt-8 pb-6">
@@ -405,7 +482,7 @@ export default function TripDetailPage() {
               All trips
             </Link>
             <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`} />
-            <span className={`px-2 py-0.5 rounded ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'}`}>
+            <span className={`px-2 py-0.5 rounded ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'}`}>
               In progress
             </span>
             <span className={`w-1 h-1 rounded-full ${isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`} />
@@ -605,7 +682,7 @@ export default function TripDetailPage() {
               >
                 {label}
                 {count !== undefined && (
-                  <span className={`text-[10px] font-mono ${isActive ? 'opacity-60' : isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>{count}</span>
+                  <span className={`text-[10px] font-mono ${isActive ? 'opacity-60' : isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>{count}</span>
                 )}
               </button>
             );
@@ -639,6 +716,7 @@ export default function TripDetailPage() {
                     <div key={a.id} className={`rounded-xl border ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200'}`}>
                       <div className="flex items-stretch">
                         {a.photo_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
                           <img src={a.photo_url} alt={a.name} className="w-16 h-16 shrink-0 object-cover rounded-l-xl" />
                         ) : (
                           <div className={`w-16 h-16 shrink-0 flex items-center justify-center text-xl rounded-l-xl ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>📍</div>
@@ -768,16 +846,16 @@ export default function TripDetailPage() {
                   <div className="flex-1" />
                   {isFirst && (
                     <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-widest ${
-                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
                     }`}>↓ ARRIVAL</span>
                   )}
                   {isLast && (
                     <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-widest ${
-                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
                     }`}>DEPARTURE ↑</span>
                   )}
                   <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-widest ${
-                    isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                    isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700'
                   }`}>{dayActivities.length} STOP{dayActivities.length !== 1 ? 'S' : ''}</span>
                 </div>
 
@@ -852,6 +930,7 @@ export default function TripDetailPage() {
                               {/* Content column */}
                               <div className="flex items-center gap-2.5 min-w-0">
                                 {a.photo_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
                                   <img src={a.photo_url} alt={a.name} className="w-11 h-11 shrink-0 rounded-lg object-cover" draggable={false} />
                                 ) : (
                                   <div className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center text-base ${isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100'}`}>📍</div>
@@ -934,7 +1013,7 @@ export default function TripDetailPage() {
 
                 <button
                   className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-2 border-dashed text-xs font-medium transition-colors ${
-                    isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-muted hover:text-gph-dark-ink' : 'border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600'
+                    isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-muted hover:text-gph-dark-ink' : 'border-gray-200 text-gray-600 hover:border-gray-500 hover:text-gray-800'
                   }`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -982,23 +1061,26 @@ export default function TripDetailPage() {
               </button>
             </div>
             <div className={`h-[480px] relative rounded-xl overflow-hidden border ${borderCls}`}>
-              <TripMap
+              <GeoMap
+                markerVariant="dot"
                 lat={trip.destination_lat}
                 lng={trip.destination_lng}
-                destination={trip.destination}
+                destinationLabel={trip.destination}
                 isDark={isDark}
                 borderCls={borderCls}
+                header={false}
                 minimized={false}
                 onToggleMinimize={() => {}}
-                hideHeader
-                onAddActivity={(name, address) => {
-                  const activityId = addActivity(trip.id, name, address);
-                  trpc.places.getPhoto.query({ name, address }).then((url) => {
-                    if (url) patchActivity(trip.id, activityId, { photo_url: url });
-                  }).catch(() => {});
-                }}
+                enableSearch
+                enablePoiPopup
+                showPinTabs
+                draggableMarkers
+                renderPinCard={renderTripPinCard}
+                zoomControls="hover-buttons"
                 initialPins={trip.pins ?? []}
-                onPinsChange={(pins) => updateTrip(trip.id, { pins })}
+                onPinsChange={(pins) => updateTrip(trip.id, {
+                  pins: pins.map((p) => ({ id: p.id, label: p.label ?? '', lng: p.lng, lat: p.lat })),
+                })}
               />
             </div>
           </div>
@@ -1029,22 +1111,26 @@ export default function TripDetailPage() {
               </div>
               {/* Full map */}
               <div className="flex-1 relative">
-                <TripMap
+                <GeoMap
+                  markerVariant="dot"
                   lat={trip.destination_lat}
                   lng={trip.destination_lng}
-                  destination={trip.destination}
+                  destinationLabel={trip.destination}
                   isDark={isDark}
                   borderCls={borderCls}
+                  header={false}
                   minimized={false}
                   onToggleMinimize={() => {}}
-                  onAddActivity={(name, address) => {
-                    const activityId = addActivity(trip.id, name, address);
-                    trpc.places.getPhoto.query({ name, address }).then((url) => {
-                      if (url) patchActivity(trip.id, activityId, { photo_url: url });
-                    }).catch(() => {});
-                  }}
+                  enableSearch
+                  enablePoiPopup
+                  showPinTabs
+                  draggableMarkers
+                  renderPinCard={renderTripPinCard}
+                  zoomControls="hover-buttons"
                   initialPins={trip.pins ?? []}
-                  onPinsChange={(pins) => updateTrip(trip.id, { pins })}
+                  onPinsChange={(pins) => updateTrip(trip.id, {
+                    pins: pins.map((p) => ({ id: p.id, label: p.label ?? '', lng: p.lng, lat: p.lat })),
+                  })}
                 />
               </div>
             </div>
@@ -1095,8 +1181,8 @@ export default function TripDetailPage() {
               <svg className="w-8 h-8 opacity-20" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
               </svg>
-              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>No flights saved yet</p>
-              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>Heart a flight from search to save it here</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>No flights saved yet</p>
+              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>Heart a flight from search to save it here</p>
               <Link
                 href={`/flights?destination=${encodeURIComponent(trip.destination)}&departDate=${trip.start_date}&returnDate=${trip.end_date}&tripType=roundtrip`}
                 className="px-4 py-2 rounded-lg bg-lime-500 hover:bg-lime-400 text-black text-xs font-bold transition-colors"
@@ -1157,8 +1243,8 @@ export default function TripDetailPage() {
               <svg className="w-8 h-8 opacity-20" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
               </svg>
-              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>No hotels saved yet</p>
-              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>Heart a hotel from search to save it here</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>No hotels saved yet</p>
+              <p className={`text-xs ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>Heart a hotel from search to save it here</p>
               <Link
                 href={`/hotels?destination=${encodeURIComponent(trip.destination)}&lat=${trip.destination_lat ?? ''}&lng=${trip.destination_lng ?? ''}&checkIn=${trip.start_date}&checkOut=${trip.end_date}&adults=${trip.travelers.adults}`}
                 className="px-4 py-2 rounded-lg bg-lime-500 hover:bg-lime-400 text-black text-xs font-bold transition-colors"
@@ -1223,13 +1309,14 @@ export default function TripDetailPage() {
           description="Notes anchored to flights, hotels, and itinerary stops will be aggregated here automatically. Add notes inside each section above."
         />
       </section>
+      </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
       <footer className={`flex items-center justify-between px-6 py-5 border-t font-mono text-[11px] font-bold tracking-[0.06em] ${
-        isDark ? 'bg-gph-dark-navy border-gph-dark-line text-gph-dark-muted' : 'bg-gray-900 border-gray-800 text-gray-400'
+        isDark ? 'bg-gph-dark-navy border-gph-dark-line text-gph-dark-muted' : 'bg-gray-900 border-gray-800 text-gray-300'
       }`}>
         <span className="text-white opacity-60">COVELO · {trip.destination.split(',')[0].toUpperCase()} · Continue building this trip →</span>
-        <Link href="/trip-planner" className="text-white opacity-40 hover:opacity-80 transition-opacity">
+        <Link href="/trip-planner" className="text-white opacity-70 hover:opacity-100 transition-opacity">
           All trips ↗
         </Link>
       </footer>

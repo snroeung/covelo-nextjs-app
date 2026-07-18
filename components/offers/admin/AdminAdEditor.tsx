@@ -223,7 +223,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
     const validationError = validate();
     if (validationError) { setError(validationError); return; }
     setError(null);
-    ad ? updateAd() : createAd();
+    if (ad) { updateAd(); } else { createAd(); }
   }
 
   const availableCards = form.card_issuer && form.card_issuer !== 'other'

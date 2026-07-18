@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { flaggedProcedure, router } from '@/server/trpc';
 import { isEnabled } from '@/lib/feature-flags';
-import { getPlaceAutocomplete, getPlaceLatLng, getNearestAirport, getPlacePhoto } from '@/lib/places';
+import { getPlaceAutocomplete, getAirportsForQuery, getPlaceLatLng, getNearestAirport, getPlacePhoto } from '@/lib/places';
 
 export const placesRouter = router({
   /**
@@ -22,7 +22,9 @@ export const placesRouter = router({
           message: "Places integration is not available in this environment.",
         });
       }
-      return getPlaceAutocomplete(input, sessionToken, types);
+      return types === 'airport'
+        ? getAirportsForQuery(input, sessionToken)
+        : getPlaceAutocomplete(input, sessionToken, types);
     }),
 
   /**

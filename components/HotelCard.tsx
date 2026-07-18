@@ -16,7 +16,7 @@ function ratingLabel(score: number): string | null {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: { searchResult: any; defaultCollapsed?: boolean; forceExpand?: boolean; onOpenDetail?: (sr: any) => void }) {
+export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; defaultCollapsed?: boolean; onOpenDetail?: (sr: any) => void }) {
   const { isDark } = useTheme();
 
   const acc         = searchResult.accommodation;
@@ -62,6 +62,7 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
           aria-label={onOpenDetail ? `View details for ${name}` : undefined}
         >
           {firstPhoto ? (
+            // eslint-disable-next-line @next/next/no-img-element -- remote/dynamic photo URL, no remotePatterns configured yet
             <img
               src={firstPhoto}
               alt={name}
@@ -74,8 +75,8 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
           )}
         </div>
 
-        {/* Info */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* Info — border-t separates it from the photo when stacked on mobile */}
+        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden border-t md:border-t-0 ${dividerCls}`}>
           {/* Card body */}
           <div className="flex-1 p-5 overflow-hidden">
             <div className="flex justify-between items-start gap-4">
@@ -121,7 +122,7 @@ export function HotelCard({ searchResult, forceExpand = false, onOpenDetail }: {
                       <span className={`font-normal ${textMuted}`}>/10</span>
                     </span>
                     {scoreLabel && (
-                      <span className="text-sm font-bold text-cv-green-500">{scoreLabel}</span>
+                      <span className={`text-sm font-bold ${isDark ? 'text-cv-green-500' : 'text-cv-green-800'}`}>{scoreLabel}</span>
                     )}
                   </div>
                 )}

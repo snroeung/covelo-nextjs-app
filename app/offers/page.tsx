@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
+import { Footer } from '@/components/Footer';
 import { FeaturedOfferHero } from '@/components/offers/FeaturedOfferHero';
 import { OffersGrid } from '@/components/offers/OffersGrid';
 import { OfferCategoryChips } from '@/components/offers/OfferCategoryChips';
@@ -169,6 +170,7 @@ function OffersPageInner() {
           </section>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

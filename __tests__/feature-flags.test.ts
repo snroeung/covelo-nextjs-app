@@ -107,11 +107,11 @@ describe('isEnabled() — gating behaviour', () => {
 
 describe('getEnabledFlags()', () => {
   const ALL_FLAGS: FlagName[] = [
-    'ui:hotels', 'ui:flights', 'ui:trip-planner', 'ui:offers', 'ui:settings',
+    'ui:hotels', 'ui:flights', 'ui:search', 'ui:trip-planner', 'ui:offers', 'ui:settings',
     'api:stays', 'api:flights', 'api:places', 'api:offers',
     'integration:duffel:flights', 'integration:duffel:stays',
     'integration:hotelbeds:stays', 'integration:google-places:places',
-    'integration:redis:stays', 'integration:redis:places', 'integration:redis:offers',
+    'integration:redis:stays', 'integration:redis:flights', 'integration:redis:places', 'integration:redis:offers',
     'integration:supabase',
   ];
 
