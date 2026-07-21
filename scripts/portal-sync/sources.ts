@@ -67,7 +67,7 @@ export const SOURCES: SourceConfig[] = [
   // },
   {
     key: "c1_venture_transfer",
-    portalId: "capital_one",
+    portalId: "c1",
     url: "https://thepointsguy.com/loyalty-programs/capital-one-transfer-partners/",
     recordType: "transfer_partner",
     needsBrowser: true,

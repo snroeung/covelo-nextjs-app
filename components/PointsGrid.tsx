@@ -9,7 +9,7 @@ import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus, Issuer } from '@/lib/types/offers';
 
 const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
-  chase: 'chase', amex: 'amex', c1: 'capital_one', bilt: 'bilt', citi: 'citi',
+  chase: 'chase', amex: 'amex', c1: 'c1', bilt: 'bilt', citi: 'citi',
 };
 
 const ISSUER_LOYALTY_NAME: Record<Issuer, string> = {
@@ -25,7 +25,7 @@ const ISSUER_LOYALTY_NAME: Record<Issuer, string> = {
 // ---------------------------------------------------------------------------
 
 function pointCurrency(portalId: string): string {
-  return portalId === 'capital_one' ? 'mi' : 'pts';
+  return portalId === 'c1' ? 'mi' : 'pts';
 }
 
 function fmtUsd(n: number): string {

@@ -142,7 +142,7 @@ describe('portalData.listTransferPartners()', () => {
   });
 
   it('returns cached value and skips Supabase on Redis hit', async () => {
-    const cached = { chase: [], amex: [], capital_one: [], bilt: [], citi: [] };
+    const cached = { chase: [], amex: [], c1: [], bilt: [], citi: [] };
     vi.mocked(redis.get).mockResolvedValue(cached);
     const { mockFrom } = setupSupabase({ data: [], error: null });
 

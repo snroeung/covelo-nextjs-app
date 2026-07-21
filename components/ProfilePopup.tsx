@@ -10,7 +10,7 @@ import { CARD_NAMES, type CardId, type PortalId } from '@/lib/points/types';
 const CARD_GROUPS: { label: string; portal: PortalId; cards: CardId[] }[] = [
   { label: 'Chase',            portal: 'chase',       cards: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'] },
   { label: 'American Express', portal: 'amex',        cards: ['amex_platinum', 'amex_gold', 'amex_green'] },
-  { label: 'Capital One',      portal: 'capital_one', cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
+  { label: 'Capital One',      portal: 'c1', cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
   { label: 'Bilt',             portal: 'bilt',        cards: ['bilt_blue', 'bilt_obsidian', 'bilt_palladium'] },
   { label: 'Citi',             portal: 'citi',        cards: ['citi_strata_premier', 'citi_strata_elite'] },
 ];

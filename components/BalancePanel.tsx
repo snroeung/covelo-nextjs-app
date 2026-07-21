@@ -8,22 +8,22 @@ import { useTheme } from '@/contexts/ThemeContext';
 const CPP_ESTIMATE = 0.0125;
 
 const PORTAL_LABEL: Record<PortalId, string> = {
-  chase:       'Chase Ultimate Rewards',
-  amex:        'Amex Membership Rewards',
-  capital_one: 'Capital One Miles',
-  bilt:        'Bilt Rewards',
-  citi:        'Citi ThankYou Rewards',
+  chase: 'Chase Ultimate Rewards',
+  amex:  'Amex Membership Rewards',
+  c1:    'Capital One Miles',
+  bilt:  'Bilt Rewards',
+  citi:  'Citi ThankYou Rewards',
 };
 
 const PORTAL_COLOR: Record<PortalId, string> = {
-  chase:       '#166534',
-  amex:        '#a3e635',
-  capital_one: '#f5a623',
-  bilt:        '#1a1a1a',
-  citi:        '#3b82f6',
+  chase: '#166534',
+  amex:  '#a3e635',
+  c1:    '#f5a623',
+  bilt:  '#1a1a1a',
+  citi:  '#3b82f6',
 };
 
-const PORTAL_ORDER: PortalId[] = ['chase', 'amex', 'capital_one', 'bilt', 'citi'];
+const PORTAL_ORDER: PortalId[] = ['chase', 'amex', 'c1', 'bilt', 'citi'];
 
 export function BalancePanel() {
   const { selectedCards, cardBalances, setCardBalance } = useSelectedCards();

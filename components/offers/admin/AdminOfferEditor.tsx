@@ -39,7 +39,7 @@ const ISSUER_LABELS: Record<Issuer, string> = {
 const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
   chase: 'chase',
   amex:  'amex',
-  c1:    'capital_one',
+  c1:    'c1',
   bilt:  'bilt',
   citi:  'citi',
 };

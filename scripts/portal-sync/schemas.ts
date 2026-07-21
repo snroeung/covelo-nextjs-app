@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const TransferPartnerRecordSchema = z.object({
-  portal_id: z.enum(["chase", "amex", "capital_one", "bilt", "citi"]),
+  portal_id: z.enum(["chase", "amex", "c1", "bilt", "citi"]),
   program: z.string().min(1),
   type: z.enum(["hotel", "airline"]),
   ratio: z.string().min(1),

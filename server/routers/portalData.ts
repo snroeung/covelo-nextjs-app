@@ -27,7 +27,7 @@ async function cacheSet(key: string, value: unknown, ttl: number): Promise<void>
 
 function groupTransferPartners(rows: TransferPartnerRow[]): Record<PortalId, TransferPartnerConfig[]> {
   const grouped = {
-    chase: [], amex: [], capital_one: [], bilt: [], citi: [],
+    chase: [], amex: [], c1: [], bilt: [], citi: [],
   } as Record<PortalId, TransferPartnerConfig[]>;
 
   for (const row of rows) {
@@ -208,7 +208,7 @@ export const portalDataRouter = router({
 
     createTransferPartner: adminProcedure("api:portal-data")
       .input(z.object({
-        portal_id:  z.enum(["chase", "amex", "capital_one", "bilt", "citi"]),
+        portal_id:  z.enum(["chase", "amex", "c1", "bilt", "citi"]),
         program:    z.string().min(1),
         type:       z.enum(["hotel", "airline"]),
         ratio:      z.string().min(1).default("1:1"),
@@ -233,7 +233,7 @@ export const portalDataRouter = router({
     updateTransferPartner: adminProcedure("api:portal-data")
       .input(z.object({
         id:         z.string().uuid(),
-        portal_id:  z.enum(["chase", "amex", "capital_one", "bilt", "citi"]).optional(),
+        portal_id:  z.enum(["chase", "amex", "c1", "bilt", "citi"]).optional(),
         program:    z.string().min(1).optional(),
         type:       z.enum(["hotel", "airline"]).optional(),
         ratio:      z.string().min(1).optional(),

@@ -28,7 +28,7 @@ export type CardId =
 export type PortalId =
   | 'chase'
   | 'amex'
-  | 'capital_one'
+  | 'c1'
   | 'bilt'
   | 'citi';
 
@@ -188,9 +188,9 @@ export const CARD_PORTAL_MAP: Record<CardId, PortalId> = {
   chase_reserve:           'chase',
   chase_preferred:         'chase',
   chase_freedom_unlimited: 'chase',
-  c1_venture_x:            'capital_one',
-  c1_venture:              'capital_one',
-  c1_savor:                'capital_one',
+  c1_venture_x:            'c1',
+  c1_venture:              'c1',
+  c1_savor:                'c1',
   amex_platinum:           'amex',
   amex_gold:               'amex',
   amex_green:              'amex',
@@ -219,13 +219,13 @@ export const CARD_NAMES: Record<CardId, string> = {
 };
 
 export const PORTAL_NAMES: Record<PortalId, string> = {
-  chase:       'Chase Travel',
-  amex:        'American Express Travel',
-  capital_one: 'Capital One Travel',
-  bilt:        'Bilt Travel',
-  citi:        'Citi Travel',
+  chase: 'Chase Travel',
+  amex:  'American Express Travel',
+  c1:    'Capital One Travel',
+  bilt:  'Bilt Travel',
+  citi:  'Citi Travel',
 };
 
 export const PORTAL_ABBR: Record<PortalId, string> = {
-  chase: 'UR', amex: 'MR', capital_one: 'miles', bilt: 'Bilt', citi: 'TY',
+  chase: 'UR', amex: 'MR', c1: 'miles', bilt: 'Bilt', citi: 'TY',
 };

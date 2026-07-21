@@ -6,7 +6,7 @@ import { trpc } from '@/lib/trpc-client';
 import type { TransferPartnerRow } from '@/lib/types/portalData';
 
 const PORTAL_LABELS: Record<string, string> = {
-  chase: 'Chase', amex: 'Amex', capital_one: 'Capital One', bilt: 'Bilt', citi: 'Citi',
+  chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
 
 interface Form {
@@ -63,7 +63,7 @@ export function AdminTransferPartnerEditor({ initial, isDark, onCancel, onSave }
   const { mutate: create, isPending: creating } = useMutation({
     mutationFn: () =>
       trpc.portalData.admin.createTransferPartner.mutate({
-        portal_id:  form.portal_id as 'chase' | 'amex' | 'capital_one' | 'bilt' | 'citi',
+        portal_id:  form.portal_id as 'chase' | 'amex' | 'c1' | 'bilt' | 'citi',
         program:    form.program,
         type:       form.type,
         ratio:      form.ratio,
@@ -83,7 +83,7 @@ export function AdminTransferPartnerEditor({ initial, isDark, onCancel, onSave }
     mutationFn: () =>
       trpc.portalData.admin.updateTransferPartner.mutate({
         id:         initial!.id,
-        portal_id:  form.portal_id as 'chase' | 'amex' | 'capital_one' | 'bilt' | 'citi',
+        portal_id:  form.portal_id as 'chase' | 'amex' | 'c1' | 'bilt' | 'citi',
         program:    form.program,
         type:       form.type,
         ratio:      form.ratio,

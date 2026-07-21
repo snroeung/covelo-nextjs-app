@@ -184,7 +184,7 @@ export const STATIC_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]>
     { program: 'JetBlue TrueBlue',              type: 'airline', ratio: '1:1', iataCodes: ['B6'] },
     { program: 'Qantas Frequent Flyer',         type: 'airline', ratio: '1:1', iataCodes: ['QF'] },
   ],
-  capital_one: [
+  c1: [
     { program: 'Wyndham Rewards',               type: 'hotel',   ratio: '1:1', chainKey: 'wyndham' },
     { program: 'Choice Privileges',             type: 'hotel',   ratio: '1:1', chainKey: 'choice' },
     { program: 'Air Canada Aeroplan',           type: 'airline', ratio: '1:1', iataCodes: ['AC'] },

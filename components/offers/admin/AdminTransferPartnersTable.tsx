@@ -5,7 +5,7 @@ import { trpc } from '@/lib/trpc-client';
 import type { TransferPartnerRow } from '@/lib/types/portalData';
 
 const PORTAL_LABELS: Record<string, string> = {
-  chase: 'Chase', amex: 'Amex', capital_one: 'Capital One', bilt: 'Bilt', citi: 'Citi',
+  chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
 
 interface Props {

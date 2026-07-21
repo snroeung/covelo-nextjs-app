@@ -69,7 +69,7 @@ describe('calcPoints()', () => {
     const portalIds = result.portalResults.map((r) => r.portalId);
     expect(portalIds).toContain('chase');
     expect(portalIds).toContain('amex');
-    expect(portalIds).toContain('capital_one');
+    expect(portalIds).toContain('c1');
     expect(portalIds).toContain('bilt');
     expect(portalIds).toContain('citi');
   });
@@ -93,11 +93,11 @@ describe('calcPoints()', () => {
 describe('calcPoints() portal markup', () => {
   it('11. flight markup ranks Capital One over Citi at the same 1.0¢ rate', () => {
     const result = calcPoints(500, 'flight', ['c1_venture_x', 'citi_strata_premier']);
-    const c1   = result.portalResults.find((r) => r.portalId === 'capital_one')!;
+    const c1   = result.portalResults.find((r) => r.portalId === 'c1')!;
     const citi = result.portalResults.find((r) => r.portalId === 'citi')!;
-    expect(c1.pointsNeeded).toBe(Math.ceil((500 * PORTAL_FLIGHT_MARKUP.capital_one) / 0.01)); // 50,380
+    expect(c1.pointsNeeded).toBe(Math.ceil((500 * PORTAL_FLIGHT_MARKUP.c1) / 0.01)); // 50,380
     expect(citi.pointsNeeded).toBe(Math.ceil((500 * PORTAL_FLIGHT_MARKUP.citi) / 0.01)); // 57,295
-    expect(result.portalResults[0].portalId).toBe('capital_one');
+    expect(result.portalResults[0].portalId).toBe('c1');
   });
 
   it('12. centsPerPoint is effective value (rate / markup), rounded to 2dp', () => {
