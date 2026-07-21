@@ -13,6 +13,7 @@ const ROUTE_FLAGS: Array<{ prefix: string; flag: FlagName }> = [
   { prefix: '/trip-planner', flag: 'ui:trip-planner' },
   { prefix: '/offers',       flag: 'ui:offers' },
   { prefix: '/settings',    flag: 'ui:settings' },
+  { prefix: '/admin',       flag: 'ui:admin' },
 ];
 
 export async function proxy(request: NextRequest) {

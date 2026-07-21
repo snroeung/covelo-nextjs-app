@@ -82,7 +82,7 @@ test.describe('Sponsored Ad — flights_inline slot', () => {
 
   test('2. "Ad updated!" popup appears after editing an existing ad', async ({ page }) => {
     test.skip(!adCreated, 'Skipped: ad creation failed');
-    await page.goto('/offers/admin');
+    await page.goto('/admin');
     await page.getByRole('button', { name: 'Sponsored ads' }).click();
 
     const row = page.locator('div').filter({

@@ -7,11 +7,18 @@ import { AdminOffersTable, offerStatus, type OfferStatusFilter } from '@/compone
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';
 import { AdminOfferEditor } from '@/components/offers/admin/AdminOfferEditor';
+import { PendingReviewTable } from '@/components/offers/admin/PendingReviewTable';
+import { SyncRunsLog } from '@/components/offers/admin/SyncRunsLog';
+import { AdminTransferPartnerEditor } from '@/components/offers/admin/AdminTransferPartnerEditor';
+import { AdminHotelCollectionEditor } from '@/components/offers/admin/AdminHotelCollectionEditor';
+import { AdminTransferPartnersTable } from '@/components/offers/admin/AdminTransferPartnersTable';
+import { AdminHotelCollectionsTable } from '@/components/offers/admin/AdminHotelCollectionsTable';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
+import type { TransferPartnerRow, HotelCollection } from '@/lib/types/portalData';
 
-type Tab = 'offers' | 'ads';
+type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections';
 type OfferFilter = OfferStatusFilter;
 type AdStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
 
@@ -40,6 +47,8 @@ export function OffersAdminShell() {
   const [editingOffer, setEditingOffer] = useState<
     null | { mode: 'new' } | { mode: 'transfer'; offer: TransferBonus } | { mode: 'spending'; offer: SpendingBonus }
   >(null);
+  const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
+  const [editingCollection, setEditingCollection] = useState<HotelCollection | null | undefined>(undefined); // undefined = hidden, null = new
 
   const { data: offersData, isLoading: loadingOffers } = useQuery({
     queryKey: ['offers.admin.listAll'],
@@ -49,6 +58,30 @@ export function OffersAdminShell() {
   const { data: adsData = [], isLoading: loadingAds } = useQuery({
     queryKey: ['offers.admin.listAds'],
     queryFn:  () => trpc.offers.admin.listAds.query(),
+  });
+
+  const { data: pendingRows = [], isLoading: loadingPending } = useQuery({
+    queryKey: ['portalData.admin.listAll'],
+    queryFn:  () => trpc.portalData.admin.listAll.query(),
+    enabled:  tab === 'pending',
+  });
+
+  const { data: syncRuns = [], isLoading: loadingSyncRuns } = useQuery({
+    queryKey: ['portalData.admin.listSyncRuns'],
+    queryFn:  () => trpc.portalData.admin.listSyncRuns.query(),
+    enabled:  tab === 'pending',
+  });
+
+  const { data: allTransferPartners = [], isLoading: loadingPartners } = useQuery({
+    queryKey: ['portalData.listTransferPartners'],
+    queryFn:  () => trpc.portalData.admin.listTransferPartners.query(),
+    enabled:  tab === 'partners',
+  });
+
+  const { data: hotelCollections = [], isLoading: loadingCollections } = useQuery({
+    queryKey: ['portalData.listHotelCollections'],
+    queryFn:  () => trpc.portalData.listHotelCollections.query(),
+    enabled:  tab === 'collections',
   });
 
   const pageBg   = isDark ? 'bg-gph-dark-bg' : 'bg-gray-100';
@@ -123,6 +156,32 @@ export function OffersAdminShell() {
                 New ad
               </button>
             )}
+            {tab === 'partners' && (
+              <button
+                onClick={() => setEditingPartner(null)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                New partner
+              </button>
+            )}
+            {tab === 'collections' && (
+              <button
+                onClick={() => setEditingCollection(null)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                New collection
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -135,6 +194,15 @@ export function OffersAdminShell() {
           </button>
           <button onClick={() => setTab('ads')} className={navTabCls(tab === 'ads')}>
             Sponsored ads
+          </button>
+          <button onClick={() => setTab('partners')} className={navTabCls(tab === 'partners')}>
+            Transfer partners
+          </button>
+          <button onClick={() => setTab('collections')} className={navTabCls(tab === 'collections')}>
+            Hotel collections
+          </button>
+          <button onClick={() => setTab('pending')} className={navTabCls(tab === 'pending')}>
+            Pending review
           </button>
         </div>
       </div>
@@ -255,6 +323,65 @@ export function OffersAdminShell() {
               <AdminAdsTable
                 ads={filteredAds}
                 onEdit={(ad) => setEditingAd(ad)}
+                isDark={isDark}
+              />
+            )}
+          </>
+        )}
+
+        {tab === 'pending' && (
+          <>
+            {loadingPending || loadingSyncRuns ? (
+              <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
+            ) : (
+              <>
+                <PendingReviewTable rows={pendingRows} isDark={isDark} />
+                <SyncRunsLog runs={syncRuns} isDark={isDark} />
+              </>
+            )}
+          </>
+        )}
+
+        {tab === 'partners' && (
+          <>
+            {editingPartner !== undefined && (
+              <AdminTransferPartnerEditor
+                initial={editingPartner ?? null}
+                onSave={() => setEditingPartner(undefined)}
+                onCancel={() => setEditingPartner(undefined)}
+                isDark={isDark}
+              />
+            )}
+
+            {loadingPartners ? (
+              <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
+            ) : (
+              <AdminTransferPartnersTable
+                partners={allTransferPartners}
+                onEdit={(partner) => setEditingPartner(partner)}
+                isDark={isDark}
+              />
+            )}
+          </>
+        )}
+
+        {tab === 'collections' && (
+          <>
+            {editingCollection !== undefined && (
+              <AdminHotelCollectionEditor
+                initial={editingCollection ?? null}
+                onSave={() => setEditingCollection(undefined)}
+                onCancel={() => setEditingCollection(undefined)}
+                isDark={isDark}
+              />
+            )}
+
+            {loadingCollections ? (
+              <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
+            ) : (
+              <AdminHotelCollectionsTable
+                collections={hotelCollections}
+                onEdit={(collection) => setEditingCollection(collection)}
                 isDark={isDark}
               />
             )}

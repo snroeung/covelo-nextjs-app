@@ -234,7 +234,7 @@ export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
 
 /** Set the active/inactive state of an offer row identified by its heading text in the admin table. */
 export async function setOfferActive(page: Page, headingText: string, active: boolean) {
-  await page.goto('/offers/admin');
+  await page.goto('/admin');
   const escaped = headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(escaped, 'i');
   const btnRe = active ? /^Reactivate$/ : /^Deactivate$/;
@@ -264,7 +264,7 @@ export async function setOfferActive(page: Page, headingText: string, active: bo
 
 /** Deactivate a sponsored ad by its headline in the Ads table. */
 export async function deactivateAd(page: Page, headline: string) {
-  await page.goto('/offers/admin');
+  await page.goto('/admin');
   await page.getByRole('button', { name: 'Sponsored ads' }).click();
 
   // Escape regex special chars so "[TEST]" matches literally, not as char class

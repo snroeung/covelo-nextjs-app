@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import { CARD_NAMES, type CardId, type PortalId } from '@/lib/points/types';
-import { TRANSFER_PARTNERS } from '@/lib/points/transferPartners';
+import { STATIC_TRANSFER_PARTNERS } from '@/lib/points/transferPartners';
 import { PARTNER_IMAGES } from '@/lib/partnerImages';
 import type { Issuer, TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
@@ -162,7 +162,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
 
   // Transfer partner options filtered by issuer
   const partnerOptions = transfer.issuer
-    ? (TRANSFER_PARTNERS[ISSUER_TO_PORTAL[transfer.issuer as Issuer]] ?? [])
+    ? (STATIC_TRANSFER_PARTNERS[ISSUER_TO_PORTAL[transfer.issuer as Issuer]] ?? [])
     : [];
 
   // Card checkboxes filtered by issuer

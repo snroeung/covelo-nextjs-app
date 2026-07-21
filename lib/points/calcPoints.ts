@@ -13,7 +13,7 @@ import {
   PORTAL_NAMES,
   CHASE_LEGACY_CPP,
 } from './types';
-import { calcTransferAlternatives } from './transferPartners';
+import { calcTransferAlternatives, TransferPartnerConfig } from './transferPartners';
 import { PORTAL_FLIGHT_MARKUP, PORTAL_HOTEL_MARKUP } from './portalMarkup';
 
 const ALL_CARD_IDS = Object.keys(PORTAL_CPP) as CardId[];
@@ -44,6 +44,8 @@ export function calcPoints(
   portalPrices?: Partial<Record<PortalId, number>>,
   /** Hotel name/brand — narrows transfer-partner results to this property's chain. */
   hotelChain?: string | null,
+  /** DB-backed partner map (trpc.portalData.listTransferPartners) — falls back to the bundled static set when omitted. */
+  transferPartners?: Record<PortalId, TransferPartnerConfig[]>,
 ): PointsResult {
   if (priceUsd <= 0) throw new Error('priceUsd must be greater than 0');
 
@@ -140,6 +142,7 @@ export function calcPoints(
     undefined,
     flightCtx,
     validCards,
+    transferPartners,
   );
 
   const betterTransfers  = transferAlternatives.filter((t) => t.isBetterThanPortal);

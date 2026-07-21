@@ -143,7 +143,14 @@ export interface TransferPartnerConfig {
   iataCodes?: string[];
 }
 
-export const TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
+/**
+ * Bundled fallback set, used when no DB-backed transferPartners map is passed
+ * in (tests, pre-fetch render) and as the seed source for the
+ * transfer_partners table (see supabase/migrations/015_transfer_partners_seed.sql).
+ * The live app reads from Supabase via trpc.portalData.listTransferPartners —
+ * see hooks/usePointsCalc.ts.
+ */
+export const STATIC_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
   chase: [
     { program: 'World of Hyatt',                type: 'hotel',   ratio: '1:1', chainKey: 'hyatt' },
     { program: 'IHG One Rewards',               type: 'hotel',   ratio: '1:1', chainKey: 'ihg' },
@@ -243,6 +250,7 @@ function findEligibleCards(
   chainKey: string | null,
   filterIata: string | null,
   userCards: CardId[],
+  partnersMap: Record<PortalId, TransferPartnerConfig[]>,
 ): EligibleTransferCard[] {
   const seen = new Set<CardId>();
   const eligible: EligibleTransferCard[] = [];
@@ -250,7 +258,7 @@ function findEligibleCards(
     if (seen.has(cardId)) continue;
     const portalId = CARD_PORTAL_MAP[cardId];
     if (!portalId) continue;
-    const partner = TRANSFER_PARTNERS[portalId].find(p => {
+    const partner = partnersMap[portalId].find(p => {
       if (p.type !== expectedPartnerType || p.program !== partnerProgram) return false;
       if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
       if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
@@ -278,6 +286,8 @@ export function calcTransferAlternatives(
   flightCtx?: FlightContext,
   /** User's actually-selected cards (owned) — defaults to userCards when omitted */
   selectedCards?: CardId[],
+  /** DB-backed partner map (trpc.portalData.listTransferPartners) — falls back to the bundled static set when omitted (tests, pre-fetch render). */
+  transferPartners: Record<PortalId, TransferPartnerConfig[]> = STATIC_TRANSFER_PARTNERS,
 ): TransferResult[] {
   const ownedCards = selectedCards ?? userCards;
   // Collect unique portals the user has access to, mapped to their best card per portal
@@ -304,7 +314,7 @@ export function calcTransferAlternatives(
   const results: TransferResult[] = [];
 
   for (const [portalId, sourceCardId] of portalCardMap.entries()) {
-    const partners = TRANSFER_PARTNERS[portalId];
+    const partners = transferPartners[portalId];
 
     for (const partner of partners) {
       if (partner.type !== expectedPartnerType) continue;
@@ -401,10 +411,10 @@ export function calcTransferAlternatives(
   // Attach the user's owned cards that can reach this partner for the chip UI;
   // when none are owned, surface cards (from the full pool) that would unlock it.
   for (const r of deduped.values()) {
-    const owned = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards);
+    const owned = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards, transferPartners);
     r.eligibleCards = owned;
     r.recommendedCards = owned.length === 0
-      ? findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards)
+      ? findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards, transferPartners)
       : [];
   }
 
