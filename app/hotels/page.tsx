@@ -324,6 +324,10 @@ function HotelsPageInner() {
       if (sortOrder === 'az')      return (a.accommodation?.name ?? '').localeCompare(b.accommodation?.name ?? '');
       if (sortOrder === 'lowest')  return parseFloat(a.cheapest_rate_total_amount) - parseFloat(b.cheapest_rate_total_amount);
       if (sortOrder === 'highest') return parseFloat(b.cheapest_rate_total_amount) - parseFloat(a.cheapest_rate_total_amount);
+      // 'relevant': float featured (hotel_collection match) hotels to the top
+      const aFeatured = Boolean(a.collection);
+      const bFeatured = Boolean(b.collection);
+      if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
       return 0;
     }), [allAccommodations, minStars, requiredAmenities, sortOrder]);
 
@@ -334,6 +338,9 @@ function HotelsPageInner() {
   );
 
   const hotelPins = useMemo(() => accommodationsToPins(accommodations), [accommodations]);
+
+  const featuredAccommodations = useMemo(() => accommodations.filter((sr: any) => Boolean(sr.collection)), [accommodations]);
+  const regularAccommodations  = useMemo(() => accommodations.filter((sr: any) => !sr.collection), [accommodations]);
 
   const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const textMuted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
@@ -634,10 +641,24 @@ function HotelsPageInner() {
               />
             </div>
           )}
-          {accommodations.map((sr, i) => (
+          {featuredAccommodations.length > 0 && (
+            <div className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-3">
+                <h2 className={`text-[10px] font-bold font-mono tracking-widest uppercase ${isDark ? 'text-white' : 'text-cv-navy-900'}`}>
+                  ★ Featured hotels
+                </h2>
+              </div>
+              <div className="space-y-4">
+                {featuredAccommodations.map((sr) => (
+                  <HotelCard key={sr.id} searchResult={sr} onOpenDetail={setDetailResult} />
+                ))}
+              </div>
+            </div>
+          )}
+          {regularAccommodations.map((sr, i) => (
             <Fragment key={sr.id}>
               <HotelCard searchResult={sr} onOpenDetail={setDetailResult} />
-              {i === 1 && accommodations.length >= 3 && (
+              {i === 1 && regularAccommodations.length >= 3 && (
                 <AffiliateAdSpot
                   slot="hotels_inline"
                   variant="inline_banner"

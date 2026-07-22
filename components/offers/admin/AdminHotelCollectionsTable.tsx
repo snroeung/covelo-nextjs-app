@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { HotelCollection } from '@/lib/types/portalData';
-import { adminTableTheme, usePendingApproval, PendingBadge, PendingRowActions } from './adminTableShared';
+import { adminTableTheme, PendingBadge, PendingRowActions } from './adminTableShared';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
@@ -30,8 +30,7 @@ export function AdminHotelCollectionsTable({ collections, isDark, onEdit }: Prop
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portalData.listHotelCollections'] }),
   });
 
-  const { approve, reject, approving, rejecting } = usePendingApproval([['portalData.listHotelCollections']]);
-  const isPending = isToggling || approving || rejecting;
+  const isPending = isToggling;
 
   const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
@@ -76,8 +75,7 @@ export function AdminHotelCollectionsTable({ collections, isDark, onEdit }: Prop
               pending={c.status === 'pending'}
               disabled={isPending}
               itemLabel={c.collection_name}
-              onApprove={() => approve({ id: c.id, table: 'hotel_collections' })}
-              onReject={() => reject({ id: c.id, table: 'hotel_collections' })}
+              hidePendingActions
               onEdit={() => onEdit(c)}
               active={c.active}
               onToggleActive={(next) => toggleActive({ id: c.id, active: next })}

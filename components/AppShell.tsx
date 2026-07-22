@@ -102,7 +102,6 @@ export function AppShell({
 
       </div>
 
-      <Footer />
     </div>
   );
 }

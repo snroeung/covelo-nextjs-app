@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { TransferPartnerRow } from '@/lib/types/portalData';
-import { adminTableTheme, usePendingApproval, PendingBadge, PendingRowActions } from './adminTableShared';
+import { adminTableTheme, PendingBadge, PendingRowActions } from './adminTableShared';
 
 const PORTAL_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
@@ -24,8 +24,7 @@ export function AdminTransferPartnersTable({ partners, isDark, onEdit }: Props) 
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portalData.listTransferPartners'] }),
   });
 
-  const { approve, reject, approving, rejecting } = usePendingApproval([['portalData.listTransferPartners']]);
-  const isPending = isToggling || approving || rejecting;
+  const isPending = isToggling;
 
   const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
@@ -68,8 +67,7 @@ export function AdminTransferPartnersTable({ partners, isDark, onEdit }: Props) 
               pending={p.status === 'pending'}
               disabled={isPending}
               itemLabel={p.program}
-              onApprove={() => approve({ id: p.id, table: 'transfer_partners' })}
-              onReject={() => reject({ id: p.id, table: 'transfer_partners' })}
+              hidePendingActions
               onEdit={() => onEdit(p)}
               active={p.active}
               onToggleActive={(next) => toggleActive({ id: p.id, active: next })}

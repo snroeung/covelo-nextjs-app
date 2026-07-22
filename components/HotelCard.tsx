@@ -1,6 +1,102 @@
 'use client';
 
+import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+
+const ISSUER_LABELS: Record<string, string> = {
+  chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
+};
+
+// Official issuer/portal hostnames — source_url must resolve to one of
+// these or we swap it for the issuer's own login/portal link instead of
+// sending users to an unverified third-party page.
+const ISSUER_OFFICIAL_HOSTS: Record<string, string[]> = {
+  chase: ['chase.com'],
+  amex: ['americanexpress.com'],
+  c1: ['capitalone.com', 'capitalonetravel.com'],
+  bilt: ['biltrewards.com'],
+  citi: ['citi.com', 'thankyou.com'],
+};
+
+const ISSUER_LOGIN_URLS: Record<string, string> = {
+  chase: 'https://travel.chase.com',
+  amex: 'https://www.americanexpress.com/en-us/travel/',
+  c1: 'https://travel.capitalone.com',
+  bilt: 'https://www.biltrewards.com/travel',
+  citi: 'https://www.thankyou.com',
+};
+
+function resolveCollectionUrl(sourceUrl: string | null, issuer: string): string | null {
+  const loginUrl = ISSUER_LOGIN_URLS[issuer] ?? null;
+  if (!sourceUrl) return loginUrl;
+
+  const officialHosts = ISSUER_OFFICIAL_HOSTS[issuer] ?? [];
+  try {
+    const host = new URL(sourceUrl).hostname.replace(/^www\./, '');
+    const isOfficial = officialHosts.some((h) => host === h || host.endsWith(`.${h}`));
+    return isOfficial ? sourceUrl : loginUrl;
+  } catch {
+    return loginUrl;
+  }
+}
+
+function CollectionBanner({ collectionName, issuer, perkSummary, sourceUrl }: { collectionName: string; issuer: string; perkSummary: string; sourceUrl: string | null }) {
+  const [open, setOpen]     = useState(false);
+  const [pinned, setPinned] = useState(false);
+
+  function close() { setOpen(false); setPinned(false); }
+  function toggle() { if (pinned) { close(); } else { setPinned(true); setOpen(true); } }
+
+  const issuerLabel = ISSUER_LABELS[issuer] ?? issuer;
+  const linkUrl = resolveCollectionUrl(sourceUrl, issuer);
+
+  return (
+    <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1 pl-3 pr-4 py-2 rounded-t-xl bg-linear-to-r from-cv-navy-900 via-cv-navy-900 to-cv-blue-900 border-b-2 border-cv-amber-400">
+      <span className="flex items-center justify-center w-5 h-5 rounded shrink-0 bg-cv-amber-400 text-cv-navy-900 text-[11px] font-extrabold leading-none">★</span>
+
+      <span className="text-[10px] font-bold font-mono tracking-widest uppercase text-white whitespace-nowrap">
+        {collectionName} · {issuerLabel}
+      </span>
+
+      <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-cv-navy-400 shrink-0" />
+
+      <span
+        className="relative flex items-center shrink-0"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => { if (!pinned) setOpen(false); }}
+      >
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggle(); }}
+          aria-label="View collection perk details"
+          className="flex items-center justify-center min-h-11 min-w-11 -my-3.5 shrink-0"
+        >
+          <span className="flex items-center justify-center w-4 h-4 rounded-full border border-white/70 text-[10px] leading-none text-white">i</span>
+        </button>
+
+        {open && (
+          <div className="absolute left-full top-1/2 -translate-y-1/2 pl-1.5 z-50">
+            <div className="w-72 rounded-lg border border-gray-200 bg-white text-gray-900 shadow-lg px-3 py-2 text-xs font-normal leading-relaxed whitespace-normal">
+              {perkSummary}
+            </div>
+          </div>
+        )}
+      </span>
+
+      {linkUrl && (
+        <a
+          href={linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="ml-auto shrink-0 flex items-center min-h-11 text-[10px] font-bold font-mono tracking-widest uppercase text-cv-sky-300 hover:text-cv-sky-400"
+        >
+          View collection →
+        </a>
+      )}
+    </div>
+  );
+}
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -48,9 +144,19 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
   const pillBg      = isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600';
   const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
 
+  const collection = searchResult.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null } | undefined;
+
   return (
-    <article data-testid="hotel-card" className={`rounded-xl overflow-hidden border ${cardBg} md:h-44`}>
-      <div className="flex flex-col md:flex-row h-full">
+    <article data-testid="hotel-card" className={`rounded-xl border ${cardBg}`}>
+      {collection && (
+        <CollectionBanner
+          collectionName={collection.collection_name}
+          issuer={collection.issuer}
+          perkSummary={collection.perk_summary}
+          sourceUrl={collection.source_url}
+        />
+      )}
+      <div className={`flex flex-col md:flex-row md:h-44 overflow-hidden ${collection ? 'rounded-b-xl' : 'rounded-xl'}`}>
 
         {/* Photo — square crop, fixed size so all cards match */}
         <div

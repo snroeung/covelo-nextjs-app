@@ -66,18 +66,22 @@ interface PendingRowActionsProps {
   pending: boolean;
   disabled: boolean;
   itemLabel: string;
-  onApprove: () => void;
-  onReject: () => void;
+  onApprove?: () => void;
+  onReject?: () => void;
   onEdit: () => void;
   active: boolean;
   onToggleActive: (next: boolean) => void;
+  // When true, pending rows render no actions here — Pending Review tab is
+  // the single source of truth for approve/reject on this table.
+  hidePendingActions?: boolean;
 }
 
 // Approve/Reject when the row is pending, else Edit/Deactivate-Reactivate.
 export function PendingRowActions({
-  isDark, pending, disabled, itemLabel, onApprove, onReject, onEdit, active, onToggleActive,
+  isDark, pending, disabled, itemLabel, onApprove, onReject, onEdit, active, onToggleActive, hidePendingActions,
 }: PendingRowActionsProps) {
   if (pending) {
+    if (hidePendingActions) return null;
     return (
       <>
         <button
@@ -89,7 +93,7 @@ export function PendingRowActions({
         </button>
         <button
           disabled={disabled}
-          onClick={() => { if (window.confirm(`Reject "${itemLabel}"?`)) onReject(); }}
+          onClick={() => { if (window.confirm(`Reject "${itemLabel}"?`)) onReject?.(); }}
           className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
         >
           Reject
