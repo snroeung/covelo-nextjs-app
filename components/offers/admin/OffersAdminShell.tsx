@@ -21,6 +21,16 @@ import type { TransferPartnerRow, HotelCollection } from '@/lib/types/portalData
 type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections';
 type OfferFilter = OfferStatusFilter;
 type AdStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
+type PortalFilter = 'all' | 'chase' | 'amex' | 'c1' | 'bilt' | 'citi';
+
+const PORTAL_FILTER_TABS: { key: PortalFilter; label: string }[] = [
+  { key: 'all',   label: 'All' },
+  { key: 'chase', label: 'Chase' },
+  { key: 'amex',  label: 'Amex' },
+  { key: 'c1',    label: 'Capital One' },
+  { key: 'bilt',  label: 'Bilt' },
+  { key: 'citi',  label: 'Citi' },
+];
 
 const OFFER_TABS: { key: OfferFilter; label: string }[] = [
   { key: 'all',       label: 'All' },
@@ -49,6 +59,8 @@ export function OffersAdminShell() {
   >(null);
   const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingCollection, setEditingCollection] = useState<HotelCollection | null | undefined>(undefined); // undefined = hidden, null = new
+  const [partnerFilter, setPartnerFilter] = useState<PortalFilter>('all');
+  const [collectionFilter, setCollectionFilter] = useState<PortalFilter>('all');
 
   const { data: offersData, isLoading: loadingOffers } = useQuery({
     queryKey: ['offers.admin.listAll'],
@@ -104,6 +116,12 @@ export function OffersAdminShell() {
 
   const liveAdsCount = adsData.filter((a) => adStatus(a) === 'live').length;
   const filteredAds = adFilter === 'all' ? adsData : adsData.filter((a) => adStatus(a) === adFilter);
+  const filteredPartners = partnerFilter === 'all'
+    ? allTransferPartners
+    : allTransferPartners.filter((p) => p.portal_id === partnerFilter);
+  const filteredCollections = collectionFilter === 'all'
+    ? hotelCollections
+    : hotelCollections.filter((c) => c.issuer === collectionFilter);
 
   return (
     <div className={`flex flex-col min-h-screen ${pageBg}`}>
@@ -353,11 +371,28 @@ export function OffersAdminShell() {
               />
             )}
 
+            {/* Portal filter tabs */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {PORTAL_FILTER_TABS.map((t) => {
+                const count = t.key === 'all'
+                  ? allTransferPartners.length
+                  : allTransferPartners.filter((p) => p.portal_id === t.key).length;
+                return (
+                  <button key={t.key} onClick={() => setPartnerFilter(t.key)} className={filterTabCls(partnerFilter === t.key)}>
+                    {t.label}
+                    <span className={`ml-1.5 text-[10px] font-mono ${partnerFilter === t.key ? '' : muted}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {loadingPartners ? (
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
               <AdminTransferPartnersTable
-                partners={allTransferPartners}
+                partners={filteredPartners}
                 onEdit={(partner) => setEditingPartner(partner)}
                 isDark={isDark}
               />
@@ -376,11 +411,28 @@ export function OffersAdminShell() {
               />
             )}
 
+            {/* Portal filter tabs */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {PORTAL_FILTER_TABS.map((t) => {
+                const count = t.key === 'all'
+                  ? hotelCollections.length
+                  : hotelCollections.filter((c) => c.issuer === t.key).length;
+                return (
+                  <button key={t.key} onClick={() => setCollectionFilter(t.key)} className={filterTabCls(collectionFilter === t.key)}>
+                    {t.label}
+                    <span className={`ml-1.5 text-[10px] font-mono ${collectionFilter === t.key ? '' : muted}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             {loadingCollections ? (
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
               <AdminHotelCollectionsTable
-                collections={hotelCollections}
+                collections={filteredCollections}
                 onEdit={(collection) => setEditingCollection(collection)}
                 isDark={isDark}
               />

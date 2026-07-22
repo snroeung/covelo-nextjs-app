@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { SOURCES, type SourceConfig } from "./sources";
-import { fetchStatic, fetchRendered, closeBrowser } from "./fetch";
+import { fetchStatic, fetchRendered, fetchRenderedSections, fetchClickThroughPanels, closeBrowser } from "./fetch";
 import { extractRecords } from "./extract";
 import { upsertRecord } from "./upsert";
 import { invalidateCacheFor } from "./cache";
@@ -12,6 +12,18 @@ import { recordSyncRun } from "./audit";
 // instead of the full batch.
 const SOURCE_KEY_FILTER = process.env.SOURCE_KEY_FILTER;
 
+function fetchForSource(source: SourceConfig): ReturnType<typeof fetchStatic> {
+  if (source.clickTriggerSelector) {
+    if (!source.clickResultSelector) {
+      throw new Error(`[${source.key}] clickTriggerSelector is set without clickResultSelector`);
+    }
+    return fetchClickThroughPanels(source.url, source.clickTriggerSelector, source.clickResultSelector);
+  }
+  if (source.sections) return fetchRenderedSections(source.url, source.sections);
+  if (source.needsBrowser) return fetchRendered(source.url);
+  return fetchStatic(source.url);
+}
+
 async function runSource(source: SourceConfig): Promise<void> {
   const startedAt = new Date();
   const supabase = getSupabaseAdmin();
@@ -19,9 +31,7 @@ async function runSource(source: SourceConfig): Promise<void> {
   console.log(`[${source.key}] fetching ${source.url} (${source.needsBrowser ? "rendered" : "static"})`);
 
   try {
-    const fetched = source.needsBrowser
-      ? await fetchRendered(source.url)
-      : await fetchStatic(source.url);
+    const fetched = await fetchForSource(source);
 
     const fetchMs = Date.now() - startedAt.getTime();
     console.log(`[${source.key}] fetch step done in ${fetchMs}ms`);
@@ -40,7 +50,12 @@ async function runSource(source: SourceConfig): Promise<void> {
       return;
     }
 
-    const extracted = await extractRecords(source.recordType, fetched.text, source.url);
+    const extracted = await extractRecords(
+      source.recordType,
+      fetched.text,
+      source.url,
+      source.extraInstructions,
+    );
 
     let written = 0;
     for (const record of extracted.records) {

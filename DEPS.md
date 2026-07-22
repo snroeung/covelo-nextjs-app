@@ -1,4 +1,4 @@
-# Module Dependency Map (generated 2026-07-21)
+# Module Dependency Map (generated 2026-07-22)
 
 Reverse import map: `target << files that import it`. Sorted by importer count.
 Grep this file for a path to get its importers (blast radius) — do not read the whole file.
@@ -7,13 +7,13 @@ Auto-regenerated each session by scripts/dep-graph.mjs (SessionStart hook) — d
 
 ```
 contexts/ThemeContext.tsx << app/auth/page.tsx, app/auth/update-password/page.tsx, app/flights/page.tsx, app/hotels/page.tsx, app/layout.tsx, app/offers/page.tsx, app/onboarding/page.tsx, app/page.tsx, app/search/page.tsx, app/settings/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AddToTripButton.tsx, components/AppShell.tsx, components/BalancePanel.tsx, components/CardSelector.tsx, components/DateInput.tsx, components/FlightCard.tsx, components/Footer.tsx, components/GuestsDropdown.tsx, components/HotelCard.tsx, components/HotelDetailModal.tsx, components/LocationSearch.tsx, components/NavBar.tsx, components/PointsGrid.tsx, components/ProfilePopup.tsx, components/ThemeToggle.tsx, components/offers/admin/OffersAdminShell.tsx, components/search/FlightSearchForm.tsx, components/search/HotelSearchForm.tsx, components/search/SearchBoard.tsx, components/search/SearchModeToggle.tsx
+lib/trpc-client.ts << app/flights/page.tsx, app/hotels/page.tsx, app/offers/page.tsx, app/search/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/GeoMap.tsx, components/HotelDetailModal.tsx, components/LocationSearch.tsx, components/PointsGrid.tsx, components/offers/AffiliateAdSpot.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminAdsTable.tsx, components/offers/admin/AdminHotelCollectionEditor.tsx, components/offers/admin/AdminHotelCollectionsTable.tsx, components/offers/admin/AdminOfferEditor.tsx, components/offers/admin/AdminOffersTable.tsx, components/offers/admin/AdminTransferPartnerEditor.tsx, components/offers/admin/AdminTransferPartnersTable.tsx, components/offers/admin/OffersAdminShell.tsx, components/offers/admin/PendingReviewTable.tsx, components/offers/admin/adminTableShared.tsx, hooks/usePointsCalc.ts
 lib/points/types.ts << app/onboarding/page.tsx, app/search/page.tsx, components/BalancePanel.tsx, components/BestPortalPanel.tsx, components/CardSelector.tsx, components/FlightCard.tsx, components/HotelDetailModal.tsx, components/PointsGrid.tsx, components/ProfilePopup.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminOfferEditor.tsx, components/search/SearchBoard.tsx, contexts/AuthContext.tsx, contexts/SelectedCardsContext.tsx, hooks/usePointsCalc.ts, lib/cardImages.ts, lib/points/calcPoints.ts, lib/points/index.ts, lib/points/portalMarkup.ts, lib/points/rankOptions.ts, lib/points/transferPartners.ts, lib/types/portalData.ts, server/routers/portalData.ts
-lib/trpc-client.ts << app/flights/page.tsx, app/hotels/page.tsx, app/offers/page.tsx, app/search/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/GeoMap.tsx, components/HotelDetailModal.tsx, components/LocationSearch.tsx, components/PointsGrid.tsx, components/offers/AffiliateAdSpot.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminAdsTable.tsx, components/offers/admin/AdminHotelCollectionEditor.tsx, components/offers/admin/AdminHotelCollectionsTable.tsx, components/offers/admin/AdminOfferEditor.tsx, components/offers/admin/AdminOffersTable.tsx, components/offers/admin/AdminTransferPartnerEditor.tsx, components/offers/admin/AdminTransferPartnersTable.tsx, components/offers/admin/OffersAdminShell.tsx, components/offers/admin/PendingReviewTable.tsx, hooks/usePointsCalc.ts
 lib/types/offers.ts << app/offers/page.tsx, components/PointsGrid.tsx, components/offers/AffiliateAdSpot.tsx, components/offers/FeaturedOfferHero.tsx, components/offers/OfferCard.tsx, components/offers/OfferCategoryChips.tsx, components/offers/OfferDetailModal.tsx, components/offers/OffersGrid.tsx, components/offers/admin/AdminAdEditor.tsx, components/offers/admin/AdminAdsTable.tsx, components/offers/admin/AdminOfferEditor.tsx, components/offers/admin/AdminOffersTable.tsx, components/offers/admin/OffersAdminShell.tsx, server/routers/offers.ts
+lib/types/portalData.ts << components/offers/admin/AdminHotelCollectionEditor.tsx, components/offers/admin/AdminHotelCollectionsTable.tsx, components/offers/admin/AdminTransferPartnerEditor.tsx, components/offers/admin/AdminTransferPartnersTable.tsx, components/offers/admin/OffersAdminShell.tsx, components/offers/admin/PendingReviewDetailModal.tsx, components/offers/admin/PendingReviewTable.tsx, components/offers/admin/SyncRunsLog.tsx, components/offers/admin/adminTableShared.tsx, lib/types/offers.ts, server/routers/portalData.ts
 contexts/AuthContext.tsx << app/layout.tsx, app/onboarding/page.tsx, app/page.tsx, app/search/page.tsx, app/settings/page.tsx, app/trip-planner/page.tsx, components/AppShell.tsx, components/NavBar.tsx, components/ProfilePopup.tsx, hooks/useTrips.ts
 contexts/SelectedCardsContext.tsx << app/layout.tsx, app/search/page.tsx, components/AppShell.tsx, components/BalancePanel.tsx, components/CardSelector.tsx, components/HotelDetailModal.tsx, components/ProfilePopup.tsx, hooks/usePointsCalc.ts
 lib/feature-flags.ts << components/NavBar.tsx, lib/places.ts, server/routers/flights.ts, server/routers/offers.ts, server/routers/places.ts, server/routers/portalData.ts, server/routers/stays.ts, server/trpc.ts
-lib/types/portalData.ts << components/offers/admin/AdminHotelCollectionEditor.tsx, components/offers/admin/AdminHotelCollectionsTable.tsx, components/offers/admin/AdminTransferPartnerEditor.tsx, components/offers/admin/AdminTransferPartnersTable.tsx, components/offers/admin/OffersAdminShell.tsx, components/offers/admin/PendingReviewTable.tsx, components/offers/admin/SyncRunsLog.tsx, server/routers/portalData.ts
 components/LocationSearch.tsx << app/flights/page.tsx, app/hotels/page.tsx, app/search/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/search/FlightSearchForm.tsx, components/search/HotelSearchForm.tsx
 components/NavBar.tsx << app/offers/page.tsx, app/search/page.tsx, app/settings/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AppShell.tsx, components/offers/admin/OffersAdminShell.tsx
 server/trpc.ts << server/routers/_app.ts, server/routers/flights.ts, server/routers/offers.ts, server/routers/places.ts, server/routers/portalData.ts, server/routers/stays.ts
@@ -46,6 +46,8 @@ components/AddToTripButton.tsx << components/FlightCard.tsx, components/HotelDet
 components/BestPortalPanel.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx
 lib/places.ts << components/LocationSearch.tsx, server/routers/places.ts
 components/offers/OfferCard.tsx << components/offers/OfferCategoryChips.tsx, components/offers/OffersGrid.tsx
+components/offers/admin/adminTableShared.tsx << components/offers/admin/AdminHotelCollectionsTable.tsx, components/offers/admin/AdminTransferPartnersTable.tsx
+components/offers/admin/PendingReviewTable.tsx << components/offers/admin/OffersAdminShell.tsx, components/offers/admin/PendingReviewDetailModal.tsx
 components/DateInput.tsx << components/search/FlightSearchForm.tsx, components/search/HotelSearchForm.tsx
 lib/hotelbeds.ts << lib/adapters/hotelbeds-adapter.ts, server/routers/stays.ts
 lib/adapters/hotelbeds-adapter.ts << lib/hotelbeds-match.ts, server/routers/stays.ts
@@ -71,12 +73,12 @@ components/offers/admin/AdminOffersTable.tsx << components/offers/admin/OffersAd
 components/offers/admin/AdminAdsTable.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/AdminAdEditor.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/AdminOfferEditor.tsx << components/offers/admin/OffersAdminShell.tsx
-components/offers/admin/PendingReviewTable.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/SyncRunsLog.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/AdminTransferPartnerEditor.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/AdminHotelCollectionEditor.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/AdminTransferPartnersTable.tsx << components/offers/admin/OffersAdminShell.tsx
 components/offers/admin/AdminHotelCollectionsTable.tsx << components/offers/admin/OffersAdminShell.tsx
+components/offers/admin/PendingReviewDetailModal.tsx << components/offers/admin/PendingReviewTable.tsx
 server/routers/flights.ts << server/routers/_app.ts
 server/routers/stays.ts << server/routers/_app.ts
 server/routers/places.ts << server/routers/_app.ts

@@ -30,6 +30,7 @@ export async function extractRecords<T extends RecordType>(
   recordType: T,
   pageText: string,
   sourceUrl: string,
+  extraInstructions?: string,
 ): Promise<ExtractResult<z.infer<(typeof RECORD_SCHEMAS)[T]>>> {
   const schema = RECORD_SCHEMAS[recordType];
   const examples = FEW_SHOT_EXAMPLES[recordType] ?? [];
@@ -41,6 +42,7 @@ export async function extractRecords<T extends RecordType>(
       : null,
     `Source URL: ${sourceUrl}`,
     `Extract every ${label} mentioned in the page text below. If the page is TPG (thepointsguy.com) prose rather than an issuer's own page, note that in "notes" and extract from context — TPG confidence is lower than a direct issuer statement. If none are found, return an empty records array.`,
+    extraInstructions ? `Source-specific instructions: ${extraInstructions}` : null,
     `Page text:\n${pageText.slice(0, MAX_PAGE_TEXT_CHARS)}`,
   ].filter((part): part is string => part !== null);
 

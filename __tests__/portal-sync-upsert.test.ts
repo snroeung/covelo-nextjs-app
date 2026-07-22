@@ -46,8 +46,52 @@ describe('upsertTransferPartner', () => {
   };
 
   it('skips insert and returns false when an approved match already exists', async () => {
-    const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
+    const supabase = makeSupabase([{ data: [{ program: 'United MileagePlus' }], error: null }]);
     const result = await upsertTransferPartner({ supabase, sourceUrl }, record);
+    expect(result).toBe(false);
+  });
+
+  it('skips insert when an approved match exists with different punctuation', async () => {
+    const supabase = makeSupabase([
+      { data: [{ program: 'Air France-KLM Flying Blue' }], error: null },
+    ]);
+    const result = await upsertTransferPartner(
+      { supabase, sourceUrl },
+      { ...record, program: 'Air France/KLM Flying Blue' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('skips insert when an approved match exists with an extra "Airlines" word', async () => {
+    const supabase = makeSupabase([
+      { data: [{ program: 'United Airlines MileagePlus' }], error: null },
+    ]);
+    const result = await upsertTransferPartner(
+      { supabase, sourceUrl },
+      { ...record, program: 'United MileagePlus' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('skips insert when an approved match exists with "Airlines" in a different position', async () => {
+    const supabase = makeSupabase([
+      { data: [{ program: 'Southwest Rapid Rewards' }], error: null },
+    ]);
+    const result = await upsertTransferPartner(
+      { supabase, sourceUrl },
+      { ...record, program: 'Southwest Airlines Rapid Rewards' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('skips insert when an approved match exists under a known program alias', async () => {
+    const supabase = makeSupabase([
+      { data: [{ program: 'British Airways Executive Club' }], error: null },
+    ]);
+    const result = await upsertTransferPartner(
+      { supabase, sourceUrl },
+      { ...record, program: 'British Airways Avios' },
+    );
     expect(result).toBe(false);
   });
 

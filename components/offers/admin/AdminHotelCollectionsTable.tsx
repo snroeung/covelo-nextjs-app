@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { HotelCollection } from '@/lib/types/portalData';
+import { adminTableTheme, usePendingApproval, PendingBadge, PendingRowActions } from './adminTableShared';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
@@ -23,18 +24,16 @@ interface Props {
 export function AdminHotelCollectionsTable({ collections, isDark, onEdit }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: toggleActive, isPending } = useMutation({
+  const { mutate: toggleActive, isPending: isToggling } = useMutation({
     mutationFn: (args: { id: string; active: boolean }) =>
       trpc.portalData.admin.updateHotelCollection.mutate({ id: args.id, active: args.active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portalData.listHotelCollections'] }),
   });
 
-  const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
-  const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const rowHov  = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50';
-  const divider = isDark ? 'border-gph-dark-line' : 'border-gray-100';
-  const headBg  = isDark ? 'bg-gph-dark-bg' : 'bg-gray-50';
+  const { approve, reject, approving, rejecting } = usePendingApproval([['portalData.listHotelCollections']]);
+  const isPending = isToggling || approving || rejecting;
+
+  const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
   return (
     <div className={`rounded-xl border overflow-hidden ${card}`}>
@@ -68,39 +67,21 @@ export function AdminHotelCollectionsTable({ collections, isDark, onEdit }: Prop
           <div className={`text-[11px] font-mono whitespace-nowrap ${muted}`}>{formatDate(c.end_date)}</div>
 
           <div>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-              c.active
-                ? isDark ? 'bg-green-900/40 text-green-400' : 'bg-green-50 text-green-700'
-                : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
-            }`}>
-              {c.active ? 'Active' : 'Inactive'}
-            </span>
+            <PendingBadge pending={c.status === 'pending'} active={c.active} isDark={isDark} />
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => onEdit(c)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
-                isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Edit
-            </button>
-            <button
+            <PendingRowActions
+              isDark={isDark}
+              pending={c.status === 'pending'}
               disabled={isPending}
-              onClick={() => {
-                const next = !c.active;
-                if (!next && !window.confirm(`Deactivate "${c.collection_name}"?`)) return;
-                toggleActive({ id: c.id, active: next });
-              }}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors disabled:opacity-50 ${
-                c.active
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-              }`}
-            >
-              {c.active ? 'Deactivate' : 'Reactivate'}
-            </button>
+              itemLabel={c.collection_name}
+              onApprove={() => approve({ id: c.id, table: 'hotel_collections' })}
+              onReject={() => reject({ id: c.id, table: 'hotel_collections' })}
+              onEdit={() => onEdit(c)}
+              active={c.active}
+              onToggleActive={(next) => toggleActive({ id: c.id, active: next })}
+            />
           </div>
         </div>
       ))}

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { extractRecords } from "./extract";
+import { SOURCES } from "./sources";
 import type { RecordType } from "./schemas";
 
 // Manual, pre-merge harness (never run in the weekly cron): replays saved
@@ -59,7 +60,13 @@ async function main(): Promise<void> {
 
     const typedRun = run as SyncRunRow;
     const recordType = runCorrections[0].record_type;
-    const replay = await extractRecords(recordType, typedRun.raw_text_excerpt as string, typedRun.source_url);
+    const source = SOURCES.find((s) => s.key === typedRun.source_key);
+    const replay = await extractRecords(
+      recordType,
+      typedRun.raw_text_excerpt as string,
+      typedRun.source_url,
+      source?.extraInstructions,
+    );
 
     for (const correction of runCorrections) {
       total++;

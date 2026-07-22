@@ -37,12 +37,64 @@ async function hasApprovedMatch(
   return (data?.length ?? 0) > 0;
 }
 
+// Scraped program names vary vs. what's already in the DB: punctuation
+// ("Air France-KLM" vs "Air France/KLM"), optional "Airlines"/"Airline"
+// filler ("United Airlines MileagePlus" vs "United MileagePlus",
+// "Southwest Rapid Rewards" vs "Southwest Airlines Rapid Rewards"), and
+// outright alternate names for the same program (British Airways brands
+// its program "Executive Club" but the currency/scraped name is "Avios").
+// An exact eq() match misses all of these and the cron re-inserts them as
+// new pending rows. Normalize separators/filler, then run known aliases,
+// before comparing.
+const FILLER_WORDS = new Set(["airlines", "airline"]);
+
+// Known same-program alternate names, keyed by normalized variant -> normalized canonical form.
+// Add here as new mismatches surface in admin review.
+const PROGRAM_ALIASES: Record<string, string> = {
+  "british airways avios": "british airways executive club",
+};
+
+function normalizeProgramName(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[/\-–—]/g, " ")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter((word) => word && !FILLER_WORDS.has(word))
+    .join(" ")
+    .trim();
+  return PROGRAM_ALIASES[base] ?? base;
+}
+
+async function hasApprovedTransferPartnerMatch(
+  supabase: SupabaseClient,
+  portal_id: string,
+  type: string,
+  program: string,
+): Promise<boolean> {
+  const target = normalizeProgramName(program);
+  if (!target) return false;
+
+  const { data } = await supabase
+    .from("transfer_partners")
+    .select("program")
+    .eq("status", "approved")
+    .eq("portal_id", portal_id)
+    .eq("type", type);
+  return ((data as { program: string }[] | null) ?? []).some(
+    (row) => normalizeProgramName(row.program) === target,
+  );
+}
+
 export async function upsertTransferPartner(
   ctx: UpsertContext,
   record: TransferPartnerRecord,
 ): Promise<boolean> {
+  if (await hasApprovedTransferPartnerMatch(ctx.supabase, record.portal_id, record.type, record.program)) {
+    return false;
+  }
   const match = { portal_id: record.portal_id, program: record.program, type: record.type };
-  if (await hasApprovedMatch(ctx.supabase, "transfer_partners", match)) return false;
 
   const { error } = await ctx.supabase.from("transfer_partners").insert({
     ...match,
