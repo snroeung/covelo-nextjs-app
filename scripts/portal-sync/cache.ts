@@ -9,7 +9,7 @@ import type { RecordType } from "./schemas";
 // so a future direct-active write path doesn't silently serve stale cache.
 const CACHE_KEYS_BY_RECORD_TYPE: Record<RecordType, () => string[]> = {
   transfer_partner: () => [cacheKeys.transferPartners()],
-  hotel_collection: () => [cacheKeys.hotelCollections()],
+  travel_collection: () => [cacheKeys.travelCollections("hotel"), cacheKeys.travelCollections("flight")],
   transfer_bonus: () => [cacheKeys.transferBonuses()],
   spending_bonus: () => [cacheKeys.spendingBonuses()],
 };

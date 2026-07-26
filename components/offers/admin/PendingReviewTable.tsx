@@ -8,7 +8,7 @@ import { PendingReviewDetailModal } from './PendingReviewDetailModal';
 
 export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_partners: 'Transfer partner',
-  hotel_collections: 'Hotel collection',
+  travel_collections: 'Travel collection',
   transfer_bonuses:  'Transfer bonus',
   spending_bonuses:  'Spending bonus',
 };
@@ -18,7 +18,7 @@ type TableFilter = 'all' | PendingTableName;
 const TABLE_FILTER_TABS: { key: TableFilter; label: string }[] = [
   { key: 'all',               label: 'All' },
   { key: 'transfer_partners', label: 'Transfer partner' },
-  { key: 'hotel_collections', label: 'Hotel collection' },
+  { key: 'travel_collections', label: 'Travel collection' },
   { key: 'transfer_bonuses',  label: 'Transfer bonus' },
   { key: 'spending_bonuses',  label: 'Spending bonus' },
 ];
@@ -28,7 +28,7 @@ export function rowTitle(item: PendingReviewRow): string {
   switch (item.table) {
     case 'transfer_partners':
       return `${r.portal_id} → ${r.program}`;
-    case 'hotel_collections':
+    case 'travel_collections':
       return `${r.issuer} · ${r.collection_name}${r.property_name ? ` — ${r.property_name}` : ''}`;
     case 'transfer_bonuses':
       return `${r.issuer} → ${r.transfer_partner}`;
@@ -42,7 +42,7 @@ export function rowDetail(item: PendingReviewRow): string {
   switch (item.table) {
     case 'transfer_partners':
       return `${r.type} · ratio ${r.ratio}`;
-    case 'hotel_collections':
+    case 'travel_collections':
       return String(r.perk_summary ?? '');
     case 'transfer_bonuses':
       return `+${r.bonus_pct}% bonus`;
@@ -104,7 +104,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
 
   function startEdit(item: PendingReviewRow) {
     const field = item.table === 'transfer_partners' ? 'ratio'
-      : item.table === 'hotel_collections' ? 'perk_summary'
+      : item.table === 'travel_collections' ? 'perk_summary'
       : item.table === 'transfer_bonuses' ? 'bonus_pct'
       : 'bonus_multiplier';
     setEditingId(item.row.id as string);

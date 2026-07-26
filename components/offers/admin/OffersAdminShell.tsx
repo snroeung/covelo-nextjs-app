@@ -12,11 +12,11 @@ import { SyncRunsLog } from '@/components/offers/admin/SyncRunsLog';
 import { AdminTransferPartnerEditor } from '@/components/offers/admin/AdminTransferPartnerEditor';
 import { AdminHotelCollectionEditor } from '@/components/offers/admin/AdminHotelCollectionEditor';
 import { AdminTransferPartnersTable } from '@/components/offers/admin/AdminTransferPartnersTable';
-import { AdminHotelCollectionsTable } from '@/components/offers/admin/AdminHotelCollectionsTable';
+import { AdminTravelCollectionsTable } from '@/components/offers/admin/AdminTravelCollectionsTable';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
-import type { TransferPartnerRow, HotelCollection } from '@/lib/types/portalData';
+import type { TransferPartnerRow, TravelCollection } from '@/lib/types/portalData';
 
 type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections';
 type OfferFilter = OfferStatusFilter;
@@ -58,7 +58,7 @@ export function OffersAdminShell() {
     null | { mode: 'new' } | { mode: 'transfer'; offer: TransferBonus } | { mode: 'spending'; offer: SpendingBonus }
   >(null);
   const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
-  const [editingCollection, setEditingCollection] = useState<HotelCollection | null | undefined>(undefined); // undefined = hidden, null = new
+  const [editingCollection, setEditingCollection] = useState<TravelCollection | null | undefined>(undefined); // undefined = hidden, null = new
   const [partnerFilter, setPartnerFilter] = useState<PortalFilter>('all');
   const [collectionFilter, setCollectionFilter] = useState<PortalFilter>('all');
 
@@ -91,8 +91,8 @@ export function OffersAdminShell() {
   });
 
   const { data: hotelCollections = [], isLoading: loadingCollections } = useQuery({
-    queryKey: ['portalData.listHotelCollections'],
-    queryFn:  () => trpc.portalData.listHotelCollections.query(),
+    queryKey: ['portalData.listTravelCollections'],
+    queryFn:  () => trpc.portalData.listTravelCollections.query(),
     enabled:  tab === 'collections',
   });
 
@@ -217,7 +217,7 @@ export function OffersAdminShell() {
             Transfer partners
           </button>
           <button onClick={() => setTab('collections')} className={navTabCls(tab === 'collections')}>
-            Hotel collections
+            Travel collections
           </button>
           <button onClick={() => setTab('pending')} className={navTabCls(tab === 'pending')}>
             Pending review
@@ -431,7 +431,7 @@ export function OffersAdminShell() {
             {loadingCollections ? (
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
-              <AdminHotelCollectionsTable
+              <AdminTravelCollectionsTable
                 collections={filteredCollections}
                 onEdit={(collection) => setEditingCollection(collection)}
                 isDark={isDark}

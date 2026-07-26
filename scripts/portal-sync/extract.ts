@@ -17,7 +17,7 @@ const RECORD_TYPE_LABEL: Record<RecordType, string> = {
   transfer_partner: "credit card point transfer partner",
   transfer_bonus: "limited-time transfer bonus promotion",
   spending_bonus: "spending or category bonus promotion",
-  hotel_collection: "hotel collection / prestige property program",
+  travel_collection: "hotel or flight collection / points boost program",
 };
 
 export interface ExtractResult<T> {

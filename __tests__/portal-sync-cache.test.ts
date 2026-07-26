@@ -28,9 +28,11 @@ describe('invalidateCacheFor', () => {
     expect(redis.del).toHaveBeenCalledTimes(1);
   });
 
-  it('deletes the hotel collections cache key for hotel_collection', async () => {
-    await invalidateCacheFor('hotel_collection');
-    expect(redis.del).toHaveBeenCalledWith(cacheKeys.hotelCollections());
+  it('deletes both hotel and flight travel collection cache keys for travel_collection', async () => {
+    await invalidateCacheFor('travel_collection');
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.travelCollections('hotel'));
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.travelCollections('flight'));
+    expect(redis.del).toHaveBeenCalledTimes(2);
   });
 
   it('deletes the transfer bonuses cache key for transfer_bonus', async () => {

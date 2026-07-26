@@ -19,14 +19,22 @@ export interface TransferPartnerRow {
   updated_at: string;
 }
 
-export interface HotelCollection {
+export interface TravelCollection {
   id: string;
   issuer: 'chase' | 'amex' | 'c1' | 'bilt' | 'citi';
+  type: 'hotel' | 'flight';
   collection_name: string;
   property_name: string | null;
+  airline_name: string | null;
+  airline_iata_code: string | null;
+  cabin_class: 'economy' | 'premium_economy' | 'business' | 'first' | null;
   perk_summary: string;
-  start_date: string | null;
+  original_amount: number | null;
+  original_unit: 'points' | 'usd' | null;
+  discount_amount: number | null;
+  discount_unit: 'points' | 'usd' | null;
   end_date: string | null;
+  limited_time_offer: boolean;
   source: SyncSource;
   status: SyncStatus;
   source_url: string | null;
@@ -52,7 +60,7 @@ export interface PortalSyncRun {
 
 export type PendingReviewTable =
   | 'transfer_partners'
-  | 'hotel_collections'
+  | 'travel_collections'
   | 'transfer_bonuses'
   | 'spending_bonuses';
 

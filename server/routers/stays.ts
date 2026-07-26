@@ -9,9 +9,9 @@ import { redis } from "@/lib/redis";
 import { searchHotels } from "@/lib/hotelbeds";
 import { adaptHotelBedsResults } from "@/lib/adapters/hotelbeds-adapter";
 import { matchHotels } from "@/lib/hotelbeds-match";
-import { matchHotelCollections, type CollectionMatchEntry } from "@/lib/hotelCollectionMatch";
+import { matchHotelCollections, type CollectionMatchEntry } from "@/lib/travelCollectionMatch";
 import { createClient } from "@/lib/supabase/server";
-import type { HotelCollection } from "@/lib/types/portalData";
+import type { TravelCollection } from "@/lib/types/portalData";
 
 // Redis helpers that respect the integration:redis flag.
 // When the flag is off, reads return null (cache miss) and writes are no-ops,
@@ -251,16 +251,16 @@ export const staysRouter = router({
           return normalized;
         })(),
         (async () => {
-          const cacheKey = cacheKeys.hotelCollections();
-          const cached = await cacheGet<HotelCollection[]>(cacheKey);
+          const cacheKey = cacheKeys.travelCollections("hotel");
+          const cached = await cacheGet<TravelCollection[]>(cacheKey);
           if (cached) return cached;
 
           const supabase = await createClient();
-          const { data, error } = await supabase.from("hotel_collections").select("*");
+          const { data, error } = await supabase.from("travel_collections").select("*").eq("type", "hotel");
           if (error) throw error;
 
-          const result = (data ?? []) as HotelCollection[];
-          await cacheSet(cacheKey, result, CACHE.hotelCollections.ttl);
+          const result = (data ?? []) as TravelCollection[];
+          await cacheSet(cacheKey, result, CACHE.travelCollections.ttl);
           return result;
         })(),
       ]);
@@ -285,13 +285,13 @@ export const staysRouter = router({
         console.warn("[stays] HotelBeds ✗", hbOutcome.reason);
       }
 
-      // Build hotel_collections match map if the lookup succeeded
+      // Build travel_collections match map if the lookup succeeded
       let collectionMatchMap = new Map<string, CollectionMatchEntry>();
       if (collectionsOutcome.status === "fulfilled") {
         collectionMatchMap = matchHotelCollections(searchResults, collectionsOutcome.value);
         console.log(`[stays] matched ${collectionMatchMap.size}/${searchResults.length} hotels to collections`);
       } else {
-        console.warn("[stays] hotel_collections ✗", collectionsOutcome.reason);
+        console.warn("[stays] travel_collections ✗", collectionsOutcome.reason);
       }
 
       // Cache Duffel results per accommodation (1h TTL — rates fluctuate)
@@ -311,7 +311,7 @@ export const staysRouter = router({
         }
       }
 
-      // Augment each result with HotelBeds portal prices and hotel_collections match where available
+      // Augment each result with HotelBeds portal prices and travel_collections match where available
       return searchResults.map((sr) => {
         const portalPrices = portalPricesMap.get(sr.accommodation.id);
         const collection = collectionMatchMap.get(sr.accommodation.id);

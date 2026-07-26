@@ -44,7 +44,7 @@ export function calcPoints(
   portalPrices?: Partial<Record<PortalId, number>>,
   /** Hotel name/brand — narrows transfer-partner results to this property's chain. */
   hotelChain?: string | null,
-  /** DB-backed partner map (trpc.portalData.listTransferPartners) — falls back to the bundled static set when omitted. */
+  /** DB-backed partner map (trpc.portalData.listTransferPartners) — omitted yields no transfer alternatives, never a hardcoded fallback. */
   transferPartners?: Record<PortalId, TransferPartnerConfig[]>,
 ): PointsResult {
   if (priceUsd <= 0) throw new Error('priceUsd must be greater than 0');

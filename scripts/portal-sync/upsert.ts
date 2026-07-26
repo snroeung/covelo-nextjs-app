@@ -4,16 +4,17 @@ import type {
   TransferPartnerRecord,
   TransferBonusRecord,
   SpendingBonusRecord,
-  HotelCollectionRecord,
+  TravelCollectionRecord,
 } from "./schemas";
+import { normalizeProgramName } from "@/lib/points/programNames";
 
-type TableName = "transfer_partners" | "transfer_bonuses" | "spending_bonuses" | "hotel_collections";
+type TableName = "transfer_partners" | "transfer_bonuses" | "spending_bonuses" | "travel_collections";
 
 export const TABLE_BY_RECORD_TYPE: Record<RecordType, TableName> = {
   transfer_partner: "transfer_partners",
   transfer_bonus: "transfer_bonuses",
   spending_bonus: "spending_bonuses",
-  hotel_collection: "hotel_collections",
+  travel_collection: "travel_collections",
 };
 
 export interface UpsertContext {
@@ -45,28 +46,10 @@ async function hasApprovedMatch(
 // its program "Executive Club" but the currency/scraped name is "Avios").
 // An exact eq() match misses all of these and the cron re-inserts them as
 // new pending rows. Normalize separators/filler, then run known aliases,
-// before comparing.
-const FILLER_WORDS = new Set(["airlines", "airline"]);
-
-// Known same-program alternate names, keyed by normalized variant -> normalized canonical form.
-// Add here as new mismatches surface in admin review.
-const PROGRAM_ALIASES: Record<string, string> = {
-  "british airways avios": "british airways executive club",
-};
-
-function normalizeProgramName(name: string): string {
-  const base = name
-    .toLowerCase()
-    .replace(/[/\-–—]/g, " ")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9\s]/g, "")
-    .split(/\s+/)
-    .filter((word) => word && !FILLER_WORDS.has(word))
-    .join(" ")
-    .trim();
-  return PROGRAM_ALIASES[base] ?? base;
-}
-
+// before comparing. Shared with lib/points/transferPartners.ts, which uses
+// the same normalization to merge cross-portal rows for the same program
+// (e.g. Capital One's "TAP Air Portugal Miles&Go" and Bilt's "TAP Miles&Go")
+// into one UI row.
 async function hasApprovedTransferPartnerMatch(
   supabase: SupabaseClient,
   portal_id: string,
@@ -128,6 +111,7 @@ export async function upsertTransferBonus(
     start_date: record.start_date ?? null,
     end_date: record.end_date,
     is_targeted: record.is_targeted ?? false,
+    limited_time_offer: record.limited_time_offer,
     source_url: ctx.sourceUrl,
     source: "cron",
     status: "pending",
@@ -158,6 +142,7 @@ export async function upsertSpendingBonus(
     start_date: record.start_date ?? null,
     end_date: record.end_date,
     is_targeted: record.is_targeted ?? false,
+    limited_time_offer: record.limited_time_offer,
     source_url: ctx.sourceUrl,
     source: "cron",
     status: "pending",
@@ -166,22 +151,38 @@ export async function upsertSpendingBonus(
   return !error;
 }
 
-export async function upsertHotelCollection(
+export async function upsertTravelCollection(
   ctx: UpsertContext,
-  record: HotelCollectionRecord,
+  record: TravelCollectionRecord,
 ): Promise<boolean> {
-  const match = {
-    issuer: record.issuer,
-    collection_name: record.collection_name,
-    property_name: record.property_name ?? null,
-  };
-  if (await hasApprovedMatch(ctx.supabase, "hotel_collections", match)) return false;
+  const match =
+    record.type === "flight"
+      ? {
+          issuer: record.issuer,
+          collection_name: record.collection_name,
+          airline_iata_code: record.airline_iata_code ?? null,
+          cabin_class: record.cabin_class ?? null,
+        }
+      : {
+          issuer: record.issuer,
+          collection_name: record.collection_name,
+          property_name: record.property_name ?? null,
+        };
+  if (await hasApprovedMatch(ctx.supabase, "travel_collections", match)) return false;
 
-  const { error } = await ctx.supabase.from("hotel_collections").insert({
+  const { error } = await ctx.supabase.from("travel_collections").insert({
     ...match,
+    type: record.type,
+    airline_name: record.airline_name ?? null,
+    airline_iata_code: record.airline_iata_code ?? null,
+    cabin_class: record.cabin_class ?? null,
     perk_summary: record.perk_summary,
-    start_date: record.start_date ?? null,
+    original_amount: record.original_amount ?? null,
+    original_unit: record.original_unit ?? null,
+    discount_amount: record.discount_amount ?? null,
+    discount_unit: record.discount_unit ?? null,
     end_date: record.end_date ?? null,
+    limited_time_offer: record.limited_time_offer,
     source: "cron",
     status: "pending",
     active: false,
@@ -193,7 +194,7 @@ export async function upsertHotelCollection(
 export async function upsertRecord(
   ctx: UpsertContext,
   recordType: RecordType,
-  record: TransferPartnerRecord | TransferBonusRecord | SpendingBonusRecord | HotelCollectionRecord,
+  record: TransferPartnerRecord | TransferBonusRecord | SpendingBonusRecord | TravelCollectionRecord,
 ): Promise<boolean> {
   switch (recordType) {
     case "transfer_partner":
@@ -202,8 +203,8 @@ export async function upsertRecord(
       return upsertTransferBonus(ctx, record as TransferBonusRecord);
     case "spending_bonus":
       return upsertSpendingBonus(ctx, record as SpendingBonusRecord);
-    case "hotel_collection":
-      return upsertHotelCollection(ctx, record as HotelCollectionRecord);
+    case "travel_collection":
+      return upsertTravelCollection(ctx, record as TravelCollectionRecord);
     default:
       return false;
   }

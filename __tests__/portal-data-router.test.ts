@@ -19,7 +19,7 @@ vi.mock('@/lib/feature-flags', () => ({
 import { createClient } from '@/lib/supabase/server';
 import { redis } from '@/lib/redis';
 import { appRouter } from '@/server/routers/_app';
-import type { TransferPartnerRow, HotelCollection, PortalSyncRun } from '@/lib/types/portalData';
+import type { TransferPartnerRow, TravelCollection, PortalSyncRun } from '@/lib/types/portalData';
 import { cacheKeys } from '@/lib/cache-config';
 
 // ---------------------------------------------------------------------------
@@ -28,7 +28,7 @@ import { cacheKeys } from '@/lib/cache-config';
 
 function makeQueryBuilder(result: { data: unknown; error: unknown }) {
   const b: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'or', 'order', 'limit', 'insert', 'update']) {
+  for (const m of ['select', 'eq', 'in', 'or', 'order', 'limit', 'insert', 'update']) {
     (b as Record<string, unknown>)[m] = vi.fn().mockReturnValue(b);
   }
   (b as Record<string, unknown>).single = vi.fn().mockResolvedValue(result);
@@ -87,14 +87,22 @@ const mockTransferPartner: TransferPartnerRow = {
   updated_at: '2026-01-01T00:00:00Z',
 };
 
-const mockHotelCollection: HotelCollection = {
+const mockTravelCollection: TravelCollection = {
   id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   issuer: 'chase',
+  type: 'hotel',
   collection_name: 'The Edit',
   property_name: null,
+  airline_name: null,
+  airline_iata_code: null,
+  cabin_class: null,
   perk_summary: 'Free breakfast + room upgrade',
-  start_date: null,
+  original_amount: null,
+  original_unit: null,
+  discount_amount: null,
+  discount_unit: null,
   end_date: null,
+  limited_time_offer: false,
   source: 'admin',
   status: 'admin',
   source_url: null,
@@ -163,7 +171,7 @@ describe('portalData.listTransferPartners()', () => {
 // listHotelCollections() — public, cached
 // ---------------------------------------------------------------------------
 
-describe('portalData.listHotelCollections()', () => {
+describe('portalData.listTravelCollections()', () => {
   const caller = appRouter.createCaller({});
 
   beforeEach(() => {
@@ -172,10 +180,10 @@ describe('portalData.listHotelCollections()', () => {
     vi.mocked(redis.set).mockResolvedValue('OK');
   });
 
-  it('returns hotel collections from Supabase', async () => {
-    setupSupabase({ data: [mockHotelCollection], error: null });
+  it('returns travel collections from Supabase', async () => {
+    setupSupabase({ data: [mockTravelCollection], error: null });
 
-    const result = await caller.portalData.listHotelCollections();
+    const result = await caller.portalData.listTravelCollections();
 
     expect(result).toHaveLength(1);
     expect(result[0].collection_name).toBe('The Edit');
@@ -184,16 +192,16 @@ describe('portalData.listHotelCollections()', () => {
   it('returns [] when data is null', async () => {
     setupSupabase({ data: null, error: null });
 
-    const result = await caller.portalData.listHotelCollections();
+    const result = await caller.portalData.listTravelCollections();
 
     expect(result).toEqual([]);
   });
 
   it('returns cached value and skips Supabase on Redis hit', async () => {
-    vi.mocked(redis.get).mockResolvedValue([mockHotelCollection]);
+    vi.mocked(redis.get).mockResolvedValue([mockTravelCollection]);
     const { mockFrom } = setupSupabase({ data: [], error: null });
 
-    const result = await caller.portalData.listHotelCollections();
+    const result = await caller.portalData.listTravelCollections();
 
     expect(result).toHaveLength(1);
     expect(mockFrom).not.toHaveBeenCalled();
@@ -240,7 +248,7 @@ describe('portalData.admin.listAll()', () => {
   it('flattens rows from all four tables with their table name attached', async () => {
     setupSupabase([
       { data: [{ id: '1' }], error: null }, // transfer_partners
-      { data: [{ id: '2' }], error: null }, // hotel_collections
+      { data: [{ id: '2' }], error: null }, // travel_collections
       { data: [], error: null },            // transfer_bonuses
       { data: [{ id: '3' }], error: null }, // spending_bonuses
     ]);
@@ -249,7 +257,7 @@ describe('portalData.admin.listAll()', () => {
 
     expect(result).toEqual([
       { table: 'transfer_partners', row: { id: '1' } },
-      { table: 'hotel_collections', row: { id: '2' } },
+      { table: 'travel_collections', row: { id: '2' } },
       { table: 'spending_bonuses', row: { id: '3' } },
     ]);
   });
@@ -264,7 +272,7 @@ describe('portalData.admin.listAll()', () => {
 
     const result = await caller.portalData.admin.listAll();
 
-    expect(result).toEqual([{ table: 'hotel_collections', row: { id: '2' } }]);
+    expect(result).toEqual([{ table: 'travel_collections', row: { id: '2' } }]);
   });
 });
 
@@ -322,7 +330,7 @@ describe('portalData.admin.approve()', () => {
     expect(result.active).toBe(true);
   });
 
-  it('invalidates transfer partner and hotel collection caches', async () => {
+  it('invalidates transfer partner and travel collection caches', async () => {
     setupSupabase([
       { data: mockTransferPartner, error: null },
       { data: mockTransferPartner, error: null },
@@ -334,7 +342,8 @@ describe('portalData.admin.approve()', () => {
     });
 
     expect(redis.del).toHaveBeenCalledWith(cacheKeys.transferPartners());
-    expect(redis.del).toHaveBeenCalledWith(cacheKeys.hotelCollections());
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.travelCollections('hotel'));
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.travelCollections('flight'));
   });
 
   it('records a correction when an edited field differs from the original', async () => {
@@ -377,16 +386,16 @@ describe('portalData.admin.reject()', () => {
   it('sets status to rejected', async () => {
     const { mockFrom } = setupSupabase({ data: null, error: null });
 
-    await caller.portalData.admin.reject({ table: 'hotel_collections', id: mockHotelCollection.id });
+    await caller.portalData.admin.reject({ table: 'travel_collections', id: mockTravelCollection.id });
 
-    expect(mockFrom).toHaveBeenCalledWith('hotel_collections');
+    expect(mockFrom).toHaveBeenCalledWith('travel_collections');
   });
 
   it('throws when Supabase update fails', async () => {
     setupSupabase({ data: null, error: { message: 'update failed' } });
 
     await expect(
-      caller.portalData.admin.reject({ table: 'hotel_collections', id: mockHotelCollection.id }),
+      caller.portalData.admin.reject({ table: 'travel_collections', id: mockTravelCollection.id }),
     ).rejects.toThrow('update failed');
   });
 });
@@ -455,7 +464,7 @@ describe('portalData.admin.updateTransferPartner()', () => {
 // admin.createHotelCollection() / updateHotelCollection()
 // ---------------------------------------------------------------------------
 
-describe('portalData.admin.createHotelCollection()', () => {
+describe('portalData.admin.createTravelCollection()', () => {
   const caller = appRouter.createCaller({});
 
   beforeEach(() => {
@@ -464,31 +473,51 @@ describe('portalData.admin.createHotelCollection()', () => {
   });
 
   it('inserts with source=admin and status=admin', async () => {
-    setupSupabase({ data: mockHotelCollection, error: null });
+    setupSupabase({ data: mockTravelCollection, error: null });
 
-    const result = await caller.portalData.admin.createHotelCollection({
+    const result = await caller.portalData.admin.createTravelCollection({
       issuer: 'chase',
+      type: 'hotel',
       collection_name: 'The Edit',
       perk_summary: 'Free breakfast + room upgrade',
     });
 
-    expect(result.id).toBe(mockHotelCollection.id);
+    expect(result.id).toBe(mockTravelCollection.id);
   });
 
-  it('invalidates the hotel collection cache', async () => {
-    setupSupabase({ data: mockHotelCollection, error: null });
+  it('invalidates the travel collection caches', async () => {
+    setupSupabase({ data: mockTravelCollection, error: null });
 
-    await caller.portalData.admin.createHotelCollection({
+    await caller.portalData.admin.createTravelCollection({
       issuer: 'chase',
+      type: 'hotel',
       collection_name: 'The Edit',
       perk_summary: 'Free breakfast + room upgrade',
     });
 
-    expect(redis.del).toHaveBeenCalledWith(cacheKeys.hotelCollections());
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.travelCollections('hotel'));
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.travelCollections('flight'));
+  });
+
+  it('inserts a flight-type record with airline fields', async () => {
+    const flightCollection = { ...mockTravelCollection, type: 'flight' as const, airline_iata_code: 'UA' };
+    setupSupabase({ data: flightCollection, error: null });
+
+    const result = await caller.portalData.admin.createTravelCollection({
+      issuer: 'chase',
+      type: 'flight',
+      collection_name: 'Points Boost',
+      airline_name: 'United Airlines',
+      airline_iata_code: 'UA',
+      cabin_class: 'business',
+      perk_summary: 'Boosted redemption rate',
+    });
+
+    expect(result.type).toBe('flight');
   });
 });
 
-describe('portalData.admin.updateHotelCollection()', () => {
+describe('portalData.admin.updateTravelCollection()', () => {
   const caller = appRouter.createCaller({});
 
   beforeEach(() => {
@@ -497,11 +526,11 @@ describe('portalData.admin.updateHotelCollection()', () => {
   });
 
   it('updates fields and returns the updated row', async () => {
-    const updated = { ...mockHotelCollection, perk_summary: 'Free suite upgrade' };
+    const updated = { ...mockTravelCollection, perk_summary: 'Free suite upgrade' };
     setupSupabase({ data: updated, error: null });
 
-    const result = await caller.portalData.admin.updateHotelCollection({
-      id: mockHotelCollection.id,
+    const result = await caller.portalData.admin.updateTravelCollection({
+      id: mockTravelCollection.id,
       perk_summary: 'Free suite upgrade',
     });
 

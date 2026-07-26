@@ -4,7 +4,7 @@ import {
   upsertTransferPartner,
   upsertTransferBonus,
   upsertSpendingBonus,
-  upsertHotelCollection,
+  upsertTravelCollection,
   upsertRecord,
   TABLE_BY_RECORD_TYPE,
 } from '../scripts/portal-sync/upsert';
@@ -12,7 +12,7 @@ import type {
   TransferPartnerRecord,
   TransferBonusRecord,
   SpendingBonusRecord,
-  HotelCollectionRecord,
+  TravelCollectionRecord,
 } from '../scripts/portal-sync/schemas';
 
 // Chainable query/insert builder. `.select().eq().eq().limit()` is awaited
@@ -120,6 +120,7 @@ describe('upsertTransferBonus', () => {
     transfer_partner: 'United MileagePlus',
     bonus_pct: 25,
     end_date: '2026-12-31',
+    limited_time_offer: true,
   };
 
   it('skips insert when an approved match exists', async () => {
@@ -143,6 +144,7 @@ describe('upsertSpendingBonus', () => {
     bonus_multiplier: 5,
     bonus_type: 'points_multiplier',
     end_date: '2026-12-31',
+    limited_time_offer: true,
   };
 
   it('skips insert when an approved match exists', async () => {
@@ -159,16 +161,30 @@ describe('upsertSpendingBonus', () => {
   });
 });
 
-describe('upsertHotelCollection', () => {
-  const record: HotelCollectionRecord = {
+describe('upsertTravelCollection', () => {
+  const hotelRecord: TravelCollectionRecord = {
     issuer: 'c1',
+    type: 'hotel',
     collection_name: 'Premier Collection',
+    property_name: 'The Ritz-Carlton New York',
     perk_summary: 'Free breakfast + $100 credit',
+    limited_time_offer: false,
+  };
+
+  const flightRecord: TravelCollectionRecord = {
+    issuer: 'chase',
+    type: 'flight',
+    collection_name: 'Points Boost',
+    airline_name: 'United Airlines',
+    airline_iata_code: 'UA',
+    cabin_class: 'business',
+    perk_summary: 'Boosted redemption rate',
+    limited_time_offer: true,
   };
 
   it('skips insert when an approved match exists', async () => {
     const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
-    expect(await upsertHotelCollection({ supabase, sourceUrl }, record)).toBe(false);
+    expect(await upsertTravelCollection({ supabase, sourceUrl }, hotelRecord)).toBe(false);
   });
 
   it('inserts when no approved match exists', async () => {
@@ -176,7 +192,59 @@ describe('upsertHotelCollection', () => {
       { data: [], error: null },
       { data: null, error: null },
     ]);
-    expect(await upsertHotelCollection({ supabase, sourceUrl }, record)).toBe(true);
+    expect(await upsertTravelCollection({ supabase, sourceUrl }, hotelRecord)).toBe(true);
+  });
+
+  it('dedups hotel-type records on (issuer, collection_name, property_name)', async () => {
+    const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
+    let seenTable = '';
+    let seenMatch: Record<string, unknown> = {};
+    supabase.from = ((table: string) => {
+      seenTable = table;
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = (key: string, value: unknown) => {
+        seenMatch[key] = value;
+        return b;
+      };
+      b.limit = () => b;
+      b.then = (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: [{ id: 'existing' }], error: null }).then(resolve);
+      return b;
+    }) as unknown as typeof supabase.from;
+    await upsertTravelCollection({ supabase, sourceUrl }, hotelRecord);
+    expect(seenTable).toBe('travel_collections');
+    expect(seenMatch).toEqual({
+      issuer: 'c1',
+      collection_name: 'Premier Collection',
+      property_name: 'The Ritz-Carlton New York',
+      status: 'approved',
+    });
+  });
+
+  it('dedups flight-type records on (issuer, collection_name, airline_iata_code, cabin_class)', async () => {
+    const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
+    let seenMatch: Record<string, unknown> = {};
+    supabase.from = ((table: string) => {
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = (key: string, value: unknown) => {
+        seenMatch[key] = value;
+        return b;
+      };
+      b.limit = () => b;
+      b.then = (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: [{ id: 'existing' }], error: null }).then(resolve);
+      return b;
+    }) as unknown as typeof supabase.from;
+    await upsertTravelCollection({ supabase, sourceUrl }, flightRecord);
+    expect(seenMatch).toEqual({
+      issuer: 'chase',
+      collection_name: 'Points Boost',
+      airline_iata_code: 'UA',
+      cabin_class: 'business',
+      status: 'approved',
+    });
   });
 });
 
@@ -209,6 +277,6 @@ describe('upsertRecord', () => {
     expect(TABLE_BY_RECORD_TYPE.transfer_partner).toBe('transfer_partners');
     expect(TABLE_BY_RECORD_TYPE.transfer_bonus).toBe('transfer_bonuses');
     expect(TABLE_BY_RECORD_TYPE.spending_bonus).toBe('spending_bonuses');
-    expect(TABLE_BY_RECORD_TYPE.hotel_collection).toBe('hotel_collections');
+    expect(TABLE_BY_RECORD_TYPE.travel_collection).toBe('travel_collections');
   });
 });

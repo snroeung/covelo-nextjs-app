@@ -33,8 +33,8 @@ export const cacheKeys = {
     `offers:spending-bonuses`,
   transferPartners: () =>
     `portal-data:transfer-partners`,
-  hotelCollections: () =>
-    `portal-data:hotel-collections`,
+  travelCollections: (type: "hotel" | "flight") =>
+    `portal-data:travel-collections:${type}`,
 } as const;
 
 // Cache entry config — one place to change a TTL
@@ -51,5 +51,5 @@ export const CACHE = {
   transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
   spendingBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
   transferPartners: { ttl: TTL.ONE_DAY },
-  hotelCollections: { ttl: TTL.ONE_DAY },
+  travelCollections: { ttl: TTL.ONE_DAY },
 } as const;

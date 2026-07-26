@@ -3,21 +3,33 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
-import type { HotelCollection } from '@/lib/types/portalData';
+import type { TravelCollection } from '@/lib/types/portalData';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
 
+const CABIN_LABELS: Record<string, string> = {
+  economy: 'Economy', premium_economy: 'Premium economy', business: 'Business', first: 'First',
+};
+
 interface Form {
-  issuer:          string;
-  collection_name: string;
-  property_name:   string;
-  perk_summary:    string;
-  start_date:      string;
-  end_date:        string;
-  source_url:      string;
-  active:          boolean;
+  issuer:             string;
+  type:               'hotel' | 'flight';
+  collection_name:    string;
+  property_name:      string;
+  airline_name:       string;
+  airline_iata_code:  string;
+  cabin_class:        string;
+  perk_summary:       string;
+  original_amount:    string;
+  original_unit:      string;
+  discount_amount:    string;
+  discount_unit:      string;
+  end_date:           string;
+  limited_time_offer: boolean;
+  source_url:         string;
+  active:             boolean;
 }
 
 function labelCls(isDark: boolean) {
@@ -32,8 +44,14 @@ function inputCls(isDark: boolean) {
   }`;
 }
 
+function numOrUndefined(s: string): number | undefined {
+  if (!s.trim()) return undefined;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 interface Props {
-  initial:  HotelCollection | null;
+  initial:  TravelCollection | null;
   isDark:   boolean;
   onCancel: () => void;
   onSave:   () => void;
@@ -45,14 +63,22 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState<Form>({
-    issuer:          initial?.issuer ?? 'chase',
-    collection_name: initial?.collection_name ?? '',
-    property_name:   initial?.property_name ?? '',
-    perk_summary:    initial?.perk_summary ?? '',
-    start_date:      initial?.start_date ?? '',
-    end_date:        initial?.end_date ?? '',
-    source_url:      initial?.source_url ?? '',
-    active:          initial?.active ?? true,
+    issuer:             initial?.issuer ?? 'chase',
+    type:               initial?.type ?? 'hotel',
+    collection_name:    initial?.collection_name ?? '',
+    property_name:      initial?.property_name ?? '',
+    airline_name:       initial?.airline_name ?? '',
+    airline_iata_code:  initial?.airline_iata_code ?? '',
+    cabin_class:        initial?.cabin_class ?? 'economy',
+    perk_summary:       initial?.perk_summary ?? '',
+    original_amount:    initial?.original_amount != null ? String(initial.original_amount) : '',
+    original_unit:      initial?.original_unit ?? 'points',
+    discount_amount:    initial?.discount_amount != null ? String(initial.discount_amount) : '',
+    discount_unit:      initial?.discount_unit ?? 'points',
+    end_date:           initial?.end_date ?? '',
+    limited_time_offer: initial?.limited_time_offer ?? false,
+    source_url:         initial?.source_url ?? '',
+    active:             initial?.active ?? true,
   });
 
   const card  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
@@ -60,40 +86,40 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
   const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const line  = isDark ? 'border-gph-dark-line' : 'border-gray-100';
 
+  function buildPayload() {
+    return {
+      issuer:             form.issuer as 'chase' | 'amex' | 'c1' | 'bilt' | 'citi',
+      type:               form.type,
+      collection_name:    form.collection_name,
+      property_name:      form.type === 'hotel' ? (form.property_name || undefined) : undefined,
+      airline_name:       form.type === 'flight' ? (form.airline_name || undefined) : undefined,
+      airline_iata_code:  form.type === 'flight' ? (form.airline_iata_code || undefined) : undefined,
+      cabin_class:        form.type === 'flight' ? (form.cabin_class as 'economy' | 'premium_economy' | 'business' | 'first') : undefined,
+      perk_summary:       form.perk_summary,
+      original_amount:    numOrUndefined(form.original_amount),
+      original_unit:      form.original_amount ? (form.original_unit as 'points' | 'usd') : undefined,
+      discount_amount:    numOrUndefined(form.discount_amount),
+      discount_unit:      form.discount_amount ? (form.discount_unit as 'points' | 'usd') : undefined,
+      end_date:           form.end_date || undefined,
+      limited_time_offer: form.limited_time_offer,
+      source_url:         form.source_url || undefined,
+      active:             form.active,
+    };
+  }
+
   const { mutate: create, isPending: creating } = useMutation({
-    mutationFn: () =>
-      trpc.portalData.admin.createHotelCollection.mutate({
-        issuer:          form.issuer as 'chase' | 'amex' | 'c1' | 'bilt' | 'citi',
-        collection_name: form.collection_name,
-        property_name:   form.property_name || undefined,
-        perk_summary:    form.perk_summary,
-        start_date:      form.start_date || undefined,
-        end_date:        form.end_date || undefined,
-        source_url:      form.source_url || undefined,
-        active:          form.active,
-      }),
+    mutationFn: () => trpc.portalData.admin.createTravelCollection.mutate(buildPayload()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['portalData.listHotelCollections'] });
+      queryClient.invalidateQueries({ queryKey: ['portalData.listTravelCollections'] });
       onSave();
     },
     onError: (e: Error) => setError(e.message),
   });
 
   const { mutate: update, isPending: updating } = useMutation({
-    mutationFn: () =>
-      trpc.portalData.admin.updateHotelCollection.mutate({
-        id:              initial!.id,
-        issuer:          form.issuer as 'chase' | 'amex' | 'c1' | 'bilt' | 'citi',
-        collection_name: form.collection_name,
-        property_name:   form.property_name || undefined,
-        perk_summary:    form.perk_summary,
-        start_date:      form.start_date || undefined,
-        end_date:        form.end_date || undefined,
-        source_url:      form.source_url || undefined,
-        active:          form.active,
-      }),
+    mutationFn: () => trpc.portalData.admin.updateTravelCollection.mutate({ id: initial!.id, ...buildPayload() }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['portalData.listHotelCollections'] });
+      queryClient.invalidateQueries({ queryKey: ['portalData.listTravelCollections'] });
       onSave();
     },
     onError: (e: Error) => setError(e.message),
@@ -111,7 +137,7 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
     <div className={`rounded-xl border p-5 md:p-6 ${card}`}>
       <div className="flex items-start justify-between mb-5">
         <div>
-          <div className={labelCls(isDark)}>{isEditing ? 'EDIT HOTEL COLLECTION' : 'NEW HOTEL COLLECTION'}</div>
+          <div className={labelCls(isDark)}>{isEditing ? 'EDIT TRAVEL COLLECTION' : 'NEW TRAVEL COLLECTION'}</div>
           <h2 className={`text-lg font-bold mt-1 ${ink}`}>{form.collection_name || 'Untitled collection'}</h2>
         </div>
         <button
@@ -127,7 +153,24 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
       <div className="grid md:grid-cols-[1.2fr_1fr] gap-6">
         <div className="space-y-5">
           <section>
-            <div className={`${labelCls(isDark)} mb-3`}>1 · ISSUER & COLLECTION</div>
+            <div className={`${labelCls(isDark)} mb-3`}>1 · TYPE, ISSUER & COLLECTION</div>
+            <div className="flex items-center gap-2 mb-3">
+              {(['hotel', 'flight'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={isEditing}
+                  onClick={() => setForm({ ...form, type: t })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${
+                    form.type === t
+                      ? isDark ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'
+                      : isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {t === 'hotel' ? 'Hotel' : 'Flight'}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls(isDark)}>Issuer</label>
@@ -142,16 +185,56 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
                   ))}
                 </select>
               </div>
-              <div>
-                <label className={labelCls(isDark)}>Property (optional)</label>
-                <input
-                  value={form.property_name}
-                  onChange={(e) => setForm({ ...form, property_name: e.target.value })}
-                  placeholder="The Ritz-Carlton, ..."
-                  className={`${inputCls(isDark)} mt-1`}
-                />
-              </div>
+              {form.type === 'hotel' ? (
+                <div>
+                  <label className={labelCls(isDark)}>Property (optional)</label>
+                  <input
+                    value={form.property_name}
+                    onChange={(e) => setForm({ ...form, property_name: e.target.value })}
+                    placeholder="The Ritz-Carlton, ..."
+                    className={`${inputCls(isDark)} mt-1`}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className={labelCls(isDark)}>Cabin class</label>
+                  <select
+                    value={form.cabin_class}
+                    onChange={(e) => setForm({ ...form, cabin_class: e.target.value })}
+                    className={`${inputCls(isDark)} mt-1`}
+                  >
+                    {Object.entries(CABIN_LABELS).map(([id, label]) => (
+                      <option key={id} value={id}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
+
+            {form.type === 'flight' && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className={labelCls(isDark)}>Airline name</label>
+                  <input
+                    value={form.airline_name}
+                    onChange={(e) => setForm({ ...form, airline_name: e.target.value })}
+                    placeholder="United Airlines"
+                    className={`${inputCls(isDark)} mt-1`}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls(isDark)}>Airline IATA code</label>
+                  <input
+                    value={form.airline_iata_code}
+                    onChange={(e) => setForm({ ...form, airline_iata_code: e.target.value.toUpperCase() })}
+                    placeholder="UA"
+                    maxLength={2}
+                    className={`${inputCls(isDark)} mt-1`}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="mt-3">
               <label className={labelCls(isDark)}>Collection name</label>
               <input
@@ -174,18 +257,54 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
           </section>
 
           <section>
-            <div className={`${labelCls(isDark)} mb-3`}>2 · DATES & SOURCE</div>
+            <div className={`${labelCls(isDark)} mb-3`}>2 · DISCOUNT</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls(isDark)}>Start date</label>
-                <input
-                  type="date"
-                  inputMode="numeric"
-                  value={form.start_date}
-                  onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                  className={`${inputCls(isDark)} mt-1`}
-                />
+                <label className={labelCls(isDark)}>Original amount</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={form.original_amount}
+                    onChange={(e) => setForm({ ...form, original_amount: e.target.value })}
+                    placeholder="60000"
+                    className={inputCls(isDark)}
+                  />
+                  <select
+                    value={form.original_unit}
+                    onChange={(e) => setForm({ ...form, original_unit: e.target.value })}
+                    className={`${inputCls(isDark)} shrink-0 w-24`}
+                  >
+                    <option value="points">points</option>
+                    <option value="usd">usd</option>
+                  </select>
+                </div>
               </div>
+              <div>
+                <label className={labelCls(isDark)}>Discounted amount</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={form.discount_amount}
+                    onChange={(e) => setForm({ ...form, discount_amount: e.target.value })}
+                    placeholder="48000"
+                    className={inputCls(isDark)}
+                  />
+                  <select
+                    value={form.discount_unit}
+                    onChange={(e) => setForm({ ...form, discount_unit: e.target.value })}
+                    className={`${inputCls(isDark)} shrink-0 w-24`}
+                  >
+                    <option value="points">points</option>
+                    <option value="usd">usd</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <div className={`${labelCls(isDark)} mb-3`}>3 · DATES & SOURCE</div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls(isDark)}>End date</label>
                 <input
@@ -195,6 +314,17 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}
                   className={`${inputCls(isDark)} mt-1`}
                 />
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.limited_time_offer}
+                    onChange={(e) => setForm({ ...form, limited_time_offer: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className={`text-xs font-semibold ${ink}`}>Limited time</span>
+                </label>
               </div>
             </div>
             <div className="mt-3">
@@ -237,9 +367,15 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
             <div className={`${labelCls(isDark)} mb-2`}>PREVIEW</div>
             <p className={`text-sm font-semibold ${ink}`}>
               {ISSUER_LABELS[form.issuer]} · {form.collection_name || '—'}
-              {form.property_name ? ` — ${form.property_name}` : ''}
+              {form.type === 'hotel' && form.property_name ? ` — ${form.property_name}` : ''}
+              {form.type === 'flight' && form.airline_name ? ` — ${form.airline_name} (${form.airline_iata_code || '—'})` : ''}
             </p>
             <p className={`text-xs mt-1 ${muted}`}>{form.perk_summary || 'No perk summary yet'}</p>
+            {form.limited_time_offer && (
+              <span className="inline-block mt-2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-cv-amber-400/20 text-cv-amber-900 dark:text-cv-amber-400">
+                Limited time
+              </span>
+            )}
           </div>
         </div>
       </div>

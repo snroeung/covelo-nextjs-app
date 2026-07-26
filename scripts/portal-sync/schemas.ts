@@ -18,6 +18,7 @@ export const TransferBonusRecordSchema = z.object({
   start_date: z.string().nullable().optional(),
   end_date: z.string().min(1),
   is_targeted: z.boolean().optional(),
+  limited_time_offer: z.boolean().default(false),
 });
 export type TransferBonusRecord = z.infer<typeof TransferBonusRecordSchema>;
 
@@ -32,38 +33,43 @@ export const SpendingBonusRecordSchema = z.object({
   start_date: z.string().nullable().optional(),
   end_date: z.string().min(1),
   is_targeted: z.boolean().optional(),
+  limited_time_offer: z.boolean().default(false),
 });
 export type SpendingBonusRecord = z.infer<typeof SpendingBonusRecordSchema>;
 
-export const HotelCollectionRecordSchema = z.object({
+export const TravelCollectionRecordSchema = z.object({
   issuer: z.enum(["chase", "amex", "c1", "bilt", "citi"]),
+  type: z.enum(["hotel", "flight"]),
   collection_name: z.string().min(1),
   property_name: z.string().nullable().optional(),
+  airline_name: z.string().nullable().optional(),
+  airline_iata_code: z.string().nullable().optional(),
+  cabin_class: z.enum(["economy", "premium_economy", "business", "first"]).nullable().optional(),
   perk_summary: z.string().min(1),
   original_amount: z.number().positive().nullable().optional(),
   original_unit: z.enum(["points", "usd"]).nullable().optional(),
   discount_amount: z.number().positive().nullable().optional(),
   discount_unit: z.enum(["points", "usd"]).nullable().optional(),
-  start_date: z.string().nullable().optional(),
   end_date: z.string().nullable().optional(),
+  limited_time_offer: z.boolean().default(false),
 });
-export type HotelCollectionRecord = z.infer<typeof HotelCollectionRecordSchema>;
+export type TravelCollectionRecord = z.infer<typeof TravelCollectionRecordSchema>;
 
 export type RecordType =
   | "transfer_partner"
   | "transfer_bonus"
   | "spending_bonus"
-  | "hotel_collection";
+  | "travel_collection";
 
 export const RECORD_SCHEMAS = {
   transfer_partner: TransferPartnerRecordSchema,
   transfer_bonus: TransferBonusRecordSchema,
   spending_bonus: SpendingBonusRecordSchema,
-  hotel_collection: HotelCollectionRecordSchema,
+  travel_collection: TravelCollectionRecordSchema,
 } as const;
 
 export type AnyRecord =
   | TransferPartnerRecord
   | TransferBonusRecord
   | SpendingBonusRecord
-  | HotelCollectionRecord;
+  | TravelCollectionRecord;

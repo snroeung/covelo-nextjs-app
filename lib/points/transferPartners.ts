@@ -12,6 +12,7 @@ import {
   CARD_NAMES,
   PORTAL_CPP,
 } from './types';
+import { normalizeProgramName } from './programNames';
 
 // ---------------------------------------------------------------------------
 // Route classification helpers
@@ -143,14 +144,18 @@ export interface TransferPartnerConfig {
   iataCodes?: string[];
 }
 
+/** Empty grouped map — the default when no DB-backed transferPartners is passed in. No static fallback: an omitted map yields zero transfer alternatives rather than leaking unapproved/hardcoded programs. */
+export const EMPTY_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
+  chase: [], amex: [], c1: [], bilt: [], citi: [],
+};
+
 /**
- * Bundled fallback set, used when no DB-backed transferPartners map is passed
- * in (tests, pre-fetch render) and as the seed source for the
- * transfer_partners table (see supabase/migrations/015_transfer_partners_seed.sql).
- * The live app reads from Supabase via trpc.portalData.listTransferPartners —
+ * Seed source for the transfer_partners table only (see
+ * supabase/migrations/015_transfer_partners_seed.sql). Not used at runtime —
+ * the live app reads DB-approved partners via trpc.portalData.listTransferPartners,
  * see hooks/usePointsCalc.ts.
  */
-export const STATIC_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
+export const SEED_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
   chase: [
     { program: 'World of Hyatt',                type: 'hotel',   ratio: '1:1', chainKey: 'hyatt' },
     { program: 'IHG One Rewards',               type: 'hotel',   ratio: '1:1', chainKey: 'ihg' },
@@ -258,8 +263,9 @@ function findEligibleCards(
     if (seen.has(cardId)) continue;
     const portalId = CARD_PORTAL_MAP[cardId];
     if (!portalId) continue;
+    const targetProgram = normalizeProgramName(partnerProgram);
     const partner = partnersMap[portalId].find(p => {
-      if (p.type !== expectedPartnerType || p.program !== partnerProgram) return false;
+      if (p.type !== expectedPartnerType || normalizeProgramName(p.program) !== targetProgram) return false;
       if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
       if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
       return true;
@@ -286,8 +292,8 @@ export function calcTransferAlternatives(
   flightCtx?: FlightContext,
   /** User's actually-selected cards (owned) — defaults to userCards when omitted */
   selectedCards?: CardId[],
-  /** DB-backed partner map (trpc.portalData.listTransferPartners) — falls back to the bundled static set when omitted (tests, pre-fetch render). */
-  transferPartners: Record<PortalId, TransferPartnerConfig[]> = STATIC_TRANSFER_PARTNERS,
+  /** DB-backed partner map (trpc.portalData.listTransferPartners) — omitted yields no transfer alternatives, never a hardcoded fallback. */
+  transferPartners: Record<PortalId, TransferPartnerConfig[]> = EMPTY_TRANSFER_PARTNERS,
 ): TransferResult[] {
   const ownedCards = selectedCards ?? userCards;
   // Collect unique portals the user has access to, mapped to their best card per portal
@@ -389,14 +395,18 @@ export function calcTransferAlternatives(
     }
   }
 
-  // Deduplicate by partnerProgram — same airline program appears in multiple portals
-  // (e.g. BA Avios is a Chase, Amex, Capital One, and Bilt partner).
-  // Keep the entry whose source card has the highest CPP so the user knows the best card to transfer from.
+  // Deduplicate by normalized partnerProgram — same real-world loyalty program
+  // appears in multiple portals, sometimes under a different scraped name
+  // (e.g. BA Avios is a Chase, Amex, Capital One, and Bilt partner; Capital
+  // One lists "TAP Air Portugal Miles&Go" while Bilt's source names it
+  // "TAP Miles&Go" — same program). Keep the entry whose source card has the
+  // highest CPP so the user knows the best card to transfer from.
   const deduped = new Map<string, TransferResult>();
   for (const r of results) {
-    const existing = deduped.get(r.partnerProgram);
+    const key = normalizeProgramName(r.partnerProgram);
+    const existing = deduped.get(key);
     if (!existing) {
-      deduped.set(r.partnerProgram, r);
+      deduped.set(key, r);
     } else {
       const newCpp  = typeof PORTAL_CPP[r.sourceCardId] === 'number'
         ? (PORTAL_CPP[r.sourceCardId] as number)
@@ -404,7 +414,7 @@ export function calcTransferAlternatives(
       const prevCpp = typeof PORTAL_CPP[existing.sourceCardId] === 'number'
         ? (PORTAL_CPP[existing.sourceCardId] as number)
         : (PORTAL_CPP[existing.sourceCardId] as { hotel: number; flight: number })[bookingType];
-      if (newCpp > prevCpp) deduped.set(r.partnerProgram, r);
+      if (newCpp > prevCpp) deduped.set(key, r);
     }
   }
 

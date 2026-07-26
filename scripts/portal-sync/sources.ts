@@ -30,6 +30,12 @@ export interface SourceConfig {
   extraInstructions?: string;
 }
 
+// Appended verbatim to every travel_collection/spending_bonus source's
+// extraInstructions — no source is assumed evergreen, the LLM judges
+// limited-time framing from actual page text every run.
+const LIMITED_TIME_INSTRUCTION =
+  'Set `limited_time_offer` to true if the page\'s language for that record is limited-time framed ("limited time", "ends soon", "for a limited time", a specific expiring window, a seasonal/promo framing); false if it reads as a standing, ongoing program or benefit with no expiry framing.';
+
 // robots.txt checked 2026-07-19 — see plan section "robots.txt check" for the
 // per-domain results. Sources marked isTpgFallback replace a direct scrape
 // that was disallowed, unconfirmed, or blocked at the network layer.
@@ -38,9 +44,11 @@ export const SOURCES: SourceConfig[] = [
     key: "chase_points_boost",
     portalId: "chase",
     url: "https://www.chase.com/travel/guide/travel-benefits/points-boost-offers",
-    recordType: "hotel_collection",
+    recordType: "travel_collection",
     needsBrowser: true,
     isTpgFallback: false,
+    extraInstructions:
+      `Page lists both hotel and flight Points Boost entries — hotel entries reference a property name, flight entries reference an airline + route/cabin. Set type accordingly; fill property_name only for hotel rows, airline_name/airline_iata_code/cabin_class only for flight rows; use the boosted vs. standard points shown for original_amount/discount_amount (unit "points") — omit both entirely if the page doesn't show a concrete number for that entry. ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "chase_sapphire_preferred_transfer",
@@ -59,6 +67,7 @@ export const SOURCES: SourceConfig[] = [
     recordType: "spending_bonus",
     needsBrowser: false,
     isTpgFallback: true,
+    extraInstructions: LIMITED_TIME_INSTRUCTION,
   },
   // robots.txt checked 2026-07-20 — wildcard group only disallows
   // /us/rwd/, /*/apply/, business/tls/partnerships, /*/logout. AhrefsBot
@@ -68,25 +77,31 @@ export const SOURCES: SourceConfig[] = [
     key: "amex_hotel_collection_featured",
     portalId: "amex",
     url: "https://www.americanexpress.com/en-us/travel/offers/hotels/the-hotel-collection-offers/featured",
-    recordType: "hotel_collection",
+    recordType: "travel_collection",
     needsBrowser: true,
     isTpgFallback: false,
+    extraInstructions:
+      `Page is a carousel of individually hyperlinked hotel names (e.g. "JW Marriott Los Cabos Beach Resort & Spa", "Hotel El Convento", "Lyle Washington DC") — each linked name is a distinct property. Emit one record per property found: collection_name is always "The Hotel Collection", property_name is that property's exact linked name, perk_summary is the shared program-level benefit copy found elsewhere on the page (a $100 credit towards eligible charges, 4pm late check-out when available, room upgrade upon arrival when available) since it applies to every property on this page, not per-property. The page does not show a per-property points or dollar price — do not invent one; omit original_amount, original_unit, discount_amount, and discount_unit entirely rather than guessing. Every record from this page has type "hotel". ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "amex_hotel_collection_us",
     portalId: "amex",
     url: "https://www.americanexpress.com/en-us/travel/offers/hotels/the-hotel-collection-offers/us",
-    recordType: "hotel_collection",
+    recordType: "travel_collection",
     needsBrowser: true,
     isTpgFallback: false,
+    extraInstructions:
+      `Page is a carousel of individually hyperlinked hotel names (e.g. "JW Marriott Los Cabos Beach Resort & Spa", "Hotel El Convento", "Lyle Washington DC") — each linked name is a distinct property. Emit one record per property found: collection_name is always "The Hotel Collection", property_name is that property's exact linked name, perk_summary is the shared program-level benefit copy found elsewhere on the page (a $100 credit towards eligible charges, 4pm late check-out when available, room upgrade upon arrival when available) since it applies to every property on this page, not per-property. The page does not show a per-property points or dollar price — do not invent one; omit original_amount, original_unit, discount_amount, and discount_unit entirely rather than guessing. Every record from this page has type "hotel". ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "amex_hotel_collection_international",
     portalId: "amex",
     url: "https://www.americanexpress.com/en-us/travel/offers/hotels/the-hotel-collection-offers/international",
-    recordType: "hotel_collection",
+    recordType: "travel_collection",
     needsBrowser: true,
     isTpgFallback: false,
+    extraInstructions:
+      `Page is a carousel of individually hyperlinked hotel names — each linked name is a distinct property. Emit one record per property found: collection_name is always "The Hotel Collection", property_name is that property's exact linked name, perk_summary is the shared program-level benefit copy found elsewhere on the page (a $100 credit towards eligible charges, 4pm late check-out when available, room upgrade upon arrival when available) since it applies to every property on this page, not per-property. The page does not show a per-property points or dollar price — do not invent one; omit original_amount, original_unit, discount_amount, and discount_unit entirely rather than guessing. Every record from this page has type "hotel". ${LIMITED_TIME_INSTRUCTION}`,
   },
   // robots.txt checked 2026-07-21 — global.americanexpress.com has no
   // robots.txt (404), fails open per isAllowed(). Full partner list present
@@ -108,6 +123,7 @@ export const SOURCES: SourceConfig[] = [
     recordType: "spending_bonus",
     needsBrowser: false,
     isTpgFallback: true,
+    extraInstructions: LIMITED_TIME_INSTRUCTION,
   },
   {
     key: "bilt_transfer_partners",
@@ -125,7 +141,7 @@ export const SOURCES: SourceConfig[] = [
     key: "c1_lifestyle_collection",
     portalId: "c1",
     url: "https://capitalonetravel.com/lifestyle-collection",
-    recordType: "hotel_collection",
+    recordType: "travel_collection",
     needsBrowser: true,
     isTpgFallback: false,
     sections: [
@@ -136,7 +152,7 @@ export const SOURCES: SourceConfig[] = [
       { label: "Culinary hotspots", selector: "#Culinary-hotspots" },
     ],
     extraInstructions:
-      'Page text is split into "== <tab label> ==" sections, one per Lifestyle Collection theme tab. Each section lists properties as "Property Name | City, Region". For every property found in every section: issuer is "c1", collection_name is "Capital One Lifestyle Collection — <tab label>" using that section\'s tab label, property_name is the property name (drop the "| City, Region" part), perk_summary is the general Lifestyle Collection benefit copy found elsewhere in the page text (e.g. room upgrade when available, free Wi-Fi, 4th night free) since it applies page-wide, not per property. The page does not list a points or dollar price for any property — do not invent one; omit original_amount, original_unit, discount_amount, and discount_unit entirely rather than guessing.',
+      `Page text is split into "== <tab label> ==" sections, one per Lifestyle Collection theme tab. Each section lists properties as "Property Name | City, Region". For every property found in every section: issuer is "c1", collection_name is "Capital One Lifestyle Collection — <tab label>" using that section's tab label, property_name is the property name (drop the "| City, Region" part), perk_summary is the general Lifestyle Collection benefit copy found elsewhere in the page text (e.g. room upgrade when available, free Wi-Fi, 4th night free) since it applies page-wide, not per property. The page does not list a points or dollar price for any property — do not invent one; omit original_amount, original_unit, discount_amount, and discount_unit entirely rather than guessing. Every record from this page has type "hotel". ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "c1_venture_transfer",
@@ -155,6 +171,7 @@ export const SOURCES: SourceConfig[] = [
     recordType: "spending_bonus",
     needsBrowser: false,
     isTpgFallback: true,
+    extraInstructions: LIMITED_TIME_INSTRUCTION,
   },
   // robots.txt checked 2026-07-21 — upgradedpoints.com allows /news/. Static
   // HTML has offer text.
@@ -165,6 +182,7 @@ export const SOURCES: SourceConfig[] = [
     recordType: "spending_bonus",
     needsBrowser: false,
     isTpgFallback: true,
+    extraInstructions: LIMITED_TIME_INSTRUCTION,
   },
   // TODO: needs more research
   // {

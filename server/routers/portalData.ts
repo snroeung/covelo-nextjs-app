@@ -9,7 +9,7 @@ import type { PortalId } from "@/lib/points/types";
 import type { TransferPartnerConfig } from "@/lib/points/transferPartners";
 import type {
   TransferPartnerRow,
-  HotelCollection,
+  TravelCollection,
   PortalSyncRun,
   PendingReviewRow,
   PendingReviewTable,
@@ -44,14 +44,15 @@ function groupTransferPartners(rows: TransferPartnerRow[]): Record<PortalId, Tra
 
 const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
   "transfer_partners",
-  "hotel_collections",
+  "travel_collections",
   "transfer_bonuses",
   "spending_bonuses",
 ];
 
 async function invalidatePortalDataCache(): Promise<void> {
   await redis.del(cacheKeys.transferPartners()).catch(() => {});
-  await redis.del(cacheKeys.hotelCollections()).catch(() => {});
+  await redis.del(cacheKeys.travelCollections("hotel")).catch(() => {});
+  await redis.del(cacheKeys.travelCollections("flight")).catch(() => {});
 }
 
 export const portalDataRouter = router({
@@ -65,6 +66,8 @@ export const portalDataRouter = router({
       const { data, error } = await supabase
         .from("transfer_partners")
         .select("*")
+        .in("status", ["admin", "approved"])
+        .eq("active", true)
         .order("program", { ascending: true });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
@@ -73,21 +76,23 @@ export const portalDataRouter = router({
       return result;
     }),
 
-  listHotelCollections: flaggedProcedure("api:portal-data")
-    .query(async (): Promise<HotelCollection[]> => {
-      const key = cacheKeys.hotelCollections();
-      const cached = await cacheGet<HotelCollection[]>(key);
+  listTravelCollections: flaggedProcedure("api:portal-data")
+    .query(async (): Promise<TravelCollection[]> => {
+      const key = cacheKeys.travelCollections("hotel");
+      const cached = await cacheGet<TravelCollection[]>(key);
       if (cached) return cached;
 
       const supabase = await createClient();
       const { data, error } = await supabase
-        .from("hotel_collections")
+        .from("travel_collections")
         .select("*")
+        .in("status", ["admin", "approved"])
+        .eq("active", true)
         .order("collection_name", { ascending: true });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
-      const result = (data ?? []) as HotelCollection[];
-      await cacheSet(key, result, CACHE.hotelCollections.ttl);
+      const result = (data ?? []) as TravelCollection[];
+      await cacheSet(key, result, CACHE.travelCollections.ttl);
       return result;
     }),
 
@@ -143,7 +148,7 @@ export const portalDataRouter = router({
 
     approve: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "hotel_collections", "transfer_bonuses", "spending_bonuses"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses"]),
         id:    z.string().uuid(),
         runId: z.string().uuid().optional(),
         edits: z.record(z.string(), z.string()).optional(),
@@ -164,7 +169,7 @@ export const portalDataRouter = router({
             .map(([field, value]) => ({
               run_id:          input.runId ?? null,
               record_type:     input.table === "transfer_partners" ? "transfer_partner"
-                              : input.table === "hotel_collections" ? "hotel_collection"
+                              : input.table === "travel_collections" ? "travel_collection"
                               : input.table === "transfer_bonuses" ? "transfer_bonus"
                               : "spending_bonus",
               field,
@@ -192,7 +197,7 @@ export const portalDataRouter = router({
 
     reject: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "hotel_collections", "transfer_bonuses", "spending_bonuses"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses"]),
         id:    z.string().uuid(),
       }))
       .mutation(async ({ input }) => {
@@ -257,39 +262,55 @@ export const portalDataRouter = router({
         return data as TransferPartnerRow;
       }),
 
-    createHotelCollection: adminProcedure("api:portal-data")
+    createTravelCollection: adminProcedure("api:portal-data")
       .input(z.object({
         issuer:          z.enum(["chase", "amex", "c1", "bilt", "citi"]),
+        type:            z.enum(["hotel", "flight"]).default("hotel"),
         collection_name: z.string().min(1),
         property_name:   z.string().nullable().optional(),
+        airline_name:      z.string().nullable().optional(),
+        airline_iata_code: z.string().nullable().optional(),
+        cabin_class:       z.enum(["economy", "premium_economy", "business", "first"]).nullable().optional(),
         perk_summary:    z.string().min(1),
-        start_date:      z.string().nullable().optional(),
+        original_amount: z.number().nullable().optional(),
+        original_unit:   z.enum(["points", "usd"]).nullable().optional(),
+        discount_amount: z.number().nullable().optional(),
+        discount_unit:   z.enum(["points", "usd"]).nullable().optional(),
         end_date:        z.string().nullable().optional(),
+        limited_time_offer: z.boolean().default(false),
         source_url:      z.string().nullable().optional(),
         active:          z.boolean().default(true),
       }))
       .mutation(async ({ input }) => {
         const supabase = await createClient();
         const { data, error } = await supabase
-          .from("hotel_collections")
+          .from("travel_collections")
           .insert({ ...input, source: "admin", status: "admin" })
           .select()
           .single();
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await invalidatePortalDataCache();
-        return data as HotelCollection;
+        return data as TravelCollection;
       }),
 
-    updateHotelCollection: adminProcedure("api:portal-data")
+    updateTravelCollection: adminProcedure("api:portal-data")
       .input(z.object({
         id:              z.string().uuid(),
         issuer:          z.enum(["chase", "amex", "c1", "bilt", "citi"]).optional(),
+        type:            z.enum(["hotel", "flight"]).optional(),
         collection_name: z.string().min(1).optional(),
         property_name:   z.string().nullable().optional(),
+        airline_name:      z.string().nullable().optional(),
+        airline_iata_code: z.string().nullable().optional(),
+        cabin_class:       z.enum(["economy", "premium_economy", "business", "first"]).nullable().optional(),
         perk_summary:    z.string().min(1).optional(),
-        start_date:      z.string().nullable().optional(),
+        original_amount: z.number().nullable().optional(),
+        original_unit:   z.enum(["points", "usd"]).nullable().optional(),
+        discount_amount: z.number().nullable().optional(),
+        discount_unit:   z.enum(["points", "usd"]).nullable().optional(),
         end_date:        z.string().nullable().optional(),
+        limited_time_offer: z.boolean().optional(),
         source_url:      z.string().nullable().optional(),
         active:          z.boolean().optional(),
       }))
@@ -297,7 +318,7 @@ export const portalDataRouter = router({
         const { id, ...fields } = input;
         const supabase = await createClient();
         const { data, error } = await supabase
-          .from("hotel_collections")
+          .from("travel_collections")
           .update(fields)
           .eq("id", id)
           .select()
@@ -305,7 +326,7 @@ export const portalDataRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await invalidatePortalDataCache();
-        return data as HotelCollection;
+        return data as TravelCollection;
       }),
   }),
 });

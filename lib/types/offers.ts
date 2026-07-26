@@ -16,6 +16,7 @@ export interface TransferBonus {
   start_date: string | null;
   end_date: string;
   is_targeted: boolean;
+  limited_time_offer: boolean;
   source: SyncSource;
   status: SyncStatus;
   source_url: string | null;
@@ -41,6 +42,7 @@ export interface SpendingBonus {
   start_date: string | null;
   end_date: string;
   is_targeted: boolean;
+  limited_time_offer: boolean;
   source: SyncSource;
   status: SyncStatus;
   source_url: string | null;

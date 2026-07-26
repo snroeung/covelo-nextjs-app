@@ -172,9 +172,13 @@ const clickThroughCache = new Map<string, Promise<FetchResult | null>>();
 // tile's trigger element (e.g. a shared data-attribute suffix) — panels are
 // discovered at runtime instead of a hardcoded per-partner list, so new/
 // removed tiles on the source site need no code change. Clicks each match
-// in order and reads the shared result container after each click — the
-// accordion auto-collapses the previous panel, so no separate "close" step
-// is needed.
+// in order and reads the shared result container after each click.
+// NOTE: on thankyou.com the site does not remove the previous panel — it
+// reuses the same id (e.g. #card-expanded) on every newly-expanded node,
+// so duplicate-id elements pile up in the DOM. `.last()` is required below
+// (not `.first()`) since the freshly-clicked panel is always appended last;
+// `.first()` silently pins to whatever was expanded first, returning the
+// same stale content for every subsequent partner.
 export async function fetchClickThroughPanels(
   url: string,
   triggerSelector: string,
@@ -233,7 +237,7 @@ async function fetchClickThroughPanelsUncached(
 
       const raw = await page
         .locator(resultSelector)
-        .first()
+        .last()
         .evaluate((el) => el.textContent ?? "")
         .catch(() => null);
       if (raw === null) {
