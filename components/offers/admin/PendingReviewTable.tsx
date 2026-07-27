@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { PendingReviewRow, PendingReviewTable as PendingTableName } from '@/lib/types/portalData';
 import { PendingReviewDetailModal } from './PendingReviewDetailModal';
+import { ActionButton, rowActionStatus, settleAfterSuccess } from './adminTableShared';
 
 export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_partners: 'Transfer partner',
@@ -47,7 +48,11 @@ export function rowDetail(item: PendingReviewRow): string {
     case 'transfer_bonuses':
       return `+${r.bonus_pct}% bonus`;
     case 'spending_bonuses':
-      return `${r.bonus_multiplier}× (${r.bonus_type})`;
+      return r.bonus_type === 'dollar_amount'
+        ? `$${r.bonus_multiplier} credit`
+        : r.bonus_type === 'cash_back_pct'
+          ? `${r.bonus_multiplier}% cash back`
+          : `${r.bonus_multiplier}× points`;
   }
 }
 
@@ -64,23 +69,29 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   const [tableFilter, setTableFilter] = useState<TableFilter>('all');
   const [detailItem, setDetailItem] = useState<PendingReviewRow | null>(null);
 
-  const { mutate: approve, isPending: approving } = useMutation({
+  const approveMutation = useMutation({
     mutationFn: (args: { table: PendingTableName; id: string; runId?: string; edits?: Record<string, string> }) =>
       trpc.portalData.admin.approve.mutate(args),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
       setEditingId(null);
       setEditField(null);
+      settleAfterSuccess(
+        () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] }),
+        () => approveMutation.reset(),
+      );
     },
   });
 
-  const { mutate: reject, isPending: rejecting } = useMutation({
+  const rejectMutation = useMutation({
     mutationFn: (args: { table: PendingTableName; id: string }) =>
       trpc.portalData.admin.reject.mutate(args),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] }),
+    onSuccess: () => settleAfterSuccess(
+      () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] }),
+      () => rejectMutation.reset(),
+    ),
   });
 
-  const isPending = approving || rejecting;
+  const isPending = approveMutation.isPending || rejectMutation.isPending;
 
   const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -113,7 +124,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   }
 
   function submitApprove(item: PendingReviewRow, withEdit: boolean) {
-    approve({
+    approveMutation.mutate({
       table: item.table,
       id:    item.row.id as string,
       runId: undefined,
@@ -202,15 +213,25 @@ export function PendingReviewTable({ rows, isDark }: Props) {
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-              {isEditingThis ? (
+              {item.row.status !== 'pending' ? (
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono font-bold ${
+                  item.row.status === 'approved'
+                    ? isDark ? 'bg-green-900/40 text-green-400' : 'bg-green-100 text-green-700'
+                    : isDark ? 'bg-red-900/40 text-red-400' : 'bg-red-100 text-red-700'
+                }`}>
+                  {item.row.status === 'approved' ? 'Approved' : 'Rejected'}
+                </span>
+              ) : isEditingThis ? (
                 <>
-                  <button
+                  <ActionButton
                     disabled={isPending}
+                    status={rowActionStatus(approveMutation, id)}
                     onClick={(e) => { e.stopPropagation(); submitApprove(item, true); }}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
-                  >
-                    Save & approve
-                  </button>
+                    idleLabel="Save & approve"
+                    loadingLabel="Approving…"
+                    doneLabel="Approved"
+                    className="bg-green-100 text-green-700 hover:bg-green-200"
+                  />
                   <button
                     onClick={(e) => { e.stopPropagation(); setEditingId(null); setEditField(null); }}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
@@ -230,25 +251,29 @@ export function PendingReviewTable({ rows, isDark }: Props) {
                   >
                     Edit
                   </button>
-                  <button
+                  <ActionButton
                     disabled={isPending}
+                    status={rowActionStatus(approveMutation, id)}
                     onClick={(e) => { e.stopPropagation(); submitApprove(item, false); }}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
-                  >
-                    Approve
-                  </button>
-                  <button
+                    idleLabel="Approve"
+                    loadingLabel="Approving…"
+                    doneLabel="Approved"
+                    className="bg-green-100 text-green-700 hover:bg-green-200"
+                  />
+                  <ActionButton
                     disabled={isPending}
+                    status={rowActionStatus(rejectMutation, id)}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (window.confirm(`Reject "${rowTitle(item)}"?`)) {
-                        reject({ table: item.table, id });
+                        rejectMutation.mutate({ table: item.table, id });
                       }
                     }}
-                    className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
+                    idleLabel="Reject"
+                    loadingLabel="Rejecting…"
+                    doneLabel="Rejected"
+                    className="bg-red-100 text-red-700 hover:bg-red-200"
+                  />
                 </>
               )}
             </div>
@@ -263,7 +288,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
           isDark={isDark}
           isPending={isPending}
           onApprove={() => { submitApprove(detailItem, false); setDetailItem(null); }}
-          onReject={() => { reject({ table: detailItem.table, id: detailItem.row.id as string }); setDetailItem(null); }}
+          onReject={() => { rejectMutation.mutate({ table: detailItem.table, id: detailItem.row.id as string }); setDetailItem(null); }}
           onClose={() => setDetailItem(null)}
         />
       )}

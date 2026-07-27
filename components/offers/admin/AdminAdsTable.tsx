@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd } from '@/lib/types/offers';
+import { ActionButton, rowActionStatus, settleAfterSuccess } from './adminTableShared';
 
 interface Props {
   ads: SponsoredAd[];
@@ -25,23 +26,22 @@ export function adStatus(ad: SponsoredAd): 'live' | 'scheduled' | 'expired' | 'p
 export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: deleteAd, isPending: deactivating } = useMutation({
-    mutationFn: (id: string) => trpc.offers.admin.deleteAd.mutate({ id }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
-      queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
-    },
+  const invalidate = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] }),
+    queryClient.removeQueries({ queryKey: ['offers.featuredAd'] }),
+  ]);
+
+  const deactivateAd = useMutation({
+    mutationFn: (args: { id: string }) => trpc.offers.admin.deleteAd.mutate({ id: args.id }),
+    onSuccess: () => settleAfterSuccess(invalidate, () => deactivateAd.reset()),
   });
 
-  const { mutate: reactivateAd, isPending: reactivating } = useMutation({
-    mutationFn: (id: string) => trpc.offers.admin.updateAd.mutate({ id, active: true }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAds'] });
-      queryClient.removeQueries({ queryKey: ['offers.featuredAd'] });
-    },
+  const reactivateAd = useMutation({
+    mutationFn: (args: { id: string }) => trpc.offers.admin.updateAd.mutate({ id: args.id, active: true }),
+    onSuccess: () => settleAfterSuccess(invalidate, () => reactivateAd.reset()),
   });
 
-  const isPending = deactivating || reactivating;
+  const isPending = deactivateAd.isPending || reactivateAd.isPending;
 
   const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -124,23 +124,27 @@ export function AdminAdsTable({ ads, onEdit, isDark }: Props) {
                 Edit
               </button>
               {ad.active ? (
-                <button
+                <ActionButton
                   disabled={isPending}
+                  status={rowActionStatus(deactivateAd, ad.id)}
                   onClick={() => {
-                    if (window.confirm(`Deactivate "${ad.headline}"?`)) deleteAd(ad.id);
+                    if (window.confirm(`Deactivate "${ad.headline}"?`)) deactivateAd.mutate({ id: ad.id });
                   }}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
-                >
-                  {status === 'expired' ? 'Archive' : 'Deactivate'}
-                </button>
+                  idleLabel={status === 'expired' ? 'Archive' : 'Deactivate'}
+                  loadingLabel={status === 'expired' ? 'Archiving…' : 'Deactivating…'}
+                  doneLabel={status === 'expired' ? 'Archived' : 'Deactivated'}
+                  className="bg-red-100 text-red-700 hover:bg-red-200"
+                />
               ) : (
-                <button
+                <ActionButton
                   disabled={isPending}
-                  onClick={() => reactivateAd(ad.id)}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
-                >
-                  Reactivate
-                </button>
+                  status={rowActionStatus(reactivateAd, ad.id)}
+                  onClick={() => reactivateAd.mutate({ id: ad.id })}
+                  idleLabel="Reactivate"
+                  loadingLabel="Reactivating…"
+                  doneLabel="Reactivated"
+                  className="bg-green-100 text-green-700 hover:bg-green-200"
+                />
               )}
             </div>
           </div>

@@ -3,11 +3,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { TransferPartnerRow } from '@/lib/types/portalData';
-import { adminTableTheme, PendingBadge, PendingRowActions } from './adminTableShared';
+import { adminTableTheme, PendingBadge, PendingRowActions, rowActionStatus, settleAfterSuccess, type LifecycleStatus } from './adminTableShared';
 
 const PORTAL_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
+
+export function partnerStatus(p: { active: boolean }): LifecycleStatus {
+  return p.active ? 'live' : 'paused';
+}
 
 interface Props {
   partners: TransferPartnerRow[];
@@ -18,13 +22,14 @@ interface Props {
 export function AdminTransferPartnersTable({ partners, isDark, onEdit }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: toggleActive, isPending: isToggling } = useMutation({
+  const toggleActive = useMutation({
     mutationFn: (args: { id: string; active: boolean }) =>
       trpc.portalData.admin.updateTransferPartner.mutate({ id: args.id, active: args.active }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portalData.listTransferPartners'] }),
+    onSuccess: () => settleAfterSuccess(
+      () => queryClient.invalidateQueries({ queryKey: ['portalData.listTransferPartners'] }),
+      () => toggleActive.reset(),
+    ),
   });
-
-  const isPending = isToggling;
 
   const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
@@ -65,12 +70,13 @@ export function AdminTransferPartnersTable({ partners, isDark, onEdit }: Props) 
             <PendingRowActions
               isDark={isDark}
               pending={p.status === 'pending'}
-              disabled={isPending}
+              disabled={toggleActive.isPending}
               itemLabel={p.program}
               hidePendingActions
               onEdit={() => onEdit(p)}
               active={p.active}
-              onToggleActive={(next) => toggleActive({ id: p.id, active: next })}
+              onToggleActive={(next) => toggleActive.mutate({ id: p.id, active: next })}
+              toggleStatus={rowActionStatus(toggleActive, p.id)}
             />
           </div>
         </div>

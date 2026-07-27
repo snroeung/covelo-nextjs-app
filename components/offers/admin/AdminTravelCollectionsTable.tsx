@@ -3,11 +3,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { TravelCollection } from '@/lib/types/portalData';
-import { adminTableTheme, PendingBadge, PendingRowActions } from './adminTableShared';
+import { adminTableTheme, PendingBadge, PendingRowActions, rowActionStatus, settleAfterSuccess, type LifecycleStatus } from './adminTableShared';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
+
+export function collectionStatus(c: { active: boolean; end_date: string | null }): LifecycleStatus {
+  if (!c.active) return 'paused';
+  const today = new Date().toISOString().split('T')[0];
+  if (c.end_date && c.end_date < today) return 'expired';
+  return 'live';
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -32,13 +39,14 @@ interface Props {
 export function AdminTravelCollectionsTable({ collections, isDark, onEdit }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: toggleActive, isPending: isToggling } = useMutation({
+  const toggleActive = useMutation({
     mutationFn: (args: { id: string; active: boolean }) =>
       trpc.portalData.admin.updateTravelCollection.mutate({ id: args.id, active: args.active }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portalData.listTravelCollections'] }),
+    onSuccess: () => settleAfterSuccess(
+      () => queryClient.invalidateQueries({ queryKey: ['portalData.listTravelCollections'] }),
+      () => toggleActive.reset(),
+    ),
   });
-
-  const isPending = isToggling;
 
   const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
@@ -84,12 +92,13 @@ export function AdminTravelCollectionsTable({ collections, isDark, onEdit }: Pro
             <PendingRowActions
               isDark={isDark}
               pending={c.status === 'pending'}
-              disabled={isPending}
+              disabled={toggleActive.isPending}
               itemLabel={c.collection_name}
               hidePendingActions
               onEdit={() => onEdit(c)}
               active={c.active}
-              onToggleActive={(next) => toggleActive({ id: c.id, active: next })}
+              onToggleActive={(next) => toggleActive.mutate({ id: c.id, active: next })}
+              toggleStatus={rowActionStatus(toggleActive, c.id)}
             />
           </div>
         </div>

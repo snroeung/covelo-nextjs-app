@@ -40,7 +40,7 @@ export interface SpendingBonus {
   tags: string[];
   card_ids: string[];
   start_date: string | null;
-  end_date: string;
+  end_date: string | null;
   is_targeted: boolean;
   limited_time_offer: boolean;
   source: SyncSource;

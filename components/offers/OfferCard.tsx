@@ -34,7 +34,8 @@ const CROSSHATCH = `repeating-linear-gradient(
   transparent 13px
 )`;
 
-function formatEndDate(iso: string): string {
+function formatEndDate(iso: string | null): string {
+  if (!iso) return 'no expiration';
   // Parse as local calendar date, not UTC — `new Date(iso)` on a bare
   // YYYY-MM-DD string parses as UTC midnight, which renders as the previous
   // day in timezones behind UTC.
@@ -44,7 +45,8 @@ function formatEndDate(iso: string): string {
   }).toUpperCase();
 }
 
-function daysUntil(iso: string): number {
+function daysUntil(iso: string | null): number {
+  if (!iso) return Infinity;
   return Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 

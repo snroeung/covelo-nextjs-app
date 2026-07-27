@@ -109,20 +109,32 @@ export function PendingReviewDetailModal({ item, isDark, isPending, onApprove, o
         </div>
 
         <div className={`sticky bottom-0 flex items-center gap-2 px-5 py-4 border-t ${line} ${body}`}>
-          <button
-            disabled={isPending}
-            onClick={onApprove}
-            className="flex-1 min-h-11 rounded-md text-sm font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
-          >
-            Approve
-          </button>
-          <button
-            disabled={isPending}
-            onClick={onReject}
-            className="flex-1 min-h-11 rounded-md text-sm font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
-          >
-            Reject
-          </button>
+          {item.row.status !== 'pending' ? (
+            <span className={`flex-1 text-center py-2 rounded-md text-sm font-bold ${
+              item.row.status === 'approved'
+                ? isDark ? 'bg-green-900/40 text-green-400' : 'bg-green-100 text-green-700'
+                : isDark ? 'bg-red-900/40 text-red-400' : 'bg-red-100 text-red-700'
+            }`}>
+              {item.row.status === 'approved' ? 'Approved' : 'Rejected'}
+            </span>
+          ) : (
+            <>
+              <button
+                disabled={isPending}
+                onClick={onApprove}
+                className="flex-1 min-h-11 rounded-md text-sm font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
+              >
+                Approve
+              </button>
+              <button
+                disabled={isPending}
+                onClick={onReject}
+                className="flex-1 min-h-11 rounded-md text-sm font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -3,16 +3,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
-import { adminTableTheme, usePendingApproval, PendingRowActions } from './adminTableShared';
+import { adminTableTheme, PendingRowActions, rowActionStatus, settleAfterSuccess, type StatusFilter } from './adminTableShared';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
 
 type AnyOffer = (TransferBonus & { _type: 'transfer' }) | (SpendingBonus & { _type: 'spending' });
-export type OfferStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
+export type OfferStatusFilter = StatusFilter;
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return 'No expiration';
   // Parse as local calendar date, not UTC — see OfferCard.tsx formatEndDate.
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
@@ -42,14 +43,14 @@ interface Props {
 export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isDark, onEdit }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: updateActive, isPending: isToggling } = useMutation({
+  const updateActive = useMutation({
     mutationFn: (args: { id: string; table: 'transfer_bonuses' | 'spending_bonuses'; active: boolean }) =>
       trpc.offers.admin.updateActive.mutate(args),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] }),
+    onSuccess: () => settleAfterSuccess(
+      () => queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] }),
+      () => updateActive.reset(),
+    ),
   });
-
-  const { approve, reject, approving, rejecting } = usePendingApproval([['offers.admin.listAll']]);
-  const isPending = isToggling || approving || rejecting;
 
   const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
@@ -158,13 +159,13 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
               <PendingRowActions
                 isDark={isDark}
                 pending={offer.status === 'pending'}
-                disabled={isPending}
+                disabled={updateActive.isPending}
                 itemLabel={offerLabel}
-                onApprove={() => approve({ id: offer.id, table })}
-                onReject={() => reject({ id: offer.id, table })}
+                hidePendingActions
                 onEdit={() => onEdit(offer)}
                 active={offer.active}
-                onToggleActive={(next) => updateActive({ id: offer.id, table, active: next })}
+                onToggleActive={(next) => updateActive.mutate({ id: offer.id, table, active: next })}
+                toggleStatus={rowActionStatus(updateActive, offer.id)}
               />
             </div>
           </div>

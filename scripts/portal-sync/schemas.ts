@@ -26,12 +26,15 @@ export const SpendingBonusRecordSchema = z.object({
   issuer: z.enum(["chase", "amex", "c1", "bilt", "citi"]),
   merchant_name: z.string().min(1),
   bonus_multiplier: z.number().positive(),
-  bonus_type: z.enum(["points_multiplier", "cash_back_pct"]),
+  bonus_type: z.enum(["points_multiplier", "cash_back_pct", "dollar_amount"]),
   description: z.string().nullable().optional(),
   spending_minimum: z.number().nullable().optional(),
   minimum_nights: z.number().nullable().optional(),
   start_date: z.string().nullable().optional(),
-  end_date: z.string().min(1),
+  // c1 shopping-portal offers (upgradedpoints.com) explicitly publish no
+  // expiration date — page text says so outright. Required would zod-reject
+  // the entire batch for that source alone.
+  end_date: z.string().nullable().optional(),
   is_targeted: z.boolean().optional(),
   limited_time_offer: z.boolean().default(false),
 });

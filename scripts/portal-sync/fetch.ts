@@ -29,12 +29,42 @@ async function throttle(url: string): Promise<void> {
   lastFetchByDomain.set(origin, Date.now());
 }
 
+// table cell/row text runs together with no whitespace when cheerio's plain
+// .text() walks a <table> (e.g. "AmericanAirlines1:1JetBlue2:1") — unreadable
+// for the extraction LLM, which is why transfer-ratio tables on TPG,
+// roame.travel, and upgradedpoints.com were yielding zero records. Replace
+// each table with a "cell | cell" per row, row-per-line text block before
+// the rest of the page is flattened to a single-spaced blob. Innermost
+// tables first (reverse document order) so nested tables collapse to text
+// before their containing table is serialized.
+function serializeTables($: cheerio.CheerioAPI): void {
+  $("table")
+    .toArray()
+    .reverse()
+    .forEach((table) => {
+      const $table = $(table);
+      const rows: string[] = [];
+      $table.find("tr").each((_, tr) => {
+        const cells: string[] = [];
+        $(tr)
+          .find("th, td")
+          .each((_, cell) => {
+            const cellText = $(cell).text().replace(/\s+/g, " ").trim();
+            if (cellText) cells.push(cellText);
+          });
+        if (cells.length > 0) rows.push(cells.join(" | "));
+      });
+      $table.replaceWith(rows.length > 0 ? `\n${rows.join("\n")}\n` : "");
+    });
+}
+
 function htmlToText(html: string): string {
   const $ = cheerio.load(html);
   $("script, style, nav, footer, header, noscript, svg, iframe, form").remove();
+  serializeTables($);
   const article = $("article");
   const scope = article.length > 0 ? article : $("body");
-  return scope.text().replace(/\s+/g, " ").trim();
+  return scope.text().replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").trim();
 }
 
 export interface FetchResult {

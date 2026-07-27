@@ -33,7 +33,8 @@ const CROSSHATCH = `repeating-linear-gradient(
   transparent 13px
 )`;
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return 'No expiration';
   // Parse as local calendar date, not UTC — see OfferCard.tsx formatEndDate.
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {

@@ -6,11 +6,18 @@ import { extractRecords } from "./extract";
 import { upsertRecord } from "./upsert";
 import { invalidateCacheFor } from "./cache";
 import { recordSyncRun } from "./audit";
+import type { RecordType } from "./schemas";
+import { RECORD_SCHEMAS } from "./schemas";
 
 // process.env.SOURCE_KEY_FILTER lets the GitHub Actions workflow_dispatch
 // input re-run a single source (e.g. after fixing an extraction prompt)
 // instead of the full batch.
 const SOURCE_KEY_FILTER = process.env.SOURCE_KEY_FILTER;
+
+// process.env.RECORD_TYPE_FILTER re-runs every source of one recordType
+// (e.g. all transfer_partner sources after fixing table extraction) without
+// having to name each source key individually.
+const RECORD_TYPE_FILTER = process.env.RECORD_TYPE_FILTER;
 
 function fetchForSource(source: SourceConfig): ReturnType<typeof fetchStatic> {
   if (source.clickTriggerSelector) {
@@ -55,6 +62,7 @@ async function runSource(source: SourceConfig): Promise<void> {
       fetched.text,
       source.url,
       source.extraInstructions,
+      source.portalId,
     );
 
     let written = 0;
@@ -99,14 +107,28 @@ async function runSource(source: SourceConfig): Promise<void> {
 
 async function main(): Promise<void> {
   console.log(`SOURCE_KEY_FILTER=${SOURCE_KEY_FILTER ?? "(unset)"}`);
+  console.log(`RECORD_TYPE_FILTER=${RECORD_TYPE_FILTER ?? "(unset)"}`);
 
-  const targets =
+  if (RECORD_TYPE_FILTER && !(RECORD_TYPE_FILTER in RECORD_SCHEMAS)) {
+    console.error(
+      `Invalid RECORD_TYPE_FILTER=${RECORD_TYPE_FILTER}, expected one of: ${Object.keys(RECORD_SCHEMAS).join(", ")}`,
+    );
+    process.exit(1);
+  }
+
+  let targets =
     SOURCE_KEY_FILTER && SOURCE_KEY_FILTER !== "all"
       ? SOURCES.filter((source) => source.key === SOURCE_KEY_FILTER)
       : SOURCES;
 
+  if (RECORD_TYPE_FILTER) {
+    targets = targets.filter((source) => source.recordType === (RECORD_TYPE_FILTER as RecordType));
+  }
+
   if (targets.length === 0) {
-    console.error(`No source matches SOURCE_KEY_FILTER=${SOURCE_KEY_FILTER}`);
+    console.error(
+      `No source matches SOURCE_KEY_FILTER=${SOURCE_KEY_FILTER}, RECORD_TYPE_FILTER=${RECORD_TYPE_FILTER}`,
+    );
     process.exit(1);
   }
 

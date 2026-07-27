@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
-import { AdminOffersTable, offerStatus, type OfferStatusFilter } from '@/components/offers/admin/AdminOffersTable';
+import { AdminOffersTable, offerStatus } from '@/components/offers/admin/AdminOffersTable';
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';
 import { AdminOfferEditor } from '@/components/offers/admin/AdminOfferEditor';
@@ -11,56 +11,55 @@ import { PendingReviewTable } from '@/components/offers/admin/PendingReviewTable
 import { SyncRunsLog } from '@/components/offers/admin/SyncRunsLog';
 import { AdminTransferPartnerEditor } from '@/components/offers/admin/AdminTransferPartnerEditor';
 import { AdminHotelCollectionEditor } from '@/components/offers/admin/AdminHotelCollectionEditor';
-import { AdminTransferPartnersTable } from '@/components/offers/admin/AdminTransferPartnersTable';
-import { AdminTravelCollectionsTable } from '@/components/offers/admin/AdminTravelCollectionsTable';
+import { AdminTransferPartnersTable, partnerStatus } from '@/components/offers/admin/AdminTransferPartnersTable';
+import { AdminTravelCollectionsTable, collectionStatus } from '@/components/offers/admin/AdminTravelCollectionsTable';
+import { StatusFilterTabs, STATUS_TABS, IssuerFilterSelect, ISSUER_FILTER_OPTIONS, type StatusFilter, type IssuerFilter } from '@/components/offers/admin/adminTableShared';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import type { TransferPartnerRow, TravelCollection } from '@/lib/types/portalData';
 
 type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections';
-type OfferFilter = OfferStatusFilter;
-type AdStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
-type PortalFilter = 'all' | 'chase' | 'amex' | 'c1' | 'bilt' | 'citi';
+type OfferTypeFilter = 'all' | 'transfer' | 'spending';
 
-const PORTAL_FILTER_TABS: { key: PortalFilter; label: string }[] = [
-  { key: 'all',   label: 'All' },
-  { key: 'chase', label: 'Chase' },
-  { key: 'amex',  label: 'Amex' },
-  { key: 'c1',    label: 'Capital One' },
-  { key: 'bilt',  label: 'Bilt' },
-  { key: 'citi',  label: 'Citi' },
+const OFFER_TYPE_TABS: { key: OfferTypeFilter; label: string }[] = [
+  { key: 'all',      label: 'All' },
+  { key: 'transfer', label: 'Transfer bonuses' },
+  { key: 'spending', label: 'Spending bonuses' },
 ];
 
-const OFFER_TABS: { key: OfferFilter; label: string }[] = [
-  { key: 'all',       label: 'All' },
-  { key: 'live',      label: 'Live' },
-  { key: 'scheduled', label: 'Scheduled' },
-  { key: 'expired',   label: 'Expired' },
-  { key: 'paused',    label: 'Paused' },
-];
+// Sponsored ads carry no structured issuer column, only a free-text
+// `partner` string — match it against the issuer label as a best effort.
+function adMatchesIssuer(ad: { partner: string }, issuer: IssuerFilter): boolean {
+  if (issuer === 'all') return true;
+  const label = ISSUER_FILTER_OPTIONS.find((o) => o.key === issuer)?.label ?? '';
+  return ad.partner.toLowerCase().includes(label.toLowerCase());
+}
 
-const AD_STATUS_TABS: { key: AdStatusFilter; label: string }[] = [
-  { key: 'all',       label: 'All' },
-  { key: 'live',      label: 'Live' },
-  { key: 'scheduled', label: 'Scheduled' },
-  { key: 'expired',   label: 'Expired' },
-  { key: 'paused',    label: 'Paused' },
-];
+function statusCounts<T>(items: T[], statusOf: (item: T) => StatusFilter): Record<StatusFilter, number> {
+  const counts = { all: items.length, live: 0, scheduled: 0, expired: 0, paused: 0 };
+  for (const item of items) counts[statusOf(item)]++;
+  return counts;
+}
 
 export function OffersAdminShell() {
   const { isDark } = useTheme();
   const [tab, setTab] = useState<Tab>('offers');
-  const [offerFilter, setOfferFilter] = useState<OfferFilter>('all');
-  const [adFilter, setAdFilter] = useState<AdStatusFilter>('all');
+  const [offerFilter, setOfferFilter] = useState<StatusFilter>('all');
+  const [offerTypeFilter, setOfferTypeFilter] = useState<OfferTypeFilter>('all');
+  const [offerIssuerFilter, setOfferIssuerFilter] = useState<IssuerFilter>('all');
+  const [adFilter, setAdFilter] = useState<StatusFilter>('all');
+  const [adIssuerFilter, setAdIssuerFilter] = useState<IssuerFilter>('all');
+  const [partnerStatusFilter, setPartnerStatusFilter] = useState<StatusFilter>('all');
+  const [collectionStatusFilter, setCollectionStatusFilter] = useState<StatusFilter>('all');
   const [editingAd, setEditingAd] = useState<SponsoredAd | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingOffer, setEditingOffer] = useState<
     null | { mode: 'new' } | { mode: 'transfer'; offer: TransferBonus } | { mode: 'spending'; offer: SpendingBonus }
   >(null);
   const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingCollection, setEditingCollection] = useState<TravelCollection | null | undefined>(undefined); // undefined = hidden, null = new
-  const [partnerFilter, setPartnerFilter] = useState<PortalFilter>('all');
-  const [collectionFilter, setCollectionFilter] = useState<PortalFilter>('all');
+  const [partnerFilter, setPartnerFilter] = useState<IssuerFilter>('all');
+  const [collectionFilter, setCollectionFilter] = useState<IssuerFilter>('all');
 
   const { data: offersData, isLoading: loadingOffers } = useQuery({
     queryKey: ['offers.admin.listAll'],
@@ -115,13 +114,19 @@ export function OffersAdminShell() {
   }
 
   const liveAdsCount = adsData.filter((a) => adStatus(a) === 'live').length;
-  const filteredAds = adFilter === 'all' ? adsData : adsData.filter((a) => adStatus(a) === adFilter);
-  const filteredPartners = partnerFilter === 'all'
-    ? allTransferPartners
-    : allTransferPartners.filter((p) => p.portal_id === partnerFilter);
-  const filteredCollections = collectionFilter === 'all'
-    ? hotelCollections
-    : hotelCollections.filter((c) => c.issuer === collectionFilter);
+  const filteredAds = adsData
+    .filter((a) => adFilter === 'all' || adStatus(a) === adFilter)
+    .filter((a) => adMatchesIssuer(a, adIssuerFilter));
+  const filteredTransferBonuses = (offersData?.transferBonuses ?? [])
+    .filter((o) => offerIssuerFilter === 'all' || o.issuer === offerIssuerFilter);
+  const filteredSpendingBonuses = (offersData?.spendingBonuses ?? [])
+    .filter((o) => offerIssuerFilter === 'all' || o.issuer === offerIssuerFilter);
+  const filteredPartners = allTransferPartners
+    .filter((p) => partnerFilter === 'all' || p.portal_id === partnerFilter)
+    .filter((p) => partnerStatusFilter === 'all' || partnerStatus(p) === partnerStatusFilter);
+  const filteredCollections = hotelCollections
+    .filter((c) => collectionFilter === 'all' || c.issuer === collectionFilter)
+    .filter((c) => collectionStatusFilter === 'all' || collectionStatus(c) === collectionStatusFilter);
 
   return (
     <div className={`flex flex-col min-h-screen ${pageBg}`}>
@@ -243,23 +248,42 @@ export function OffersAdminShell() {
               />
             )}
 
-            {/* Offer filter tabs */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {OFFER_TABS.map((t) => {
-                const match = (o: { active: boolean; start_date: string | null; end_date: string | null }) =>
-                  t.key === 'all' ? true : offerStatus(o) === t.key;
-                const count = (offersData?.transferBonuses.filter(match).length ?? 0)
-                  + (offersData?.spendingBonuses.filter(match).length ?? 0);
-                return (
-                  <button key={t.key} onClick={() => setOfferFilter(t.key)} className={filterTabCls(offerFilter === t.key)}>
-                    {t.label}
-                    <span className={`ml-1.5 text-[10px] font-mono ${offerFilter === t.key ? '' : muted}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Offer type filter tabs — isolate spending bonuses from transfer bonuses */}
+            <div className="flex items-center gap-1 flex-wrap justify-between">
+              <div className="flex items-center gap-1 flex-wrap">
+                {OFFER_TYPE_TABS.map((t) => {
+                  const count = t.key === 'all'
+                    ? filteredTransferBonuses.length + filteredSpendingBonuses.length
+                    : t.key === 'transfer'
+                      ? filteredTransferBonuses.length
+                      : filteredSpendingBonuses.length;
+                  return (
+                    <button key={t.key} onClick={() => setOfferTypeFilter(t.key)} className={filterTabCls(offerTypeFilter === t.key)}>
+                      {t.label}
+                      <span className={`ml-1.5 text-[10px] font-mono ${offerTypeFilter === t.key ? '' : muted}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <IssuerFilterSelect value={offerIssuerFilter} onChange={setOfferIssuerFilter} isDark={isDark} />
             </div>
+
+            {/* Offer status filter tabs */}
+            <StatusFilterTabs
+              value={offerFilter}
+              onChange={setOfferFilter}
+              filterTabCls={filterTabCls}
+              mutedCls={muted}
+              counts={statusCounts(
+                [
+                  ...(offerTypeFilter === 'spending' ? [] : filteredTransferBonuses),
+                  ...(offerTypeFilter === 'transfer' ? [] : filteredSpendingBonuses),
+                ],
+                offerStatus,
+              )}
+            />
 
             {/* Disclaimer: user-submitted review coming soon */}
             <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-[11px] font-mono leading-relaxed ${
@@ -281,8 +305,8 @@ export function OffersAdminShell() {
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
               <AdminOffersTable
-                transferBonuses={offersData?.transferBonuses ?? []}
-                spendingBonuses={offersData?.spendingBonuses ?? []}
+                transferBonuses={offerTypeFilter === 'spending' ? [] : filteredTransferBonuses}
+                spendingBonuses={offerTypeFilter === 'transfer' ? [] : filteredSpendingBonuses}
                 filter={offerFilter}
                 isDark={isDark}
                 onEdit={(offer) => {
@@ -308,31 +332,16 @@ export function OffersAdminShell() {
               />
             )}
 
-            {/* Ad status filter chips */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {AD_STATUS_TABS.map((t) => {
-                const count = t.key === 'all'
-                  ? adsData.length
-                  : adsData.filter((a) => adStatus(a) === t.key).length;
-                const dotColor =
-                  t.key === 'live'      ? 'bg-green-500' :
-                  t.key === 'scheduled' ? 'bg-blue-500' :
-                  t.key === 'expired'   ? 'bg-red-400' :
-                  t.key === 'paused'    ? 'bg-gray-400' : undefined;
-                return (
-                  <button key={t.key} onClick={() => setAdFilter(t.key)} className={filterTabCls(adFilter === t.key)}>
-                    <span className="inline-flex items-center gap-1.5">
-                      {dotColor && (
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
-                      )}
-                      {t.label}
-                    </span>
-                    <span className={`ml-1.5 text-[10px] font-mono ${adFilter === t.key ? '' : muted}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Ad status filter chips + issuer filter */}
+            <div className="flex items-center gap-1 flex-wrap justify-between">
+              <StatusFilterTabs
+                value={adFilter}
+                onChange={setAdFilter}
+                filterTabCls={filterTabCls}
+                mutedCls={muted}
+                counts={statusCounts(adsData.filter((a) => adMatchesIssuer(a, adIssuerFilter)), adStatus)}
+              />
+              <IssuerFilterSelect value={adIssuerFilter} onChange={setAdIssuerFilter} isDark={isDark} />
             </div>
 
             {loadingAds ? (
@@ -371,21 +380,19 @@ export function OffersAdminShell() {
               />
             )}
 
-            {/* Portal filter tabs */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {PORTAL_FILTER_TABS.map((t) => {
-                const count = t.key === 'all'
-                  ? allTransferPartners.length
-                  : allTransferPartners.filter((p) => p.portal_id === t.key).length;
-                return (
-                  <button key={t.key} onClick={() => setPartnerFilter(t.key)} className={filterTabCls(partnerFilter === t.key)}>
-                    {t.label}
-                    <span className={`ml-1.5 text-[10px] font-mono ${partnerFilter === t.key ? '' : muted}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Status filter tabs + issuer filter */}
+            <div className="flex items-center gap-1 flex-wrap justify-between">
+              <StatusFilterTabs
+                value={partnerStatusFilter}
+                onChange={setPartnerStatusFilter}
+                filterTabCls={filterTabCls}
+                mutedCls={muted}
+                counts={statusCounts(
+                  allTransferPartners.filter((p) => partnerFilter === 'all' || p.portal_id === partnerFilter),
+                  partnerStatus,
+                )}
+              />
+              <IssuerFilterSelect value={partnerFilter} onChange={setPartnerFilter} isDark={isDark} />
             </div>
 
             {loadingPartners ? (
@@ -411,21 +418,19 @@ export function OffersAdminShell() {
               />
             )}
 
-            {/* Portal filter tabs */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {PORTAL_FILTER_TABS.map((t) => {
-                const count = t.key === 'all'
-                  ? hotelCollections.length
-                  : hotelCollections.filter((c) => c.issuer === t.key).length;
-                return (
-                  <button key={t.key} onClick={() => setCollectionFilter(t.key)} className={filterTabCls(collectionFilter === t.key)}>
-                    {t.label}
-                    <span className={`ml-1.5 text-[10px] font-mono ${collectionFilter === t.key ? '' : muted}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Status filter tabs + issuer filter */}
+            <div className="flex items-center gap-1 flex-wrap justify-between">
+              <StatusFilterTabs
+                value={collectionStatusFilter}
+                onChange={setCollectionStatusFilter}
+                filterTabCls={filterTabCls}
+                mutedCls={muted}
+                counts={statusCounts(
+                  hotelCollections.filter((c) => collectionFilter === 'all' || c.issuer === collectionFilter),
+                  collectionStatus,
+                )}
+              />
+              <IssuerFilterSelect value={collectionFilter} onChange={setCollectionFilter} isDark={isDark} />
             </div>
 
             {loadingCollections ? (

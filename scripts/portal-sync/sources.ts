@@ -171,7 +171,8 @@ export const SOURCES: SourceConfig[] = [
     recordType: "spending_bonus",
     needsBrowser: false,
     isTpgFallback: true,
-    extraInstructions: LIMITED_TIME_INSTRUCTION,
+    extraInstructions:
+      `Rows show a dual reward like "2% cash-back or 2x miles" — Capital One lets the cardholder choose either. Emit one record per merchant using the cash-back branch: bonus_type "cash_back_pct", bonus_multiplier the percent number (e.g. 2 for "2% cash-back"). For rows with a flat-dollar cash-back option (e.g. "$2 cash-back or 200 miles") use bonus_type "dollar_amount" with that dollar number instead. This page states outright that Capital One Offers have no published expiration date — omit end_date entirely rather than inventing one. ${LIMITED_TIME_INSTRUCTION}`,
   },
   // robots.txt checked 2026-07-21 — upgradedpoints.com allows /news/. Static
   // HTML has offer text.

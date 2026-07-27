@@ -1,4 +1,4 @@
-# Module Dependency Map (generated 2026-07-24)
+# Module Dependency Map (generated 2026-07-27)
 
 Reverse import map: `target << files that import it`. Sorted by importer count.
 Grep this file for a path to get its importers (blast radius) — do not read the whole file.
@@ -17,6 +17,7 @@ lib/feature-flags.ts << components/NavBar.tsx, lib/places.ts, server/routers/fli
 lib/supabase/server.ts << app/admin/page.tsx, app/auth/callback/route.ts, server/routers/flights.ts, server/routers/offers.ts, server/routers/portalData.ts, server/routers/stays.ts, server/trpc.ts
 components/LocationSearch.tsx << app/flights/page.tsx, app/hotels/page.tsx, app/search/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/search/FlightSearchForm.tsx, components/search/HotelSearchForm.tsx
 components/NavBar.tsx << app/offers/page.tsx, app/search/page.tsx, app/settings/page.tsx, app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AppShell.tsx, components/offers/admin/OffersAdminShell.tsx
+components/offers/admin/adminTableShared.tsx << components/offers/admin/AdminAdsTable.tsx, components/offers/admin/AdminOffersTable.tsx, components/offers/admin/AdminTransferPartnersTable.tsx, components/offers/admin/AdminTravelCollectionsTable.tsx, components/offers/admin/OffersAdminShell.tsx, components/offers/admin/PendingReviewTable.tsx
 server/trpc.ts << server/routers/_app.ts, server/routers/flights.ts, server/routers/offers.ts, server/routers/places.ts, server/routers/portalData.ts, server/routers/stays.ts
 components/offers/AffiliateAdSpot.tsx << app/flights/page.tsx, app/hotels/page.tsx, app/offers/page.tsx, app/trip-planner/[id]/page.tsx, components/AppShell.tsx
 lib/redis.ts << lib/places.ts, server/routers/flights.ts, server/routers/offers.ts, server/routers/portalData.ts, server/routers/stays.ts
@@ -29,7 +30,6 @@ components/Footer.tsx << app/offers/page.tsx, app/search/page.tsx, components/Ap
 hooks/useTrips.ts << app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AddToTripButton.tsx
 lib/trips.ts << app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, hooks/useTrips.ts
 components/PointsGrid.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx, components/search/SearchBoard.tsx
-components/offers/admin/adminTableShared.tsx << components/offers/admin/AdminOffersTable.tsx, components/offers/admin/AdminTransferPartnersTable.tsx, components/offers/admin/AdminTravelCollectionsTable.tsx
 server/routers/_app.ts << app/api/trpc/[trpc]/route.ts, lib/trpc-client.ts
 components/AppShell.tsx << app/flights/page.tsx, app/hotels/page.tsx
 components/FlightCard.tsx << app/flights/page.tsx, app/trip-planner/[id]/page.tsx
