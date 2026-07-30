@@ -70,6 +70,57 @@ async function hasApprovedTransferPartnerMatch(
   );
 }
 
+// TPG's aggregator spells partner names slightly differently than the
+// issuer's own transfer-partner page (e.g. "Air France KLM" vs
+// "Air France-KLM"). Look up the canonical name already approved for this
+// issuer's own transfer_partners rows (Issuer and PortalId share the same
+// string values — chase/amex/c1/bilt/citi) and rewrite the bonus's
+// transfer_partner to match it, so PointsGrid.tsx's exact-match bonusFor()
+// can find it. Falls through to the raw scraped name when no match exists —
+// no fabricated partner rows.
+async function resolveCanonicalPartnerName(
+  supabase: SupabaseClient,
+  issuer: string,
+  transferPartner: string,
+): Promise<string> {
+  const target = normalizeProgramName(transferPartner);
+  if (!target) return transferPartner;
+
+  const { data } = await supabase
+    .from("transfer_partners")
+    .select("program")
+    .eq("status", "approved")
+    .eq("portal_id", issuer);
+  const match = ((data as { program: string }[] | null) ?? []).find(
+    (row) => normalizeProgramName(row.program) === target,
+  );
+  return match?.program ?? transferPartner;
+}
+
+// Same normalized-name comparison as hasApprovedTransferPartnerMatch, scoped
+// to this issuer+source so a re-run doesn't create a duplicate pending row
+// for a bonus whose partner name only differs by spelling from an
+// already-approved one.
+async function hasApprovedTransferBonusMatch(
+  supabase: SupabaseClient,
+  issuer: string,
+  sourceUrl: string,
+  transferPartner: string,
+): Promise<boolean> {
+  const target = normalizeProgramName(transferPartner);
+  if (!target) return false;
+
+  const { data } = await supabase
+    .from("transfer_bonuses")
+    .select("transfer_partner")
+    .eq("status", "approved")
+    .eq("issuer", issuer)
+    .eq("source_url", sourceUrl);
+  return ((data as { transfer_partner: string }[] | null) ?? []).some(
+    (row) => normalizeProgramName(row.transfer_partner) === target,
+  );
+}
+
 export async function upsertTransferPartner(
   ctx: UpsertContext,
   record: TransferPartnerRecord,
@@ -96,22 +147,24 @@ export async function upsertTransferBonus(
   ctx: UpsertContext,
   record: TransferBonusRecord,
 ): Promise<boolean> {
-  const match = {
-    issuer: record.issuer,
-    transfer_partner: record.transfer_partner,
-    source_url: ctx.sourceUrl,
-  };
-  if (await hasApprovedMatch(ctx.supabase, "transfer_bonuses", match)) return false;
+  if (await hasApprovedTransferBonusMatch(ctx.supabase, record.issuer, ctx.sourceUrl, record.transfer_partner)) {
+    return false;
+  }
+  const transferPartner = await resolveCanonicalPartnerName(ctx.supabase, record.issuer, record.transfer_partner);
 
   const { error } = await ctx.supabase.from("transfer_bonuses").insert({
     issuer: record.issuer,
-    transfer_partner: record.transfer_partner,
+    transfer_partner: transferPartner,
     bonus_pct: record.bonus_pct,
     description: record.description ?? null,
     start_date: record.start_date ?? null,
     end_date: record.end_date,
     is_targeted: record.is_targeted ?? false,
-    limited_time_offer: record.limited_time_offer,
+    // Every transfer_bonus record comes from the TPG aggregator, which by
+    // definition only lists live, time-boxed offers — the extraction LLM
+    // unreliably fills this field (zod defaults it false when omitted), so
+    // force it rather than trust the prompt.
+    limited_time_offer: true,
     source_url: ctx.sourceUrl,
     source: "cron",
     status: "pending",

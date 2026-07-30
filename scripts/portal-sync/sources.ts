@@ -209,5 +209,15 @@ export const SOURCES: SourceConfig[] = [
     clickResultSelector: "#card-expanded",
     extraInstructions:
       'Page text is split into "== <partner name> ==" sections, one per points-transfer partner. Each section states two conversion tiers depending on which Citi card the holder has (a premium tier — Strata Elite/Strata Premier/Prestige — and a standard tier — Strata, ThankYou Preferred, Double Cash, Custom Cash). For every partner found, set ratio to a single string combining both tiers, e.g. "1,000:1,000 (Strata Elite/Premier/Prestige) or 1,000:700 (other Citi ThankYou cards)" — use the exact numbers from that section, do not assume they match this example. Ignore any "Limited Time Offer"/bonus/promo language in a section — that belongs to a separate source, not this one.',
+  },
+  {
+    key: "tpg_current_transfer_bonuses",
+    portalId: "chase", // placeholder; transfer_bonus records key off issuer, set per-row below
+    url: "https://thepointsguy.com/loyalty-programs/current-transfer-bonuses/",
+    recordType: "transfer_bonus",
+    needsBrowser: true,
+    isTpgFallback: false,
+    extraInstructions:
+      'This page lists live transfer bonuses across multiple issuers (Chase, Amex, Capital One, Citi — ignore Bilt if present, we source Bilt separately). Each entry states which issuer program the bonus transfers FROM (e.g. "Chase Ultimate Rewards", "Amex Membership Rewards", "Citi ThankYou Points", "Capital One Miles") — map that to issuer: "Chase Ultimate Rewards"→chase, "Amex Membership Rewards"→amex, "Citi ThankYou"→citi, "Capital One"→c1. Skip any row whose source program is not one of these four, or whose source program is Bilt. transfer_partner is the destination loyalty program name (e.g. "World of Hyatt", "Flying Blue"). bonus_pct is the stated bonus percentage. The page usually omits start_date — omit it (do not guess). end_date is REQUIRED by the schema — the page often states only a month/day (e.g. "Ends 8/31") with no year; infer the year as the nearest FUTURE occurrence of that month/day relative to today, in YYYY-MM-DD form. If a row states a bonus but you cannot resolve a plausible end_date, SKIP that row entirely rather than guessing — one invalid record drops the entire extracted batch (schema requires end_date non-empty). If a bonus is described as tiered (e.g. different pct at different transfer amounts), use the highest tier\'s pct and note the tiering in description. Set limited_time_offer to true on every emitted record — everything on this page is by definition limited-time.',
   }
 ];

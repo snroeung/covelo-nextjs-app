@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { CollectionBanner } from '@/components/CollectionBanner';
+import { TransferBonusBanner } from '@/components/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
 import { AddToTripButton } from '@/components/AddToTripButton';
@@ -273,6 +274,12 @@ export function FlightCard({ offer }: { offer: any }) {
       limitedTimeOffer={collection.limited_time_offer}
     />
   );
+  const topBanners = (
+    <>
+      {collectionBanner}
+      <TransferBonusBanner result={ptsResult} rounded={!collection} />
+    </>
+  );
 
   const addToTrip = (
     <div onClick={e => e.stopPropagation()}>
@@ -289,7 +296,7 @@ export function FlightCard({ offer }: { offer: any }) {
   if (!isRoundTrip) {
     return (
       <div className={`rounded-xl overflow-hidden ${cardBg}`}>
-        {collectionBanner}
+        {topBanners}
         <LegRow {...legProps} slice={leg0Slice} showCash />
 
         {/* Dark navy portal bar */}
@@ -324,7 +331,7 @@ export function FlightCard({ offer }: { offer: any }) {
 
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
-      {collectionBanner}
+      {topBanners}
 
       {/* Trip header */}
       <div className={`px-5 py-2 border-b ${divider} ${sectionBg}`}>

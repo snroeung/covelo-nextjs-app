@@ -124,16 +124,49 @@ describe('upsertTransferBonus', () => {
   };
 
   it('skips insert when an approved match exists', async () => {
-    const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
+    const supabase = makeSupabase([
+      { data: [{ transfer_partner: 'United MileagePlus' }], error: null },
+    ]);
     expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(false);
   });
 
-  it('inserts when no approved match exists', async () => {
+  it('skips insert when an approved match exists with different punctuation', async () => {
     const supabase = makeSupabase([
-      { data: [], error: null },
-      { data: null, error: null },
+      { data: [{ transfer_partner: 'United Airlines MileagePlus' }], error: null },
+    ]);
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(false);
+  });
+
+  it('inserts when no approved match exists, keeping the raw name when no canonical transfer_partners row matches', async () => {
+    const supabase = makeSupabase([
+      { data: [], error: null },  // hasApprovedTransferBonusMatch: no dedup match
+      { data: [], error: null },  // resolveCanonicalPartnerName: no transfer_partners match
+      { data: null, error: null }, // insert
     ]);
     expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
+  });
+
+  it('rewrites transfer_partner to the canonical approved transfer_partners spelling when found', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null }, // hasApprovedTransferBonusMatch: no dedup match
+      { data: [{ program: 'United Airlines MileagePlus' }], error: null }, // resolveCanonicalPartnerName: found
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
+    expect(insertedRow?.transfer_partner).toBe('United Airlines MileagePlus');
   });
 });
 

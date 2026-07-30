@@ -2,6 +2,9 @@
 
 import { useTheme } from '@/contexts/ThemeContext';
 import { CollectionBanner } from '@/components/CollectionBanner';
+import { TransferBonusBanner } from '@/components/TransferBonusBanner';
+import { usePointsCalc } from '@/hooks/usePointsCalc';
+import { useLiveTransferBonus } from '@/lib/points/transferBonus';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   const msPerDay = 1000 * 60 * 60 * 24;
@@ -51,6 +54,10 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
 
   const collection = searchResult.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
 
+  const ptsResult = usePointsCalc(totalAmount, 'hotel', undefined, undefined, name);
+  const bonus     = useLiveTransferBonus(ptsResult);
+  const hasTopBanner = !!collection || !!bonus;
+
   return (
     <article data-testid="hotel-card" className={`rounded-xl border ${cardBg}`}>
       {collection && (
@@ -62,7 +69,8 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
           limitedTimeOffer={collection.limited_time_offer}
         />
       )}
-      <div className={`flex flex-col md:flex-row md:h-44 overflow-hidden ${collection ? 'rounded-b-xl' : 'rounded-xl'}`}>
+      <TransferBonusBanner result={ptsResult} rounded={!collection} />
+      <div className={`flex flex-col md:flex-row md:h-44 overflow-hidden ${hasTopBanner ? 'rounded-b-xl' : 'rounded-xl'}`}>
 
         {/* Photo — square crop, fixed size so all cards match */}
         <div

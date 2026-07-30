@@ -5,7 +5,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { PendingReviewRow, PendingReviewTable as PendingTableName } from '@/lib/types/portalData';
 import { PendingReviewDetailModal } from './PendingReviewDetailModal';
-import { ActionButton, rowActionStatus, settleAfterSuccess } from './adminTableShared';
+import {
+  ActionButton, rowActionStatus, settleAfterSuccess,
+  IssuerFilterSelect, type IssuerFilter,
+} from './adminTableShared';
 
 export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_partners: 'Transfer partner',
@@ -56,6 +59,21 @@ export function rowDetail(item: PendingReviewRow): string {
   }
 }
 
+// transfer_partners keys its issuer off portal_id; the other three tables
+// carry an explicit `issuer` column.
+function rowIssuer(item: PendingReviewRow): string {
+  return String(item.table === 'transfer_partners' ? item.row.portal_id : item.row.issuer ?? '');
+}
+
+function rowKey(item: PendingReviewRow): string {
+  return `${item.table}:${item.row.id}`;
+}
+
+// transfer_partners rows have no limited_time_offer column at all.
+function rowIsLimitedTime(item: PendingReviewRow): boolean {
+  return item.row.limited_time_offer === true;
+}
+
 interface Props {
   rows:   PendingReviewRow[];
   isDark: boolean;
@@ -67,7 +85,11 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   const [editValue, setEditValue] = useState('');
   const [editField, setEditField] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState<TableFilter>('all');
+  const [issuerFilter, setIssuerFilter] = useState<IssuerFilter>('all');
   const [detailItem, setDetailItem] = useState<PendingReviewRow | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
 
   const approveMutation = useMutation({
     mutationFn: (args: { table: PendingTableName; id: string; runId?: string; edits?: Record<string, string> }) =>
@@ -75,23 +97,28 @@ export function PendingReviewTable({ rows, isDark }: Props) {
     onSuccess: () => {
       setEditingId(null);
       setEditField(null);
-      settleAfterSuccess(
-        () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] }),
-        () => approveMutation.reset(),
-      );
+      settleAfterSuccess(invalidate, () => approveMutation.reset());
     },
   });
 
   const rejectMutation = useMutation({
     mutationFn: (args: { table: PendingTableName; id: string }) =>
       trpc.portalData.admin.reject.mutate(args),
-    onSuccess: () => settleAfterSuccess(
-      () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] }),
-      () => rejectMutation.reset(),
-    ),
+    onSuccess: () => settleAfterSuccess(invalidate, () => rejectMutation.reset()),
   });
 
-  const isPending = approveMutation.isPending || rejectMutation.isPending;
+  const bulkApproveMutation = useMutation({
+    mutationFn: (items: PendingReviewRow[]) =>
+      Promise.all(items.map((item) =>
+        trpc.portalData.admin.approve.mutate({ table: item.table, id: item.row.id as string }),
+      )),
+    onSuccess: () => {
+      setSelected(new Set());
+      settleAfterSuccess(invalidate, () => bulkApproveMutation.reset());
+    },
+  });
+
+  const isPending = approveMutation.isPending || rejectMutation.isPending || bulkApproveMutation.isPending;
 
   const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
@@ -106,7 +133,12 @@ export function PendingReviewTable({ rows, isDark }: Props) {
     return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-700'}`;
   }
 
-  const filteredRows = tableFilter === 'all' ? rows : rows.filter((item) => item.table === tableFilter);
+  // Approved/rejected rows never show here again — the sync-run stays
+  // visible elsewhere, but pending review only ever lists status='pending'.
+  const pendingRows = rows.filter((item) => item.row.status === 'pending');
+  const issuerRows = pendingRows.filter((item) => issuerFilter === 'all' || rowIssuer(item) === issuerFilter);
+  const filteredRows = issuerRows.filter((item) => tableFilter === 'all' || item.table === tableFilter);
+
   const inputCls = `px-2 py-1 rounded-md text-xs font-mono border outline-none ${
     isDark
       ? 'bg-gph-dark-bg border-gph-dark-line text-gph-dark-ink focus:border-blue-500'
@@ -132,24 +164,87 @@ export function PendingReviewTable({ rows, isDark }: Props) {
     });
   }
 
+  function toggleSelected(item: PendingReviewRow) {
+    const key = rowKey(item);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((item) => selected.has(rowKey(item)));
+
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        for (const item of filteredRows) next.delete(rowKey(item));
+        return next;
+      }
+      const next = new Set(prev);
+      for (const item of filteredRows) next.add(rowKey(item));
+      return next;
+    });
+  }
+
+  const selectedItems = filteredRows.filter((item) => selected.has(rowKey(item)));
+
   return (
     <div>
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {TABLE_FILTER_TABS.map((t) => {
-          const count = t.key === 'all' ? rows.length : rows.filter((r) => r.table === t.key).length;
-          return (
-            <button key={t.key} onClick={() => setTableFilter(t.key)} className={filterTabCls(tableFilter === t.key)}>
-              {t.label}
-              <span className={`ml-1.5 text-[10px] font-mono ${tableFilter === t.key ? '' : muted}`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-1.5">
+          {TABLE_FILTER_TABS.map((t) => {
+            const count = t.key === 'all' ? issuerRows.length : issuerRows.filter((r) => r.table === t.key).length;
+            return (
+              <button key={t.key} onClick={() => setTableFilter(t.key)} className={filterTabCls(tableFilter === t.key)}>
+                {t.label}
+                <span className={`ml-1.5 text-[10px] font-mono ${tableFilter === t.key ? '' : muted}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <IssuerFilterSelect value={issuerFilter} onChange={setIssuerFilter} isDark={isDark} />
       </div>
 
+      {selectedItems.length > 0 && (
+        <div className={`flex items-center justify-between gap-3 mb-3 px-4 py-2 rounded-lg border ${
+          isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-50 border-gray-200'
+        }`}>
+          <span className={`text-xs font-mono font-bold ${ink}`}>{selectedItems.length} selected</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelected(new Set())}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Clear
+            </button>
+            <ActionButton
+              disabled={isPending}
+              status={bulkApproveMutation.isPending ? 'loading' : bulkApproveMutation.isSuccess ? 'done' : 'idle'}
+              onClick={() => bulkApproveMutation.mutate(selectedItems)}
+              idleLabel={`Approve ${selectedItems.length}`}
+              loadingLabel="Approving…"
+              doneLabel="Approved"
+              className="bg-green-100 text-green-700 hover:bg-green-200"
+            />
+          </div>
+        </div>
+      )}
+
       <div className={`rounded-xl border overflow-hidden ${card}`}>
-        <div className={`grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3 border-b text-[10px] font-mono font-bold tracking-widest ${muted} ${headBg} ${divider}`}>
+        <div className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 px-5 py-3 border-b text-[10px] font-mono font-bold tracking-widest ${muted} ${headBg} ${divider}`}>
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 cursor-pointer"
+            aria-label="Select all"
+          />
           <div>RECORD</div>
           <div>TABLE</div>
           <div>SOURCE</div>
@@ -167,12 +262,30 @@ export function PendingReviewTable({ rows, isDark }: Props) {
           <div
             key={`${item.table}-${id}`}
             onClick={() => { if (!isEditingThis) setDetailItem(item); }}
-            className={`grid grid-cols-[1fr_auto_auto_auto] gap-4 items-start px-5 py-4 transition-colors cursor-pointer ${rowHov} ${
+            className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-4 items-start px-5 py-4 transition-colors cursor-pointer ${rowHov} ${
               i < filteredRows.length - 1 ? `border-b ${divider}` : ''
             }`}
           >
+            <input
+              type="checkbox"
+              checked={selected.has(rowKey(item))}
+              onChange={() => toggleSelected(item)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-4 h-4 mt-0.5 cursor-pointer"
+              aria-label={`Select ${rowTitle(item)}`}
+            />
+
             <div className="min-w-0">
-              <div className={`text-sm font-semibold truncate ${ink}`}>{rowTitle(item)}</div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className={`text-sm font-semibold truncate ${ink}`}>{rowTitle(item)}</div>
+                {rowIsLimitedTime(item) && (
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-widest ${
+                    isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-50 text-amber-700'
+                  }`}>
+                    LIMITED TIME
+                  </span>
+                )}
+              </div>
               {isEditingThis ? (
                 <div className="flex items-center gap-2 mt-1.5">
                   <label className={`text-[10px] font-mono font-bold ${muted}`}>{editField}</label>
@@ -213,15 +326,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-              {item.row.status !== 'pending' ? (
-                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-mono font-bold ${
-                  item.row.status === 'approved'
-                    ? isDark ? 'bg-green-900/40 text-green-400' : 'bg-green-100 text-green-700'
-                    : isDark ? 'bg-red-900/40 text-red-400' : 'bg-red-100 text-red-700'
-                }`}>
-                  {item.row.status === 'approved' ? 'Approved' : 'Rejected'}
-                </span>
-              ) : isEditingThis ? (
+              {isEditingThis ? (
                 <>
                   <ActionButton
                     disabled={isPending}

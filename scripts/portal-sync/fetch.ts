@@ -244,14 +244,26 @@ async function fetchClickThroughPanelsUncached(
       console.warn(`[fetch:click-through] ${url} never reached networkidle within 5s, proceeding anyway`);
     });
 
-    const triggerCount = await page.locator(triggerSelector).count();
+    // Snapshot every trigger up front as concrete ElementHandles instead of
+    // re-resolving triggerSelector.nth(i) inside the loop. Some sites
+    // (thankyou.com) mutate the clicked trigger's own attributes on expand
+    // so it stops matching triggerSelector — re-querying a Locator by index
+    // against that live, shrinking match set drifts the indices (Locator
+    // "snapshots" from .all()/.nth() are still re-resolved by position, not
+    // frozen to a specific node). page.$$ returns real ElementHandles bound
+    // to the actual DOM nodes, so later attribute changes elsewhere don't
+    // shift what handles[i] points to.
+    const triggers = await page.$$(triggerSelector);
+    const triggerCount = triggers.length;
     console.log(`[fetch:click-through] found ${triggerCount} trigger(s) matching "${triggerSelector}"`);
 
     const blocks: string[] = [];
     for (let i = 0; i < triggerCount; i++) {
-      const trigger = page.locator(triggerSelector).nth(i);
+      const trigger = triggers[i];
       const label =
-        (await trigger.evaluate((el) => el.textContent ?? "").catch(() => ""))
+        (await trigger
+          .evaluate((el) => el.getAttribute("aria-label") || el.textContent || "")
+          .catch(() => ""))
           .replace(/\s+/g, " ")
           .trim() || `panel ${i + 1}`;
 
