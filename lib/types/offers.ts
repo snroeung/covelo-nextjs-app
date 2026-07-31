@@ -9,13 +9,15 @@ export interface TransferBonus {
   id: string;
   issuer: Issuer;
   transfer_partner: string;
-  bonus_pct: number;
-  effective_ratio: number;
+  bonus_pct: number | null;
+  min_transfer_points: number | null;
+  effective_ratio: number | null;
   description: string | null;
   tags: string[];
   start_date: string | null;
   end_date: string;
   is_targeted: boolean;
+  for_status_transfer: boolean;
   limited_time_offer: boolean;
   source: SyncSource;
   status: SyncStatus;

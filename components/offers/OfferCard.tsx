@@ -72,7 +72,9 @@ export function TransferOfferCard({ offer, isDark }: TransferCardProps) {
   const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const line  = isDark ? 'border-gph-dark-line' : 'border-gray-100';
 
-  const heroText = `+${offer.bonus_pct}% transfer to ${offer.transfer_partner}`;
+  const heroText = offer.bonus_pct != null
+    ? `+${offer.bonus_pct}% transfer to ${offer.transfer_partner}`
+    : `${offer.min_transfer_points}+ pts status match to ${offer.transfer_partner}`;
 
   return (
     <>
@@ -119,11 +121,11 @@ export function TransferOfferCard({ offer, isDark }: TransferCardProps) {
             {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {offer.transfer_partner}
           </p>
           <div className="flex items-baseline gap-2 mt-auto pt-1">
-            <span className={`text-4xl font-bold font-mono tabular-nums ${ink}`}>
-              +{offer.bonus_pct}%
+            <span className={`font-bold font-mono tabular-nums ${offer.bonus_pct != null ? 'text-4xl' : 'text-2xl'} ${ink}`}>
+              {offer.bonus_pct != null ? `+${offer.bonus_pct}%` : `${offer.min_transfer_points}+ pts`}
             </span>
             <span className={`text-xs font-mono ${muted}`}>
-              {offer.effective_ratio.toFixed(2)}:1 ratio
+              {offer.bonus_pct != null && offer.effective_ratio != null ? `${offer.effective_ratio.toFixed(2)}:1 ratio` : 'status match'}
             </span>
           </div>
         </div>

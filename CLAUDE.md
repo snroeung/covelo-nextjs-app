@@ -337,7 +337,7 @@ Claude will prompt: `💾 Good commit point —` followed by a suggested message
 - A bug is fixed and verified
 - A new component is complete and visually verified
 
-**Before prompting to commit, always verify `npm run build` passes.** Vercel runs `npm run build` on every push to deploy the app — if the build is broken, the deployment fails and the branch is dead in production. Run `export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" && node_modules/.bin/next build` and confirm there are no errors before suggesting a commit. Common failure modes: missing npm dependencies (not in `package.json`), `useSearchParams()` without a `<Suspense>` wrapper, TypeScript errors, and unresolved imports. Fix any build errors before committing.
+**Before prompting to commit, always verify `npm run build` passes.** Vercel runs `npm run build` on every push to deploy the app — if the build is broken, the deployment fails and the branch is dead in production. Run `npm run build` and confirm there are no errors before suggesting a commit. Common failure modes: missing npm dependencies (not in `package.json`), `useSearchParams()` without a `<Suspense>` wrapper, TypeScript errors, and unresolved imports. Fix any build errors before committing.
 
 ### Commit size
 Keep commits **small and focused**. One logical change per commit. Avoid bundling unrelated changes.
@@ -564,7 +564,7 @@ zod
 
 ### Commands
 *~2,000 tokens/session saved*
-- **Build:** `export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" && node_modules/.bin/next build 2>&1`
+- **Build:** `npm run build`
 - **Type check:** `npx tsc --noEmit` — do NOT use `node_modules/.bin/tsc`; it does not exist in this project and throws exit 127
 - **Unit tests:** `npm run test` (Vitest, not Jest — Jest was removed)
 - **Dev server:** port 3000 by default; use `--port 3001` if already occupied

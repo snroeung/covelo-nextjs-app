@@ -18,12 +18,20 @@ export function TransferBonusBanner({ result, rounded = true }: { result: Points
       <span className="flex items-center justify-center w-5 h-5 rounded shrink-0 bg-cv-amber-400 text-cv-navy-900 text-[11px] font-extrabold leading-none">⚡</span>
 
       <span className="text-[10px] font-bold font-mono tracking-widest uppercase text-white whitespace-nowrap">
-        +{bonus.bonus_pct}% to {bonus.transfer_partner}
+        {bonus.bonus_pct != null
+          ? `+${bonus.bonus_pct}% to ${bonus.transfer_partner}`
+          : `${bonus.min_transfer_points}+ pts to ${bonus.transfer_partner}`}
       </span>
 
       <span className="text-[10px] font-bold font-mono tracking-widest uppercase px-1.5 py-0.5 rounded bg-cv-amber-400 text-cv-amber-900 whitespace-nowrap">
         Limited time
       </span>
+
+      {bonus.for_status_transfer && (
+        <span className="text-[10px] font-bold font-mono tracking-widest uppercase px-1.5 py-0.5 rounded bg-cv-navy-800 text-white border border-cv-amber-400 whitespace-nowrap">
+          Status boost
+        </span>
+      )}
 
       <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-cv-navy-400 shrink-0" />
 

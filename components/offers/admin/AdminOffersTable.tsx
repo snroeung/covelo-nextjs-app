@@ -80,8 +80,13 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
         const table = isTransfer ? 'transfer_bonuses' as const : 'spending_bonuses' as const;
 
         const sp = offer as SpendingBonus;
+        const tb = offer as TransferBonus;
         const bonusLabel = isTransfer
-          ? `+${(offer as TransferBonus).bonus_pct}%`
+          ? tb.bonus_pct != null
+            ? `+${tb.bonus_pct}%`
+            : tb.min_transfer_points != null
+              ? `${tb.min_transfer_points}+ pts`
+              : '—'
           : sp.bonus_type === 'dollar_amount'
             ? `$${sp.bonus_multiplier} credit`
             : sp.bonus_type === 'cash_back_pct'
@@ -111,6 +116,7 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
               <div className={`text-[11px] font-mono mt-0.5 ${muted}`}>
                 {bonusLabel}{spendMin} · {offer.upvotes} upvotes · {offer.country ?? 'US'}
                 {offer.is_targeted && <span className="ml-2 text-amber-500">TARGETED</span>}
+                {isTransfer && (offer as TransferBonus).for_status_transfer && <span className="ml-2 text-cv-amber-400">STATUS</span>}
               </div>
             </div>
 

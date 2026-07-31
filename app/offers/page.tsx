@@ -35,7 +35,7 @@ function OffersPageInner() {
 
   // Pick the highest-bonus transfer as the featured offer
   const featuredOffer = transferBonuses.length > 0
-    ? [...transferBonuses].sort((a, b) => b.bonus_pct - a.bonus_pct)[0]
+    ? [...transferBonuses].sort((a, b) => (b.bonus_pct ?? 0) - (a.bonus_pct ?? 0))[0]
     : null;
 
   // Everything except the featured offer goes in the grid

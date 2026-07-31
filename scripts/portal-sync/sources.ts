@@ -36,6 +36,14 @@ export interface SourceConfig {
 const LIMITED_TIME_INSTRUCTION =
   'Set `limited_time_offer` to true if the page\'s language for that record is limited-time framed ("limited time", "ends soon", "for a limited time", a specific expiring window, a seasonal/promo framing); false if it reads as a standing, ongoing program or benefit with no expiry framing.';
 
+// Bilt Rent Day runs on the 1st of whatever month it's promoted for, and the
+// article covers one calendar month at a time without always restating
+// explicit start/end dates per offer — default to that whole month so
+// upsert doesn't get a null/invalid end_date, but let an explicit date in
+// the page text override it.
+const BILT_RENT_DAY_WHOLE_MONTH_INSTRUCTION =
+  'Unless the page states explicit start/end dates for an offer, assume that offer runs the entire calendar month named on the page (e.g. "August Rent Day" → start_date is the 1st and end_date is the last day of that month, in YYYY-MM-DD form, using the nearest FUTURE occurrence of that month relative to today). If the page names no month at all, use the current calendar month.';
+
 // robots.txt checked 2026-07-19 — see plan section "robots.txt check" for the
 // per-domain results. Sources marked isTpgFallback replace a direct scrape
 // that was disallowed, unconfirmed, or blocked at the network layer.
@@ -209,6 +217,33 @@ export const SOURCES: SourceConfig[] = [
     clickResultSelector: "#card-expanded",
     extraInstructions:
       'Page text is split into "== <partner name> ==" sections, one per points-transfer partner. Each section states two conversion tiers depending on which Citi card the holder has (a premium tier — Strata Elite/Strata Premier/Prestige — and a standard tier — Strata, ThankYou Preferred, Double Cash, Custom Cash). For every partner found, set ratio to a single string combining both tiers, e.g. "1,000:1,000 (Strata Elite/Premier/Prestige) or 1,000:700 (other Citi ThankYou cards)" — use the exact numbers from that section, do not assume they match this example. Ignore any "Limited Time Offer"/bonus/promo language in a section — that belongs to a separate source, not this one.',
+  },
+  // robots.txt checked 2026-07-30 — thepointsguy.com wildcard group only
+  // disallows /wp-admin/, /wp-json/, search/tag/author archives — /news/
+  // articles are allowed. Bilt doesn't publish Rent Day terms on its own
+  // site in scrapable form, so TPG's recap article is the primary source
+  // (isTpgFallback: true), same pattern as bilt_transfer_partners above.
+  // Rent Day is Bilt-specific and excluded from tpg_current_transfer_bonuses
+  // below by name — this source covers it instead.
+  {
+    key: "bilt_rent_day_transfer_bonus",
+    portalId: "bilt",
+    url: "https://thepointsguy.com/news/bilt-rent-day-promo/",
+    recordType: "transfer_bonus",
+    needsBrowser: true,
+    isTpgFallback: true,
+    extraInstructions:
+      `issuer is always "bilt". transfer_partner is the destination loyalty program named for that Rent Day transfer bonus (e.g. "World of Hyatt", "United MileagePlus", "Accor Live Limitless"). bonus_pct is the stated transfer bonus percentage when one exists. Some promos are pure status-match tiers with NO percentage bonus at all — instead the page lists a table/list like "[Bilt tier] status with Bilt: Match to [Program] [Tier] status if you transfer at least N Bilt points to [Program] on [date]" under a heading such as "[Program] status match when you transfer points". For each such tier, emit a separate row: transfer_partner is the Program, leave bonus_pct unset, set min_transfer_points to N, set for_status_transfer to true, and set description to which Bilt status tier is required and which partner status it unlocks (e.g. "Blue or Silver Bilt status unlocks Accor Silver status"). end_date is the stated transfer date (e.g. "Aug. 1" of the current promo period). Some Rent Day promos additionally let a percentage-bonus transfer ALSO count toward the destination program's elite/award status (e.g. qualifying nights/segments, tier credit) — when the page says this explicitly for a bonus_pct row, set for_status_transfer to true and mention the status benefit in description; otherwise set for_status_transfer to false. The page may phrase either case as "Match to [tier] status" or "Match to [Program] status" — treat that wording as a for_status_transfer: true signal. Do NOT scrape anything from a "History of Rent Day promotions" section (or similarly named past/archive section) — only extract the current/upcoming promo(s). ${BILT_RENT_DAY_WHOLE_MONTH_INSTRUCTION} If neither a bonus_pct nor a min_transfer_points threshold can be determined for a row, skip that row rather than guessing. ${LIMITED_TIME_INSTRUCTION}`,
+  },
+  {
+    key: "bilt_rent_day_spending_bonus",
+    portalId: "bilt",
+    url: "https://thepointsguy.com/news/bilt-rent-day-promo/",
+    recordType: "spending_bonus",
+    needsBrowser: true,
+    isTpgFallback: true,
+    extraInstructions:
+      `issuer is always "bilt". Only emit a record here for a spending/rent-payment bonus (e.g. bonus points per dollar of rent paid, or a bonus for paying rent on Rent Day) — do NOT duplicate pure transfer-bonus rows, those belong to bilt_rent_day_transfer_bonus. merchant_name is "Rent Payment" unless the page names a more specific merchant/category. The page may phrase a status-tie-in as "Match to [tier] status" — that's a transfer_bonus concern, not a spending_bonus, so ignore that wording here. Do NOT scrape anything from a "History of Rent Day promotions" section (or similarly named past/archive section) — only extract the current/upcoming promo(s). ${BILT_RENT_DAY_WHOLE_MONTH_INSTRUCTION} ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "tpg_current_transfer_bonuses",

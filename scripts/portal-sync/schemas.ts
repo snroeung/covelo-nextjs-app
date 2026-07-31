@@ -13,12 +13,22 @@ export type TransferPartnerRecord = z.infer<typeof TransferPartnerRecordSchema>;
 export const TransferBonusRecordSchema = z.object({
   issuer: z.enum(["chase", "amex", "c1", "bilt", "citi"]),
   transfer_partner: z.string().min(1),
-  bonus_pct: z.number().positive(),
+  bonus_pct: z.number().positive().nullable().optional(),
+  // Minimum points that must be transferred to unlock the promo, for
+  // status-match tiers that have no percentage bonus at all (e.g. Bilt ->
+  // Accor: "transfer at least 5,000 Bilt points to match Accor Silver").
+  min_transfer_points: z.number().positive().nullable().optional(),
   description: z.string().nullable().optional(),
   start_date: z.string().nullable().optional(),
   end_date: z.string().min(1),
   is_targeted: z.boolean().optional(),
   limited_time_offer: z.boolean().default(false),
+  // True when the promo lets the transfer count toward the destination
+  // program's elite/award status (e.g. Bilt Rent Day → World of Hyatt
+  // night credits), not just a points bonus.
+  for_status_transfer: z.boolean().default(false),
+}).refine((r) => r.bonus_pct != null || r.min_transfer_points != null, {
+  message: "either bonus_pct or min_transfer_points is required",
 });
 export type TransferBonusRecord = z.infer<typeof TransferBonusRecordSchema>;
 

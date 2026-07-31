@@ -155,11 +155,13 @@ export async function upsertTransferBonus(
   const { error } = await ctx.supabase.from("transfer_bonuses").insert({
     issuer: record.issuer,
     transfer_partner: transferPartner,
-    bonus_pct: record.bonus_pct,
+    bonus_pct: record.bonus_pct ?? null,
+    min_transfer_points: record.min_transfer_points ?? null,
     description: record.description ?? null,
     start_date: record.start_date ?? null,
     end_date: record.end_date,
     is_targeted: record.is_targeted ?? false,
+    for_status_transfer: record.for_status_transfer ?? false,
     // Every transfer_bonus record comes from the TPG aggregator, which by
     // definition only lists live, time-boxed offers — the extraction LLM
     // unreliably fills this field (zod defaults it false when omitted), so

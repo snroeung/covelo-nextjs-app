@@ -1,4 +1,4 @@
-# Module Dependency Map (generated 2026-07-29)
+# Module Dependency Map (generated 2026-07-31)
 
 Reverse import map: `target << files that import it`. Sorted by importer count.
 Grep this file for a path to get its importers (blast radius) — do not read the whole file.
@@ -29,7 +29,6 @@ lib/points/calcPoints.ts << components/HotelDetailModal.tsx, components/search/S
 components/Footer.tsx << app/offers/page.tsx, app/search/page.tsx, components/AppShell.tsx
 hooks/useTrips.ts << app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, components/AddToTripButton.tsx
 lib/trips.ts << app/trip-planner/[id]/page.tsx, app/trip-planner/page.tsx, hooks/useTrips.ts
-components/TransferBonusBanner.tsx << components/FlightCard.tsx, components/HotelCard.tsx, components/HotelDetailModal.tsx
 hooks/usePointsCalc.ts << components/FlightCard.tsx, components/HotelCard.tsx, components/search/SearchBoard.tsx
 components/PointsGrid.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx, components/search/SearchBoard.tsx
 lib/points/transferBonus.ts << components/HotelCard.tsx, components/PointsGrid.tsx, components/TransferBonusBanner.tsx
@@ -46,6 +45,7 @@ lib/searchUrls.ts << app/search/page.tsx, components/search/FlightSearchForm.tsx
 lib/bookmarks.ts << components/AddToTripButton.tsx, hooks/useBookmarks.ts
 lib/points/rankOptions.ts << components/BestPortalPanel.tsx, components/PointsGrid.tsx
 components/CollectionBanner.tsx << components/FlightCard.tsx, components/HotelCard.tsx
+components/TransferBonusBanner.tsx << components/FlightCard.tsx, components/HotelCard.tsx
 components/AddToTripButton.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx
 components/BestPortalPanel.tsx << components/FlightCard.tsx, components/HotelDetailModal.tsx
 lib/places.ts << components/LocationSearch.tsx, server/routers/places.ts

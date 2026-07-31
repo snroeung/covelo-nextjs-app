@@ -55,11 +55,13 @@ interface TransferForm {
   issuer:           Issuer | '';
   transfer_partner: string;
   bonus_pct:        string;
+  min_transfer_points: string;
   description:      string;
   tags:             string[];
   start_date:       string;
   end_date:         string;
   is_targeted:      boolean;
+  for_status_transfer: boolean;
   source_url:       string;
   country:          string;
   active:           boolean;
@@ -122,11 +124,13 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     issuer:           initT?.issuer           ?? '',
     transfer_partner: initT?.transfer_partner ?? '',
     bonus_pct:        initT?.bonus_pct?.toString() ?? '',
+    min_transfer_points: initT?.min_transfer_points?.toString() ?? '',
     description:      initT?.description      ?? '',
     tags:             initT?.tags             ?? [],
     start_date:       initT?.start_date       ?? '',
     end_date:         initT?.end_date         ?? '',
     is_targeted:      initT?.is_targeted      ?? false,
+    for_status_transfer: initT?.for_status_transfer ?? false,
     source_url:       initT?.source_url       ?? '',
     country:          initT?.country          ?? 'US',
     active:           initT?.active           ?? true,
@@ -177,6 +181,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
 
   // Derived effective ratio (read-only, mirrors DB GENERATED column)
   const bonusPctNum    = parseFloat(transfer.bonus_pct);
+  const minPointsNum   = parseInt(transfer.min_transfer_points, 10);
   const effectiveRatio = !isNaN(bonusPctNum) && bonusPctNum > 0
     ? (1 + bonusPctNum / 100).toFixed(4)
     : '—';
@@ -185,12 +190,14 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     mutationFn: () => trpc.offers.admin.createTransferBonus.mutate({
       issuer:           transfer.issuer as Issuer,
       transfer_partner: transfer.transfer_partner,
-      bonus_pct:        parseFloat(transfer.bonus_pct),
+      bonus_pct:        transfer.bonus_pct ? parseFloat(transfer.bonus_pct) : null,
+      min_transfer_points: transfer.min_transfer_points ? parseInt(transfer.min_transfer_points, 10) : null,
       description:      transfer.description || null,
       tags:             transfer.tags,
       start_date:       transfer.start_date,
       end_date:         transfer.end_date,
       is_targeted:      transfer.is_targeted,
+      for_status_transfer: transfer.for_status_transfer,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
@@ -232,12 +239,14 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       id:               (initT as TransferBonus).id,
       issuer:           transfer.issuer as Issuer,
       transfer_partner: transfer.transfer_partner,
-      bonus_pct:        parseFloat(transfer.bonus_pct),
+      bonus_pct:        transfer.bonus_pct ? parseFloat(transfer.bonus_pct) : null,
+      min_transfer_points: transfer.min_transfer_points ? parseInt(transfer.min_transfer_points, 10) : null,
       description:      transfer.description || null,
       tags:             transfer.tags,
       start_date:       transfer.start_date || null,
       end_date:         transfer.end_date,
       is_targeted:      transfer.is_targeted,
+      for_status_transfer: transfer.for_status_transfer,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
@@ -316,7 +325,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
   const transferChecks = [
     { label: 'Issuer selected',           ok: !!transfer.issuer },
     { label: 'Transfer partner selected', ok: !!transfer.transfer_partner },
-    { label: 'Bonus % is positive',       ok: !isNaN(bonusPctNum) && bonusPctNum > 0 },
+    { label: 'Bonus % or min points set',  ok: (!isNaN(bonusPctNum) && bonusPctNum > 0) || (!isNaN(minPointsNum) && minPointsNum > 0) },
     { label: 'Start date set',            ok: !!transfer.start_date },
     { label: 'End date set',              ok: !!transfer.end_date },
     { label: 'Source URL valid (if set)', ok: !transfer.source_url || /^https?:\/\/.+/.test(transfer.source_url) },
@@ -460,6 +469,18 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                         {effectiveRatio}:1
                       </div>
                     </div>
+                    <div>
+                      <label className={`block mb-1.5 ${lCls}`}>MIN TRANSFER PTS (status-only)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className={iCls}
+                        value={transfer.min_transfer_points}
+                        onChange={(e) => setT('min_transfer_points', e.target.value)}
+                        placeholder="e.g. 5000 (no % bonus, status match only)"
+                      />
+                    </div>
                   </div>
                 </div>
               </section>
@@ -529,6 +550,18 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     </button>
                     <span className={`text-sm font-semibold ${ink}`}>
                       {transfer.is_targeted ? 'Targeted — not available to all cardholders' : 'Available to all cardholders'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setT('for_status_transfer', !transfer.for_status_transfer)}
+                      className={toggleSwitchCls(transfer.for_status_transfer, 'bg-cv-amber-400')}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${transfer.for_status_transfer ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </button>
+                    <span className={`text-sm font-semibold ${ink}`}>
+                      {transfer.for_status_transfer ? 'Counts toward elite/award status with partner' : 'Points bonus only — no status transfer'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -833,7 +866,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       {transfer.issuer ? ISSUER_LABELS[transfer.issuer as Issuer] : '—'} → {transfer.transfer_partner || '—'}
                     </div>
                     <div className={`text-xs font-mono ${muted}`}>
-                      +{transfer.bonus_pct || '0'}% bonus · {effectiveRatio}:1 ratio
+                      {transfer.bonus_pct
+                        ? `+${transfer.bonus_pct}% bonus · ${effectiveRatio}:1 ratio`
+                        : transfer.min_transfer_points
+                          ? `Status match at ${transfer.min_transfer_points}+ pts transferred`
+                          : 'No bonus % or min points set'}
                     </div>
                     {transfer.end_date && (
                       <div className={`text-[10px] font-mono ${muted}`}>

@@ -78,8 +78,8 @@ export function OfferDetailModal(props: Props) {
 
   if (type === 'transfer') {
     const t = props.offer as TransferBonus;
-    valueLabel   = `+${t.bonus_pct}%`;
-    valueUnit    = `${t.effective_ratio.toFixed(2)}:1 ratio`;
+    valueLabel   = t.bonus_pct != null ? `+${t.bonus_pct}%` : `${t.min_transfer_points}+ pts`;
+    valueUnit    = t.bonus_pct != null && t.effective_ratio != null ? `${t.effective_ratio.toFixed(2)}:1 ratio` : 'status match';
     partnerLabel = t.transfer_partner;
   } else {
     const s = props.offer as SpendingBonus;

@@ -447,10 +447,10 @@ function TransferRow({
     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wide shrink-0 ${
       isDark ? 'bg-cv-amber-900 text-cv-amber-400' : 'bg-amber-100 text-amber-800'
     }`}>
-      +{bonus.bonus_pct}% bonus
+      {bonus.bonus_pct != null ? `+${bonus.bonus_pct}% bonus` : 'status match'}
     </span>
   );
-  const multiplier = bonus ? 1 + bonus.bonus_pct / 100 : 1;
+  const multiplier = bonus?.bonus_pct != null ? 1 + bonus.bonus_pct / 100 : 1;
   const displayCpp = transfer.transferCpp !== null
     ? Math.round(transfer.transferCpp * multiplier * 100) / 100
     : null;

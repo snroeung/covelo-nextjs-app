@@ -121,6 +121,7 @@ describe('upsertTransferBonus', () => {
     bonus_pct: 25,
     end_date: '2026-12-31',
     limited_time_offer: true,
+    for_status_transfer: false,
   };
 
   it('skips insert when an approved match exists', async () => {
@@ -144,6 +145,86 @@ describe('upsertTransferBonus', () => {
       { data: null, error: null }, // insert
     ]);
     expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
+  });
+
+  it('defaults for_status_transfer to false when omitted from the record', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null }, // hasApprovedTransferBonusMatch: no dedup match
+      { data: [], error: null }, // resolveCanonicalPartnerName: no match
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
+    expect(insertedRow?.for_status_transfer).toBe(false);
+  });
+
+  it('persists for_status_transfer: true when the record sets it (e.g. Bilt Rent Day status transfer)', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, { ...record, for_status_transfer: true })).toBe(true);
+    expect(insertedRow?.for_status_transfer).toBe(true);
+  });
+
+  it('persists min_transfer_points and null bonus_pct for status-match-only rows (e.g. Bilt -> Accor)', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    const statusOnlyRecord: TransferBonusRecord = {
+      issuer: 'bilt',
+      transfer_partner: 'Accor Live Limitless',
+      bonus_pct: undefined,
+      min_transfer_points: 5000,
+      end_date: '2026-08-01',
+      limited_time_offer: true,
+      for_status_transfer: true,
+    };
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, statusOnlyRecord)).toBe(true);
+    expect(insertedRow?.bonus_pct).toBe(null);
+    expect(insertedRow?.min_transfer_points).toBe(5000);
+    expect(insertedRow?.for_status_transfer).toBe(true);
   });
 
   it('rewrites transfer_partner to the canonical approved transfer_partners spelling when found', async () => {
