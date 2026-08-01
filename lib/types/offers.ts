@@ -19,6 +19,7 @@ export interface TransferBonus {
   is_targeted: boolean;
   for_status_transfer: boolean;
   limited_time_offer: boolean;
+  card_ids: string[];
   source: SyncSource;
   status: SyncStatus;
   source_url: string | null;

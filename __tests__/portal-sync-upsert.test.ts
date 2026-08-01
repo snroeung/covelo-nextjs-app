@@ -249,6 +249,75 @@ describe('upsertTransferBonus', () => {
     expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
     expect(insertedRow?.transfer_partner).toBe('United Airlines MileagePlus');
   });
+
+  it('passes through card_ids that belong to the record issuer', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, { ...record, card_ids: ['chase_reserve'] })).toBe(true);
+    expect(insertedRow?.card_ids).toEqual(['chase_reserve']);
+  });
+
+  it('filters out card_ids that do not belong to the record issuer', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, { ...record, card_ids: ['amex_platinum'] })).toBe(true);
+    expect(insertedRow?.card_ids).toEqual([]);
+  });
+
+  it('defaults card_ids to an empty array when omitted', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    let i = 0;
+    const fromResults = [
+      { data: [], error: null },
+      { data: [], error: null },
+    ];
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
+    expect(insertedRow?.card_ids).toEqual([]);
+  });
 });
 
 describe('upsertSpendingBonus', () => {
@@ -272,6 +341,54 @@ describe('upsertSpendingBonus', () => {
       { data: null, error: null },
     ]);
     expect(await upsertSpendingBonus({ supabase, sourceUrl }, record)).toBe(true);
+  });
+
+  it('passes through card_ids that belong to the record issuer', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    const supabase = makeSupabase([{ data: [], error: null }]);
+    supabase.from = ((table: string) => {
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = () => b;
+      b.limit = () => b;
+      b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+      b.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
+      return b;
+    }) as unknown as typeof supabase.from;
+    expect(await upsertSpendingBonus({ supabase, sourceUrl }, { ...record, card_ids: ['amex_gold'] })).toBe(true);
+    expect(insertedRow?.card_ids).toEqual(['amex_gold']);
+  });
+
+  it('filters out card_ids that do not belong to the record issuer', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    const supabase = makeSupabase([{ data: [], error: null }]);
+    supabase.from = ((table: string) => {
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = () => b;
+      b.limit = () => b;
+      b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+      b.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
+      return b;
+    }) as unknown as typeof supabase.from;
+    expect(await upsertSpendingBonus({ supabase, sourceUrl }, { ...record, card_ids: ['chase_reserve'] })).toBe(true);
+    expect(insertedRow?.card_ids).toEqual([]);
+  });
+
+  it('defaults card_ids to an empty array when omitted', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    const supabase = makeSupabase([{ data: [], error: null }]);
+    supabase.from = ((table: string) => {
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = () => b;
+      b.limit = () => b;
+      b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+      b.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
+      return b;
+    }) as unknown as typeof supabase.from;
+    expect(await upsertSpendingBonus({ supabase, sourceUrl }, record)).toBe(true);
+    expect(insertedRow?.card_ids).toEqual([]);
   });
 });
 

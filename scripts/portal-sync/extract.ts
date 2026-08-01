@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { RECORD_SCHEMAS, type RecordType } from "./schemas";
 import { FEW_SHOT_EXAMPLES } from "./few-shot-examples";
+import { ISSUER_CARDS, CARD_NAMES, type PortalId } from "@/lib/points/types";
 
 const MODEL = "claude-sonnet-5";
 const MAX_PAGE_TEXT_CHARS = 20_000;
@@ -35,6 +36,17 @@ const PORTAL_FIELD_NAME: Record<RecordType, string> = {
   travel_collection: "issuer",
 };
 
+// Card-specific eligibility is often stated only in prose ("Sapphire Reserve
+// cardholders only"). Give the model the closed set of card ids for this
+// issuer so it can emit structured card_ids instead of leaving it in
+// description text.
+function buildCardIdInstruction(portalId: PortalId): string | null {
+  const cards = ISSUER_CARDS[portalId];
+  if (!cards || cards.length === 0) return null;
+  const cardList = cards.map((id) => `${id} (${CARD_NAMES[id]})`).join(", ");
+  return `Cards available under issuer "${portalId}": ${cardList}. If this offer explicitly requires one specific card from that list (not just any card from the issuer) to be eligible, set "card_ids" to the matching id(s). If it applies to all cards from this issuer, omit "card_ids".`;
+}
+
 export async function extractRecords<T extends RecordType>(
   recordType: T,
   pageText: string,
@@ -57,6 +69,9 @@ export async function extractRecords<T extends RecordType>(
     // exact value to use so validation doesn't silently reject every record.
     portalId
       ? `Set "${PORTAL_FIELD_NAME[recordType]}" to exactly "${portalId}" on every record from this source, regardless of how the issuer is named in the page text.`
+      : null,
+    (recordType === "transfer_bonus" || recordType === "spending_bonus") && portalId
+      ? buildCardIdInstruction(portalId as PortalId)
       : null,
     extraInstructions ? `Source-specific instructions: ${extraInstructions}` : null,
     `Page text:\n${pageText.slice(0, MAX_PAGE_TEXT_CHARS)}`,

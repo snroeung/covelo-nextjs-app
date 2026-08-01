@@ -201,6 +201,17 @@ export const CARD_PORTAL_MAP: Record<CardId, PortalId> = {
   citi_strata_elite:       'citi',
 };
 
+// Derived from CARD_PORTAL_MAP so it can't drift from the CardId union —
+// single source of truth for "which cards does this issuer offer",
+// consumed by the admin offer editor and the scraper's card-id extraction.
+export const ISSUER_CARDS: Record<PortalId, CardId[]> = (
+  Object.keys(CARD_PORTAL_MAP) as CardId[]
+).reduce((acc, cardId) => {
+  const portal = CARD_PORTAL_MAP[cardId];
+  (acc[portal] ??= []).push(cardId);
+  return acc;
+}, {} as Record<PortalId, CardId[]>);
+
 export const CARD_NAMES: Record<CardId, string> = {
   chase_reserve:           'Chase Sapphire Reserve',
   chase_preferred:         'Chase Sapphire Preferred',

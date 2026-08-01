@@ -36,11 +36,18 @@ export interface SourceConfig {
 const LIMITED_TIME_INSTRUCTION =
   'Set `limited_time_offer` to true if the page\'s language for that record is limited-time framed ("limited time", "ends soon", "for a limited time", a specific expiring window, a seasonal/promo framing); false if it reads as a standing, ongoing program or benefit with no expiry framing.';
 
-// Bilt Rent Day runs on the 1st of whatever month it's promoted for, and the
-// article covers one calendar month at a time without always restating
-// explicit start/end dates per offer — default to that whole month so
-// upsert doesn't get a null/invalid end_date, but let an explicit date in
-// the page text override it.
+// Bilt Rent Day transfers happen on Rent Day itself — the 1st of whatever
+// month is promoted — not across the whole month. Default an unstated
+// transfer date to that single day so upsert doesn't get a null/invalid
+// end_date, but let an explicit date in the page text override it.
+const BILT_RENT_DAY_SINGLE_DAY_INSTRUCTION =
+  'Unless the page states an explicit transfer date for an offer, assume start_date and end_date both fall on the 1st of the calendar month named on the page (e.g. "August Rent Day" → both YYYY-MM-DD dates are August 1st, using the nearest FUTURE occurrence of that month relative to today). If the page names no month at all, use the current calendar month.';
+
+// Rent Day spending/rent-payment bonuses (unlike the transfer bonus above)
+// run for the whole calendar month the article covers, without always
+// restating explicit start/end dates per offer — default to that whole
+// month so upsert doesn't get a null/invalid end_date, but let an explicit
+// date in the page text override it.
 const BILT_RENT_DAY_WHOLE_MONTH_INSTRUCTION =
   'Unless the page states explicit start/end dates for an offer, assume that offer runs the entire calendar month named on the page (e.g. "August Rent Day" → start_date is the 1st and end_date is the last day of that month, in YYYY-MM-DD form, using the nearest FUTURE occurrence of that month relative to today). If the page names no month at all, use the current calendar month.';
 
@@ -233,7 +240,7 @@ export const SOURCES: SourceConfig[] = [
     needsBrowser: true,
     isTpgFallback: true,
     extraInstructions:
-      `issuer is always "bilt". transfer_partner is the destination loyalty program named for that Rent Day transfer bonus (e.g. "World of Hyatt", "United MileagePlus", "Accor Live Limitless"). bonus_pct is the stated transfer bonus percentage when one exists. Some promos are pure status-match tiers with NO percentage bonus at all — instead the page lists a table/list like "[Bilt tier] status with Bilt: Match to [Program] [Tier] status if you transfer at least N Bilt points to [Program] on [date]" under a heading such as "[Program] status match when you transfer points". For each such tier, emit a separate row: transfer_partner is the Program, leave bonus_pct unset, set min_transfer_points to N, set for_status_transfer to true, and set description to which Bilt status tier is required and which partner status it unlocks (e.g. "Blue or Silver Bilt status unlocks Accor Silver status"). end_date is the stated transfer date (e.g. "Aug. 1" of the current promo period). Some Rent Day promos additionally let a percentage-bonus transfer ALSO count toward the destination program's elite/award status (e.g. qualifying nights/segments, tier credit) — when the page says this explicitly for a bonus_pct row, set for_status_transfer to true and mention the status benefit in description; otherwise set for_status_transfer to false. The page may phrase either case as "Match to [tier] status" or "Match to [Program] status" — treat that wording as a for_status_transfer: true signal. Do NOT scrape anything from a "History of Rent Day promotions" section (or similarly named past/archive section) — only extract the current/upcoming promo(s). ${BILT_RENT_DAY_WHOLE_MONTH_INSTRUCTION} If neither a bonus_pct nor a min_transfer_points threshold can be determined for a row, skip that row rather than guessing. ${LIMITED_TIME_INSTRUCTION}`,
+      `issuer is always "bilt". transfer_partner is the destination loyalty program named for that Rent Day transfer bonus (e.g. "World of Hyatt", "United MileagePlus", "Accor Live Limitless"). bonus_pct is the stated transfer bonus percentage when one exists. Some promos are pure status-match tiers with NO percentage bonus at all — instead the page lists a table/list like "[Bilt tier] status with Bilt: Match to [Program] [Tier] status if you transfer at least N Bilt points to [Program] on [date]" under a heading such as "[Program] status match when you transfer points". For each such tier, emit a separate row: transfer_partner is the Program, leave bonus_pct unset, set min_transfer_points to N, set for_status_transfer to true, and set description to which Bilt status tier is required and which partner status it unlocks (e.g. "Blue or Silver Bilt status unlocks Accor Silver status"). end_date is the stated transfer date (e.g. "Aug. 1" of the current promo period). Some Rent Day promos additionally let a percentage-bonus transfer ALSO count toward the destination program's elite/award status (e.g. qualifying nights/segments, tier credit) — when the page says this explicitly for a bonus_pct row, set for_status_transfer to true and mention the status benefit in description; otherwise set for_status_transfer to false. The page may phrase either case as "Match to [tier] status" or "Match to [Program] status" — treat that wording as a for_status_transfer: true signal. Do NOT scrape anything from a "History of Rent Day promotions" section (or similarly named past/archive section) — only extract the current/upcoming promo(s). ${BILT_RENT_DAY_SINGLE_DAY_INSTRUCTION} If neither a bonus_pct nor a min_transfer_points threshold can be determined for a row, skip that row rather than guessing. ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "bilt_rent_day_spending_bonus",

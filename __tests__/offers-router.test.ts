@@ -99,6 +99,7 @@ const mockTransferBonus: TransferBonus = {
   limited_time_offer: false,
   is_targeted: false,
   for_status_transfer: false,
+  card_ids: [],
   source: 'admin',
   status: 'admin',
   source_url: 'https://example.com',
@@ -375,6 +376,80 @@ describe('offers.admin.createTransferBonus()', () => {
         end_date: '2026-12-31',
       }),
     ).rejects.toThrow('Insert failed');
+  });
+
+  it('16a. persists card_ids on insert', async () => {
+    const { mockFrom } = setupSupabase({ data: mockTransferBonus, error: null });
+
+    await caller.offers.admin.createTransferBonus({
+      issuer: 'chase',
+      transfer_partner: 'Hyatt',
+      bonus_pct: 30,
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+      card_ids: ['chase_reserve'],
+    });
+
+    const builder = mockFrom.mock.results[0].value;
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ card_ids: ['chase_reserve'] }),
+    );
+  });
+
+  it('16b. defaults card_ids to [] when omitted', async () => {
+    const { mockFrom } = setupSupabase({ data: mockTransferBonus, error: null });
+
+    await caller.offers.admin.createTransferBonus({
+      issuer: 'chase',
+      transfer_partner: 'Hyatt',
+      bonus_pct: 30,
+      start_date: '2026-01-01',
+      end_date: '2026-12-31',
+    });
+
+    const builder = mockFrom.mock.results[0].value;
+    expect(builder.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ card_ids: [] }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// admin.updateTransferBonus()
+// ---------------------------------------------------------------------------
+
+describe('offers.admin.updateTransferBonus()', () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(redis.del).mockResolvedValue(1);
+  });
+
+  it('16c. persists card_ids on update', async () => {
+    const { mockFrom } = setupSupabase({ data: { ...mockTransferBonus, card_ids: ['chase_reserve'] }, error: null });
+
+    const result = await caller.offers.admin.updateTransferBonus({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      card_ids: ['chase_reserve'],
+    });
+
+    const builder = mockFrom.mock.results[0].value;
+    expect(builder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ card_ids: ['chase_reserve'] }),
+    );
+    expect(result.card_ids).toEqual(['chase_reserve']);
+  });
+
+  it('16d. invalidates transfer bonus cache after update', async () => {
+    setupSupabase({ data: mockTransferBonus, error: null });
+
+    await caller.offers.admin.updateTransferBonus({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      card_ids: [],
+    });
+
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.transferBonuses());
   });
 });
 

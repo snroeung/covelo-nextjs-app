@@ -7,6 +7,14 @@ import type {
   TravelCollectionRecord,
 } from "./schemas";
 import { normalizeProgramName } from "@/lib/points/programNames";
+import { ISSUER_CARDS, type CardId, type PortalId } from "@/lib/points/types";
+
+// Defends against hallucinated/mismatched ids before they hit the DB —
+// e.g. the model returning an Amex card id for a Chase-issuer record.
+function validCardIds(issuer: string, cardIds: string[] | undefined): string[] {
+  const allowed = ISSUER_CARDS[issuer as PortalId] ?? [];
+  return (cardIds ?? []).filter((id) => allowed.includes(id as CardId));
+}
 
 type TableName = "transfer_partners" | "transfer_bonuses" | "spending_bonuses" | "travel_collections";
 
@@ -162,6 +170,7 @@ export async function upsertTransferBonus(
     end_date: record.end_date,
     is_targeted: record.is_targeted ?? false,
     for_status_transfer: record.for_status_transfer ?? false,
+    card_ids: validCardIds(record.issuer, record.card_ids),
     // Every transfer_bonus record comes from the TPG aggregator, which by
     // definition only lists live, time-boxed offers — the extraction LLM
     // unreliably fills this field (zod defaults it false when omitted), so
@@ -198,6 +207,7 @@ export async function upsertSpendingBonus(
     end_date: record.end_date,
     is_targeted: record.is_targeted ?? false,
     limited_time_offer: record.limited_time_offer,
+    card_ids: validCardIds(record.issuer, record.card_ids),
     source_url: ctx.sourceUrl,
     source: "cron",
     status: "pending",

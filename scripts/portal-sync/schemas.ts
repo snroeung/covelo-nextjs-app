@@ -27,6 +27,9 @@ export const TransferBonusRecordSchema = z.object({
   // program's elite/award status (e.g. Bilt Rent Day → World of Hyatt
   // night credits), not just a points bonus.
   for_status_transfer: z.boolean().default(false),
+  // Set only when the offer explicitly requires one specific card product
+  // from the issuer, not just any card — omitted/empty means all cards.
+  card_ids: z.array(z.string()).optional(),
 }).refine((r) => r.bonus_pct != null || r.min_transfer_points != null, {
   message: "either bonus_pct or min_transfer_points is required",
 });
@@ -47,6 +50,9 @@ export const SpendingBonusRecordSchema = z.object({
   end_date: z.string().nullable().optional(),
   is_targeted: z.boolean().optional(),
   limited_time_offer: z.boolean().default(false),
+  // Set only when the offer explicitly requires one specific card product
+  // from the issuer, not just any card — omitted/empty means all cards.
+  card_ids: z.array(z.string()).optional(),
 });
 export type SpendingBonusRecord = z.infer<typeof SpendingBonusRecordSchema>;
 

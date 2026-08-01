@@ -1,4 +1,4 @@
-# Module Dependency Map (generated 2026-07-31)
+# Module Dependency Map (generated 2026-08-01)
 
 Reverse import map: `target << files that import it`. Sorted by importer count.
 Grep this file for a path to get its importers (blast radius) — do not read the whole file.

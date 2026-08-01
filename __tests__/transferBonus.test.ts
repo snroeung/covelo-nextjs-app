@@ -39,6 +39,7 @@ function mkBonus(overrides: Partial<TransferBonus> = {}): TransferBonus {
     is_targeted: false,
     for_status_transfer: false,
     limited_time_offer: true,
+    card_ids: [],
     source: 'cron',
     status: 'approved',
     source_url: null,
