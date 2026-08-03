@@ -346,7 +346,7 @@ describe('upsertSpendingBonus', () => {
   it('passes through card_ids that belong to the record issuer', async () => {
     let insertedRow: Record<string, unknown> | undefined;
     const supabase = makeSupabase([{ data: [], error: null }]);
-    supabase.from = ((table: string) => {
+    supabase.from = (() => {
       const b: Record<string, unknown> = {};
       b.select = () => b;
       b.eq = () => b;
@@ -362,7 +362,7 @@ describe('upsertSpendingBonus', () => {
   it('filters out card_ids that do not belong to the record issuer', async () => {
     let insertedRow: Record<string, unknown> | undefined;
     const supabase = makeSupabase([{ data: [], error: null }]);
-    supabase.from = ((table: string) => {
+    supabase.from = (() => {
       const b: Record<string, unknown> = {};
       b.select = () => b;
       b.eq = () => b;
@@ -378,7 +378,7 @@ describe('upsertSpendingBonus', () => {
   it('defaults card_ids to an empty array when omitted', async () => {
     let insertedRow: Record<string, unknown> | undefined;
     const supabase = makeSupabase([{ data: [], error: null }]);
-    supabase.from = ((table: string) => {
+    supabase.from = (() => {
       const b: Record<string, unknown> = {};
       b.select = () => b;
       b.eq = () => b;
@@ -429,7 +429,7 @@ describe('upsertTravelCollection', () => {
   it('dedups hotel-type records on (issuer, collection_name, property_name)', async () => {
     const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
     let seenTable = '';
-    let seenMatch: Record<string, unknown> = {};
+    const seenMatch: Record<string, unknown> = {};
     supabase.from = ((table: string) => {
       seenTable = table;
       const b: Record<string, unknown> = {};
@@ -455,8 +455,8 @@ describe('upsertTravelCollection', () => {
 
   it('dedups flight-type records on (issuer, collection_name, airline_iata_code, cabin_class)', async () => {
     const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
-    let seenMatch: Record<string, unknown> = {};
-    supabase.from = ((table: string) => {
+    const seenMatch: Record<string, unknown> = {};
+    supabase.from = (() => {
       const b: Record<string, unknown> = {};
       b.select = () => b;
       b.eq = (key: string, value: unknown) => {

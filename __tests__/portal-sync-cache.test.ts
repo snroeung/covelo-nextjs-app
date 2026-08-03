@@ -6,7 +6,7 @@ vi.mock('@/lib/redis', () => ({
   },
 }));
 
-const isEnabledMock = vi.fn((_flag: string) => true);
+const isEnabledMock = vi.fn(() => true);
 vi.mock('@/lib/feature-flags', () => ({
   isEnabled: (flag: string) => isEnabledMock(flag),
 }));

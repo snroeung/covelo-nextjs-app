@@ -339,8 +339,8 @@ function HotelsPageInner() {
 
   const hotelPins = useMemo(() => accommodationsToPins(accommodations), [accommodations]);
 
-  const featuredAccommodations = useMemo(() => accommodations.filter((sr: any) => Boolean(sr.collection)), [accommodations]);
-  const regularAccommodations  = useMemo(() => accommodations.filter((sr: any) => !sr.collection), [accommodations]);
+  const featuredAccommodations = useMemo(() => accommodations.filter((sr) => Boolean(sr.collection)), [accommodations]);
+  const regularAccommodations  = useMemo(() => accommodations.filter((sr) => !sr.collection), [accommodations]);
 
   const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const textMuted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';

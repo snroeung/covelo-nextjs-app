@@ -13,7 +13,7 @@ import { AdminTransferPartnerEditor } from '@/components/offers/admin/AdminTrans
 import { AdminHotelCollectionEditor } from '@/components/offers/admin/AdminHotelCollectionEditor';
 import { AdminTransferPartnersTable, partnerStatus } from '@/components/offers/admin/AdminTransferPartnersTable';
 import { AdminTravelCollectionsTable, collectionStatus } from '@/components/offers/admin/AdminTravelCollectionsTable';
-import { StatusFilterTabs, STATUS_TABS, IssuerFilterSelect, ISSUER_FILTER_OPTIONS, type StatusFilter, type IssuerFilter } from '@/components/offers/admin/adminTableShared';
+import { StatusFilterTabs, IssuerFilterSelect, ISSUER_FILTER_OPTIONS, type StatusFilter, type IssuerFilter } from '@/components/offers/admin/adminTableShared';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
