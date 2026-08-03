@@ -41,14 +41,45 @@ export interface SpendingBonusData {
   description?: string;
 }
 
+export interface TransferPartnerData {
+  portal: 'Chase' | 'Amex' | 'Capital One' | 'Bilt' | 'Citi';
+  type: 'hotel' | 'airline';
+  program: string;
+  ratio?: string;
+  chainKey?: string;
+  iataCodes?: string;
+  sourceUrl?: string;
+  active?: boolean;
+}
+
+export interface TravelCollectionData {
+  type: 'hotel' | 'flight';
+  issuer: 'Chase' | 'Amex' | 'Capital One' | 'Bilt' | 'Citi';
+  collectionName: string;
+  perkSummary: string;
+  propertyName?: string;
+  cabinClass?: 'Economy' | 'Premium economy' | 'Business' | 'First';
+  airlineName?: string;
+  airlineIataCode?: string;
+  originalAmount?: number;
+  originalUnit?: 'points' | 'usd';
+  discountAmount?: number;
+  discountUnit?: 'points' | 'usd';
+  endDate?: string;
+  limitedTime?: boolean;
+  sourceUrl?: string;
+  active?: boolean;
+}
+
 export async function navigateToAdminSection(page: Page, tab: 'Offers' | 'Ads') {
   // 1. Go to /offers
   await page.goto('/offers');
   // 2. Open profile popup
   await page.getByRole('button', { name: /open profile|profile/i }).click();
-  // 3. Click "Offers Admin" in the popup
-  await page.getByRole('link', { name: /offers admin/i })
-    .or(page.getByRole('button', { name: /offers admin/i }))
+  // 3. Click "Admin" in the popup (renamed from "Offers Admin" when the
+  // admin page moved from /offers/admin to /admin)
+  await page.getByRole('link', { name: 'Admin', exact: true })
+    .or(page.getByRole('button', { name: 'Admin', exact: true }))
     .click();
   // 4. Click the correct tab
   if (tab === 'Ads') {
@@ -134,6 +165,43 @@ export async function createSponsoredAd(page: Page, data: SponsoredAdData) {
   await expect(
     adRow.locator('span[class*="rounded-full"]').filter({ hasText: /^Live$/ }).first()
   ).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * Reads the real, live transfer partner program names currently seeded for
+ * an issuer from the New Offer editor's dropdown, so tests don't have to
+ * hardcode a partner name that may not exist in every environment (seed
+ * data varies — e.g. some environments only have "World of Hyatt" seeded
+ * for Chase, not the full partner list). Returns null if none are found.
+ * Leaves the editor open on the offers table when done (clicks Cancel).
+ */
+export async function discoverTransferPartnerProgram(
+  page: Page,
+  issuer: string,
+  type: 'Hotel' | 'Airline',
+): Promise<string | null> {
+  await navigateToAdminSection(page, 'Offers');
+  await page.getByRole('button', { name: /new offer/i }).click();
+  await expect(page.getByText('Create a new offer')).toBeVisible({ timeout: 5_000 });
+  await page.getByRole('button', { name: 'Transfer Bonus', exact: true }).click();
+
+  const issuerSelect = page.locator('select:has(option:text("Select issuer…"))');
+  await issuerSelect.selectOption(issuer);
+
+  const partnerSelect = page.locator('select:has(option:text("Select partner…"))');
+  await expect(partnerSelect).toBeEnabled({ timeout: 3_000 });
+
+  let program: string | null = null;
+  for (const opt of await partnerSelect.locator('option').all()) {
+    const value = await opt.getAttribute('value');
+    const text = (await opt.textContent()) ?? '';
+    if (!value || !text.startsWith(`[${type}]`) || text.includes(TEST_PREFIX) || text.includes('[DEBUG]')) continue;
+    program = value;
+    break;
+  }
+
+  await page.getByRole('button', { name: 'Cancel' }).first().click();
+  return program;
 }
 
 export async function createTransferBonus(page: Page, data: TransferBonusData) {
@@ -230,6 +298,204 @@ export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
   // On success the editor closes and the offers table shows the new row
   await expect(page.getByText('Create a new offer')).toBeHidden({ timeout: 15_000 });
   await expect(page.getByText(data.merchant).first()).toBeVisible({ timeout: 10_000 });
+}
+
+export async function createTransferPartner(page: Page, data: TransferPartnerData) {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Transfer partners' }).click();
+
+  // transfer_partners has a UNIQUE (portal_id, program, type) constraint and
+  // no delete endpoint — a leftover row from a prior run (deactivated, not
+  // deleted) would collide on create. Edit it in place instead when found.
+  // isVisible() does not wait/retry — it checks synchronously and would
+  // race the table's initial data fetch, so use waitFor to give it a real
+  // chance to appear before deciding it doesn't exist.
+  const escapedProgram = data.program.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const existingRow = page.locator('div.grid').filter({ hasText: new RegExp(escapedProgram) }).first();
+  const isEditing = await existingRow.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false);
+
+  if (isEditing) {
+    await existingRow.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByText('EDIT TRANSFER PARTNER')).toBeVisible({ timeout: 5_000 });
+  } else {
+    await page.getByRole('button', { name: /new partner/i }).click();
+    await expect(page.getByText('NEW TRANSFER PARTNER')).toBeVisible({ timeout: 5_000 });
+
+    // Portal/Type selects have no htmlFor-linked <label> — target via the adjacent
+    // sibling label text instead of position, since field order shifts by type.
+    // (Disabled when editing, so only set on create.)
+    await page.locator('label:text-is("Portal") + select').selectOption({ label: data.portal });
+    await page.locator('label:text-is("Type") + select').selectOption(data.type);
+  }
+
+  await page.getByPlaceholder('World of Hyatt').fill(data.program);
+
+  if (data.ratio) {
+    await page.getByPlaceholder('1:1').fill(data.ratio);
+  }
+  if (data.chainKey) {
+    // getByPlaceholder does a substring match by default, and "hyatt" is a
+    // substring of the Program name field's own placeholder ("World of
+    // Hyatt") — exact match is required to hit only the Chain key field.
+    await page.getByPlaceholder('hyatt', { exact: true }).fill(data.chainKey);
+  }
+  if (data.iataCodes) {
+    await page.getByPlaceholder('UA, AC').fill(data.iataCodes);
+  }
+  if (data.sourceUrl) {
+    await page.getByPlaceholder('https://...').fill(data.sourceUrl);
+  }
+
+  // A reused row may currently be inactive from a prior test's cleanup —
+  // set the checkbox to match the requested state rather than assuming
+  // it starts checked (only true for brand-new rows).
+  const activeCheckbox = page.getByRole('checkbox', { name: /Active \(visible publicly\)/i });
+  if (data.active === false) {
+    await activeCheckbox.uncheck();
+  } else {
+    await activeCheckbox.check();
+  }
+
+  const publishBtn = page.getByRole('button', { name: isEditing ? /^Save changes$/ : /^Publish$/ });
+  await expect(publishBtn).toBeEnabled({ timeout: 5_000 });
+  await publishBtn.click();
+
+  const heading = isEditing ? 'EDIT TRANSFER PARTNER' : 'NEW TRANSFER PARTNER';
+  await expect(page.getByText(heading)).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByText(data.program).first()).toBeVisible({ timeout: 10_000 });
+}
+
+export async function createTravelCollection(page: Page, data: TravelCollectionData) {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Travel collections' }).click();
+
+  // No delete endpoint exists — a leftover row from a prior run (deactivated,
+  // not deleted) would otherwise duplicate silently (no unique constraint on
+  // this table). Edit it in place instead when found, for idempotent re-runs.
+  // isVisible() does not wait/retry — it checks synchronously and would
+  // race the table's initial data fetch, so use waitFor to give it a real
+  // chance to appear before deciding it doesn't exist.
+  const escapedName = data.collectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const existingRow = page.locator('div.grid').filter({ hasText: new RegExp(escapedName) }).first();
+  const isEditing = await existingRow.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false);
+
+  if (isEditing) {
+    await existingRow.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByText('EDIT TRAVEL COLLECTION')).toBeVisible({ timeout: 5_000 });
+  } else {
+    await page.getByRole('button', { name: /new collection/i }).click();
+    await expect(page.getByText('NEW TRAVEL COLLECTION')).toBeVisible({ timeout: 5_000 });
+
+    // Type toggle/Issuer select are disabled when editing, so only set on create.
+    if (data.type === 'flight') {
+      await page.getByRole('button', { name: 'Flight', exact: true }).click();
+    }
+    await page.locator('label:text-is("Issuer") + select').selectOption({ label: data.issuer });
+  }
+
+  if (data.type === 'hotel') {
+    if (data.propertyName) {
+      await page.getByPlaceholder(/The Ritz-Carlton/i).fill(data.propertyName);
+    }
+  } else {
+    if (data.cabinClass) {
+      await page.locator('label:text-is("Cabin class") + select').selectOption({ label: data.cabinClass });
+    }
+    if (data.airlineName) {
+      await page.getByPlaceholder('United Airlines').fill(data.airlineName);
+    }
+    if (data.airlineIataCode) {
+      await page.getByPlaceholder('UA').fill(data.airlineIataCode);
+    }
+  }
+
+  await page.getByPlaceholder('Fine Hotels + Resorts').fill(data.collectionName);
+  await page.getByPlaceholder('$100 credit, room upgrade, late checkout').fill(data.perkSummary);
+
+  if (data.originalAmount != null) {
+    const amountInput = page.getByPlaceholder('60000');
+    await amountInput.fill(String(data.originalAmount));
+    if (data.originalUnit) {
+      await amountInput.locator('xpath=following-sibling::select').selectOption(data.originalUnit);
+    }
+  }
+  if (data.discountAmount != null) {
+    const amountInput = page.getByPlaceholder('48000');
+    await amountInput.fill(String(data.discountAmount));
+    if (data.discountUnit) {
+      await amountInput.locator('xpath=following-sibling::select').selectOption(data.discountUnit);
+    }
+  }
+  if (data.endDate) {
+    await page.locator('input[type="date"]').fill(data.endDate);
+  }
+  if (data.limitedTime) {
+    await page.getByRole('checkbox', { name: /Limited time/i }).check();
+  }
+  if (data.sourceUrl) {
+    await page.getByPlaceholder('https://...').fill(data.sourceUrl);
+  }
+
+  // A reused row may currently be inactive from a prior test's cleanup —
+  // set the checkbox to match the requested state rather than assuming
+  // it starts checked (only true for brand-new rows).
+  const activeCheckbox = page.getByRole('checkbox', { name: /Active \(visible publicly\)/i });
+  if (data.active === false) {
+    await activeCheckbox.uncheck();
+  } else {
+    await activeCheckbox.check();
+  }
+
+  const publishBtn = page.getByRole('button', { name: isEditing ? /^Save changes$/ : /^Publish$/ });
+  await expect(publishBtn).toBeEnabled({ timeout: 5_000 });
+  await publishBtn.click();
+
+  const heading = isEditing ? 'EDIT TRAVEL COLLECTION' : 'NEW TRAVEL COLLECTION';
+  await expect(page.getByText(heading)).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByText(data.collectionName).first()).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * Toggles a row's active state by clicking its Reactivate/Deactivate button.
+ * Shared by setTransferPartnerActive/setTravelCollectionActive — assumes the
+ * caller has already navigated to the right admin tab. Mirrors setOfferActive's
+ * sweep-and-poll loop (duplicate rows from failed runs, React reusing the
+ * button node instead of unmounting it).
+ */
+async function setRowActiveOnCurrentTab(page: Page, itemLabel: string, active: boolean) {
+  const escaped = itemLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped, 'i');
+  const btnRe = active ? /^Reactivate$/ : /^Deactivate$/;
+
+  const buttons = () =>
+    page.locator('div.grid').filter({ hasText: re }).getByRole('button', { name: btnRe });
+
+  await page.getByText(re).first().waitFor({ timeout: 10_000 }).catch(() => {});
+
+  for (let i = 0; i < 20; i++) {
+    const before = await buttons().count();
+    if (before === 0) break;
+    // Deactivating (active -> inactive) triggers window.confirm; reactivating does not
+    if (!active) page.once('dialog', (dialog) => dialog.accept());
+    await buttons().last().click();
+    await expect
+      .poll(() => buttons().count(), { timeout: 15_000, intervals: [150, 250, 400, 700, 1000] })
+      .toBeLessThan(before);
+  }
+}
+
+/** Set the active/inactive state of a transfer partner row identified by its program name. */
+export async function setTransferPartnerActive(page: Page, programName: string, active: boolean) {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Transfer partners' }).click();
+  await setRowActiveOnCurrentTab(page, programName, active);
+}
+
+/** Set the active/inactive state of a travel collection row identified by its collection name. */
+export async function setTravelCollectionActive(page: Page, collectionName: string, active: boolean) {
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Travel collections' }).click();
+  await setRowActiveOnCurrentTab(page, collectionName, active);
 }
 
 /** Set the active/inactive state of an offer row identified by its heading text in the admin table. */

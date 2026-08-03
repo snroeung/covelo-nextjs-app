@@ -89,7 +89,22 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   const [detailItem, setDetailItem] = useState<PendingReviewRow | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
+  // Approving/rejecting can touch any of the 4 pending-review tables (a bulk
+  // approve can span several at once), so invalidate every client cache that
+  // reads from them — not just this table's own list. Without this, e.g. an
+  // approved transfer partner keeps showing the pre-approval list in the New
+  // Offer editor's partner dropdown, in usePointsCalc (so TransferBonusBanner
+  // doesn't pick it up either), and in the Transfer Partners/Travel
+  // Collections/Offers admin tabs, until a full page reload.
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
+    queryClient.invalidateQueries({ queryKey: ['portalData.transferPartners'] });
+    queryClient.invalidateQueries({ queryKey: ['portalData.listTransferPartners'] });
+    queryClient.invalidateQueries({ queryKey: ['portalData.listTravelCollections'] });
+    queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
+    queryClient.invalidateQueries({ queryKey: ['offers.transferBonuses'] });
+    queryClient.invalidateQueries({ queryKey: ['offers.spendingBonuses'] });
+  };
 
   const approveMutation = useMutation({
     mutationFn: (args: { table: PendingTableName; id: string; runId?: string; edits?: Record<string, string> }) =>
@@ -122,7 +137,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
 
   const card    = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const rowHov  = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50';
   const divider = isDark ? 'border-gph-dark-line' : 'border-gray-100';
   const headBg  = isDark ? 'bg-gph-dark-bg' : 'bg-gray-50';
@@ -130,7 +145,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   function filterTabCls(active: boolean) {
     const base = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors';
     if (active) return `${base} ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink' : 'bg-gray-100 text-gray-900'}`;
-    return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-700'}`;
+    return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-700'}`;
   }
 
   // Approved/rejected rows never show here again — the sync-run stays
@@ -319,7 +334,7 @@ export function PendingReviewTable({ rows, isDark }: Props) {
               <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                 item.row.source === 'cron'
                   ? isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-50 text-amber-700'
-                  : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                  : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600'
               }`}>
                 {String(item.row.source ?? '')}
               </span>

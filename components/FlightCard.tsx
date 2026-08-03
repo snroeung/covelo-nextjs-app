@@ -140,7 +140,7 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
               <div className={`text-[9px] font-mono text-center ${textMuted}`}>{dur}</div>
               <ArrowLine isDark={isDark} />
               <div className={`text-[9px] font-mono text-center font-bold ${
-                stops === 0 ? 'text-green-600' : textMuted
+                stops === 0 ? 'text-cv-green-800' : textMuted
               }`}>
                 {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
               </div>
@@ -206,7 +206,7 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
             <div className={`text-[9px] font-mono text-center ${textMuted}`}>{dur}</div>
             <ArrowLine isDark={isDark} />
             <div className={`text-[9px] font-mono text-center font-bold ${
-              stops === 0 ? 'text-green-600' : textMuted
+              stops === 0 ? 'text-cv-green-800' : textMuted
             }`}>
               {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
             </div>

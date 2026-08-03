@@ -109,6 +109,18 @@ export const portalDataRouter = router({
         return (data ?? []) as TransferPartnerRow[];
       }),
 
+    listTravelCollections: adminProcedure("api:portal-data")
+      .query(async (): Promise<TravelCollection[]> => {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("travel_collections")
+          .select("*")
+          .order("collection_name", { ascending: true });
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        return (data ?? []) as TravelCollection[];
+      }),
+
     listAll: adminProcedure("api:portal-data")
       .query(async (): Promise<PendingReviewRow[]> => {
         const supabase = await createClient();

@@ -232,7 +232,7 @@ For any non-trivial task (new feature, refactor, bug with unclear root cause), *
 
 1. Write out your understanding of the problem
 2. List the files/modules affected
-3. Identify edge cases and testing requirements
+3. Identify edge cases and testing requirements — if the task adds or changes any UI (component or page), list which Playwright e2e specs under `e2e/` will need to be added or updated
 4. **If the task involves any API call, answer these caching questions before writing code:**
    - **Should this be cached?** — Is the response deterministic for a given input? Is it expensive (latency, cost, or rate-limited)? If yes to either, cache it.
    - **What is the right TTL?** — Pricing/availability: 15 min. Static metadata (hotel names, amenities, airline info): 24 hrs. User-specific data (balances, preferences): do not cache at the shared layer.
@@ -337,7 +337,7 @@ Claude will prompt: `💾 Good commit point —` followed by a suggested message
 - A bug is fixed and verified
 - A new component is complete and visually verified
 
-**Before prompting to commit, always verify `npm run build` passes.** Vercel runs `npm run build` on every push to deploy the app — if the build is broken, the deployment fails and the branch is dead in production. Run `npm run build` and confirm there are no errors before suggesting a commit. Common failure modes: missing npm dependencies (not in `package.json`), `useSearchParams()` without a `<Suspense>` wrapper, TypeScript errors, and unresolved imports. Fix any build errors before committing.
+**Before prompting to commit, always verify `npm run build`, `npm run lint`, `npm run typecheck`, `npx vitest run --coverage`, `npm audit --audit-level=high` passes — and `npm run test:e2e` for commits that touch UI.** Vercel runs `npm run build` on every push to deploy the app — if the build is broken, the deployment fails and the branch is dead in production. Run `npm run build`, `npm run lint`, and `npm run typecheck` and confirm there are no errors before suggesting a commit. Run `npx vitest run --coverage` and confirm the suite passes — check the coverage report for gaps in any logic touched by the commit. If the commit touches any component or page, also run `npm run test:e2e` (or the narrower `npm run test:e2e -- e2e/<route>/` for the touched route) and confirm it passes. Also run `npm audit --audit-level=high` and ensure all dependencies are safe from high vulnerabilities. Any vulnerabilities from npm audit can be resolved using `npm audit fix --force` Common failure modes: missing npm dependencies (not in `package.json`), `useSearchParams()` without a `<Suspense>` wrapper, TypeScript errors, and unresolved imports. Fix any build errors before committing.
 
 ### Commit size
 Keep commits **small and focused**. One logical change per commit. Avoid bundling unrelated changes.
@@ -365,19 +365,15 @@ chore(deps): upgrade @duffel/api to latest
 
 ### Unit tests are mandatory after every non-trivial task
 
-After adding or changing any function in `lib/`, `server/routers/`, or `hooks/`, add or update Jest tests in `__tests__/` before considering the task done. Run `npm test` and confirm it passes. **E2E tests are created on explicit request only** — do not auto-generate them.
+After adding or changing any function in `lib/`, `server/routers/`, or `hooks/`, add or update Jest tests in `__tests__/` before considering the task done. Run `npm test` and confirm it passes.
+
+**New or changed UI (component or page) requires a Playwright e2e test before the task is considered done.** Add or update a spec under `e2e/<route>/`, following the patterns in `e2e/utils/admin-helpers.ts` (reuse existing helpers, extend them, or add new ones there rather than duplicating logic inline). Run `npm run test:e2e -- e2e/<route>/` and confirm it passes. Pure `lib/`/`server/routers/`/`hooks/` changes with no UI surface keep the unit-test-only rule above — e2e is not required for those.
 
 ### Unit / Integration (Jest + ts-jest)
 - All `lib/` modules require Jest unit tests in `__tests__/`
 - Points engine (`calcPoints.ts`, `transferPartners.ts`) requires 10+ test cases covering edge cases (Amex hotel/flight split, deduplication, transfer partner math)
 - tRPC routers (offers, flights) are tested by mocking `@/lib/supabase/server`, `@/lib/duffel`, `@/lib/redis`, and `@/lib/feature-flags` — no live API calls
 - Run before committing: `npm test`
-
-### Component Testing (Storybook + Chromatic)
-- Every new UI component needs a Storybook story
-- Story must cover: default state, loading state, empty/error state, and any interactive variants
-- Visual regression is enforced via Chromatic — review snapshots before merging
-- Run locally: `npm run storybook`
 
 ### E2E (Playwright)
 - Critical user flows and admin operations require Playwright tests
@@ -476,7 +472,7 @@ Every UI element must be legible in **both** light and dark mode. Always pair a 
 <span className="text-gray-800 dark:text-gray-100">Points needed</span>
 ```
 
-**Storybook stories must include a dark mode variant** for every component. Chromatic will diff both — treat dark mode contrast failures as blocking bugs, not cosmetic issues.
+**Verify dark mode manually in the browser** for every new component before considering it done — toggle the theme switch and check contrast in both modes. Treat dark mode contrast failures as blocking bugs, not cosmetic issues.
 
 ### 📱 Mobile & Web Usability (Non-Negotiable)
 
@@ -507,7 +503,7 @@ Covelo is a consumer app — assume users are on their phone while at the airpor
 <main className="w-full max-w-5xl mx-auto px-4 md:px-8">
 ```
 
-**Storybook stories must include a mobile viewport variant** (375px wide) alongside desktop. Lighthouse CI runs against both mobile and desktop profiles — both must meet the performance and accessibility thresholds.
+**Verify at a 375px mobile viewport** (browser devtools, or a Playwright `page.setViewportSize`) alongside desktop for every new component. Lighthouse CI runs against both mobile and desktop profiles — both must meet the performance and accessibility thresholds.
 
 ---
 
@@ -572,7 +568,6 @@ zod
 ### Testing Infrastructure
 *~2,000 tokens/session saved*
 - **Unit tests:** Vitest (migrated from Jest); config at `vitest.config.ts`; setup at `__tests__/setup.ts`; MSW mocks at `__tests__/mocks/`
-- **Storybook:** must pin to `storybook@^8` — `storybook@latest` (v10+) causes unresolvable peer dependency conflicts with current packages
 - **E2E:** Playwright; config at `playwright.config.ts`; specs under `e2e/`; auth state at `e2e/.auth/`
 
 ### Known Warnings (Safe to Ignore)

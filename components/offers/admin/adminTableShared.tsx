@@ -110,6 +110,7 @@ export function IssuerFilterSelect({
 }) {
   return (
     <select
+      aria-label="Filter by issuer"
       value={value}
       onChange={(e) => onChange(e.target.value as IssuerFilter)}
       className={`min-h-11 md:min-h-9 px-3 rounded-lg text-xs font-bold border outline-none cursor-pointer ${
@@ -210,7 +211,7 @@ export function PendingBadge({ pending, active, isDark }: { pending: boolean; ac
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
       active
         ? isDark ? 'bg-green-900/40 text-green-400' : 'bg-green-50 text-green-700'
-        : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+        : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600'
     }`}>
       {active ? 'Active' : 'Inactive'}
     </span>

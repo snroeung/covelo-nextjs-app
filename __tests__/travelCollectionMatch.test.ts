@@ -76,11 +76,18 @@ describe("matchHotelCollections", () => {
     expect(matches.has("acc_4")).toBe(false);
   });
 
-  it("ignores collections that are not status=approved", () => {
-    const collections = [makeCollection({ status: "admin" }), makeCollection({ status: "pending" })];
+  it("matches status=admin rows — admin-published collections are publicly visible without cron review", () => {
+    const collections = [makeCollection({ status: "admin" })];
     const results = [makeResult("acc_6", "The Ritz-Carlton New York")];
     const matches = matchHotelCollections(results, collections);
-    expect(matches.has("acc_6")).toBe(false);
+    expect(matches.has("acc_6")).toBe(true);
+  });
+
+  it("ignores collections that are status=pending or status=rejected", () => {
+    const collections = [makeCollection({ status: "pending" }), makeCollection({ status: "rejected" })];
+    const results = [makeResult("acc_6b", "The Ritz-Carlton New York")];
+    const matches = matchHotelCollections(results, collections);
+    expect(matches.has("acc_6b")).toBe(false);
   });
 
   it("ignores collections with type=flight", () => {
@@ -171,8 +178,15 @@ describe("matchFlightCollections", () => {
     expect(matches.get("offer_3")?.collection_name).toBe("Economy Boost");
   });
 
-  it("ignores collections that are not status=approved", () => {
-    const collections = [makeFlightCollection({ status: "pending" })];
+  it("matches status=admin rows — admin-published collections are publicly visible without cron review", () => {
+    const collections = [makeFlightCollection({ status: "admin" })];
+    const offers = [makeOffer("offer_4a", "UA")];
+    const matches = matchFlightCollections(offers, collections);
+    expect(matches.has("offer_4a")).toBe(true);
+  });
+
+  it("ignores collections that are status=pending or status=rejected", () => {
+    const collections = [makeFlightCollection({ status: "pending" }), makeFlightCollection({ status: "rejected" })];
     const offers = [makeOffer("offer_4", "UA")];
     const matches = matchFlightCollections(offers, collections);
     expect(matches.has("offer_4")).toBe(false);

@@ -49,8 +49,11 @@ export function matchHotelCollections(
 ): Map<string, CollectionMatchEntry> {
   const result = new Map<string, CollectionMatchEntry>();
 
+  // 'admin' rows are published directly by an admin (no cron review needed) —
+  // same visibility rule as listTravelCollections/listTransferPartners, which
+  // already treat admin+approved as publicly visible.
   const candidates = collections.filter(
-    (c) => c.type === "hotel" && c.property_name && c.status === "approved",
+    (c) => c.type === "hotel" && c.property_name && (c.status === "approved" || c.status === "admin"),
   );
 
   for (const sr of duffelResults) {
@@ -82,7 +85,12 @@ export function matchFlightCollections(
 ): Map<string, CollectionMatchEntry> {
   const result = new Map<string, CollectionMatchEntry>();
 
-  const candidates = collections.filter((c) => c.type === "flight" && c.status === "approved");
+  // 'admin' rows are published directly by an admin (no cron review needed) —
+  // same visibility rule as listTravelCollections/listTransferPartners, which
+  // already treat admin+approved as publicly visible.
+  const candidates = collections.filter(
+    (c) => c.type === "flight" && (c.status === "approved" || c.status === "admin"),
+  );
 
   for (const offer of offers) {
     const match = candidates.find((c) => c.airline_iata_code === offer.owner.iata_code);

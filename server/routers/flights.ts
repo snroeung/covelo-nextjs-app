@@ -77,7 +77,7 @@ export const flightsRouter = router({
             .from("travel_collections")
             .select("*")
             .eq("type", "flight")
-            .eq("status", "approved")
+            .in("status", ["approved", "admin"])
             .eq("active", true);
           if (error) throw error;
           collections = (data ?? []) as TravelCollection[];

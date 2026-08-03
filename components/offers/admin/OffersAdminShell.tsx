@@ -89,15 +89,18 @@ export function OffersAdminShell() {
     enabled:  tab === 'partners',
   });
 
+  // Admin-scoped query (not the public listTravelCollections, which filters
+  // to active:true — that would drop a row from this table entirely the
+  // moment it's deactivated, with no way to find it again to reactivate).
   const { data: hotelCollections = [], isLoading: loadingCollections } = useQuery({
     queryKey: ['portalData.listTravelCollections'],
-    queryFn:  () => trpc.portalData.listTravelCollections.query(),
+    queryFn:  () => trpc.portalData.admin.listTravelCollections.query(),
     enabled:  tab === 'collections',
   });
 
   const pageBg   = isDark ? 'bg-gph-dark-bg' : 'bg-gray-100';
   const ink      = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const muted    = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const muted    = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const heroBg   = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const tabBar   = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
 
@@ -110,7 +113,7 @@ export function OffersAdminShell() {
   function filterTabCls(active: boolean) {
     const base = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors';
     if (active) return `${base} ${isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink' : 'bg-gray-100 text-gray-900'}`;
-    return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-500 hover:text-gray-700'}`;
+    return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-700'}`;
   }
 
   const liveAdsCount = adsData.filter((a) => adStatus(a) === 'live').length;
@@ -132,13 +135,14 @@ export function OffersAdminShell() {
     <div className={`flex flex-col min-h-screen ${pageBg}`}>
       <NavBar />
 
+      <main>
       {/* Admin page header */}
       <div className={`px-4 md:px-8 py-6 border-b ${heroBg}`}>
         <div className="max-w-6xl mx-auto flex items-start justify-between gap-6 flex-wrap">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
+                isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600'
               }`}>
                 ADMIN
               </span>
@@ -445,6 +449,7 @@ export function OffersAdminShell() {
           </>
         )}
       </div>
+      </main>
     </div>
   );
 }
