@@ -8,7 +8,7 @@ vi.mock('@/lib/redis', () => ({
 
 const isEnabledMock = vi.fn(() => true);
 vi.mock('@/lib/feature-flags', () => ({
-  isEnabled: (flag: string) => isEnabledMock(flag),
+  isEnabled: () => isEnabledMock(),
 }));
 
 import { redis } from '@/lib/redis';

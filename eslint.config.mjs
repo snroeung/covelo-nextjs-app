@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated/local-only artifacts — never lint or autofix these.
+    "coverage/**",
+    "playwright-report/**",
   ]),
 ]);
 
