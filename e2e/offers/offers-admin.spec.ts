@@ -462,9 +462,12 @@ test.describe('Transfer Bonus — create and display', () => {
     // FeaturedOfferHero has no data-testid or hero/featured class, so this
     // locator only ever matches when a "Featured" section is rendered above it.
     const hero = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Featured', exact: true }) });
-    // If our 30% bonus is the highest it appears in the hero
-    const heroText = await hero.textContent({ timeout: 3_000 }).catch(() => '');
-    if (heroText?.includes('30') || heroText?.includes(PARTNER)) {
+    // If our 30% bonus is the highest it appears in the hero — check the
+    // "Issuer → Partner" heading specifically, not the whole hero text blob,
+    // since that also contains an expiry date ("Ends July 30…") whose "30"
+    // substring would otherwise false-positive this guard.
+    const heroHeading = await hero.getByRole('heading', { level: 2 }).textContent({ timeout: 3_000 }).catch(() => '');
+    if (heroHeading && new RegExp(PARTNER, 'i').test(heroHeading)) {
       await expect(hero.getByText(/30%/).first()).toBeVisible();
       await expect(hero.getByText(new RegExp(PARTNER, 'i')).first()).toBeVisible();
     }

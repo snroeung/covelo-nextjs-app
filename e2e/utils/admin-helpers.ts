@@ -255,8 +255,10 @@ export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
   await page.getByRole('button', { name: /new offer/i }).click();
   await expect(page.getByText('Create a new offer')).toBeVisible({ timeout: 5_000 });
 
-  // Offer type is a toggle button, not a radio
-  await page.getByRole('button', { name: 'Spending Bonus' }).click();
+  // Offer type is a toggle button, not a radio. exact:true avoids colliding
+  // with the "Spending bonuses" filter tab, which stays mounted in the
+  // background since the editor is an inline panel, not a modal.
+  await page.getByRole('button', { name: 'Spending Bonus', exact: true }).click();
 
   // Labels are not linked to inputs (no htmlFor) — locate by option text / placeholder
   const issuerSelect = page.locator('select:has(option:text("Select issuer…"))');
@@ -279,8 +281,8 @@ export async function createSpendingBonus(page: Page, data: SpendingBonusData) {
     await page.getByPlaceholder(/Earn 5x points at restaurants/i).fill(data.description);
   }
 
-  // Eligible cards — validation requires at least one; select all
-  await page.getByRole('button', { name: 'Select all' }).click();
+  // Eligible cards — leave default "All cards" state (empty card_ids means
+  // all cards, a valid state; no eligibility check exists in allValid).
 
   // Spending form renders exactly two date inputs: START DATE then END DATE
   const dateInputs = page.locator('input[type="date"]');
@@ -616,9 +618,8 @@ export async function searchFlights(
   await fillLocationSearch(page, 'From', origin);
   await fillLocationSearch(page, 'To', destination);
 
-  // Trip type — open the "Trip type" dropdown and select "One way"
-  await page.getByRole('button', { name: /Trip type/i }).filter({ visible: true }).first().click();
-  await page.getByRole('button', { name: /One way/i }).click();
+  // Trip type — segmented pill toggle (FlightSearchForm.tsx), not a dropdown
+  await page.getByRole('button', { name: 'One-way', exact: true }).filter({ visible: true }).first().click();
 
   // Depart date — find visible "Depart" label span, go up one div, grab the date input inside
   const departLabel = page.locator('span, label').filter({ hasText: /^Depart$/i }).filter({ visible: true }).first();
@@ -630,7 +631,7 @@ export async function searchFlights(
 }
 
 /**
- * Submits a hotel search on /hotels using the real Location LocationSearch field.
+ * Submits a hotel search on /hotels using the real Destination LocationSearch field.
  * Returns true if submitted successfully.
  */
 export async function searchHotels(
@@ -643,7 +644,7 @@ export async function searchHotels(
 
   await page.locator('[role="combobox"]').filter({ visible: true }).first().waitFor({ timeout: 15_000 });
 
-  await fillLocationSearch(page, 'Location', city);
+  await fillLocationSearch(page, 'Destination', city);
 
   // Check-in / Check-out — find visible label span, go up one div, grab date input
   const checkInLabel  = page.locator('span, label').filter({ hasText: /^Check-in$/i }).filter({ visible: true }).first();
