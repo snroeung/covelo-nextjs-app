@@ -6,6 +6,9 @@ import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
 import { TRPCError } from "@trpc/server";
 import { duffel } from "@/lib/duffel";
+import { createClient } from "@/lib/supabase/server";
+import { matchFlightCollections } from "@/lib/travelCollectionMatch";
+import type { TravelCollection } from "@/lib/types/portalData";
 
 // Redis helpers that respect the integration:redis:flights flag.
 // Flag off → reads miss, writes no-op (same graceful-degradation pattern as stays).
@@ -62,8 +65,39 @@ export const flightsRouter = router({
         cabin_class: cabinClass,
       });
 
-      await cacheSet(key, offerRequest.data, ttl);
-      return offerRequest.data;
+      let collections: TravelCollection[] = [];
+      try {
+        const collectionsCacheKey = cacheKeys.travelCollections("flight");
+        const cachedCollections = await cacheGet<TravelCollection[]>(collectionsCacheKey);
+        if (cachedCollections) {
+          collections = cachedCollections;
+        } else {
+          const supabase = await createClient();
+          const { data, error } = await supabase
+            .from("travel_collections")
+            .select("*")
+            .eq("type", "flight")
+            .in("status", ["approved", "admin"])
+            .eq("active", true);
+          if (error) throw error;
+          collections = (data ?? []) as TravelCollection[];
+          await cacheSet(collectionsCacheKey, collections, CACHE.travelCollections.ttl);
+        }
+      } catch (err) {
+        console.warn("[flights] travel_collections ✗", err);
+      }
+
+      const collectionMatchMap = matchFlightCollections(offerRequest.data.offers, collections);
+      const result = {
+        ...offerRequest.data,
+        offers: offerRequest.data.offers.map((offer) => {
+          const collection = collectionMatchMap.get(offer.id);
+          return collection ? { ...offer, collection } : offer;
+        }),
+      };
+
+      await cacheSet(key, result, ttl);
+      return result;
     }),
 
   // Illustrative /search marquee. Fans out one-way searches server-side and caches

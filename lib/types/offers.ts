@@ -1,3 +1,5 @@
+import type { SyncSource, SyncStatus } from '@/lib/types/portalData';
+
 export type Issuer = 'chase' | 'amex' | 'c1' | 'bilt' | 'citi';
 export type BonusType = 'points_multiplier' | 'cash_back_pct' | 'dollar_amount';
 export type AdSlot = 'hero' | 'grid_inline' | 'below_grid' | 'sidebar'
@@ -7,13 +9,19 @@ export interface TransferBonus {
   id: string;
   issuer: Issuer;
   transfer_partner: string;
-  bonus_pct: number;
-  effective_ratio: number;
+  bonus_pct: number | null;
+  min_transfer_points: number | null;
+  effective_ratio: number | null;
   description: string | null;
   tags: string[];
   start_date: string | null;
   end_date: string;
   is_targeted: boolean;
+  for_status_transfer: boolean;
+  limited_time_offer: boolean;
+  card_ids: string[];
+  source: SyncSource;
+  status: SyncStatus;
   source_url: string | null;
   country: string;
   submitted_by: string | null;
@@ -35,8 +43,11 @@ export interface SpendingBonus {
   tags: string[];
   card_ids: string[];
   start_date: string | null;
-  end_date: string;
+  end_date: string | null;
   is_targeted: boolean;
+  limited_time_offer: boolean;
+  source: SyncSource;
+  status: SyncStatus;
   source_url: string | null;
   country: string;
   submitted_by: string | null;

@@ -28,7 +28,7 @@ export type CardId =
 export type PortalId =
   | 'chase'
   | 'amex'
-  | 'capital_one'
+  | 'c1'
   | 'bilt'
   | 'citi';
 
@@ -188,9 +188,9 @@ export const CARD_PORTAL_MAP: Record<CardId, PortalId> = {
   chase_reserve:           'chase',
   chase_preferred:         'chase',
   chase_freedom_unlimited: 'chase',
-  c1_venture_x:            'capital_one',
-  c1_venture:              'capital_one',
-  c1_savor:                'capital_one',
+  c1_venture_x:            'c1',
+  c1_venture:              'c1',
+  c1_savor:                'c1',
   amex_platinum:           'amex',
   amex_gold:               'amex',
   amex_green:              'amex',
@@ -200,6 +200,17 @@ export const CARD_PORTAL_MAP: Record<CardId, PortalId> = {
   citi_strata_premier:     'citi',
   citi_strata_elite:       'citi',
 };
+
+// Derived from CARD_PORTAL_MAP so it can't drift from the CardId union —
+// single source of truth for "which cards does this issuer offer",
+// consumed by the admin offer editor and the scraper's card-id extraction.
+export const ISSUER_CARDS: Record<PortalId, CardId[]> = (
+  Object.keys(CARD_PORTAL_MAP) as CardId[]
+).reduce((acc, cardId) => {
+  const portal = CARD_PORTAL_MAP[cardId];
+  (acc[portal] ??= []).push(cardId);
+  return acc;
+}, {} as Record<PortalId, CardId[]>);
 
 export const CARD_NAMES: Record<CardId, string> = {
   chase_reserve:           'Chase Sapphire Reserve',
@@ -219,13 +230,13 @@ export const CARD_NAMES: Record<CardId, string> = {
 };
 
 export const PORTAL_NAMES: Record<PortalId, string> = {
-  chase:       'Chase Travel',
-  amex:        'American Express Travel',
-  capital_one: 'Capital One Travel',
-  bilt:        'Bilt Travel',
-  citi:        'Citi Travel',
+  chase: 'Chase Travel',
+  amex:  'American Express Travel',
+  c1:    'Capital One Travel',
+  bilt:  'Bilt Travel',
+  citi:  'Citi Travel',
 };
 
 export const PORTAL_ABBR: Record<PortalId, string> = {
-  chase: 'UR', amex: 'MR', capital_one: 'miles', bilt: 'Bilt', citi: 'TY',
+  chase: 'UR', amex: 'MR', c1: 'miles', bilt: 'Bilt', citi: 'TY',
 };

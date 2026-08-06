@@ -33,7 +33,8 @@ const CROSSHATCH = `repeating-linear-gradient(
   transparent 13px
 )`;
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return 'No expiration';
   // Parse as local calendar date, not UTC — see OfferCard.tsx formatEndDate.
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', {
@@ -77,8 +78,8 @@ export function OfferDetailModal(props: Props) {
 
   if (type === 'transfer') {
     const t = props.offer as TransferBonus;
-    valueLabel   = `+${t.bonus_pct}%`;
-    valueUnit    = `${t.effective_ratio.toFixed(2)}:1 ratio`;
+    valueLabel   = t.bonus_pct != null ? `+${t.bonus_pct}%` : `${t.min_transfer_points}+ pts`;
+    valueUnit    = t.bonus_pct != null && t.effective_ratio != null ? `${t.effective_ratio.toFixed(2)}:1 ratio` : 'status match';
     partnerLabel = t.transfer_partner;
   } else {
     const s = props.offer as SpendingBonus;

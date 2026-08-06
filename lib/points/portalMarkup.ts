@@ -6,17 +6,17 @@ import { PortalId } from './types';
  * and AwardWallet Aug 2025 (4 properties, 5 portals, 4 booking windows — directional, lower confidence).
  */
 export const PORTAL_FLIGHT_MARKUP: Record<PortalId, number> = {
-  capital_one: 1.0076,
-  chase:       1.0594,
-  bilt:        1.0650,
-  amex:        1.1032,
-  citi:        1.1459,
+  c1:    1.0076,
+  chase: 1.0594,
+  bilt:  1.0650,
+  amex:  1.1032,
+  citi:  1.1459,
 };
 
 export const PORTAL_HOTEL_MARKUP: Record<PortalId, number> = {
-  capital_one: 1.0080,
-  chase:       1.0600,
-  bilt:        1.0700,
-  amex:        1.1000,
-  citi:        1.1500,
+  c1:    1.0080,
+  chase: 1.0600,
+  bilt:  1.0700,
+  amex:  1.1000,
+  citi:  1.1500,
 };

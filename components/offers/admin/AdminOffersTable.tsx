@@ -3,15 +3,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
+import { adminTableTheme, PendingRowActions, rowActionStatus, settleAfterSuccess, type StatusFilter } from './adminTableShared';
 
 const ISSUER_LABELS: Record<string, string> = {
   chase: 'Chase', amex: 'Amex', c1: 'Capital One', bilt: 'Bilt', citi: 'Citi',
 };
 
 type AnyOffer = (TransferBonus & { _type: 'transfer' }) | (SpendingBonus & { _type: 'spending' });
-export type OfferStatusFilter = 'all' | 'live' | 'scheduled' | 'expired' | 'paused';
+export type OfferStatusFilter = StatusFilter;
 
-function formatDate(iso: string) {
+function formatDate(iso: string | null) {
+  if (!iso) return 'No expiration';
   // Parse as local calendar date, not UTC — see OfferCard.tsx formatEndDate.
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
@@ -41,18 +43,16 @@ interface Props {
 export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isDark, onEdit }: Props) {
   const queryClient = useQueryClient();
 
-  const { mutate: updateActive, isPending } = useMutation({
+  const updateActive = useMutation({
     mutationFn: (args: { id: string; table: 'transfer_bonuses' | 'spending_bonuses'; active: boolean }) =>
       trpc.offers.admin.updateActive.mutate(args),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] }),
+    onSuccess: () => settleAfterSuccess(
+      () => queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] }),
+      () => updateActive.reset(),
+    ),
   });
 
-  const card   = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
-  const ink    = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const muted  = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const rowHov = isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50';
-  const divider = isDark ? 'border-gph-dark-line' : 'border-gray-100';
-  const headBg  = isDark ? 'bg-gph-dark-bg' : 'bg-gray-50';
+  const { card, ink, muted, rowHov, divider, headBg } = adminTableTheme(isDark);
 
   const allOffers: AnyOffer[] = [
     ...transferBonuses.map((o) => ({ ...o, _type: 'transfer' as const })),
@@ -80,8 +80,13 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
         const table = isTransfer ? 'transfer_bonuses' as const : 'spending_bonuses' as const;
 
         const sp = offer as SpendingBonus;
+        const tb = offer as TransferBonus;
         const bonusLabel = isTransfer
-          ? `+${(offer as TransferBonus).bonus_pct}%`
+          ? tb.bonus_pct != null
+            ? `+${tb.bonus_pct}%`
+            : tb.min_transfer_points != null
+              ? `${tb.min_transfer_points}+ pts`
+              : '—'
           : sp.bonus_type === 'dollar_amount'
             ? `$${sp.bonus_multiplier} credit`
             : sp.bonus_type === 'cash_back_pct'
@@ -94,6 +99,7 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
         const partnerLabel = isTransfer
           ? (offer as TransferBonus).transfer_partner
           : (offer as SpendingBonus).merchant_name;
+        const offerLabel = `${ISSUER_LABELS[offer.issuer] ?? offer.issuer} → ${partnerLabel}`;
 
         return (
           <div
@@ -105,11 +111,12 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
             {/* Offer info */}
             <div>
               <div className={`text-sm font-semibold ${ink}`}>
-                {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {partnerLabel}
+                {offerLabel}
               </div>
               <div className={`text-[11px] font-mono mt-0.5 ${muted}`}>
                 {bonusLabel}{spendMin} · {offer.upvotes} upvotes · {offer.country ?? 'US'}
                 {offer.is_targeted && <span className="ml-2 text-amber-500">TARGETED</span>}
+                {isTransfer && (offer as TransferBonus).for_status_transfer && <span className="ml-2 text-cv-amber-400">STATUS</span>}
               </div>
             </div>
 
@@ -125,7 +132,13 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
 
             {/* Status */}
             <div className="shrink-0">
-              {(() => {
+              {offer.status === 'pending' ? (
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-50 text-amber-700'
+                }`}>
+                  Pending
+                </span>
+              ) : (() => {
                 const s = offerStatus(offer);
                 const cls =
                   s === 'live'      ? 'bg-green-100 text-green-700' :
@@ -149,37 +162,17 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
 
             {/* Actions */}
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => onEdit(offer)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
-                  isDark
-                    ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Edit
-              </button>
-              {offer.active ? (
-                <button
-                  disabled={isPending}
-                  onClick={() => {
-                    if (window.confirm(`Deactivate "${ISSUER_LABELS[offer.issuer] ?? offer.issuer} → ${partnerLabel}"?`)) {
-                      updateActive({ id: offer.id, table, active: false });
-                    }
-                  }}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-50"
-                >
-                  Deactivate
-                </button>
-              ) : (
-                <button
-                  disabled={isPending}
-                  onClick={() => updateActive({ id: offer.id, table, active: true })}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
-                >
-                  Reactivate
-                </button>
-              )}
+              <PendingRowActions
+                isDark={isDark}
+                pending={offer.status === 'pending'}
+                disabled={updateActive.isPending}
+                itemLabel={offerLabel}
+                hidePendingActions
+                onEdit={() => onEdit(offer)}
+                active={offer.active}
+                onToggleActive={(next) => updateActive.mutate({ id: offer.id, table, active: next })}
+                toggleStatus={rowActionStatus(updateActive, offer.id)}
+              />
             </div>
           </div>
         );

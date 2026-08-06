@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { CollectionBanner } from '@/components/CollectionBanner';
+import { TransferBonusBanner } from '@/components/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { PointsGrid } from '@/components/PointsGrid';
 import { AddToTripButton } from '@/components/AddToTripButton';
@@ -138,7 +140,7 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
               <div className={`text-[9px] font-mono text-center ${textMuted}`}>{dur}</div>
               <ArrowLine isDark={isDark} />
               <div className={`text-[9px] font-mono text-center font-bold ${
-                stops === 0 ? 'text-green-600' : textMuted
+                stops === 0 ? 'text-cv-green-800' : textMuted
               }`}>
                 {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
               </div>
@@ -204,7 +206,7 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
             <div className={`text-[9px] font-mono text-center ${textMuted}`}>{dur}</div>
             <ArrowLine isDark={isDark} />
             <div className={`text-[9px] font-mono text-center font-bold ${
-              stops === 0 ? 'text-green-600' : textMuted
+              stops === 0 ? 'text-cv-green-800' : textMuted
             }`}>
               {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
             </div>
@@ -262,6 +264,23 @@ export function FlightCard({ offer }: { offer: any }) {
 
   const legProps = { offer, isDark, textPrimary, textMuted };
 
+  const collection = offer.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
+  const collectionBanner = collection && (
+    <CollectionBanner
+      collectionName={collection.collection_name}
+      issuer={collection.issuer}
+      perkSummary={collection.perk_summary}
+      sourceUrl={collection.source_url}
+      limitedTimeOffer={collection.limited_time_offer}
+    />
+  );
+  const topBanners = (
+    <>
+      {collectionBanner}
+      <TransferBonusBanner result={ptsResult} rounded={!collection} />
+    </>
+  );
+
   const addToTrip = (
     <div onClick={e => e.stopPropagation()}>
       <AddToTripButton
@@ -277,6 +296,7 @@ export function FlightCard({ offer }: { offer: any }) {
   if (!isRoundTrip) {
     return (
       <div className={`rounded-xl overflow-hidden ${cardBg}`}>
+        {topBanners}
         <LegRow {...legProps} slice={leg0Slice} showCash />
 
         {/* Dark navy portal bar */}
@@ -311,6 +331,7 @@ export function FlightCard({ offer }: { offer: any }) {
 
   return (
     <div className={`rounded-xl overflow-hidden ${cardBg}`}>
+      {topBanners}
 
       {/* Trip header */}
       <div className={`px-5 py-2 border-b ${divider} ${sectionBg}`}>

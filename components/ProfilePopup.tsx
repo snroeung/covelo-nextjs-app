@@ -10,7 +10,7 @@ import { CARD_NAMES, type CardId, type PortalId } from '@/lib/points/types';
 const CARD_GROUPS: { label: string; portal: PortalId; cards: CardId[] }[] = [
   { label: 'Chase',            portal: 'chase',       cards: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'] },
   { label: 'American Express', portal: 'amex',        cards: ['amex_platinum', 'amex_gold', 'amex_green'] },
-  { label: 'Capital One',      portal: 'capital_one', cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
+  { label: 'Capital One',      portal: 'c1', cards: ['c1_venture_x', 'c1_venture', 'c1_savor'] },
   { label: 'Bilt',             portal: 'bilt',        cards: ['bilt_blue', 'bilt_obsidian', 'bilt_palladium'] },
   { label: 'Citi',             portal: 'citi',        cards: ['citi_strata_premier', 'citi_strata_elite'] },
 ];
@@ -268,13 +268,13 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
       <div className={`border-t px-4 py-3 shrink-0 flex flex-col gap-1 ${divider}`}>
         {user?.app_metadata?.role === 'admin' && (
           <Link
-            href="/offers/admin"
+            href="/admin"
             onClick={onClose}
             className={`text-center w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
               isDark ? 'text-gph-dark-ink hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
             }`}
           >
-            Offers admin
+            Admin
           </Link>
         )}
         <Link

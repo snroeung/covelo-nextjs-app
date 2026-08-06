@@ -1,5 +1,15 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import {
+  createTransferBonus,
+  createTravelCollection,
+  discoverTransferPartnerProgram,
+  setOfferActive,
+  setTravelCollectionActive,
+  today,
+  daysFromNow,
+  TEST_PREFIX,
+} from '../utils/admin-helpers';
 
 function futureDate(daysFromNow: number): string {
   const d = new Date();
@@ -75,7 +85,18 @@ test.describe('Hotels page — results', () => {
     await page.getByRole('button', { name: /^Sort:/ }).click();
     await page.getByRole('button', { name: 'A to Z' }).click();
 
-    const names = await cards.locator('h3').allTextContents();
+    // Featured hotels (those matching an admin travel collection — see
+    // app/hotels/page.tsx's featuredAccommodations split) are pinned into
+    // their own "★ Featured hotels" section ahead of the regular results,
+    // so the full card list isn't one globally-sorted sequence. Every
+    // featured card carries a CollectionBanner (the "View collection perk
+    // details" button) — exclude those and verify A-Z order only among the
+    // regular results.
+    const regularCards = cards.filter({ hasNot: page.getByRole('button', { name: 'View collection perk details' }) });
+    const regularTotal = await regularCards.count();
+    test.skip(regularTotal < 2, 'Need 2+ non-featured hotels to verify sort order');
+
+    const names = await regularCards.locator('h3').allTextContents();
     const sorted = [...names].sort((a, b) => a.localeCompare(b));
     expect(names).toEqual(sorted);
   });
@@ -193,5 +214,98 @@ test.describe('Hotels page — map', () => {
     await mapCanvas.click({ position: { x: 5, y: 5 } });
 
     await expect(pinCard).not.toBeVisible();
+  });
+});
+
+test.describe('Hotels page — banners', () => {
+  test.describe.configure({ mode: 'serial' });
+  const COLLECTION_NAME = `${TEST_PREFIX} Banner Match Test`;
+  let bonusPartner: string | null = null;
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    if (bonusPartner) await setOfferActive(page, bonusPartner, false).catch(() => {});
+    await setTravelCollectionActive(page, COLLECTION_NAME, false).catch(() => {});
+    await ctx.close();
+  });
+
+  test('TransferBonusBanner appears on a hotel card when a live bonus matches a transferable partner', async ({ page }) => {
+    // Don't hardcode a partner name — seed data varies by environment, so
+    // discover whatever real hotel partner is actually live for Chase.
+    bonusPartner = await discoverTransferPartnerProgram(page, 'chase', 'Hotel');
+    test.skip(!bonusPartner, 'No real hotel transfer partner seeded for Chase in this environment');
+
+    await createTransferBonus(page, {
+      issuer: 'chase',
+      partner: bonusPartner!,
+      bonusPct: 30,
+      startDate: today(),
+      endDate: daysFromNow(30),
+      description: 'E2E banner match bonus.',
+    });
+
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    // Only results in this partner's chain (if any) will have
+    // transferAlternatives that include it — banner presence depends on
+    // live Duffel inventory actually containing a matching chain/hotel.
+    const escapedPartner = bonusPartner!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const bannerTextRe = new RegExp(`to ${escapedPartner}`);
+    const bannerCard = cards.filter({ hasText: bannerTextRe }).first();
+    // isVisible() does not wait/retry — use waitFor so this doesn't false-skip
+    // while the search results (and their points calc) are still loading.
+    const hasMatch = await bannerCard.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasMatch, `No hotel in this result set carries a live transfer bonus to ${bonusPartner}`);
+
+    await expect(bannerCard.getByText(bannerTextRe)).toBeVisible();
+    await expect(bannerCard.getByText('Limited time')).toBeVisible();
+  });
+
+  test('CollectionBanner appears on a hotel card matching a live travel collection', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    const propertyName = (await cards.first().locator('h3').first().textContent())?.trim();
+    test.skip(!propertyName, 'Could not read a hotel name from the first result');
+
+    await createTravelCollection(page, {
+      type: 'hotel',
+      issuer: 'Amex',
+      collectionName: COLLECTION_NAME,
+      propertyName: propertyName!,
+      perkSummary: 'E2E banner match perk.',
+      limitedTime: true,
+    });
+
+    await gotoHotelsWithResults(page);
+    const matchingCard = page.getByTestId('hotel-card').filter({ hasText: propertyName! }).first();
+    await expect(matchingCard.getByText(COLLECTION_NAME)).toBeVisible({ timeout: 15_000 });
+    await expect(matchingCard.getByText('Limited time')).toBeVisible();
+  });
+
+  test('banner info button reveals detail on click, without requiring hover', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    const infoBtn = page
+      .getByRole('button', { name: 'View collection perk details' })
+      .or(page.getByRole('button', { name: 'View transfer bonus details' }))
+      .first();
+    const hasBanner = await infoBtn.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasBanner, 'Neither banner from the prior two tests matched a hotel in this result set');
+
+    await infoBtn.click();
+    // Tooltip renders as the info button's own next sibling (both live inside
+    // the same relatively-positioned wrapper <span>)
+    const tooltip = infoBtn.locator('xpath=following-sibling::div').first();
+    await expect(tooltip).toBeVisible({ timeout: 5_000 });
   });
 });

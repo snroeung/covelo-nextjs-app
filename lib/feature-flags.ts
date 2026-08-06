@@ -8,11 +8,13 @@ export type FlagName =
   | "ui:trip-planner"
   | "ui:offers"
   | "ui:settings"
+  | "ui:admin"
   // tRPC routers
   | "api:stays"
   | "api:flights"
   | "api:places"
   | "api:offers"
+  | "api:portal-data"
   // External integrations — scoped per API surface
   | "integration:duffel:flights"
   | "integration:duffel:stays"
@@ -22,6 +24,7 @@ export type FlagName =
   | "integration:redis:flights"
   | "integration:redis:places"
   | "integration:redis:offers"
+  | "integration:redis:portal-data"
   | "integration:supabase";
 
 interface FlagDef {
@@ -55,7 +58,10 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
 
   "ui:offers":                         { enabledIn: ["local", "beta", "production"], description: "/offers page" },
   "ui:settings":                       { enabledIn: ["local", "beta", "production"], description: "/settings page" },
+  "ui:admin":                          { enabledIn: ["local", "beta", "production"], description: "/admin page" },
   "api:offers":                        { enabledIn: ["local", "beta", "production"], description: "offers tRPC router" },
+  "api:portal-data":                   { enabledIn: ["local", "beta", "production"], description: "portalData tRPC router" },
+  "integration:redis:portal-data":     { enabledIn: ["local", "beta", "production"], description: "Redis caching — portalData router" },
 } as const;
 
 // Called lazily inside isEnabled() — never at module load time.

@@ -34,7 +34,8 @@ const CROSSHATCH = `repeating-linear-gradient(
   transparent 13px
 )`;
 
-function formatEndDate(iso: string): string {
+function formatEndDate(iso: string | null): string {
+  if (!iso) return 'no expiration';
   // Parse as local calendar date, not UTC — `new Date(iso)` on a bare
   // YYYY-MM-DD string parses as UTC midnight, which renders as the previous
   // day in timezones behind UTC.
@@ -44,7 +45,8 @@ function formatEndDate(iso: string): string {
   }).toUpperCase();
 }
 
-function daysUntil(iso: string): number {
+function daysUntil(iso: string | null): number {
+  if (!iso) return Infinity;
   return Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
@@ -70,7 +72,9 @@ export function TransferOfferCard({ offer, isDark }: TransferCardProps) {
   const muted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const line  = isDark ? 'border-gph-dark-line' : 'border-gray-100';
 
-  const heroText = `+${offer.bonus_pct}% transfer to ${offer.transfer_partner}`;
+  const heroText = offer.bonus_pct != null
+    ? `+${offer.bonus_pct}% transfer to ${offer.transfer_partner}`
+    : `${offer.min_transfer_points}+ pts status match to ${offer.transfer_partner}`;
 
   return (
     <>
@@ -117,11 +121,11 @@ export function TransferOfferCard({ offer, isDark }: TransferCardProps) {
             {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {offer.transfer_partner}
           </p>
           <div className="flex items-baseline gap-2 mt-auto pt-1">
-            <span className={`text-4xl font-bold font-mono tabular-nums ${ink}`}>
-              +{offer.bonus_pct}%
+            <span className={`font-bold font-mono tabular-nums ${offer.bonus_pct != null ? 'text-4xl' : 'text-2xl'} ${ink}`}>
+              {offer.bonus_pct != null ? `+${offer.bonus_pct}%` : `${offer.min_transfer_points}+ pts`}
             </span>
             <span className={`text-xs font-mono ${muted}`}>
-              {offer.effective_ratio.toFixed(2)}:1 ratio
+              {offer.bonus_pct != null && offer.effective_ratio != null ? `${offer.effective_ratio.toFixed(2)}:1 ratio` : 'status match'}
             </span>
           </div>
         </div>

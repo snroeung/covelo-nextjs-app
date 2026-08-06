@@ -35,13 +35,13 @@ const BOARD_ORIGIN = 'PHL';
 const BOARD_DESTINATIONS = ['SFO', 'LAX', 'ICN', 'MUC', 'LBG', 'HND'];
 const PHILLY = { latitude: 39.9526, longitude: -75.1652 };
 
-const PORTAL_ORDER: PortalId[] = ['chase', 'amex', 'capital_one', 'bilt', 'citi'];
+const PORTAL_ORDER: PortalId[] = ['chase', 'amex', 'c1', 'bilt', 'citi'];
 const PORTAL_BRAND: Record<PortalId, string> = {
-  chase:       'Chase',
-  amex:        'Amex',
-  capital_one: 'Capital One',
-  bilt:        'Bilt',
-  citi:        'Citi',
+  chase: 'Chase',
+  amex:  'Amex',
+  c1:    'Capital One',
+  bilt:  'Bilt',
+  citi:  'Citi',
 };
 
 function SearchHome() {

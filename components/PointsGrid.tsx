@@ -6,26 +6,15 @@ import { PointsResult, PortalGroup, TransferResult, PortalId, EligibleTransferCa
 import { rankOptions } from '@/lib/points/rankOptions';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
-import type { TransferBonus, Issuer } from '@/lib/types/offers';
-
-const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
-  chase: 'chase', amex: 'amex', c1: 'capital_one', bilt: 'bilt', citi: 'citi',
-};
-
-const ISSUER_LOYALTY_NAME: Record<Issuer, string> = {
-  chase: 'Chase Ultimate Rewards',
-  amex: 'Amex Membership Rewards',
-  c1: 'Capital One Miles',
-  bilt: 'Bilt Rewards',
-  citi: 'Citi ThankYou Rewards',
-};
+import type { TransferBonus } from '@/lib/types/offers';
+import { ISSUER_LOYALTY_NAME, formatBonusEndDate, findBonusForTransfer } from '@/lib/points/transferBonus';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function pointCurrency(portalId: string): string {
-  return portalId === 'capital_one' ? 'mi' : 'pts';
+  return portalId === 'c1' ? 'mi' : 'pts';
 }
 
 function fmtUsd(n: number): string {
@@ -458,10 +447,10 @@ function TransferRow({
     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wide shrink-0 ${
       isDark ? 'bg-cv-amber-900 text-cv-amber-400' : 'bg-amber-100 text-amber-800'
     }`}>
-      +{bonus.bonus_pct}% bonus
+      {bonus.bonus_pct != null ? `+${bonus.bonus_pct}% bonus` : 'status match'}
     </span>
   );
-  const multiplier = bonus ? 1 + bonus.bonus_pct / 100 : 1;
+  const multiplier = bonus?.bonus_pct != null ? 1 + bonus.bonus_pct / 100 : 1;
   const displayCpp = transfer.transferCpp !== null
     ? Math.round(transfer.transferCpp * multiplier * 100) / 100
     : null;
@@ -595,11 +584,6 @@ function TransferRow({
 // BonusBanner — top-of-card banner when a live transfer bonus applies
 // ---------------------------------------------------------------------------
 
-function formatBonusEndDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function BonusBanner({ bonus, isDark }: { bonus: TransferBonus; isDark: boolean }) {
   return (
     <div className={`px-5 py-2 text-[11px] font-semibold font-mono border-b ${
@@ -647,15 +631,7 @@ export function PointsGrid({
   // Date-window guard: admin sessions bypass the public RLS end_date filter,
   // so re-check here to only badge bonuses currently live on the offers page.
   const bonusFor = (t: TransferResult): TransferBonus | undefined =>
-    now === null
-      ? undefined
-      : transferBonuses.find(
-          b =>
-            ISSUER_TO_PORTAL[b.issuer] === t.sourcePortalId &&
-            b.transfer_partner === t.partnerProgram &&
-            new Date(b.end_date).getTime() > now &&
-            (!b.start_date || new Date(b.start_date).getTime() <= now),
-        );
+    now === null ? undefined : findBonusForTransfer(t, transferBonuses, now);
 
   // Unified ¢/pt-ranked list — direct-book portals and transfer partners
   // compete on the same axis; a transfer partner can lead the list.

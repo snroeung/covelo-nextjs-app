@@ -41,11 +41,13 @@ export function FeaturedOfferHero({ offer, isDark }: Props) {
           <div className={`text-[10px] font-mono font-bold uppercase tracking-widest mb-1 ${muted}`}>
             ★ Featured
           </div>
-          <div className={`text-6xl font-bold font-mono tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            +{offer.bonus_pct}%
+          <div className={`font-bold font-mono tabular-nums ${offer.bonus_pct != null ? 'text-6xl' : 'text-4xl'} ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {offer.bonus_pct != null ? `+${offer.bonus_pct}%` : `${offer.min_transfer_points}+ pts`}
           </div>
           <div className={`text-xs font-mono text-center ${muted}`}>
-            {offer.effective_ratio.toFixed(2)}:1 effective ratio
+            {offer.bonus_pct != null && offer.effective_ratio != null
+              ? `${offer.effective_ratio.toFixed(2)}:1 effective ratio`
+              : 'status match'}
           </div>
           {urgent && (
             <div className="mt-2 text-[10px] font-mono font-bold text-red-500 uppercase tracking-widest">
@@ -75,9 +77,12 @@ export function FeaturedOfferHero({ offer, isDark }: Props) {
             {ISSUER_LABELS[offer.issuer] ?? offer.issuer} → {offer.transfer_partner}
           </h2>
           <p className={`text-sm mb-6 ${muted}`}>
-            Transfer {ISSUER_LABELS[offer.issuer]} points to {offer.transfer_partner} at a{' '}
-            <strong className={ink}>{offer.bonus_pct}% bonus</strong> — every 1,000 points becomes{' '}
-            {Math.round(1000 * offer.effective_ratio).toLocaleString()}.
+            {offer.bonus_pct != null && offer.effective_ratio != null
+              ? <>Transfer {ISSUER_LABELS[offer.issuer]} points to {offer.transfer_partner} at a{' '}
+                  <strong className={ink}>{offer.bonus_pct}% bonus</strong> — every 1,000 points becomes{' '}
+                  {Math.round(1000 * offer.effective_ratio).toLocaleString()}.</>
+              : <>Transfer at least{' '}
+                  <strong className={ink}>{offer.min_transfer_points} points</strong> to {offer.transfer_partner} to unlock status match.</>}
           </p>
 
           <div className={`flex items-center justify-between pt-4 border-t ${line}`}>

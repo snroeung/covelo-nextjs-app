@@ -239,6 +239,12 @@ function RoomCard({
 }) {
   const [showPopup, setShowPopup] = useState(false);
 
+  const { data: transferPartners } = useQuery({
+    queryKey: ['portalData.transferPartners'],
+    queryFn:  () => trpc.portalData.listTransferPartners.query(),
+    staleTime: 60 * 60 * 1000,
+  });
+
   const rate            = cheapestRoomRate(room);
   const pricePerRoom    = rate ? parseFloat(rate.total_amount) : 0;
   const perNight        = nights > 0 && pricePerRoom > 0 ? pricePerRoom / nights : pricePerRoom;
@@ -255,7 +261,7 @@ function RoomCard({
   const totalPrice      = pricePerRoom * roomQty;
 
   const pointsResult = totalPrice > 0
-    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain)
+    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain, transferPartners)
     : null;
 
   const cardBg      = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-gray-50 border-gray-200';

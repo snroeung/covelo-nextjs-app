@@ -2,10 +2,9 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
-import { CARD_NAMES, type CardId, type PortalId } from '@/lib/points/types';
-import { TRANSFER_PARTNERS } from '@/lib/points/transferPartners';
+import { CARD_NAMES, ISSUER_CARDS, type CardId, type PortalId } from '@/lib/points/types';
 import { PARTNER_IMAGES } from '@/lib/partnerImages';
 import type { Issuer, TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
@@ -39,28 +38,23 @@ const ISSUER_LABELS: Record<Issuer, string> = {
 const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
   chase: 'chase',
   amex:  'amex',
-  c1:    'capital_one',
+  c1:    'c1',
   bilt:  'bilt',
   citi:  'citi',
-};
-
-const ISSUER_CARDS: Record<Issuer, CardId[]> = {
-  chase: ['chase_reserve', 'chase_preferred', 'chase_freedom_unlimited'],
-  amex:  ['amex_platinum', 'amex_gold', 'amex_green'],
-  c1:    ['c1_venture_x', 'c1_venture', 'c1_savor'],
-  bilt:  ['bilt_blue', 'bilt_obsidian', 'bilt_palladium'],
-  citi:  ['citi_strata_premier', 'citi_strata_elite'],
 };
 
 interface TransferForm {
   issuer:           Issuer | '';
   transfer_partner: string;
   bonus_pct:        string;
+  min_transfer_points: string;
   description:      string;
   tags:             string[];
   start_date:       string;
   end_date:         string;
   is_targeted:      boolean;
+  for_status_transfer: boolean;
+  card_ids:         string[];
   source_url:       string;
   country:          string;
   active:           boolean;
@@ -123,11 +117,14 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     issuer:           initT?.issuer           ?? '',
     transfer_partner: initT?.transfer_partner ?? '',
     bonus_pct:        initT?.bonus_pct?.toString() ?? '',
+    min_transfer_points: initT?.min_transfer_points?.toString() ?? '',
     description:      initT?.description      ?? '',
     tags:             initT?.tags             ?? [],
     start_date:       initT?.start_date       ?? '',
     end_date:         initT?.end_date         ?? '',
     is_targeted:      initT?.is_targeted      ?? false,
+    for_status_transfer: initT?.for_status_transfer ?? false,
+    card_ids:         initT?.card_ids         ?? [],
     source_url:       initT?.source_url       ?? '',
     country:          initT?.country          ?? 'US',
     active:           initT?.active           ?? true,
@@ -160,18 +157,28 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
   const lCls = labelCls(isDark);
   const iCls = inputCls(isDark);
 
-  // Transfer partner options filtered by issuer
+  const { data: transferPartners } = useQuery({
+    queryKey: ['portalData.transferPartners'],
+    queryFn:  () => trpc.portalData.listTransferPartners.query(),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  // Transfer partner options filtered by issuer — DB-approved partners only
   const partnerOptions = transfer.issuer
-    ? (TRANSFER_PARTNERS[ISSUER_TO_PORTAL[transfer.issuer as Issuer]] ?? [])
+    ? (transferPartners?.[ISSUER_TO_PORTAL[transfer.issuer as Issuer]] ?? [])
     : [];
 
   // Card checkboxes filtered by issuer
-  const cardOptions = spending.issuer
-    ? (ISSUER_CARDS[spending.issuer as Issuer] ?? [])
+  const transferCardOptions = transfer.issuer
+    ? (ISSUER_CARDS[transfer.issuer as PortalId] ?? [])
+    : [];
+  const spendingCardOptions = spending.issuer
+    ? (ISSUER_CARDS[spending.issuer as PortalId] ?? [])
     : [];
 
   // Derived effective ratio (read-only, mirrors DB GENERATED column)
   const bonusPctNum    = parseFloat(transfer.bonus_pct);
+  const minPointsNum   = parseInt(transfer.min_transfer_points, 10);
   const effectiveRatio = !isNaN(bonusPctNum) && bonusPctNum > 0
     ? (1 + bonusPctNum / 100).toFixed(4)
     : '—';
@@ -180,12 +187,15 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     mutationFn: () => trpc.offers.admin.createTransferBonus.mutate({
       issuer:           transfer.issuer as Issuer,
       transfer_partner: transfer.transfer_partner,
-      bonus_pct:        parseFloat(transfer.bonus_pct),
+      bonus_pct:        transfer.bonus_pct ? parseFloat(transfer.bonus_pct) : null,
+      min_transfer_points: transfer.min_transfer_points ? parseInt(transfer.min_transfer_points, 10) : null,
       description:      transfer.description || null,
       tags:             transfer.tags,
       start_date:       transfer.start_date,
       end_date:         transfer.end_date,
       is_targeted:      transfer.is_targeted,
+      for_status_transfer: transfer.for_status_transfer,
+      card_ids:         transfer.card_ids,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
@@ -227,12 +237,15 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       id:               (initT as TransferBonus).id,
       issuer:           transfer.issuer as Issuer,
       transfer_partner: transfer.transfer_partner,
-      bonus_pct:        parseFloat(transfer.bonus_pct),
+      bonus_pct:        transfer.bonus_pct ? parseFloat(transfer.bonus_pct) : null,
+      min_transfer_points: transfer.min_transfer_points ? parseInt(transfer.min_transfer_points, 10) : null,
       description:      transfer.description || null,
       tags:             transfer.tags,
       start_date:       transfer.start_date || null,
       end_date:         transfer.end_date,
       is_targeted:      transfer.is_targeted,
+      for_status_transfer: transfer.for_status_transfer,
+      card_ids:         transfer.card_ids,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
@@ -281,20 +294,73 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
   }
 
   function handleTransferIssuerChange(issuer: string) {
-    setTransfer((prev) => ({ ...prev, issuer: issuer as Issuer, transfer_partner: '' }));
+    setTransfer((prev) => ({ ...prev, issuer: issuer as Issuer, transfer_partner: '', card_ids: [] }));
   }
 
   function handleSpendingIssuerChange(issuer: string) {
     setSpending((prev) => ({ ...prev, issuer: issuer as Issuer, card_ids: [] }));
   }
 
-  function toggleCardId(cardId: string) {
-    setSpending((prev) => ({
-      ...prev,
-      card_ids: prev.card_ids.includes(cardId)
-        ? prev.card_ids.filter((id) => id !== cardId)
-        : [...prev.card_ids, cardId],
-    }));
+  // Shared "All cards" / "Specific cards" toggle + checkbox grid used by both
+  // the transfer and spending forms — empty card_ids means "all cards", a
+  // real semantic rather than an unfilled-checkbox error state.
+  function renderCardEligibility(
+    cardIds: string[],
+    setCardIds: (ids: string[]) => void,
+    options: CardId[],
+    hasIssuer: boolean,
+  ) {
+    const allCards = cardIds.length === 0;
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setCardIds([])} className={toggleBtnCls(allCards)}>
+            All cards
+          </button>
+          <button
+            type="button"
+            disabled={!hasIssuer}
+            onClick={() => allCards && setCardIds(options.slice(0, 1))}
+            className={`${toggleBtnCls(!allCards)} disabled:opacity-40`}
+          >
+            Specific cards
+          </button>
+        </div>
+        {!allCards && (
+          !hasIssuer ? (
+            <p className={`text-sm ${muted}`}>Select an issuer above to see eligible cards.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {options.map((cardId) => {
+                const checked = cardIds.includes(cardId);
+                return (
+                  <label key={cardId} className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setCardIds(checked ? cardIds.filter((id) => id !== cardId) : [...cardIds, cardId])}
+                      className="w-4 h-4 rounded accent-blue-500"
+                    />
+                    <span className={`text-sm font-medium transition-colors ${checked ? ink : muted}`}>
+                      {CARD_NAMES[cardId]}
+                    </span>
+                  </label>
+                );
+              })}
+              {options.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setCardIds(options.slice())}
+                  className={`self-start text-[10px] font-mono font-bold ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
+                >
+                  Select all
+                </button>
+              )}
+            </div>
+          )
+        )}
+      </div>
+    );
   }
 
   function handlePublish() {
@@ -311,7 +377,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
   const transferChecks = [
     { label: 'Issuer selected',           ok: !!transfer.issuer },
     { label: 'Transfer partner selected', ok: !!transfer.transfer_partner },
-    { label: 'Bonus % is positive',       ok: !isNaN(bonusPctNum) && bonusPctNum > 0 },
+    { label: 'Bonus % or min points set',  ok: (!isNaN(bonusPctNum) && bonusPctNum > 0) || (!isNaN(minPointsNum) && minPointsNum > 0) },
     { label: 'Start date set',            ok: !!transfer.start_date },
     { label: 'End date set',              ok: !!transfer.end_date },
     { label: 'Source URL valid (if set)', ok: !transfer.source_url || /^https?:\/\/.+/.test(transfer.source_url) },
@@ -322,7 +388,6 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     { label: 'Issuer selected',           ok: !!spending.issuer },
     { label: 'Merchant name filled',      ok: spending.merchant_name.trim().length > 0 },
     { label: 'Bonus value is positive',   ok: !isNaN(spendingBonusNum) && spendingBonusNum > 0 },
-    { label: 'At least one card',         ok: spending.card_ids.length > 0 },
     { label: 'Start date set',            ok: !!spending.start_date },
     { label: 'End date set',              ok: !!spending.end_date },
     { label: 'Source URL valid (if set)', ok: !spending.source_url || /^https?:\/\/.+/.test(spending.source_url) },
@@ -455,13 +520,36 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                         {effectiveRatio}:1
                       </div>
                     </div>
+                    <div>
+                      <label className={`block mb-1.5 ${lCls}`}>MIN TRANSFER PTS (status-only)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className={iCls}
+                        value={transfer.min_transfer_points}
+                        onChange={(e) => setT('min_transfer_points', e.target.value)}
+                        placeholder="e.g. 5000 (no % bonus, status match only)"
+                      />
+                    </div>
                   </div>
                 </div>
               </section>
 
-              {/* 2. Tags, Dates & Flags */}
+              {/* 2. Eligible Cards */}
               <section>
-                <div className={`mb-3 ${lCls}`}>2 · TAGS, DATES & FLAGS</div>
+                <div className={`mb-3 ${lCls}`}>2 · ELIGIBLE CARDS</div>
+                {renderCardEligibility(
+                  transfer.card_ids,
+                  (ids) => setT('card_ids', ids),
+                  transferCardOptions,
+                  !!transfer.issuer,
+                )}
+              </section>
+
+              {/* 3. Tags, Dates & Flags */}
+              <section>
+                <div className={`mb-3 ${lCls}`}>3 · TAGS, DATES & FLAGS</div>
                 <div className="flex flex-col gap-3">
                   <div>
                     <label className={`block mb-1.5 ${lCls}`}>TAGS <span className={muted}>— select all that apply</span></label>
@@ -524,6 +612,18 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     </button>
                     <span className={`text-sm font-semibold ${ink}`}>
                       {transfer.is_targeted ? 'Targeted — not available to all cardholders' : 'Available to all cardholders'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setT('for_status_transfer', !transfer.for_status_transfer)}
+                      className={toggleSwitchCls(transfer.for_status_transfer, 'bg-cv-amber-400')}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${transfer.for_status_transfer ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    </button>
+                    <span className={`text-sm font-semibold ${ink}`}>
+                      {transfer.for_status_transfer ? 'Counts toward elite/award status with partner' : 'Points bonus only — no status transfer'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -637,45 +737,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
               {/* 2. Eligible Cards */}
               <section>
                 <div className={`mb-3 ${lCls}`}>2 · ELIGIBLE CARDS</div>
-                {!spending.issuer ? (
-                  <p className={`text-sm ${muted}`}>Select an issuer above to see eligible cards.</p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {cardOptions.map((cardId) => {
-                      const checked = spending.card_ids.includes(cardId);
-                      return (
-                        <label key={cardId} className="flex items-center gap-3 cursor-pointer group">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCardId(cardId)}
-                            className="w-4 h-4 rounded accent-blue-500"
-                          />
-                          <span className={`text-sm font-medium transition-colors ${checked ? ink : muted} group-hover:${ink}`}>
-                            {CARD_NAMES[cardId]}
-                          </span>
-                        </label>
-                      );
-                    })}
-                    <div className="flex items-center gap-3 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => setS('card_ids', cardOptions.slice())}
-                        className={`text-[10px] font-mono font-bold ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
-                      >
-                        Select all
-                      </button>
-                      {spending.card_ids.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setS('card_ids', [])}
-                          className={`text-[10px] font-mono font-bold ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-400 hover:text-gray-600'}`}
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                {renderCardEligibility(
+                  spending.card_ids,
+                  (ids) => setS('card_ids', ids),
+                  spendingCardOptions,
+                  !!spending.issuer,
                 )}
               </section>
 
@@ -828,7 +894,16 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       {transfer.issuer ? ISSUER_LABELS[transfer.issuer as Issuer] : '—'} → {transfer.transfer_partner || '—'}
                     </div>
                     <div className={`text-xs font-mono ${muted}`}>
-                      +{transfer.bonus_pct || '0'}% bonus · {effectiveRatio}:1 ratio
+                      {transfer.bonus_pct
+                        ? `+${transfer.bonus_pct}% bonus · ${effectiveRatio}:1 ratio`
+                        : transfer.min_transfer_points
+                          ? `Status match at ${transfer.min_transfer_points}+ pts transferred`
+                          : 'No bonus % or min points set'}
+                    </div>
+                    <div className={`text-[10px] font-mono truncate ${muted}`}>
+                      {transfer.card_ids.length > 0
+                        ? transfer.card_ids.map((id) => CARD_NAMES[id as CardId]).join(', ')
+                        : 'All cards'}
                     </div>
                     {transfer.end_date && (
                       <div className={`text-[10px] font-mono ${muted}`}>
@@ -862,11 +937,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     {spending.spending_minimum ? ` · min. $${spending.spending_minimum}` : ''}
                     {spending.issuer ? ` · ${ISSUER_LABELS[spending.issuer as Issuer]}` : ''}
                   </div>
-                  {spending.card_ids.length > 0 && (
-                    <div className={`text-[10px] font-mono truncate ${muted}`}>
-                      {spending.card_ids.map((id) => CARD_NAMES[id as CardId]).join(', ')}
-                    </div>
-                  )}
+                  <div className={`text-[10px] font-mono truncate ${muted}`}>
+                    {spending.card_ids.length > 0
+                      ? spending.card_ids.map((id) => CARD_NAMES[id as CardId]).join(', ')
+                      : 'All cards'}
+                  </div>
                   {spending.end_date && (
                     <div className={`text-[10px] font-mono ${muted}`}>
                       Expires {new Date(spending.end_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}

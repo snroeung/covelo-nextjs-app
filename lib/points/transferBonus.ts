@@ -1,0 +1,63 @@
+import { useQuery } from '@tanstack/react-query';
+import type { PointsResult, PortalId, TransferResult } from '@/lib/points/types';
+import { trpc } from '@/lib/trpc-client';
+import type { TransferBonus, Issuer } from '@/lib/types/offers';
+
+export const ISSUER_TO_PORTAL: Record<Issuer, PortalId> = {
+  chase: 'chase', amex: 'amex', c1: 'c1', bilt: 'bilt', citi: 'citi',
+};
+
+export const ISSUER_LOYALTY_NAME: Record<Issuer, string> = {
+  chase: 'Chase Ultimate Rewards',
+  amex: 'Amex Membership Rewards',
+  c1: 'Capital One Miles',
+  bilt: 'Bilt Rewards',
+  citi: 'Citi ThankYou Rewards',
+};
+
+export function formatBonusEndDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Server orders by bonus_pct desc, so find() returns the biggest match.
+// Date-window guard: admin sessions bypass the public RLS end_date filter,
+// so re-check here to only badge bonuses currently live.
+export function findBonusForTransfer(
+  t: TransferResult,
+  bonuses: TransferBonus[],
+  now: number,
+): TransferBonus | undefined {
+  return bonuses.find(
+    b =>
+      ISSUER_TO_PORTAL[b.issuer] === t.sourcePortalId &&
+      b.transfer_partner === t.partnerProgram &&
+      new Date(b.end_date).getTime() > now &&
+      (!b.start_date || new Date(b.start_date).getTime() <= now),
+  );
+}
+
+export function findLiveBonus(
+  result: PointsResult,
+  bonuses: TransferBonus[],
+  now: number,
+): TransferBonus | undefined {
+  for (const t of result.transferAlternatives) {
+    const match = findBonusForTransfer(t, bonuses, now);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+export function useLiveTransferBonus(result: PointsResult | null): TransferBonus | undefined {
+  const { data } = useQuery({
+    queryKey: ['offers.transferBonuses'],
+    queryFn:  async () => ({
+      bonuses:   await trpc.offers.listTransferBonuses.query(),
+      fetchedAt: Date.now(),
+    }),
+    staleTime: 15 * 60 * 1000,
+  });
+  if (!result || !data) return undefined;
+  return findLiveBonus(result, data.bonuses, data.fetchedAt);
+}

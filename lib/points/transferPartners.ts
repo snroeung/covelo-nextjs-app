@@ -12,6 +12,7 @@ import {
   CARD_NAMES,
   PORTAL_CPP,
 } from './types';
+import { normalizeProgramName } from './programNames';
 
 // ---------------------------------------------------------------------------
 // Route classification helpers
@@ -143,7 +144,18 @@ export interface TransferPartnerConfig {
   iataCodes?: string[];
 }
 
-export const TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
+/** Empty grouped map — the default when no DB-backed transferPartners is passed in. No static fallback: an omitted map yields zero transfer alternatives rather than leaking unapproved/hardcoded programs. */
+export const EMPTY_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
+  chase: [], amex: [], c1: [], bilt: [], citi: [],
+};
+
+/**
+ * Seed source for the transfer_partners table only (see
+ * supabase/migrations/015_transfer_partners_seed.sql). Not used at runtime —
+ * the live app reads DB-approved partners via trpc.portalData.listTransferPartners,
+ * see hooks/usePointsCalc.ts.
+ */
+export const SEED_TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
   chase: [
     { program: 'World of Hyatt',                type: 'hotel',   ratio: '1:1', chainKey: 'hyatt' },
     { program: 'IHG One Rewards',               type: 'hotel',   ratio: '1:1', chainKey: 'ihg' },
@@ -177,7 +189,7 @@ export const TRANSFER_PARTNERS: Record<PortalId, TransferPartnerConfig[]> = {
     { program: 'JetBlue TrueBlue',              type: 'airline', ratio: '1:1', iataCodes: ['B6'] },
     { program: 'Qantas Frequent Flyer',         type: 'airline', ratio: '1:1', iataCodes: ['QF'] },
   ],
-  capital_one: [
+  c1: [
     { program: 'Wyndham Rewards',               type: 'hotel',   ratio: '1:1', chainKey: 'wyndham' },
     { program: 'Choice Privileges',             type: 'hotel',   ratio: '1:1', chainKey: 'choice' },
     { program: 'Air Canada Aeroplan',           type: 'airline', ratio: '1:1', iataCodes: ['AC'] },
@@ -243,6 +255,7 @@ function findEligibleCards(
   chainKey: string | null,
   filterIata: string | null,
   userCards: CardId[],
+  partnersMap: Record<PortalId, TransferPartnerConfig[]>,
 ): EligibleTransferCard[] {
   const seen = new Set<CardId>();
   const eligible: EligibleTransferCard[] = [];
@@ -250,8 +263,9 @@ function findEligibleCards(
     if (seen.has(cardId)) continue;
     const portalId = CARD_PORTAL_MAP[cardId];
     if (!portalId) continue;
-    const partner = TRANSFER_PARTNERS[portalId].find(p => {
-      if (p.type !== expectedPartnerType || p.program !== partnerProgram) return false;
+    const targetProgram = normalizeProgramName(partnerProgram);
+    const partner = partnersMap[portalId].find(p => {
+      if (p.type !== expectedPartnerType || normalizeProgramName(p.program) !== targetProgram) return false;
       if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
       if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
       return true;
@@ -278,6 +292,8 @@ export function calcTransferAlternatives(
   flightCtx?: FlightContext,
   /** User's actually-selected cards (owned) — defaults to userCards when omitted */
   selectedCards?: CardId[],
+  /** DB-backed partner map (trpc.portalData.listTransferPartners) — omitted yields no transfer alternatives, never a hardcoded fallback. */
+  transferPartners: Record<PortalId, TransferPartnerConfig[]> = EMPTY_TRANSFER_PARTNERS,
 ): TransferResult[] {
   const ownedCards = selectedCards ?? userCards;
   // Collect unique portals the user has access to, mapped to their best card per portal
@@ -304,7 +320,7 @@ export function calcTransferAlternatives(
   const results: TransferResult[] = [];
 
   for (const [portalId, sourceCardId] of portalCardMap.entries()) {
-    const partners = TRANSFER_PARTNERS[portalId];
+    const partners = transferPartners[portalId];
 
     for (const partner of partners) {
       if (partner.type !== expectedPartnerType) continue;
@@ -379,14 +395,18 @@ export function calcTransferAlternatives(
     }
   }
 
-  // Deduplicate by partnerProgram — same airline program appears in multiple portals
-  // (e.g. BA Avios is a Chase, Amex, Capital One, and Bilt partner).
-  // Keep the entry whose source card has the highest CPP so the user knows the best card to transfer from.
+  // Deduplicate by normalized partnerProgram — same real-world loyalty program
+  // appears in multiple portals, sometimes under a different scraped name
+  // (e.g. BA Avios is a Chase, Amex, Capital One, and Bilt partner; Capital
+  // One lists "TAP Air Portugal Miles&Go" while Bilt's source names it
+  // "TAP Miles&Go" — same program). Keep the entry whose source card has the
+  // highest CPP so the user knows the best card to transfer from.
   const deduped = new Map<string, TransferResult>();
   for (const r of results) {
-    const existing = deduped.get(r.partnerProgram);
+    const key = normalizeProgramName(r.partnerProgram);
+    const existing = deduped.get(key);
     if (!existing) {
-      deduped.set(r.partnerProgram, r);
+      deduped.set(key, r);
     } else {
       const newCpp  = typeof PORTAL_CPP[r.sourceCardId] === 'number'
         ? (PORTAL_CPP[r.sourceCardId] as number)
@@ -394,17 +414,17 @@ export function calcTransferAlternatives(
       const prevCpp = typeof PORTAL_CPP[existing.sourceCardId] === 'number'
         ? (PORTAL_CPP[existing.sourceCardId] as number)
         : (PORTAL_CPP[existing.sourceCardId] as { hotel: number; flight: number })[bookingType];
-      if (newCpp > prevCpp) deduped.set(r.partnerProgram, r);
+      if (newCpp > prevCpp) deduped.set(key, r);
     }
   }
 
   // Attach the user's owned cards that can reach this partner for the chip UI;
   // when none are owned, surface cards (from the full pool) that would unlock it.
   for (const r of deduped.values()) {
-    const owned = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards);
+    const owned = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards, transferPartners);
     r.eligibleCards = owned;
     r.recommendedCards = owned.length === 0
-      ? findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards)
+      ? findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards, transferPartners)
       : [];
   }
 
