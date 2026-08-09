@@ -32,8 +32,8 @@ Be straight forward and quick to the point
 | Token | Hex | Usage |
 |---|---|---|
 | `cv-green-500` | `#22C55E` | Review score label ("Excellent", "Very Good") |
-| `cv-green-700` | `#3F8F4E` | PointsGrid "Great" tier badge |
-| `cv-green-800` | `#2D7A3A` | PointsGrid "Excellent" tier badge |
+| `cv-green-700` | `#3F8F4E` | RedemptionTable "Great" tier badge |
+| `cv-green-800` | `#2D7A3A` | RedemptionTable "Excellent" tier badge |
 
 #### Blue (legacy dark mode palette)
 | Token | Hex | Usage |
@@ -120,11 +120,22 @@ Sidebar card selector with:
 - Desktop: image left (w-44) + info + price | Mobile: image top
 - "★ Best Value" badge overlay when cpp > 1.0
 - Favorite (heart) button — UI only, no persistence
-- Dark navy bottom bar: Best Portal | Redeem (points·cpp) | Value tier | Compare button
-- "Compare N portals →" toggles `PointsGrid` inline
+- Cash price only — **no redemption comparison.** Hotel pricing is per room type,
+  so the comparison belongs to the room cards in `HotelDetailModal`, not the result card
+- Clicking the photo or the name opens `HotelDetailModal`
 
-### `PointsGrid` (`components/PointsGrid.tsx`)
-Renders portal groups and transfer alternatives. Called from `HotelCard` and `FlightCard`.
+### Redemption comparison components
+Three renderings of the same `PointsResult`, chosen by how much room the surface has:
+
+| Component | Shape | Used by |
+|---|---|---|
+| `RedemptionTable` (`components/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote | `FlightCard`, `HotelDetailModal` room comparison popup, `SearchBoard` |
+| `BestRedemptionBar` (`components/BestRedemptionBar.tsx`) | Horizontal dark strip closing a result card — winner + "Compare N portals →" toggle | `FlightCard` |
+| `HotelBestRedemptionBar` (`components/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
+
+The grouped-alternatives overlay inside `RedemptionTable` is `absolute inset-0` over the
+table's own box — it covers the table exactly rather than hanging off its trigger, so an
+open popover never spills onto the next result card.
 
 ---
 
@@ -549,7 +560,7 @@ zod
 *~6,000 tokens/session saved*
 - `app/trip-planner/[id]/page.tsx` (~78 KB) — use `grep -n` or offset reads; avoid full reads
 - `components/HotelDetailModal.tsx` (~52 KB) — targeted grep preferred; full reads are very expensive
-- `app/trip-planner/page.tsx` (~38 KB), `components/PointsGrid.tsx` (~28 KB), `lib/points/transferPartners.ts` (~22 KB) — grep before reading
+- `app/trip-planner/page.tsx` (~38 KB), `components/RedemptionTable.tsx` (~28 KB), `lib/points/transferPartners.ts` (~22 KB) — grep before reading
 - `node_modules/@duffel/api/dist/Stays/StaysTypes.d.ts` (~23 KB) — read repeatedly across many sessions for `StaysAccommodation`/`StaysRoom`/`StaysPhoto`; grep for the specific interface name (e.g. `grep -n 'StaysRoom\b'`) instead of reading the whole file
 - `e2e/offers/offers-admin.spec.ts` (~17-30 KB) and `e2e/utils/admin-helpers.ts` (~7-14 KB) are hot files edited nearly every session — read the exact section first (`grep -n "test('"` to find line numbers) since ambiguous `Edit` calls on these files frequently fail with "String to replace not found" or "Found N matches"
 

@@ -50,14 +50,14 @@ export function findLiveBonus(
 }
 
 export function useLiveTransferBonus(result: PointsResult | null): TransferBonus | undefined {
-  const { data } = useQuery({
+  // Cached shape must stay the bare array — the offers page reads this same key
+  // and spreads it. `dataUpdatedAt` supplies the fetch time so the date-window
+  // check never calls Date.now() during render.
+  const { data, dataUpdatedAt } = useQuery({
     queryKey: ['offers.transferBonuses'],
-    queryFn:  async () => ({
-      bonuses:   await trpc.offers.listTransferBonuses.query(),
-      fetchedAt: Date.now(),
-    }),
+    queryFn:  () => trpc.offers.listTransferBonuses.query(),
     staleTime: 15 * 60 * 1000,
   });
-  if (!result || !data) return undefined;
-  return findLiveBonus(result, data.bonuses, data.fetchedAt);
+  if (!result || !data || !dataUpdatedAt) return undefined;
+  return findLiveBonus(result, data, dataUpdatedAt);
 }

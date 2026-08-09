@@ -101,6 +101,23 @@ test.describe('Hotels page — results', () => {
     expect(names).toEqual(sorted);
   });
 
+  test('result cards carry no redemption comparison — that lives in the room detail', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    // Hotel pricing is per room type, so a card-level winner would be a guess.
+    // The card shows the cash price only; the comparison starts in the modal.
+    const card = cards.first();
+    await expect(card.getByText('From · Cash')).toBeVisible();
+    await expect(card.getByTestId('redemption-table')).toHaveCount(0);
+    await expect(card.getByRole('button', { name: /^Compare \d+ portals?/ })).toHaveCount(0);
+    await expect(card.getByText('Best portal value')).toHaveCount(0);
+    await expect(card.getByText('Select your cards to compare points pricing across portals.')).toHaveCount(0);
+  });
+
   test('clicking a hotel card opens the detail modal with points comparison', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
@@ -133,7 +150,7 @@ test.describe('Hotels page — results', () => {
 
     // Rooms section only renders room types that have a genuine priced rate,
     // so any visible room card is guaranteed a points comparison.
-    const compareButton = page.getByRole('button', { name: /^Compare \d+ portals/ });
+    const compareButton = page.getByRole('button', { name: /^Compare \d+ portals$/ });
     await expect(compareButton.first()).toBeVisible({ timeout: 15_000 });
 
     await compareButton.first().click();

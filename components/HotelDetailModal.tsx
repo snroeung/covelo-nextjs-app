@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AddToTripButton } from '@/components/AddToTripButton';
-import { BestPortalPanel } from '@/components/BestPortalPanel';
+import { HotelBestRedemptionBar } from '@/components/HotelBestRedemptionBar';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { calcPoints } from '@/lib/points/calcPoints';
 import type { PointsResult } from '@/lib/points/types';
-import { PointsGrid } from '@/components/PointsGrid';
+import { RedemptionTable } from '@/components/RedemptionTable';
 import { trpc } from '@/lib/trpc-client';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
@@ -121,7 +121,12 @@ function RoomComparePopup({
 
         {/* scrollable ranked comparison */}
         <div className="px-6 py-4 overflow-y-auto flex-1">
-          <PointsGrid result={pointsResult} />
+          <RedemptionTable
+            result={pointsResult}
+            scopeLabel={`${nights} night${nights !== 1 ? 's' : ''}`}
+            scopeAdj="stay"
+            scopeNote={`applies to all ${nights} night${nights !== 1 ? 's' : ''}`}
+          />
         </div>
       </div>
     </div>,
@@ -364,10 +369,8 @@ function RoomCard({
         </div>
 
         {/* Best portal panel */}
-        <BestPortalPanel
+        <HotelBestRedemptionBar
           result={pointsResult}
-          isDark={isDark}
-          variant="stacked"
           primaryCta={{ label: 'Reserve →' }}
           compareLabel={`Compare ${pointsResult?.portalGroups.length ?? 0} portals`}
           onCompareClick={() => setShowPopup(true)}

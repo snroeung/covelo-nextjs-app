@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { calcPoints } from '@/lib/points/calcPoints';
-import { PointsGrid } from '@/components/PointsGrid';
+import { RedemptionTable } from '@/components/RedemptionTable';
 import type { FlightContext, PortalId } from '@/lib/points/types';
 
 // Subset of a Duffel flight offer actually read by adaptFlightOffer. The
@@ -336,7 +336,7 @@ export function SearchBoard({ items, loading }: { items: BoardCard[]; loading?: 
               <button onClick={() => setSelected(null)} className={`text-2xl leading-none min-h-11 min-w-11 ${muted}`} aria-label="Close">×</button>
             </div>
             {result ? (
-              <PointsGrid result={result} itemName={selected.title} itemMeta={selected.subtitle} />
+              <RedemptionTable result={result} />
             ) : (
               <p className={`text-sm ${muted}`}>Points comparison unavailable for this option.</p>
             )}

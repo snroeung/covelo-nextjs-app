@@ -83,7 +83,7 @@ async function hasApprovedTransferPartnerMatch(
 // "Air France-KLM"). Look up the canonical name already approved for this
 // issuer's own transfer_partners rows (Issuer and PortalId share the same
 // string values — chase/amex/c1/bilt/citi) and rewrite the bonus's
-// transfer_partner to match it, so PointsGrid.tsx's exact-match bonusFor()
+// transfer_partner to match it, so RedemptionTable.tsx's exact-match bonusFor()
 // can find it. Falls through to the raw scraped name when no match exists —
 // no fabricated partner rows.
 async function resolveCanonicalPartnerName(

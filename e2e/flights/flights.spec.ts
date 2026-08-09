@@ -101,22 +101,95 @@ test.describe('Flights page — results', () => {
     }).toPass();
   });
 
-  test('clicking Compare on a flight card expands the points comparison grid', async ({ page }) => {
+  test('Compare expands a best portal and a transfer partner, then collapses', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
     const cards = page.getByTestId('flight-card');
     const total = await cards.count();
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    const compareButton = cards.first().getByRole('button', { name: /^Compare \d+ portals?/ });
-    const hasCompare = await compareButton.isVisible({ timeout: 10_000 }).catch(() => false);
+    const card = cards.first();
+    const compareButton = card.getByRole('button', { name: /^Compare \d+ portals?/ });
+    const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasCompare, 'No points data for this offer — no cards selected, or no portal priced it');
+
+    await compareButton.click();
+    // The two default-visible rows are the best direct-book portal and the best
+    // transfer partner; every other option lives in the grouped popover.
+    await expect(card.getByText('Best portal value')).toBeVisible();
+    await expect(card.getByRole('button', { name: /^View .+ deal$/ }).first()).toBeVisible();
+
+    await card.getByRole('button', { name: '↑ Hide' }).click();
+    await expect(card.getByText('Best portal value')).not.toBeVisible();
+  });
+
+  test('remaining portals open in a popover, not an inline expansion', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    const card = cards.first();
+    const compareButton = card.getByRole('button', { name: /^Compare \d+ portals?/ });
+    const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasCompare, 'No points data for this offer');
-
     await compareButton.click();
-    await expect(cards.first().getByRole('button', { name: '↑ Hide' })).toBeVisible();
 
-    await compareButton.click();
-    await expect(cards.first().getByRole('button', { name: /^Compare \d+ portals?/ })).toBeVisible();
+    const trigger = card.getByRole('button', { name: /^See \d+ (round-trip|one-way) options?$/ });
+    const hasAlternatives = await trigger.isVisible().catch(() => false);
+    test.skip(!hasAlternatives, 'This offer has no options beyond the two featured rows');
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    await trigger.click();
+    const popover = card.getByRole('dialog');
+    await expect(popover).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await expect(popover.getByRole('button', { name: /^View .+ deal$/ }).first()).toBeVisible();
+
+    // The popover covers the points grid exactly — it must not spill onto the
+    // next result card or leave the grid half-visible behind it.
+    const gridBox = await card.getByTestId('redemption-table').boundingBox();
+    const popoverBox = await popover.boundingBox();
+    expect(gridBox).not.toBeNull();
+    expect(popoverBox).not.toBeNull();
+    for (const side of ['x', 'y', 'width', 'height'] as const) {
+      expect(Math.abs(popoverBox![side] - gridBox![side])).toBeLessThanOrEqual(1);
+    }
+
+    // Close button, then Escape — both dismiss it.
+    await popover.getByRole('button', { name: 'Close options' }).click();
+    await expect(popover).not.toBeVisible();
+
+    await trigger.click();
+    await expect(popover).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(popover).not.toBeVisible();
+  });
+
+  test('the round-trip itinerary labels both routes and collapses them', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    // FLIGHT_QUERY is a round trip, so every result has two labelled routes.
+    const card = cards.first();
+    const outbound = card.getByText('Outbound', { exact: true }).first();
+    await expect(outbound).toBeVisible();
+    await expect(card.getByText('Return', { exact: true }).first()).toBeVisible();
+
+    const toggle = card.getByRole('button', { name: /Round-trip itinerary/ });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    await toggle.click();
+    await expect(outbound).not.toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await toggle.click();
+    await expect(outbound).toBeVisible();
   });
 });
 
@@ -147,7 +220,7 @@ test.describe('Flights page — banners', () => {
     // create a [TEST] transfer partner + bonus tied to exactly that
     // carrier, so the match is deterministic rather than a data-availability
     // coin flip.
-    const badge = cards.first().locator('div.w-9.h-9.rounded-lg').first();
+    const badge = cards.first().getByTestId('airline-badge').first();
     const iataCode = (await badge.textContent())?.trim() || null;
     test.skip(!iataCode || iataCode === '?', 'Could not read an operating-carrier IATA code from the first result');
 
@@ -176,12 +249,8 @@ test.describe('Flights page — banners', () => {
     // (unlike the CollectionBanner test below, where the match is baked
     // into the cached server response itself).
     await gotoFlightsWithResults(page);
-    // `data-testid="flight-card"` lives on FlightCard's internal LegRow
-    // (rendered once per leg — twice for a round trip), not on the outer
-    // card wrapper. TransferBonusBanner/CollectionBanner render as siblings
-    // of LegRow at that outer level, so they're never a descendant of the
-    // testid'd element — scope the assertion to the page instead. Our test
-    // data ties to one specific carrier, so there's no ambiguity risk.
+    // Our test data ties to one specific carrier, so a page-scoped assertion
+    // carries no ambiguity risk.
     const escapedPartner = PARTNER_PROGRAM.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const bannerTextRe = new RegExp(`to ${escapedPartner}`);
     await expect(page.getByText(bannerTextRe).first()).toBeVisible({ timeout: 15_000 });
@@ -195,12 +264,11 @@ test.describe('Flights page — banners', () => {
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
     // Read the real operating-carrier IATA code directly off the airline
-    // badge (the small square with classes w-9/h-9/rounded-lg rendering
-    // `airlineIata ?? '?'`), rather than guessing a carrier that may not
-    // actually serve this route. Scoped to that specific element instead of
-    // regexing the whole card's text, which can false-match unrelated
-    // 2-letter tokens.
-    const badge = cards.first().locator('div.w-9.h-9.rounded-lg').first();
+    // badge in the card's summary header, rather than guessing a carrier that
+    // may not actually serve this route. Scoped to that specific element
+    // instead of regexing the whole card's text, which can false-match
+    // unrelated 2-letter tokens.
+    const badge = cards.first().getByTestId('airline-badge').first();
     const iataCode = (await badge.textContent())?.trim() || null;
     test.skip(!iataCode || iataCode === '?', 'Could not read an operating-carrier IATA code from the first result');
 
@@ -240,21 +308,16 @@ test.describe('Flights page — banners', () => {
     //
     // Match with a word-boundary regex rather than a bare hasText substring
     // — a plain 2-letter substring match can false-positive on unrelated
-    // card text (e.g. "BA" inside "Baggage"). This still checks via
-    // getByTestId since LegRow itself does render the carrier code — only
-    // the banner (checked below) lives outside the testid'd element.
+    // card text (e.g. "BA" inside "Baggage").
     const escapedIata = iataCode!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const matchingLeg = page.getByTestId('flight-card').filter({ hasText: new RegExp(`\\b${escapedIata}\\b`) }).first();
-    const hasMatchingCard = await matchingLeg.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
+    const matchingCard = page.getByTestId('flight-card').filter({ hasText: new RegExp(`\\b${escapedIata}\\b`) }).first();
+    const hasMatchingCard = await matchingCard.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
     test.skip(!hasMatchingCard, `The fresh search did not redraw a ${iataCode} flight — sandbox carrier data is randomized per request`);
 
-    // `data-testid="flight-card"` lives on LegRow (once per leg), not the
-    // outer card wrapper — CollectionBanner renders as LegRow's sibling at
-    // that outer level, so it's never a descendant of the testid'd element.
-    // Scope to the page instead; our test data ties to one specific
-    // carrier, so there's no ambiguity risk.
-    await expect(page.getByText(COLLECTION_NAME).first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('Limited time').first()).toBeVisible();
+    await expect(matchingCard.getByText(COLLECTION_NAME)).toBeVisible({ timeout: 15_000 });
+    // A card can carry both banners — the collection's and a live transfer
+    // bonus's — and each has its own "Limited time" chip.
+    await expect(matchingCard.getByText('Limited time').first()).toBeVisible();
   });
 
   test('banner info button reveals detail on click, without requiring hover', async ({ page }) => {

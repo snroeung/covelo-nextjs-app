@@ -1,47 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { CollectionBanner } from '@/components/CollectionBanner';
 import { TransferBonusBanner } from '@/components/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
-import { PointsGrid } from '@/components/PointsGrid';
+import { RedemptionTable } from '@/components/RedemptionTable';
 import { AddToTripButton } from '@/components/AddToTripButton';
-import { BestPortalPanel } from '@/components/BestPortalPanel';
+import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
+import { BestRedemptionBar } from '@/components/BestRedemptionBar';
 import { classifyRoute } from '@/lib/points/transferPartners';
 import { Cabin, FlightContext } from '@/lib/points/types';
+import { buildRouteViews, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDuration(iso: string): string {
-  const h = iso.match(/(\d+)H/)?.[1];
-  const m = iso.match(/(\d+)M/)?.[1];
-  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ') || iso;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
-function isoToMinutes(iso: string): number {
-  const h = parseInt(iso.match(/(\d+)H/)?.[1] ?? '0');
-  const m = parseInt(iso.match(/(\d+)M/)?.[1] ?? '0');
-  return h * 60 + m;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function totalTripDuration(slices: any[]): string {
-  const mins = slices.reduce((sum, s) => sum + isoToMinutes(s.duration), 0);
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ');
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getCabin(seg: any): Cabin {
@@ -61,11 +35,33 @@ function getAirlineColor(iata: string | null): string {
   return (iata && AIRLINE_COLORS[iata]) ?? '#374151';
 }
 
-function ArrowLine({ isDark }: { isDark: boolean }) {
-  const color = isDark ? '#262629' : '#d1d5db';
+function Chevron({ open }: { open: boolean }) {
   return (
-    <div className="flex items-center w-full">
-      <div className="flex-1 h-px" style={{ background: color }} />
+    <svg
+      width="12" height="12" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth={2.4} aria-hidden="true"
+      className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** Origin dot → a dot per connection → arrowhead at the destination. */
+function RouteLine({ isDark, stops }: { isDark: boolean; stops: number }) {
+  const color = isDark ? '#262629' : '#d1d5db';
+  const dot = <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />;
+  const segment = <div className="flex-1 h-px" style={{ background: color }} />;
+  return (
+    <div className="flex items-center w-full" aria-hidden="true">
+      {dot}
+      {Array.from({ length: stops }).map((_, i) => (
+        <Fragment key={i}>
+          {segment}
+          <span className="w-2 h-2 rounded-full shrink-0 border" style={{ borderColor: color, background: 'transparent' }} />
+        </Fragment>
+      ))}
+      {segment}
       <svg width="5" height="8" viewBox="0 0 5 8" fill={color}>
         <path d="M0 0L5 4L0 8z" />
       </svg>
@@ -74,147 +70,106 @@ function ArrowLine({ isDark }: { isDark: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// LegRow — pure layout, no hooks, no actions
+// RouteRow — one OUTBOUND / RETURN row inside the itinerary block
 // ---------------------------------------------------------------------------
 
-interface LegRowProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  slice: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  offer: any;
+interface RouteRowProps {
+  route: RouteView;
   isDark: boolean;
-  showCash: boolean;
   textPrimary: string;
   textMuted: string;
+  dividerCls: string;
 }
 
-function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegRowProps) {
-  const firstSeg   = slice.segments[0];
-  const lastSeg    = slice.segments[slice.segments.length - 1];
-  const stops      = slice.segments.length - 1;
-  const airline    = offer.owner?.name ?? firstSeg?.marketing_carrier?.name ?? 'Unknown airline';
-  const airlineIata = (offer.owner?.iata_code ?? firstSeg?.marketing_carrier?.iata_code ?? null) as string | null;
-  const flightNum  = (firstSeg?.marketing_carrier_flight_number ?? '') as string;
-  const flightLabel = [airlineIata, flightNum].filter(Boolean).join(' ');
-  const airColor   = getAirlineColor(airlineIata);
-  const depTime    = formatTime(firstSeg.departing_at);
-  const arrTime    = formatTime(lastSeg.arriving_at);
-  const dur        = formatDuration(slice.duration);
-  const originCode = firstSeg.origin.iata_code as string;
-  const destCode   = lastSeg.destination.iata_code as string;
-  const totalAmount = parseFloat(offer.total_amount);
-
-  // grid: badge | content | [cash]
-  const colTemplate = showCash ? '36px 1fr 115px' : '36px 1fr';
+function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRowProps) {
+  const stopCls = route.stops === 0
+    ? isDark ? 'text-cv-green-400' : 'text-cv-green-800'
+    : textMuted;
 
   return (
-    <div data-testid="flight-card">
-      {/* ── DESKTOP ─────────────────────────────────────────────────────── */}
+    <div className={`border-t ${dividerCls}`}>
+      {/* ── DESKTOP: one horizontal row ──────────────────────────────────── */}
       <div
         className="hidden md:grid items-center px-5 py-4 gap-5"
-        style={{ gridTemplateColumns: colTemplate }}
+        style={{ gridTemplateColumns: '8rem auto 1fr auto' }}
       >
-        {/* 1. Airline badge */}
-        <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-[11px] font-extrabold font-mono shrink-0 select-none"
-          style={{ background: airColor }}
-        >
-          {airlineIata ?? '?'}
-        </div>
-
-        {/* 2. Airline label above + dep → arrow → arr inline */}
+        {/* 1. Route identity */}
         <div className="min-w-0">
-          <div className={`text-[9px] font-bold font-mono uppercase tracking-widest truncate ${textMuted}`}>
-            {airline}{flightLabel ? ` · ${flightLabel}` : ''}
-          </div>
-          <div className="flex items-center gap-5 mt-1.5">
-            {/* Dep */}
-            <div className="shrink-0">
-              <div className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
-                {depTime}
-              </div>
-              <div className={`text-sm font-bold font-mono mt-1 ${textMuted}`}>{originCode}</div>
-            </div>
-            {/* Arrow + duration + stops */}
-            <div className="flex-1 flex flex-col gap-1 min-w-0">
-              <div className={`text-[9px] font-mono text-center ${textMuted}`}>{dur}</div>
-              <ArrowLine isDark={isDark} />
-              <div className={`text-[9px] font-mono text-center font-bold ${
-                stops === 0 ? 'text-cv-green-800' : textMuted
-              }`}>
-                {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
-              </div>
-            </div>
-            {/* Arr */}
-            <div className="shrink-0 text-right">
-              <div className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
-                {arrTime}
-              </div>
-              <div className={`text-sm font-bold font-mono mt-1 ${textMuted}`}>{destCode}</div>
-            </div>
-          </div>
+          <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textPrimary}`}>
+            {route.label}
+          </p>
+          <p className={`text-[10px] font-mono uppercase tracking-widest mt-1 truncate ${textMuted}`}>
+            {route.dateLabel}
+          </p>
         </div>
 
-        {/* 3. Cash (one-way only) */}
-        {showCash && (
-          <div className="text-right shrink-0">
-            <div className={`text-[9px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>Cash</div>
-            <div className={`text-2xl font-extrabold font-mono tabular-nums leading-none mt-0.5 ${textPrimary}`}>
-              {totalAmount.toLocaleString('en-US', {
-                style: 'currency', currency: offer.total_currency, maximumFractionDigits: 0,
-              })}
-            </div>
-            <div className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>per person</div>
-          </div>
-        )}
+        {/* 2. Departure */}
+        <div className="shrink-0">
+          <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+            {route.depTime}
+          </p>
+          <p className={`text-xs font-mono mt-1.5 ${textMuted}`}>
+            <span className={`text-sm font-bold ${textPrimary}`}>{route.depCode}</span>
+            {route.depCity && <> · {route.depCity}</>}
+          </p>
+        </div>
+
+        {/* 3. Route metadata */}
+        <div className="min-w-0 px-2">
+          <p className={`text-[10px] font-mono text-center ${textMuted}`}>{route.duration}</p>
+          <div className="my-1"><RouteLine isDark={isDark} stops={route.stops} /></div>
+          <p className={`text-[10px] font-mono text-center font-bold ${stopCls}`}>{route.stopLabel}</p>
+          <p className={`text-[9px] font-mono text-center mt-0.5 truncate ${textMuted}`}>
+            {route.carrier}{route.flightLabel ? ` · ${route.flightLabel}` : ''}
+          </p>
+        </div>
+
+        {/* 4. Arrival */}
+        <div className="shrink-0 text-right">
+          <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+            {route.arrTime}
+          </p>
+          <p className={`text-xs font-mono mt-1.5 ${textMuted}`}>
+            <span className={`text-sm font-bold ${textPrimary}`}>{route.arrCode}</span>
+            {route.arrCity && <> · {route.arrCity}</>}
+          </p>
+        </div>
       </div>
 
-      {/* ── MOBILE ──────────────────────────────────────────────────────── */}
-      <div className="md:hidden px-4 py-3 space-y-2.5">
-        {/* Badge + airline label + [cash] */}
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-extrabold font-mono shrink-0"
-            style={{ background: airColor }}
-          >
-            {airlineIata ?? '?'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className={`text-[9px] font-bold font-mono uppercase tracking-widest truncate ${textMuted}`}>
-              {airline}{flightLabel ? ` · ${flightLabel}` : ''}
-            </div>
-          </div>
-          {showCash && (
-            <div className="shrink-0 text-right">
-              <div className={`text-lg font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
-                {totalAmount.toLocaleString('en-US', {
-                  style: 'currency', currency: offer.total_currency, maximumFractionDigits: 0,
-                })}
-              </div>
-              <div className={`text-[9px] font-mono ${textMuted}`}>per person</div>
-            </div>
-          )}
+      {/* ── MOBILE: label → departure → metadata → arrival ────────────────── */}
+      <div className="md:hidden px-4 py-3.5">
+        <div className="mb-2.5 min-w-0">
+          <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textPrimary}`}>
+            {route.label} · {route.dateLabel}
+          </p>
+          <p className={`text-[9px] font-mono truncate ${textMuted}`}>
+            {route.carrier}{route.flightLabel ? ` · ${route.flightLabel}` : ''}
+          </p>
         </div>
 
-        {/* Dep → arr timeline */}
-        <div className="flex items-center gap-2">
-          <div className="shrink-0">
-            <div className={`text-xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>{depTime}</div>
-            <div className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>{originCode}</div>
-          </div>
-          <div className="flex-1 flex flex-col items-stretch">
-            <div className={`text-[9px] font-mono text-center ${textMuted}`}>{dur}</div>
-            <ArrowLine isDark={isDark} />
-            <div className={`text-[9px] font-mono text-center font-bold ${
-              stops === 0 ? 'text-cv-green-800' : textMuted
-            }`}>
-              {stops === 0 ? 'Nonstop' : `${stops} stop${stops > 1 ? 's' : ''}`}
-            </div>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className={`text-xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>{arrTime}</div>
-            <div className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>{destCode}</div>
-          </div>
+        <div className="flex items-baseline gap-3">
+          <p className={`text-2xl font-extrabold font-mono tabular-nums leading-none w-24 shrink-0 ${textPrimary}`}>
+            {route.depTime}
+          </p>
+          <p className={`text-xs font-mono min-w-0 truncate ${textMuted}`}>
+            <span className={`text-sm font-bold ${textPrimary}`}>{route.depCode}</span>
+            {route.depCity && <> · {route.depCity}</>}
+          </p>
+        </div>
+
+        <p className={`text-[10px] font-mono my-1.5 ${textMuted}`}>
+          <span aria-hidden="true" className="inline-block w-24">↓</span>
+          {route.duration} · <span className={`font-bold ${stopCls}`}>{route.stopLabel}</span>
+        </p>
+
+        <div className="flex items-baseline gap-3">
+          <p className={`text-2xl font-extrabold font-mono tabular-nums leading-none w-24 shrink-0 ${textPrimary}`}>
+            {route.arrTime}
+          </p>
+          <p className={`text-xs font-mono min-w-0 truncate ${textMuted}`}>
+            <span className={`text-sm font-bold ${textPrimary}`}>{route.arrCode}</span>
+            {route.arrCity && <> · {route.arrCity}</>}
+          </p>
         </div>
       </div>
     </div>
@@ -227,178 +182,156 @@ function LegRow({ slice, offer, isDark, showCash, textPrimary, textMuted }: LegR
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function FlightCard({ offer }: { offer: any }) {
-  const { isDark }   = useTheme();
+  const { isDark } = useTheme();
   const [expanded, setExpanded] = useState(false);
+  const [routesOpen, setRoutesOpen] = useState(true);
 
   const isRoundTrip = offer.slices.length > 1;
   const totalAmount = parseFloat(offer.total_amount);
 
-  const leg0Slice = offer.slices[0];
-  const leg0First = leg0Slice.segments[0];
-  const leg0Last  = leg0Slice.segments[leg0Slice.segments.length - 1];
+  const firstSlice = offer.slices[0];
+  const firstSeg = firstSlice.segments[0];
+  const lastSeg  = firstSlice.segments[firstSlice.segments.length - 1];
 
-  const leg1Slice = offer.slices[1] ?? offer.slices[0];
-  const leg1First = leg1Slice.segments[0];
-
-  const airlineIata = (offer.owner?.iata_code ?? leg0First?.marketing_carrier?.iata_code ?? null) as string | null;
+  const airlineIata = (offer.owner?.iata_code ?? firstSeg?.marketing_carrier?.iata_code ?? null) as string | null;
 
   const ptsCtx: FlightContext = {
     airlineIata,
-    originIata: leg0First?.origin?.iata_code ?? null,
-    destIata:   leg0Last?.destination?.iata_code ?? null,
-    routeType:  classifyRoute(leg0First?.origin?.iata_code, leg0Last?.destination?.iata_code),
-    cabin:      getCabin(leg0First),
+    originIata: firstSeg?.origin?.iata_code ?? null,
+    destIata:   lastSeg?.destination?.iata_code ?? null,
+    routeType:  classifyRoute(firstSeg?.origin?.iata_code, lastSeg?.destination?.iata_code),
+    cabin:      getCabin(firstSeg),
   };
-  const ptsResult  = usePointsCalc(totalAmount, 'flight', ptsCtx);
-  const nPortals   = ptsResult?.portalGroups.length ?? 0;
+  const ptsResult = usePointsCalc(totalAmount, 'flight', ptsCtx);
 
-  const cardBg      = isDark ? 'bg-gph-dark-card' : 'bg-white border border-gray-200';
-  const divider     = isDark ? 'border-gph-dark-line' : 'border-gray-200';
-  const textPrimary = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const textMuted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const sectionBg   = isDark ? 'bg-gph-dark-bg'      : 'bg-gray-50';
+  const cardBg      = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const textPrimary = isDark ? 'text-gph-dark-ink'    : 'text-gray-900';
+  const textMuted   = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
+  const sectionBg   = isDark ? 'bg-gph-dark-bg'       : 'bg-gray-50';
 
-  const airline    = offer.owner?.name ?? leg0First?.marketing_carrier?.name ?? 'Unknown airline';
-  const originCode = leg0First?.origin?.iata_code ?? '';
-  const destCode   = leg0Last?.destination?.iata_code ?? '';
+  const airline    = offer.owner?.name ?? firstSeg?.marketing_carrier?.name ?? 'Unknown airline';
+  const originCode = firstSeg?.origin?.iata_code ?? '';
+  const destCode   = lastSeg?.destination?.iata_code ?? '';
 
-  const legProps = { offer, isDark, textPrimary, textMuted };
+  const routes = buildRouteViews(offer);
+  const tripWord = isRoundTrip ? 'Round trip' : 'One way';
+  const scopeAdj = isRoundTrip ? 'round-trip' : 'one-way';
 
   const collection = offer.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
-  const collectionBanner = collection && (
-    <CollectionBanner
-      collectionName={collection.collection_name}
-      issuer={collection.issuer}
-      perkSummary={collection.perk_summary}
-      sourceUrl={collection.source_url}
-      limitedTimeOffer={collection.limited_time_offer}
-    />
-  );
-  const topBanners = (
-    <>
-      {collectionBanner}
-      <TransferBonusBanner result={ptsResult} rounded={!collection} />
-    </>
-  );
 
   const addToTrip = (
-    <div onClick={e => e.stopPropagation()}>
-      <AddToTripButton
-        type="flight"
-        itemId={offer.id}
-        title={`${airline} · ${originCode} → ${destCode}`}
-        data={offer}
-      />
-    </div>
+    <AddToTripButton
+      type="flight"
+      itemId={offer.id}
+      title={`${airline} · ${originCode} → ${destCode}`}
+      data={offer}
+    />
   );
 
-  // ── ONE-WAY ────────────────────────────────────────────────────────────
-  if (!isRoundTrip) {
-    return (
-      <div className={`rounded-xl overflow-hidden ${cardBg}`}>
-        {topBanners}
-        <LegRow {...legProps} slice={leg0Slice} showCash />
-
-        {/* Dark navy portal bar */}
-        {ptsResult ? (
-          <BestPortalPanel
-            result={ptsResult}
-            isDark={isDark}
-            variant="bar"
-            compareLabel={expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
-            onCompareClick={() => setExpanded(v => !v)}
-            trailingSlot={addToTrip}
-          />
-        ) : (
-          /* Fallback footer when no points data */
-          <div className={`px-5 py-2.5 border-t ${divider} flex items-center justify-end`}>
-            {addToTrip}
-          </div>
-        )}
-
-        {/* PointsGrid */}
-        {expanded && ptsResult && (
-          <div className={`border-t ${divider}`}>
-            <PointsGrid result={ptsResult} />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── ROUND-TRIP ─────────────────────────────────────────────────────────
-  const totalDur = totalTripDuration([leg0Slice, leg1Slice]);
-
   return (
-    <div className={`rounded-xl overflow-hidden ${cardBg}`}>
-      {topBanners}
-
-      {/* Trip header */}
-      <div className={`px-5 py-2 border-b ${divider} ${sectionBg}`}>
-        <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-          Round trip · {totalDur} total · {offer.slices.length} leg{offer.slices.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {/* Outbound section */}
-      <div className={`px-5 py-2 border-b ${divider} ${sectionBg}`}>
-        <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-          Outbound · {formatDate(leg0First.departing_at)} · {totalTripDuration([leg0Slice])}
-        </span>
-      </div>
-      <LegRow {...legProps} slice={leg0Slice} showCash={false} />
-
-      {/* Return section */}
-      <div className={`px-5 py-2 border-t border-b ${divider} ${sectionBg}`}>
-        <span className={`text-[9px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-          Return · {formatDate(leg1First.departing_at)} · {totalTripDuration([leg1Slice])}
-        </span>
-      </div>
-      <LegRow {...legProps} slice={leg1Slice} showCash={false} />
-
-      {/* Dark navy portal bar with total cash */}
-      {ptsResult ? (
-        <BestPortalPanel
-          result={ptsResult}
-          isDark={isDark}
-          variant="bar"
-          compareLabel={expanded ? '↑ Hide' : `Compare ${nPortals} portal${nPortals !== 1 ? 's' : ''} →`}
-          onCompareClick={() => setExpanded(v => !v)}
-          trailingSlot={addToTrip}
-          leadingSlot={
-            <div>
-              <p className="text-[9px] font-bold font-mono tracking-widest uppercase text-cv-navy-400 mb-0.5">Total Cash</p>
-              <p className="text-xl font-extrabold font-mono tabular-nums text-white leading-tight">
-                {totalAmount.toLocaleString('en-US', {
-                  style: 'currency', currency: offer.total_currency, maximumFractionDigits: 0,
-                })}
-              </p>
-              <p className="text-[10px] font-mono text-cv-navy-400">per person · round trip</p>
-            </div>
-          }
+    <article data-testid="flight-card" className={`rounded-xl border ${cardBg}`}>
+      {collection && (
+        <CollectionBanner
+          collectionName={collection.collection_name}
+          issuer={collection.issuer}
+          perkSummary={collection.perk_summary}
+          sourceUrl={collection.source_url}
+          limitedTimeOffer={collection.limited_time_offer}
         />
-      ) : (
-        /* Fallback footer when no points data */
-        <div className={`px-5 py-3 border-t ${divider} ${sectionBg} flex items-center justify-between gap-4`}>
-          <div>
-            <div className={`text-[9px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>Total cash</div>
-            <div className={`text-xl font-extrabold font-mono tabular-nums leading-none mt-0.5 ${textPrimary}`}>
-              {totalAmount.toLocaleString('en-US', {
-                style: 'currency', currency: offer.total_currency, maximumFractionDigits: 0,
-              })}
-            </div>
-            <div className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>per person · round trip</div>
-          </div>
-          {addToTrip}
-        </div>
       )}
 
-      {/* PointsGrid */}
-      {expanded && ptsResult && (
-        <div className={`border-t ${divider}`}>
-          <PointsGrid result={ptsResult} />
-        </div>
+      {/* 1. Search summary — airline identity left, winning redemption right */}
+      <ResultSummaryHeader
+        isDark={isDark}
+        roundedTop={!collection}
+        eyebrow={`${tripWord.toUpperCase()} · ${totalTripDuration(offer.slices).toUpperCase()}`}
+        title={airline}
+        trailing={addToTrip}
+        mark={
+          <div
+            data-testid="airline-badge"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-extrabold font-mono shrink-0 select-none"
+            style={{ background: getAirlineColor(airlineIata) }}
+          >
+            {airlineIata ?? '?'}
+          </div>
+        }
+      />
+
+      {/* 2. Transfer-bonus notice */}
+      <TransferBonusBanner
+        result={ptsResult}
+        rounded={false}
+        scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
+      />
+
+      {/* 3. Itinerary block — collapsible once there's more than one route */}
+      <div>
+        {isRoundTrip ? (
+          <button
+            type="button"
+            onClick={() => setRoutesOpen(v => !v)}
+            aria-expanded={routesOpen}
+            className={`w-full min-h-11 flex items-center justify-between gap-3 px-5 py-2 text-left transition-colors ${sectionBg} ${
+              isDark ? 'hover:bg-gph-dark-linesoft' : 'hover:bg-gray-100'
+            }`}
+          >
+            <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
+              Round-trip itinerary
+            </span>
+            <span className={`flex items-center gap-2 text-[10px] font-mono ${textMuted}`}>
+              {itineraryMeta(offer)}
+              <Chevron open={routesOpen} />
+            </span>
+          </button>
+        ) : (
+          <div className={`flex items-baseline justify-between gap-3 px-5 py-2 ${sectionBg}`}>
+            <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
+              Itinerary
+            </span>
+            <span className={`text-[10px] font-mono ${textMuted}`}>{itineraryMeta(offer)}</span>
+          </div>
+        )}
+
+        {(routesOpen || !isRoundTrip) && routes.map((route, i) => (
+          <RouteRow
+            key={`${route.label}-${i}`}
+            route={route}
+            isDark={isDark}
+            textPrimary={textPrimary}
+            textMuted={textMuted}
+            dividerCls={dividerCls}
+          />
+        ))}
+      </div>
+
+      {/* 4. Compare panel + the portal comparison it expands */}
+      {ptsResult ? (
+        <>
+          <BestRedemptionBar
+            result={ptsResult}
+            expanded={expanded}
+            onToggle={() => setExpanded(v => !v)}
+            roundedBottom={!expanded}
+            showMetrics
+            isDark={isDark}
+          />
+          {expanded && (
+            <RedemptionTable
+              result={ptsResult}
+              scopeLabel={tripWord}
+              scopeAdj={scopeAdj}
+              unitNoun="options"
+              showBonusNotice={false}
+            />
+          )}
+        </>
+      ) : (
+        <p className={`border-t px-5 py-3 text-[10px] font-mono rounded-b-xl ${dividerCls} ${sectionBg} ${textMuted}`}>
+          Select your cards to compare points pricing across portals.
+        </p>
       )}
-    </div>
+    </article>
   );
 }
