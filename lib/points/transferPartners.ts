@@ -4,15 +4,18 @@ import {
   BookingType,
   PortalResult,
   TransferResult,
-  EligibleTransferCard,
+  TransferSourceCard,
+  TransferSourceIssuer,
   RouteType,
   Cabin,
   FlightContext,
   CARD_PORTAL_MAP,
   CARD_NAMES,
+  ISSUER_CARDS,
   PORTAL_CPP,
 } from './types';
-import { normalizeProgramName } from './programNames';
+import { clusterProgramNames, normalizeProgramName, sameProgram } from './programNames';
+import { parseTransferRatio } from './transferRatio';
 
 // ---------------------------------------------------------------------------
 // Route classification helpers
@@ -248,34 +251,93 @@ function resolveChainKey(hotelChain: string): string | null {
   return null;
 }
 
-/** Every one of the user's cards whose portal reaches this partner program (dedupe by card). */
-function findEligibleCards(
+function portalCppFor(cardId: CardId, bookingType: BookingType): number {
+  const value = PORTAL_CPP[cardId];
+  return typeof value === 'number' ? value : value[bookingType];
+}
+
+/** Best card first: better rate wins, then the card whose portal redeems highest. */
+function byCardQuality(bookingType: BookingType) {
+  return (a: TransferSourceCard, b: TransferSourceCard) =>
+    b.multiplier - a.multiplier ||
+    portalCppFor(b.cardId, bookingType) - portalCppFor(a.cardId, bookingType);
+}
+
+/** Owned issuers first, then by the best rate behind them, then by portal value. */
+function byIssuerQuality(bookingType: BookingType) {
+  return (a: TransferSourceIssuer, b: TransferSourceIssuer) =>
+    Number(b.owned) - Number(a.owned) ||
+    b.best.multiplier - a.best.multiplier ||
+    portalCppFor(b.best.cardId, bookingType) - portalCppFor(a.best.cardId, bookingType);
+}
+
+/** The config on `portalId` that reaches this exact program, if any. */
+function partnerConfigFor(
+  portalId: PortalId,
   partnerProgram: string,
   expectedPartnerType: 'hotel' | 'airline',
   chainKey: string | null,
   filterIata: string | null,
-  userCards: CardId[],
   partnersMap: Record<PortalId, TransferPartnerConfig[]>,
-): EligibleTransferCard[] {
-  const seen = new Set<CardId>();
-  const eligible: EligibleTransferCard[] = [];
-  for (const cardId of userCards) {
-    if (seen.has(cardId)) continue;
+): TransferPartnerConfig | undefined {
+  return (partnersMap[portalId] ?? []).find(p => {
+    // Matched on program identity, not on an exact string: each issuer spells
+    // the same program its own way.
+    if (p.type !== expectedPartnerType || !sameProgram(p.program, partnerProgram)) return false;
+    if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
+    if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
+    return true;
+  });
+}
+
+function toSourceCard(cardId: CardId, ratio: string): TransferSourceCard {
+  const cardName = CARD_NAMES[cardId];
+  const parsed = parseTransferRatio(ratio, cardName);
+  return { cardId, cardName, multiplier: parsed.multiplier, ratioLabel: parsed.label };
+}
+
+/**
+ * Every issuer that reaches this program, with the cards behind each one.
+ *
+ * An issuer the user holds lists only their own cards, because those are the
+ * rates they can act on today; an issuer they don't hold lists everything it
+ * offers, so the chip can advertise its best rate and show the full breakdown.
+ * Rates resolve per card — a single issuer can publish different ratios for
+ * different cards in its lineup.
+ */
+function findSourceIssuers(
+  partnerProgram: string,
+  expectedPartnerType: 'hotel' | 'airline',
+  chainKey: string | null,
+  filterIata: string | null,
+  ownedCards: CardId[],
+  bookingType: BookingType,
+  partnersMap: Record<PortalId, TransferPartnerConfig[]>,
+): TransferSourceIssuer[] {
+  const ownedByPortal = new Map<PortalId, CardId[]>();
+  for (const cardId of ownedCards) {
     const portalId = CARD_PORTAL_MAP[cardId];
     if (!portalId) continue;
-    const targetProgram = normalizeProgramName(partnerProgram);
-    const partner = partnersMap[portalId].find(p => {
-      if (p.type !== expectedPartnerType || normalizeProgramName(p.program) !== targetProgram) return false;
-      if (expectedPartnerType === 'hotel' && chainKey !== null && p.chainKey !== chainKey) return false;
-      if (expectedPartnerType === 'airline' && filterIata != null && !p.iataCodes?.includes(filterIata.toUpperCase())) return false;
-      return true;
-    });
-    if (partner) {
-      seen.add(cardId);
-      eligible.push({ cardId, cardName: CARD_NAMES[cardId], portalId, ratio: partner.ratio });
-    }
+    const bucket = ownedByPortal.get(portalId);
+    if (bucket) { if (!bucket.includes(cardId)) bucket.push(cardId); }
+    else ownedByPortal.set(portalId, [cardId]);
   }
-  return eligible;
+
+  const issuers: TransferSourceIssuer[] = [];
+  for (const portalId of Object.keys(partnersMap) as PortalId[]) {
+    const partner = partnerConfigFor(portalId, partnerProgram, expectedPartnerType, chainKey, filterIata, partnersMap);
+    if (!partner) continue;
+
+    const owned = ownedByPortal.get(portalId) ?? [];
+    const cardIds = owned.length > 0 ? owned : ISSUER_CARDS[portalId] ?? [];
+    const cards = cardIds
+      .map(cardId => toSourceCard(cardId, partner.ratio))
+      .sort(byCardQuality(bookingType));
+    if (cards.length === 0) continue;
+
+    issuers.push({ portalId, owned: owned.length > 0, cards, best: cards[0], ratio: partner.ratio });
+  }
+  return issuers.sort(byIssuerQuality(bookingType));
 }
 
 // ---------------------------------------------------------------------------
@@ -335,45 +397,29 @@ export function calcTransferAlternatives(
         if (!partner.iataCodes?.includes(filterIata.toUpperCase())) continue;
       }
 
-      let estimatedPointsNeeded: number | null = null;
-      let estimatedCentsPerPoint: number | null = null;
-      let transferCpp: number | null = null;
       let note: string;
 
+      // TRANSFER_CPP/HOTEL_CPP value the *partner's* currency. Keep that value
+      // unscaled here and denominate it in source points once the representative
+      // card is known — the ratio is a per-card property, so scaling it against
+      // this portal's default card would misprice a row the user reaches with a
+      // different card in the same lineup.
+      const partnerCpp = bookingType === 'hotel'
+        ? lookupHotelCpp(partner.chainKey)
+        : partner.iataCodes ? lookupTransferCpp(partner.iataCodes, cabin) : null;
+
+      const ratioLabel = parseTransferRatio(partner.ratio, CARD_NAMES[sourceCardId]).label;
+
       if (bookingType === 'hotel') {
-        // Typical redemption value for this chain, applied to the actual stay
-        // price — same price/cpp formula as the airline branch below.
-        const cpp = lookupHotelCpp(partner.chainKey);
         const chainNote = HOTEL_CHAIN_NOTES[partner.chainKey ?? ''] ?? 'Award pricing varies — check program award chart';
-
-        if (cpp !== null) {
-          transferCpp = cpp;
-          estimatedCentsPerPoint = cpp;
-          estimatedPointsNeeded = Math.ceil((priceUsd / cpp) * 100);
-          note = `Est. using ${partner.program}'s typical ${cpp}¢/pt award value — ${chainNote.charAt(0).toLowerCase()}${chainNote.slice(1)}`;
-        } else {
-          note = chainNote;
-        }
+        note = partnerCpp !== null
+          ? `Est. using ${partner.program}'s typical ${partnerCpp}¢/pt award value${ratioLabel !== '1:1' ? ` at a ${ratioLabel} transfer` : ''} — ${chainNote.charAt(0).toLowerCase()}${chainNote.slice(1)}`
+          : chainNote;
       } else {
-        // Typical redemption value for this partner + cabin, applied to the
-        // actual flight price — same price/cpp formula as PortalResult.
-        const cpp = partner.iataCodes
-          ? lookupTransferCpp(partner.iataCodes, cabin)
-          : null;
-
-        if (cpp !== null) {
-          transferCpp = cpp;
-          estimatedCentsPerPoint = cpp;
-          estimatedPointsNeeded = Math.ceil((priceUsd / cpp) * 100);
-          note = `Est. using ${partner.program}'s typical ${cpp}¢/pt ${cabin} value — actual award pricing varies`;
-        } else {
-          note = 'Award pricing varies by route and availability — check the partner program\'s award chart';
-        }
+        note = partnerCpp !== null
+          ? `Est. using ${partner.program}'s typical ${partnerCpp}¢/pt ${cabin} value${ratioLabel !== '1:1' ? ` at a ${ratioLabel} transfer` : ''} — actual award pricing varies`
+          : 'Award pricing varies by route and availability — check the partner program\'s award chart';
       }
-
-      const isBetterThanPortal =
-        estimatedPointsNeeded !== null &&
-        estimatedPointsNeeded < bestPortalResult.pointsNeeded;
 
       results.push({
         partnerProgram: partner.program,
@@ -381,16 +427,17 @@ export function calcTransferAlternatives(
         sourceCardId,
         sourcePortalId: portalId,
         transferRatio: partner.ratio,
-        estimatedPointsNeeded,
-        estimatedCentsPerPoint,
-        transferCpp,
+        partnerCpp,
+        // Filled in below, once the representative card is settled.
+        estimatedPointsNeeded: null,
+        estimatedCentsPerPoint: null,
+        transferCpp: null,
         note,
-        isBetterThanPortal,
+        isBetterThanPortal: false,
         estimated: true,
         routeType: bookingType === 'flight' ? routeType : undefined,
         cabin: bookingType === 'flight' ? cabin : undefined,
-        eligibleCards: [],
-        recommendedCards: [],
+        sourceIssuers: [],
       });
     }
   }
@@ -399,37 +446,55 @@ export function calcTransferAlternatives(
   // appears in multiple portals, sometimes under a different scraped name
   // (e.g. BA Avios is a Chase, Amex, Capital One, and Bilt partner; Capital
   // One lists "TAP Air Portugal Miles&Go" while Bilt's source names it
-  // "TAP Miles&Go" — same program). Keep the entry whose source card has the
-  // highest CPP so the user knows the best card to transfer from.
-  const deduped = new Map<string, TransferResult>();
+  // "TAP Miles&Go" — same program). Group first, then pick which route to show
+  // once the user's own cards are known.
+  // Clustered across the whole batch rather than keyed name by name: issuers
+  // spell one program several ways ("British Airways Club" on Capital One vs
+  // "British Airways Executive Club" on Chase), and an exact key left those as
+  // separate rows — one owned, one not — for the same transfer.
+  const clusterKeys = clusterProgramNames(results.map(r => r.partnerProgram));
+  const grouped = new Map<string, TransferResult[]>();
   for (const r of results) {
-    const key = normalizeProgramName(r.partnerProgram);
-    const existing = deduped.get(key);
-    if (!existing) {
-      deduped.set(key, r);
-    } else {
-      const newCpp  = typeof PORTAL_CPP[r.sourceCardId] === 'number'
-        ? (PORTAL_CPP[r.sourceCardId] as number)
-        : (PORTAL_CPP[r.sourceCardId] as { hotel: number; flight: number })[bookingType];
-      const prevCpp = typeof PORTAL_CPP[existing.sourceCardId] === 'number'
-        ? (PORTAL_CPP[existing.sourceCardId] as number)
-        : (PORTAL_CPP[existing.sourceCardId] as { hotel: number; flight: number })[bookingType];
-      if (newCpp > prevCpp) deduped.set(key, r);
-    }
+    const key = clusterKeys.get(r.partnerProgram) ?? normalizeProgramName(r.partnerProgram);
+    const bucket = grouped.get(key);
+    if (bucket) bucket.push(r);
+    else grouped.set(key, [r]);
   }
 
-  // Attach the user's owned cards that can reach this partner for the chip UI;
-  // when none are owned, surface cards (from the full pool) that would unlock it.
-  for (const r of deduped.values()) {
-    const owned = findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards, transferPartners);
-    r.eligibleCards = owned;
-    r.recommendedCards = owned.length === 0
-      ? findEligibleCards(r.partnerProgram, expectedPartnerType, chainKey, filterIata, userCards, transferPartners)
-      : [];
+  const deduped: TransferResult[] = [];
+  for (const routes of grouped.values()) {
+    // Every issuer behind this program, owned ones first. Ranking on the user's
+    // own wallet — not on whichever issuer happens to redeem highest — is what
+    // keeps a row from advertising an issuer they don't hold while one they do
+    // sits in the same list.
+    const sourceIssuers = findSourceIssuers(
+      routes[0].partnerProgram, expectedPartnerType, chainKey, filterIata, ownedCards, bookingType, transferPartners,
+    );
+    const lead = sourceIssuers[0];
+    const rep = (lead && routes.find(r => r.sourcePortalId === lead.portalId)) ?? routes[0];
+
+    rep.sourceIssuers = sourceIssuers;
+    if (lead) {
+      // The row speaks for one card: the user's best on an owned issuer, or the
+      // best on the leading issuer when they hold none.
+      rep.sourceCardId = lead.best.cardId;
+      rep.sourcePortalId = lead.portalId;
+      rep.transferRatio = lead.ratio;
+
+      if (rep.partnerCpp !== null) {
+        const sourceCpp = Math.round(rep.partnerCpp * lead.best.multiplier * 100) / 100;
+        rep.transferCpp = sourceCpp;
+        rep.estimatedCentsPerPoint = sourceCpp;
+        rep.estimatedPointsNeeded = sourceCpp > 0 ? Math.ceil((priceUsd / sourceCpp) * 100) : null;
+        rep.isBetterThanPortal =
+          rep.estimatedPointsNeeded !== null && rep.estimatedPointsNeeded < bestPortalResult.pointsNeeded;
+      }
+    }
+    deduped.push(rep);
   }
 
   // isBetterThanPortal: true results first
-  return Array.from(deduped.values()).sort(
+  return deduped.sort(
     (a, b) => Number(b.isBetterThanPortal) - Number(a.isBetterThanPortal),
   );
 }

@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PointsResult, PortalId, TransferResult, CHASE_LEGACY_RATE_SUNSET_DATE } from '@/lib/points/types';
 import { rankOptions } from '@/lib/points/rankOptions';
-import { buildRowView, cashEarnLine, splitFeatured, type OptionRowView } from '@/lib/points/rowView';
+import { buildRowView, cashEarnLine, splitFeatured, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus } from '@/lib/types/offers';
-import { ISSUER_LOYALTY_NAME, formatBonusEndDate, findBonusForTransfer } from '@/lib/points/transferBonus';
+import { ISSUER_LOYALTY_NAME, formatBonusEndDate, findBonusForEligibleCards } from '@/lib/points/transferBonus';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -110,6 +110,101 @@ function ColumnHeaders({ isDark }: { isDark: boolean }) {
   );
 }
 
+/**
+ * Chip tone reads the deal, not the card: a live bonus is the one worth acting
+ * on, and a rate that returns less than a cent per point is worth flagging even
+ * though the card is perfectly usable. Everything in between stays neutral so
+ * the two ends keep their meaning.
+ */
+const POOR_CPP = 0.99;
+
+/**
+ * Two independent signals, so they get two independent channels: colour states
+ * what the transfer is worth, the dashed outline and missing fill state that the
+ * card isn't in the wallet. Folding ownership into the colour is what left every
+ * unlock chip grey — including ones sitting on a sub-cent rate worth flagging.
+ */
+const CHIP_PALETTE = {
+  bonus: {
+    dark:  { fill: 'bg-green-950/40',    text: 'text-cv-green-400',  border: 'border-cv-green-800' },
+    light: { fill: 'bg-cv-green-50',     text: 'text-cv-green-800',  border: 'border-cv-green-500' },
+  },
+  poor: {
+    dark:  { fill: 'bg-cv-amber-900',    text: 'text-cv-amber-300',  border: 'border-cv-amber-700' },
+    light: { fill: 'bg-cv-amber-50',     text: 'text-cv-amber-700',  border: 'border-cv-amber-400' },
+  },
+  neutral: {
+    dark:  { fill: 'bg-gph-dark-linesoft', text: 'text-gph-dark-ink', border: 'border-gph-dark-line' },
+    light: { fill: 'bg-white',             text: 'text-gray-900',     border: 'border-gray-300' },
+  },
+} as const;
+
+function chipTone(card: SourceCardView, owned: boolean, isDark: boolean): string {
+  const deal = card.hasBonus
+    ? 'bonus'
+    : card.cpp !== null && card.cpp < POOR_CPP
+      ? 'poor'
+      : 'neutral';
+  const { fill, text, border } = CHIP_PALETTE[deal][isDark ? 'dark' : 'light'];
+  return owned
+    ? `${fill} ${text} ${border}`
+    : `bg-transparent ${text} ${border} border-dashed`;
+}
+
+/**
+ * Which card(s) the transfer actually comes out of. Without this the row names
+ * an issuer and nothing tells the user whether that issuer is even in their
+ * wallet — the case that made an Air Canada row read "via Chase" to a
+ * Capital One-only holder.
+ */
+function SourceCards({ view, isDark }: { view: OptionRowView; isDark: boolean }) {
+  if (view.kind !== 'transfer' || view.sourceCards.length === 0) return null;
+
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const ownedCount = view.sourceCards.filter(c => c.owned).length;
+
+  // The no-owned-route case states itself in `unlockNote` above the chips.
+  const lead = ownedCount === 0
+    ? null
+    : view.sourceNarrowing === 'bonus'
+      ? 'Transfer from this card — it holds the live bonus'
+      : view.sourceNarrowing === 'ratio'
+        ? 'Transfer from this card — best ratio of your cards'
+        : ownedCount > 1
+          ? 'Transfer from any of these cards'
+          : 'Transfer from';
+
+  return (
+    <div className="mt-1.5">
+      {lead && <p className={`text-[10px] font-mono ${mutedCls}`}>{lead}</p>}
+      <div className="flex flex-wrap gap-1 mt-1">
+        {view.sourceCards.map(card => (
+          <span
+            key={card.key}
+            data-testid="source-chip"
+            // Ownership is carried by fill vs dashed outline; mirror it in the
+            // DOM so tests assert the state rather than the class string.
+            data-owned={card.owned}
+            // Full ratio text (and, on an issuer chip, its per-card breakdown)
+            // is supplementary — the label, rate and ¢/pt stay on the chip, so
+            // nothing here is hover-only.
+            title={card.ratioDetail}
+            className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${chipTone(card, card.owned, isDark)}`}
+          >
+            {card.label}
+            {/* Shown on unowned chips too — it is what earns them their colour. */}
+            {card.cpp !== null && (
+              <span className="font-mono ml-1 tabular-nums opacity-80">
+                {card.ratioLabel !== '1:1' ? `${card.ratioLabel} · ` : ''}{card.cpp}¢
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean }) {
   const isPortal = view.kind === 'portal';
   const tier = view.cpp !== null ? cppTier(view.cpp) : null;
@@ -146,6 +241,7 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
               {view.unlockNote}
             </p>
           )}
+          <SourceCards view={view} isDark={isDark} />
           {earnLine && (
             <p className={`text-xs font-semibold mt-1 ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
               {earnLine}
@@ -225,6 +321,21 @@ function AlternativeRow({
           {view.points !== null ? `${view.points.toLocaleString()} ${view.pointsUnit}` : 'award rate varies'}
           {view.cashUsd !== null ? ` · or ${fmtUsd(view.cashUsd)} cash` : ' · direct award'}
         </p>
+        {/* Too tight for chips — one line saying whose card it comes out of. */}
+        {view.kind === 'transfer' && view.sourceCards.length > 0 && (() => {
+          const owned = view.sourceCards.filter(c => c.owned);
+          return (
+            <p className={`text-[10px] font-mono mt-0.5 ${
+              owned.length > 0 ? mutedCls : isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'
+            }`}>
+              {owned.length === 0
+                ? `Not in your wallet — needs ${view.sourceCards.map(c => c.label).join(' or ')}`
+                : owned.length > 1
+                  ? 'Transfer from any of these cards'
+                  : `Transfer from ${owned[0].label}`}
+            </p>
+          );
+        })()}
         {earnLine && <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{earnLine}</p>}
       </div>
 
@@ -436,11 +547,12 @@ export function RedemptionTable({
     staleTime: 15 * 60 * 1000,
   });
   const now = dataUpdatedAt || null;
-  // Server orders by bonus_pct desc, so find() returns the biggest match.
+  // Matched against the cards the user holds, not the row's default issuer: a
+  // promo on a card they don't own must not badge the row or move its numbers.
   // Date-window guard: admin sessions bypass the public RLS end_date filter,
   // so re-check here to only badge bonuses currently live on the offers page.
-  const bonusFor = (t: TransferResult): TransferBonus | undefined =>
-    now === null ? undefined : findBonusForTransfer(t, transferBonuses, now);
+  const bonusFor = (t: TransferResult) =>
+    now === null ? undefined : findBonusForEligibleCards(t, transferBonuses, now);
 
   // Unified ¢/pt-ranked list — direct-book portals and transfer partners
   // compete on the same axis; a transfer partner can lead the list. Bonuses are
@@ -448,7 +560,10 @@ export function RedemptionTable({
   // the displayed rate can differ — re-sort on the displayed value so the card
   // never shows a lower cpp above a higher one.
   const views = rankOptions(result)
-    .map(row => buildRowView(row, result, row.kind === 'transfer' ? bonusFor(row.transfer) : undefined))
+    .map(row => {
+      const match = row.kind === 'transfer' ? bonusFor(row.transfer) : undefined;
+      return buildRowView(row, result, match?.bonus, match?.portalId);
+    })
     .sort((a, b) => (b.cpp ?? -Infinity) - (a.cpp ?? -Infinity));
 
   const { featured, alternatives } = splitFeatured(views);

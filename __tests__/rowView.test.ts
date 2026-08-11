@@ -53,8 +53,8 @@ function makeTransferResult(overrides: Partial<TransferResult> = {}): TransferRe
     note: '',
     isBetterThanPortal: true,
     estimated: true,
-    eligibleCards: [],
-    recommendedCards: [],
+    partnerCpp: 1.5,
+    sourceIssuers: [],
     ...overrides,
   };
 }
@@ -207,26 +207,133 @@ describe('buildRowView — transfer rows', () => {
     expect(cashEarnLine(view)).toBeNull();
   });
 
+  // ── source chips ────────────────────────────────────────────────────────
+  // Ownership lives on each chip: a wallet holding some but not all of a merged
+  // partner's issuers has to render as exactly that.
+  const card = (cardId: string, cardName: string, multiplier = 1, ratioLabel = '1:1') =>
+    ({ cardId, cardName, multiplier, ratioLabel }) as never;
+  const issuerOf = (
+    portalId: string,
+    owned: boolean,
+    cards: ReturnType<typeof card>[],
+    ratio = '1:1',
+  ) => ({ portalId, owned, cards, best: cards[0], ratio }) as never;
+
   it('stays quiet about cards when a wallet card already reaches the partner', () => {
     const result = makePointsResult([makePortalGroup('chase', 1.0)], [makeTransferResult({
-      eligibleCards: [
-        { cardId: 'chase_reserve', cardName: 'Chase Sapphire Reserve', portalId: 'chase', ratio: '1:1' },
+      sourceIssuers: [issuerOf('chase', true, [card('chase_reserve', 'Chase Sapphire Reserve')])],
+    })]);
+    const view = viewOf(result, r => r.kind === 'transfer');
+
+    expect(view.unlockNote).toBeNull();
+    expect(view.sourceCards.every(c => c.owned)).toBe(true);
+  });
+
+  it('names the issuer that would unlock a partner nothing in the wallet reaches', () => {
+    const result = makePointsResult([makePortalGroup('chase', 1.0)], [makeTransferResult({
+      sourceIssuers: [issuerOf('citi', false, [card('citi_strata_premier', 'Citi Strata Premier')])],
+    })]);
+    const view = viewOf(result, r => r.kind === 'transfer');
+
+    expect(view.unlockNote).toBe('Not in your wallet — Citi would unlock it');
+    expect(view.sourceCards.map(c => c.label)).toEqual(['Citi']);
+    expect(view.sourceCards.every(c => !c.owned)).toBe(true);
+  });
+
+  it('collapses an unowned issuer to one chip at its best rate, breakdown behind it', () => {
+    const result = makePointsResult([makePortalGroup('c1', 1.0)], [makeTransferResult({
+      sourcePortalId: 'chase',
+      sourceIssuers: [issuerOf('chase', false, [
+        card('chase_reserve', 'Chase Sapphire Reserve'),
+        card('chase_preferred', 'Chase Sapphire Preferred', 0.75, '4:3'),
+      ], '1:1 (standard, Sapphire Reserve); 4:3 (Chase Sapphire Preferred)')],
+    })]);
+    const view = viewOf(result, r => r.kind === 'transfer');
+
+    expect(view.sourceCards).toHaveLength(1);
+    expect(view.sourceCards[0]).toMatchObject({ label: 'Chase', ratioLabel: '1:1', owned: false });
+    expect(view.sourceCards[0].ratioDetail).toBe('Chase Sapphire Reserve 1:1 · Chase Sapphire Preferred 4:3');
+  });
+
+  it('marks each chip with its own ownership when the wallet holds only one issuer', () => {
+    const result = makePointsResult([makePortalGroup('c1', 1.0)], [makeTransferResult({
+      sourcePortalId: 'c1',
+      sourceIssuers: [
+        issuerOf('c1', true, [card('c1_venture_x', 'Capital One Venture X')]),
+        issuerOf('chase', false, [card('chase_reserve', 'Chase Sapphire Reserve')]),
       ],
     })]);
     const view = viewOf(result, r => r.kind === 'transfer');
 
     expect(view.unlockNote).toBeNull();
+    expect(view.displayName).toBe('Flying Blue via Capital One');
+    expect(view.sourceCards.map(c => [c.label, c.owned])).toEqual([
+      ['Capital One Venture X', true],
+      ['Chase', false],
+    ]);
   });
 
-  it('names the card that would unlock a partner nothing in the wallet reaches', () => {
+  it('chips owned cards individually so per-card ratios stay visible', () => {
     const result = makePointsResult([makePortalGroup('chase', 1.0)], [makeTransferResult({
-      recommendedCards: [
-        { cardId: 'citi_strata_premier', cardName: 'Citi Strata Premier', portalId: 'citi', ratio: '1:1' },
+      partnerProgram: 'World of Hyatt',
+      sourcePortalId: 'chase',
+      partnerCpp: 1.7,
+      sourceIssuers: [issuerOf('chase', true, [
+        card('chase_reserve', 'Chase Sapphire Reserve'),
+        card('chase_preferred', 'Chase Sapphire Preferred', 0.75, '4:3'),
+      ])],
+    })]);
+    const view = viewOf(result, r => r.kind === 'transfer');
+
+    expect(view.sourceCards.map(c => [c.label, c.ratioLabel, c.cpp])).toEqual([
+      ['Chase Sapphire Reserve', '1:1', 1.7],
+      ['Chase Sapphire Preferred', '4:3', Math.round(1.7 * 0.75 * 100) / 100],
+    ]);
+    // The better card wins the recommendation, so the row is not a tie.
+    expect(view.sourceNarrowing).toBe('ratio');
+  });
+
+  it('names no winner when the owned routes are interchangeable', () => {
+    const result = makePointsResult([makePortalGroup('c1', 1.0)], [makeTransferResult({
+      sourcePortalId: 'c1',
+      sourceIssuers: [
+        issuerOf('c1', true, [card('c1_venture_x', 'Capital One Venture X')]),
+        issuerOf('chase', true, [card('chase_reserve', 'Chase Sapphire Reserve')]),
       ],
     })]);
     const view = viewOf(result, r => r.kind === 'transfer');
 
-    expect(view.unlockNote).toBe('Not in your wallet — Citi Strata Premier would unlock it');
+    expect(view.sourceNarrowing).toBeNull();
+    expect(view.displayName).toBe('Flying Blue via 2 cards');
+    expect(view.sourceCards.every(c => c.cpp === 1.5 && !c.hasBonus)).toBe(true);
+  });
+
+  it('recommends only the bonus issuer, and restates the rate with the promo', () => {
+    const bonus: TransferBonus = {
+      id: 'b1',
+      issuer: 'chase',
+      transfer_partner: 'Flying Blue',
+      bonus_pct: 30,
+      start_date: null,
+      end_date: '2099-01-01',
+    } as TransferBonus;
+    const result = makePointsResult([makePortalGroup('c1', 1.0)], [makeTransferResult({
+      sourcePortalId: 'c1',
+      sourceIssuers: [
+        issuerOf('c1', true, [card('c1_venture_x', 'Capital One Venture X')]),
+        issuerOf('chase', true, [card('chase_reserve', 'Chase Sapphire Reserve')]),
+      ],
+    })]);
+    const row = rankOptions(result).find(r => r.kind === 'transfer')!;
+    const view = buildRowView(row, result, bonus, 'chase');
+
+    expect(view.sourceNarrowing).toBe('bonus');
+    expect(view.displayName).toBe('Flying Blue via Chase');
+    expect(view.cpp).toBe(1.95);                       // 1.5 × 1.3
+    expect(view.sourceCards.find(c => c.label.startsWith('Chase'))?.hasBonus).toBe(true);
+    expect(view.sourceCards.find(c => c.label.startsWith('Capital'))?.hasBonus).toBe(false);
+    // The promo lifts only the issuer running it.
+    expect(view.sourceCards.find(c => c.label.startsWith('Capital'))?.cpp).toBe(1.5);
   });
 });
 

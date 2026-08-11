@@ -6,7 +6,7 @@ import type {
   SpendingBonusRecord,
   TravelCollectionRecord,
 } from "./schemas";
-import { normalizeProgramName } from "@/lib/points/programNames";
+import { normalizeProgramName, sameProgram } from "@/lib/points/programNames";
 import { ISSUER_CARDS, type CardId, type PortalId } from "@/lib/points/types";
 
 // Defends against hallucinated/mismatched ids before they hit the DB —
@@ -74,7 +74,7 @@ async function hasApprovedTransferPartnerMatch(
     .eq("portal_id", portal_id)
     .eq("type", type);
   return ((data as { program: string }[] | null) ?? []).some(
-    (row) => normalizeProgramName(row.program) === target,
+    (row) => sameProgram(row.program, program),
   );
 }
 
@@ -100,7 +100,7 @@ async function resolveCanonicalPartnerName(
     .eq("status", "approved")
     .eq("portal_id", issuer);
   const match = ((data as { program: string }[] | null) ?? []).find(
-    (row) => normalizeProgramName(row.program) === target,
+    (row) => sameProgram(row.program, transferPartner),
   );
   return match?.program ?? transferPartner;
 }
@@ -125,7 +125,7 @@ async function hasApprovedTransferBonusMatch(
     .eq("issuer", issuer)
     .eq("source_url", sourceUrl);
   return ((data as { transfer_partner: string }[] | null) ?? []).some(
-    (row) => normalizeProgramName(row.transfer_partner) === target,
+    (row) => sameProgram(row.transfer_partner, transferPartner),
   );
 }
 

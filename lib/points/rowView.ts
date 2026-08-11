@@ -1,4 +1,6 @@
-import type { PointsResult, PortalGroup, PortalId, TransferResult } from './types';
+import type {
+  PointsResult, PortalGroup, PortalId, TransferResult, TransferSourceCard, TransferSourceIssuer,
+} from './types';
 import { ISSUER_LOYALTY_NAME } from './transferBonus';
 import type { RankedOption } from './rankOptions';
 import type { TransferBonus } from '@/lib/types/offers';
@@ -12,6 +14,33 @@ import type { TransferBonus } from '@/lib/types/offers';
  * card's summary header — so the derivations live here instead, keeping the
  * numbers identical across all three and unit-testable without a DOM.
  */
+/**
+ * One chip under a transfer row.
+ *
+ * A card the user owns gets its own chip, because the rate is written per card —
+ * two cards from one issuer can reach the same program at different ratios. An
+ * issuer they don't own collapses to a single chip advertising its best rate,
+ * with the per-card breakdown behind `ratioDetail`; listing every card of every
+ * issuer they don't hold would bury the ones they do.
+ */
+export interface SourceCardView {
+  /** Stable key — card id for owned chips, portal id for issuer chips */
+  key: string;
+  portalId: PortalId;
+  /** Card name for an owned chip, issuer brand for an issuer chip */
+  label: string;
+  /** Short ratio form — "1:1", "4:3", "1:1.2" */
+  ratioLabel: string;
+  /** Full ratio text plus, for issuer chips, each card's own rate */
+  ratioDetail: string;
+  /** ¢/pt at this chip's own ratio; null when the program publishes no rate */
+  cpp: number | null;
+  /** The user holds this card (or, for an issuer chip, any card on it) */
+  owned: boolean;
+  /** This chip's issuer is the one running the live bonus */
+  hasBonus: boolean;
+}
+
 export interface OptionRowView {
   key: string;
   kind: 'portal' | 'transfer';
@@ -42,6 +71,18 @@ export interface OptionRowView {
   earn: { rate: number; points: number; program: string; cashUsd: number } | null;
   /** Set only when no owned card reaches a transfer partner — the option is unbookable as-is */
   unlockNote: string | null;
+  /**
+   * Every route into this partner, owned cards first then unowned issuers.
+   * Ownership lives on each chip rather than on the row, so a wallet holding
+   * some but not all of a merged partner's issuers renders honestly.
+   */
+  sourceCards: SourceCardView[];
+  /**
+   * Why the recommendation narrowed to one owned card — a live bonus on that
+   * issuer, or a better ratio than the user's other cards. Null when the owned
+   * routes are interchangeable. Unowned chips stay visible either way.
+   */
+  sourceNarrowing: 'bonus' | 'ratio' | null;
   /** Live transfer bonus already folded into cpp/points, for badging */
   bonus?: TransferBonus;
   /** Tooltip for the "est." mark — transfer rows carry a stronger caveat */
@@ -91,19 +132,55 @@ function portalView(group: PortalGroup): OptionRowView {
     cashUsd: group.priceUsd,
     earn: earnFor(group),
     unlockNote: null,
+    // Direct-book rows have one source by definition: the portal itself.
+    sourceCards: [],
+    sourceNarrowing: null,
     estNote: PORTAL_ESTIMATE_NOTE,
   };
 }
 
 /**
- * A transfer partner none of the selected cards can reach isn't bookable as
- * listed — say which card would unlock it rather than showing a rate the user
- * can't act on.
+ * A partner no owned card reaches isn't bookable as listed — say so rather than
+ * showing a rate the user can't act on. The issuers that would unlock it are the
+ * chips underneath.
  */
-function unlockNoteFor(transfer: TransferResult): string | null {
-  if ((transfer.eligibleCards ?? []).length > 0) return null;
-  const rec = transfer.recommendedCards ?? [];
-  return rec.length > 0 ? `Not in your wallet — ${rec[0].cardName} would unlock it` : null;
+function unlockNoteFor(issuers: TransferSourceIssuer[]): string | null {
+  if (issuers.length === 0 || issuers.some(i => i.owned)) return null;
+  return issuers.length === 1
+    ? `Not in your wallet — ${ISSUER_BRAND[issuers[0].portalId]} would unlock it`
+    : 'Not in your wallet — any of these issuers would unlock it';
+}
+
+/**
+ * Which owned card the row recommends, and what settled it.
+ *
+ * A bonus beats a ratio: it is time-boxed and issuer-specific, so if an owned
+ * issuer has a live promo to this partner, that is where to transfer from today.
+ * Failing that a better ratio wins. When the owned routes tie, the row names no
+ * winner and says how many cards are interchangeable.
+ */
+function pickRecommendation(
+  owned: TransferSourceIssuer[],
+  bonusPortalId?: PortalId,
+): { card: TransferSourceCard; portalId: PortalId; narrowing: OptionRowView['sourceNarrowing'] } | null {
+  if (owned.length === 0) return null;
+
+  const bonusIssuer = bonusPortalId ? owned.find(i => i.portalId === bonusPortalId) : undefined;
+  if (bonusIssuer) return { card: bonusIssuer.best, portalId: bonusIssuer.portalId, narrowing: 'bonus' };
+
+  const ownedCards = owned.flatMap(i => i.cards.map(card => ({ card, portalId: i.portalId })));
+  const bestRate = Math.max(...ownedCards.map(c => c.card.multiplier));
+  const atBestRate = ownedCards.filter(c => c.card.multiplier === bestRate);
+  return {
+    ...atBestRate[0],
+    narrowing: atBestRate.length < ownedCards.length ? 'ratio' : null,
+  };
+}
+
+/** "Chase Sapphire Reserve 1:1 · Chase Sapphire Preferred 4:3" — the hover breakdown. */
+function issuerRatioDetail(issuer: TransferSourceIssuer): string {
+  const perCard = issuer.cards.map(c => `${c.cardName} ${c.ratioLabel}`).join(' · ');
+  return issuer.cards.length > 1 ? perCard : issuer.ratio;
 }
 
 function transferView(
@@ -111,16 +188,35 @@ function transferView(
   transfer: TransferResult,
   result: PointsResult,
   bonus?: TransferBonus,
+  bonusPortalId?: PortalId,
 ): OptionRowView {
-  // A bonus multiplies what each source point is worth, so cpp scales up and
-  // the points required scale down by the same factor.
-  const multiplier = bonus?.bonus_pct != null ? 1 + bonus.bonus_pct / 100 : 1;
-  const cpp = transfer.transferCpp !== null
-    ? Math.round(transfer.transferCpp * multiplier * 100) / 100
-    : null;
-  const points = transfer.estimatedPointsNeeded !== null
-    ? Math.round(transfer.estimatedPointsNeeded / multiplier)
-    : null;
+  const issuers = transfer.sourceIssuers ?? [];
+  const owned = issuers.filter(i => i.owned);
+  const recommended = pickRecommendation(owned, bonus ? bonusPortalId : undefined);
+
+  // The row speaks for the recommended card when there is one, otherwise for the
+  // best-ranked issuer — which is the one the engine already priced.
+  const portalId = recommended?.portalId ?? issuers[0]?.portalId ?? transfer.sourcePortalId;
+  const leadIssuer = issuers.find(i => i.portalId === portalId);
+  const leadCard = recommended?.card ?? leadIssuer?.best;
+  const bonusFactor = bonus?.bonus_pct != null ? 1 + bonus.bonus_pct / 100 : 1;
+
+  /** Partner-side rate restated in this card's points, bonus applied where it belongs. */
+  const rateFor = (multiplier: number, withBonus: boolean): number | null =>
+    transfer.partnerCpp === null
+      ? null
+      : Math.round(transfer.partnerCpp * multiplier * (withBonus ? bonusFactor : 1) * 100) / 100;
+
+  // The promo lifts the row when it sits on the issuer the row speaks for. An
+  // unscoped bonus (no issuer resolved) still applies — that is the legacy
+  // caller shape, and dropping it would silently understate the rate.
+  const rowGetsBonus = bonus != null && (bonusPortalId === undefined || portalId === bonusPortalId);
+  const cpp = leadCard
+    ? rateFor(leadCard.multiplier, rowGetsBonus)
+    : transfer.transferCpp === null
+      ? null
+      : Math.round(transfer.transferCpp * (rowGetsBonus ? bonusFactor : 1) * 100) / 100;
+  const points = cpp !== null && cpp > 0 ? Math.ceil((result.priceUsd / cpp) * 100) : null;
 
   const bonusNote = bonus?.bonus_pct != null
     ? ` · ${bonus.bonus_pct}% bonus applied`
@@ -128,21 +224,58 @@ function transferView(
       ? ' · status match applied'
       : '';
 
+  // Owned cards chip individually — their ratios can differ inside one issuer.
+  // Issuers the user lacks collapse to one chip at their best available rate.
+  const sourceCards: SourceCardView[] = issuers.flatMap((issuer): SourceCardView[] =>
+    issuer.owned
+      ? issuer.cards.map(card => ({
+          key: card.cardId,
+          portalId: issuer.portalId,
+          label: card.cardName,
+          ratioLabel: card.ratioLabel,
+          ratioDetail: issuer.ratio,
+          cpp: rateFor(card.multiplier, issuer.portalId === bonusPortalId),
+          owned: true,
+          hasBonus: bonus != null && issuer.portalId === bonusPortalId,
+        }))
+      : [{
+          key: issuer.portalId,
+          portalId: issuer.portalId,
+          label: ISSUER_BRAND[issuer.portalId],
+          ratioLabel: issuer.best.ratioLabel,
+          ratioDetail: issuerRatioDetail(issuer),
+          cpp: rateFor(issuer.best.multiplier, false),
+          owned: false,
+          hasBonus: false,
+        }],
+  );
+
+  // Naming one issuer when several owned cards tie would crown a winner that
+  // isn't one; naming none when the user owns nothing would hide the route.
+  const ownedChips = sourceCards.filter(c => c.owned);
+  const viaLabel = recommended === null
+    ? ISSUER_BRAND[portalId]
+    : recommended.narrowing === null && ownedChips.length > 1
+      ? `${ownedChips.length} cards`
+      : ISSUER_BRAND[portalId];
+
   return {
     key,
     kind: 'transfer',
     sourceName: transfer.partnerProgram,
-    displayName: `${transfer.partnerProgram} via ${ISSUER_BRAND[transfer.sourcePortalId]}`,
-    context: `${transfer.transferRatio} transfer${bonusNote}`,
-    sourcePortalId: transfer.sourcePortalId,
+    displayName: `${transfer.partnerProgram} via ${viaLabel}`,
+    context: `${leadCard?.ratioLabel ?? transfer.transferRatio} transfer${bonusNote}`,
+    sourcePortalId: portalId,
     cpp,
     points,
-    pointsUnit: pointCurrency(transfer.sourcePortalId),
+    pointsUnit: pointCurrency(portalId),
     // Award transfers move points out of the account — there is no cash rate
     // on the partner side to fall back to, and no earn-back either.
     cashUsd: null,
     earn: null,
-    unlockNote: unlockNoteFor(transfer),
+    unlockNote: unlockNoteFor(issuers),
+    sourceCards,
+    sourceNarrowing: recommended?.narrowing ?? null,
     bonus,
     estNote: TRANSFER_ESTIMATE_NOTE,
   };
@@ -152,10 +285,12 @@ export function buildRowView(
   row: RankedOption,
   result: PointsResult,
   bonus?: TransferBonus,
+  /** The owned issuer the bonus belongs to — see findBonusForEligibleCards */
+  bonusPortalId?: PortalId,
 ): OptionRowView {
   return row.kind === 'portal'
     ? portalView(row.group)
-    : transferView(row.key, row.transfer, result, bonus);
+    : transferView(row.key, row.transfer, result, bonus, bonusPortalId);
 }
 
 /**

@@ -82,6 +82,38 @@ export interface EligibleTransferCard {
   ratio: string;
 }
 
+/**
+ * One card's resolved rate to a partner. Ratios are written per card, not per
+ * issuer — two Chase cards reach World of Hyatt at different rates — so the
+ * multiplier is resolved from that card's name against the config string.
+ */
+export interface TransferSourceCard {
+  cardId: CardId;
+  cardName: string;
+  /** Partner points per source point, for this card */
+  multiplier: number;
+  /** Short display form of this card's ratio — "1:1", "4:3", "1:1.2" */
+  ratioLabel: string;
+}
+
+/**
+ * Every issuer that reaches a partner, with the cards behind it. Ownership is an
+ * issuer property (all of an issuer's cards draw on one points pool), but the
+ * rate is a card property, so an owned issuer lists the user's own cards and an
+ * unowned one lists what it offers.
+ */
+export interface TransferSourceIssuer {
+  portalId: PortalId;
+  /** The user holds at least one card on this issuer */
+  owned: boolean;
+  /** Owned: the user's cards that reach the partner. Unowned: all of the issuer's. */
+  cards: TransferSourceCard[];
+  /** Best entry in `cards` — the rate an unowned issuer advertises */
+  best: TransferSourceCard;
+  /** Raw config string, kept verbatim for the hover detail */
+  ratio: string;
+}
+
 export interface TransferResult {
   partnerProgram: string;
   partnerType: 'hotel' | 'airline';
@@ -92,15 +124,25 @@ export interface TransferResult {
   estimatedCentsPerPoint: number | null;
   /** Effective CPP when transferring, based on flight price vs award cost */
   transferCpp: number | null;
+  /**
+   * The partner program's own ¢/pt, before any transfer ratio is applied. Every
+   * other figure here is denominated in source points; keeping the unscaled
+   * value lets a chip restate the rate for its own card's ratio exactly, rather
+   * than dividing one card's scaled number by another's.
+   */
+  partnerCpp: number | null;
   note: string;
   isBetterThanPortal: boolean;
   estimated: true;
   routeType?: RouteType;
   cabin?: Cabin;
-  /** Every one of the user's selected cards that can reach this partner program */
-  eligibleCards: EligibleTransferCard[];
-  /** When eligibleCards is empty, cards (not owned) that would unlock this partner */
-  recommendedCards: EligibleTransferCard[];
+  /**
+   * Every issuer whose partner list reaches this program, owned ones first.
+   * Replaces the old eligible/recommended split, which carried a single
+   * ownership flag for the whole row and so could not describe a wallet holding
+   * some but not all of the issuers behind a merged partner.
+   */
+  sourceIssuers: TransferSourceIssuer[];
 }
 
 export interface PointsResult {
@@ -211,6 +253,17 @@ export const ISSUER_CARDS: Record<PortalId, CardId[]> = (
   (acc[portal] ??= []).push(cardId);
   return acc;
 }, {} as Record<PortalId, CardId[]>);
+
+/**
+ * Issuer/brand words that appear in card names and in nearly every ratio
+ * qualifier on that issuer's rows. Matching a card against a qualifier has to
+ * ignore them — "other Citi ThankYou cards" would otherwise match every Citi
+ * card and swallow the tier-specific rate written for one of them.
+ */
+export const ISSUER_BRAND_WORDS = [
+  'chase', 'amex', 'american', 'express', 'capital', 'one', 'bilt', 'citi',
+  'thankyou', 'membership', 'rewards', 'card', 'cards',
+];
 
 export const CARD_NAMES: Record<CardId, string> = {
   chase_reserve:           'Chase Sapphire Reserve',

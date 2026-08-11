@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { calcPoints } from '@/lib/points/calcPoints';
 import { calcTransferAlternatives, SEED_TRANSFER_PARTNERS, TransferPartnerConfig } from '@/lib/points/transferPartners';
-import { normalizeProgramName } from '@/lib/points/programNames';
-import { PortalResult, PortalId } from '@/lib/points/types';
+import { clusterProgramNames, normalizeProgramName, sameProgram } from '@/lib/points/programNames';
+import { PortalResult, PortalId, CardId, CARD_PORTAL_MAP, ISSUER_CARDS } from '@/lib/points/types';
 import { PORTAL_FLIGHT_MARKUP, PORTAL_HOTEL_MARKUP } from '@/lib/points/portalMarkup';
 
 // ---------------------------------------------------------------------------
@@ -293,9 +293,9 @@ describe('calcTransferAlternatives() cross-portal dedup (DB-backed partner map)'
     const results = calcTransferAlternatives(
       400, 'flight', ['c1_venture_x', 'bilt_blue'], flightBest, null, 'TP', undefined, undefined, partnersMap,
     );
-    const tapRows = results.filter((r) => normalizeProgramName(r.partnerProgram) === normalizeProgramName('TAP Air Portugal Miles&Go'));
+    const tapRows = results.filter((r) => sameProgram(r.partnerProgram, 'TAP Air Portugal Miles&Go'));
     expect(tapRows).toHaveLength(1);
-    expect(tapRows[0].eligibleCards.map((c) => c.cardId).sort()).toEqual(['bilt_blue', 'c1_venture_x']);
+    expect(tapRows[0].sourceIssuers.filter((i) => i.owned).map((i) => i.portalId).sort()).toEqual(['bilt', 'c1']);
   });
 
   it('merges "American AAdvantage" (Bilt) and "AAdvantage Program" (Citi) into one row', () => {
@@ -309,30 +309,192 @@ describe('calcTransferAlternatives() cross-portal dedup (DB-backed partner map)'
     const results = calcTransferAlternatives(
       400, 'flight', ['bilt_blue', 'citi_strata_premier'], flightBest, null, 'AA', undefined, undefined, partnersMap,
     );
-    const aaRows = results.filter((r) => normalizeProgramName(r.partnerProgram) === normalizeProgramName('American AAdvantage'));
+    const aaRows = results.filter((r) => sameProgram(r.partnerProgram, 'American AAdvantage'));
     expect(aaRows).toHaveLength(1);
-    expect(aaRows[0].eligibleCards.map((c) => c.cardId).sort()).toEqual(['bilt_blue', 'citi_strata_premier']);
+    expect(aaRows[0].sourceIssuers.filter((i) => i.owned).map((i) => i.portalId).sort()).toEqual(['bilt', 'citi']);
   });
 });
 
-describe('normalizeProgramName()', () => {
-  it('merges "TAP Miles&Go" and "TAP Air Portugal Miles&Go" to the same key', () => {
-    expect(normalizeProgramName('TAP Miles&Go')).toBe(normalizeProgramName('TAP Air Portugal Miles&Go'));
+// A merged row must name a route the user can actually take. It used to name
+// whichever issuer redeemed highest, so a wallet holding some but not all of a
+// program's issuers was told to transfer from one it didn't have. These
+// invariants are asserted across the whole partner map rather than for named
+// programs, so they hold for every partner the table grows.
+describe('calcTransferAlternatives() route selection follows the wallet', () => {
+  const ALL_ISSUERS: PortalId[] = ['chase', 'amex', 'c1', 'bilt', 'citi'];
+
+  /** Which issuers reach this program at all, straight from the config map. */
+  function issuersReaching(program: string, type: 'hotel' | 'airline'): PortalId[] {
+    return ALL_ISSUERS.filter((portalId) =>
+      SEED_TRANSFER_PARTNERS[portalId].some(
+        (p) => p.type === type && sameProgram(p.program, program),
+      ),
+    );
+  }
+
+  function rowsFor(cards: CardId[], bookingType: 'hotel' | 'flight') {
+    return bookingType === 'flight'
+      ? calcPoints(400, 'flight', cards, { cabin: 'economy' }, undefined, null, SEED_TRANSFER_PARTNERS).transferAlternatives
+      : calcPoints(620, 'hotel', cards, undefined, undefined, null, SEED_TRANSFER_PARTNERS).transferAlternatives;
+  }
+
+  const WALLETS: Array<[string, CardId[]]> = [
+    ['one issuer', ['c1_venture_x']],
+    ['two issuers', ['c1_venture_x', 'chase_reserve']],
+    ['two cards, one issuer', ['chase_reserve', 'chase_preferred']],
+    ['every issuer', ['chase_reserve', 'amex_platinum', 'c1_venture_x', 'bilt_blue', 'citi_strata_premier']],
+  ];
+
+  for (const bookingType of ['hotel', 'flight'] as const) {
+    const partnerType = bookingType === 'flight' ? 'airline' : 'hotel';
+
+    describe(`${bookingType} rows`, () => {
+      it.each(WALLETS)('lists every issuer that reaches the program — %s', (_label, cards) => {
+        for (const row of rowsFor(cards, bookingType)) {
+          const expected = issuersReaching(row.partnerProgram, partnerType).sort();
+          expect(row.sourceIssuers.map((i) => i.portalId).sort()).toEqual(expected);
+        }
+      });
+
+      it.each(WALLETS)('sources the row from an issuer the wallet holds — %s', (_label, cards) => {
+        const ownedPortals = new Set(cards.map((c) => CARD_PORTAL_MAP[c]));
+        for (const row of rowsFor(cards, bookingType)) {
+          const owned = row.sourceIssuers.filter((i) => i.owned);
+          expect(owned.map((i) => i.portalId).sort()).toEqual(
+            row.sourceIssuers.map((i) => i.portalId).filter((p) => ownedPortals.has(p)).sort(),
+          );
+          if (owned.length > 0) {
+            expect(owned.map((i) => i.portalId)).toContain(row.sourcePortalId);
+            expect(CARD_PORTAL_MAP[row.sourceCardId]).toBe(row.sourcePortalId);
+            // Never advertises a card the user doesn't hold as the route.
+            expect(cards).toContain(row.sourceCardId);
+          }
+        }
+      });
+
+      it.each(WALLETS)('lists owned cards for owned issuers, the full lineup otherwise — %s', (_label, cards) => {
+        for (const row of rowsFor(cards, bookingType)) {
+          for (const issuer of row.sourceIssuers) {
+            const ids = issuer.cards.map((c) => c.cardId);
+            expect(ids.length).toBeGreaterThan(0);
+            if (issuer.owned) {
+              expect(ids.every((id) => cards.includes(id))).toBe(true);
+            } else {
+              expect(ids).toEqual(ISSUER_CARDS[issuer.portalId]);
+            }
+            // `best` is the top-rated entry of whatever the issuer lists.
+            expect(issuer.best.multiplier).toBe(Math.max(...issuer.cards.map((c) => c.multiplier)));
+          }
+        }
+      });
+    });
+  }
+
+  it('prefers the better-ratio issuer among owned cards', () => {
+    const partnersMap: Record<PortalId, TransferPartnerConfig[]> = {
+      ...SEED_TRANSFER_PARTNERS,
+      c1: [
+        ...SEED_TRANSFER_PARTNERS.c1,
+        { program: 'Hilton Honors', type: 'hotel', ratio: '1:1', chainKey: 'hilton' },
+      ],
+    };
+    const results = calcTransferAlternatives(
+      620, 'hotel', ['amex_platinum', 'c1_venture_x'], mockBestPortalResult, 'Hilton',
+      undefined, undefined, ['amex_platinum', 'c1_venture_x'], partnersMap,
+    );
+    const hilton = results.find((r) => r.partnerProgram === 'Hilton Honors')!;
+    expect(hilton.sourcePortalId).toBe('amex');
+    expect(hilton.sourceCardId).toBe('amex_platinum');
   });
 
-  it('merges "AAdvantage Program" and "American AAdvantage" to the same key', () => {
-    expect(normalizeProgramName('AAdvantage Program')).toBe(normalizeProgramName('American AAdvantage'));
+  it('states a 1:2 transfer in source points — twice the partner rate, half the points', () => {
+    const amexBest: PortalResult = { ...mockBestPortalResult, portalId: 'amex', cardId: 'amex_platinum', cardName: 'Amex Platinum' };
+    const results = calcTransferAlternatives(
+      620, 'hotel', ['amex_platinum'], amexBest, 'Hilton', undefined, undefined, undefined, SEED_TRANSFER_PARTNERS,
+    );
+    const hilton = results.find((r) => r.partnerProgram === 'Hilton Honors')!;
+    // Hilton points are worth 0.5¢ each, so one Amex point buying two of them is 1.0¢.
+    expect(hilton.partnerCpp).toBe(0.5);
+    expect(hilton.transferCpp).toBe(1.0);
+    expect(hilton.estimatedPointsNeeded).toBe(Math.ceil((620 / 1.0) * 100));
   });
 
-  it('merges "British Airways Avios" and "British Airways Executive Club" to the same key', () => {
-    expect(normalizeProgramName('British Airways Avios')).toBe(normalizeProgramName('British Airways Executive Club'));
+  it('prices a per-card ratio against the card that gets it', () => {
+    // Same Chase config, two cards, two rates: Reserve keeps 1:1, Preferred
+    // moves to 4:3 in 2026. The row must price whichever card the user holds.
+    const partnersMap: Record<PortalId, TransferPartnerConfig[]> = {
+      ...SEED_TRANSFER_PARTNERS,
+      chase: [
+        { program: 'World of Hyatt', type: 'hotel', chainKey: 'hyatt',
+          ratio: '1:1 (standard, Sapphire Reserve); 4:3 (Chase Sapphire Preferred and Ink Business Preferred, effective 2026)' },
+      ],
+    };
+    const rowFor = (cards: CardId[]) => calcTransferAlternatives(
+      620, 'hotel', cards, mockBestPortalResult, 'Hyatt', undefined, undefined, cards, partnersMap,
+    ).find((r) => r.partnerProgram === 'World of Hyatt')!;
+
+    // Hyatt points are 1.7¢; Reserve transfers 1:1, Preferred gives up a quarter.
+    expect(rowFor(['chase_reserve']).transferCpp).toBe(1.7);
+    expect(rowFor(['chase_preferred']).transferCpp).toBe(Math.round(1.7 * (3 / 4) * 100) / 100);
+  });
+});
+
+// Program identity is decided by brand tokens, not by an alias table: issuers
+// spell one program a dozen ways, and every unlisted spelling used to become a
+// second row for the same transfer.
+describe('sameProgram()', () => {
+  const SAME: Array<[string, string]> = [
+    ['TAP Miles&Go', 'TAP Air Portugal Miles&Go'],
+    ['AAdvantage', 'American AAdvantage'],
+    ['British Airways Avios', 'British Airways Executive Club'],
+    ['British Airways Club', 'British Airways Executive Club'],
+    ['Qatar Airways Avios', 'Qatar Airways Privilege Club'],
+    ['Qatar Airways Privilege Club (Avios)', 'Qatar Airways Privilege Club'],
+    ['Cathay Pacific Cathay', 'Cathay Pacific Asia Miles'],
+    ['JAL Mileage Bank', 'JAL (Japan Airlines) Mileage Bank'],
+    ['United MileagePlus', 'United Airlines MileagePlus'],
+    ['Singapore KrisFlyer', 'Singapore Airlines KrisFlyer'],
+    ['Air France-KLM Flying Blue', 'Air France/KLM Flying Blue'],
+    ['Flying Blue', 'Air France/KLM Flying Blue'],
+    ['Accor Live Limitless', 'ALL - Accor Live Limitless'],
+    ['Turkish Airlines Miles&Smiles', 'Turkish Airlines Miles & Smiles'],
+  ];
+
+  it.each(SAME)('treats %s and %s as one program', (a, b) => {
+    expect(sameProgram(a, b)).toBe(true);
+    expect(sameProgram(b, a)).toBe(true);
   });
 
-  it('does not merge unrelated programs', () => {
-    expect(normalizeProgramName('United MileagePlus')).not.toBe(normalizeProgramName('Delta SkyMiles'));
+  const DIFFERENT: Array<[string, string]> = [
+    ['United MileagePlus', 'Delta SkyMiles'],
+    ['Air Canada Aeroplan', 'Air France/KLM Flying Blue'],
+    ['Virgin Atlantic Flying Club', 'Air France/KLM Flying Blue'],
+    ['British Airways Avios', 'Qatar Airways Avios'],
+    ['World of Hyatt', 'Marriott Bonvoy'],
+    ['Iberia Plus', 'Aer Lingus AerClub'],
+  ];
+
+  it.each(DIFFERENT)('keeps %s and %s apart', (a, b) => {
+    expect(sameProgram(a, b)).toBe(false);
+  });
+});
+
+describe('clusterProgramNames()', () => {
+  it('links two spellings through a third that mentions both', () => {
+    const clusters = clusterProgramNames([
+      'I Prefer Hotel Rewards',
+      'Preferred Hotels & Resorts',
+      'I Prefer Hotel Rewards (Preferred Hotels & Resorts)',
+    ]);
+    expect(new Set(clusters.values()).size).toBe(1);
   });
 
-  it('is case- and punctuation-insensitive for non-aliased names', () => {
+  it('keeps unrelated programs in their own clusters', () => {
+    const clusters = clusterProgramNames(['United MileagePlus', 'Delta SkyMiles', 'World of Hyatt']);
+    expect(new Set(clusters.values()).size).toBe(3);
+  });
+
+  it('normalizes case and punctuation', () => {
     expect(normalizeProgramName('Air France-KLM Flying Blue')).toBe(normalizeProgramName('Air France/KLM Flying Blue'));
   });
 });

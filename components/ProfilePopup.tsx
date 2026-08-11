@@ -15,8 +15,6 @@ const CARD_GROUPS: { label: string; portal: PortalId; cards: CardId[] }[] = [
   { label: 'Citi',             portal: 'citi',        cards: ['citi_strata_premier', 'citi_strata_elite'] },
 ];
 
-const KNOWN_CARD_IDS = new Set(CARD_GROUPS.flatMap(g => g.cards));
-
 interface ProfilePopupProps {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
@@ -25,20 +23,16 @@ interface ProfilePopupProps {
 export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
   const { isDark } = useTheme();
   const { user, profile, signOut, updateProfile } = useAuth();
-  const { selectedCards, toggleCard, initCards, cardBalances, setCardBalance } = useSelectedCards();
+  const { selectedCards, toggleCard, cardBalances, setCardBalance } = useSelectedCards();
 
   const popupRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing]         = useState(false);
   const [balanceDrafts, setBalanceDrafts] = useState<Partial<Record<CardId, string>>>({});
   const [saving, setSaving]           = useState(false);
 
-  // Seed context from Supabase profile on first load if localStorage is empty
-  useEffect(() => {
-    if (profile?.preferred_cards && selectedCards.length === 0 && profile.preferred_cards.length > 0) {
-      initCards(profile.preferred_cards.filter(id => KNOWN_CARD_IDS.has(id)) as CardId[]);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
+  // Profile → wallet sync lives in SelectedCardsProvider now: this popup only
+  // mounts when opened, so seeding here left the points engine on a stale
+  // wallet for anyone who never opened it.
 
   // Close on outside click
   useEffect(() => {

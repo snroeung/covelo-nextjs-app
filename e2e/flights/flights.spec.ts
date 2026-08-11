@@ -123,6 +123,40 @@ test.describe('Flights page — results', () => {
     await expect(card.getByText('Best portal value')).not.toBeVisible();
   });
 
+  test('a transfer row always says which card the points come out of', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    const card = cards.first();
+    const compareButton = card.getByRole('button', { name: /^Compare \d+ portals?/ });
+    const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasCompare, 'No points data for this offer');
+    await compareButton.click();
+
+    const transferRow = card.getByText('Transfer partner', { exact: true });
+    const hasTransfer = await transferRow.isVisible().catch(() => false);
+    test.skip(!hasTransfer, 'No transfer partner priced this itinerary');
+
+    // The row names an issuer ("… via Chase"), so it must also say whether that
+    // issuer is in the user's wallet. Asserted on chip state rather than on a
+    // named program, so changing live inventory can't invalidate the spec.
+    const grid = card.getByTestId('redemption-table');
+    const chips = grid.getByTestId('source-chip');
+    await expect(chips.first()).toBeVisible({ timeout: 10_000 });
+
+    // Ownership belongs to the chip, not the row: some chips may be owned while
+    // others aren't. The disclaimer is legitimate only when none are owned.
+    const ownedChips = grid.locator('[data-testid="source-chip"][data-owned="true"]');
+    const disclaimer = grid.getByText(/Not in your wallet/);
+    expect(await ownedChips.count() > 0).toBe(!(await disclaimer.count() > 0));
+
+    const sourceStated = grid.getByText(/^Transfer from|Not in your wallet/);
+    await expect(sourceStated.first()).toBeVisible({ timeout: 10_000 });
+  });
+
   test('remaining portals open in a popover, not an inline expansion', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
