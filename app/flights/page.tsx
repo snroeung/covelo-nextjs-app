@@ -3,12 +3,15 @@
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { AppShell } from '@/components/AppShell';
+import { AppShell, MAIN_SCROLL_ID } from '@/components/AppShell';
 import { FlightCard } from '@/components/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { type SelectedPlace } from '@/components/LocationSearch';
+import { Pagination } from '@/components/Pagination';
 import { useTheme } from '@/contexts/ThemeContext';
+import { usePerPage } from '@/hooks/usePerPage';
 import { trpc } from '@/lib/trpc-client';
+import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 
 type TripType   = 'roundtrip' | 'oneway';
@@ -416,6 +419,9 @@ function FlightsPageInner() {
   });
   const searching = flightSearch.isFetching;
 
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = usePerPage();
+
   // Reset filters when new results arrive — adjusted during render
   // (React's documented alternative to an effect for this).
   const [prevFlightSearchData, setPrevFlightSearchData] = useState(flightSearch.data);
@@ -425,6 +431,7 @@ function FlightsPageInner() {
     setExcludedAirlines(new Set());
     setFilterMaxPrice(null);
     setSort('best');
+    setPage(1);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -481,6 +488,24 @@ function FlightsPageInner() {
 
     return result;
   }, [rawOffers, sort, excludedStops, excludedAirlines, filterMaxPrice]);
+
+  // Reset to page 1 whenever the filtered/sorted list's shape changes — covers
+  // filter and sort changes that don't produce a new flightSearch.data identity.
+  const listKey = `${sort}|${filterMaxPrice}|${[...excludedStops].sort().join(',')}|${[...excludedAirlines].sort().join(',')}`;
+  const [prevListKey, setPrevListKey] = useState(listKey);
+  if (listKey !== prevListKey) {
+    setPrevListKey(listKey);
+    setPage(1);
+  }
+
+  const safePage = clampPage(page, offers.length, perPage);
+  const pageOffers = paginate(offers, safePage, perPage);
+  const { from, to } = pageRange(offers.length, safePage, perPage);
+
+  function goToPage(next: number) {
+    setPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
 
   const filterCount =
     (excludedStops.size    > 0 ? 1 : 0) +
@@ -607,6 +632,7 @@ function FlightsPageInner() {
               </h2>
               <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-1.5 ${subTextCls}`}>
                 {startDate} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'} · {CABIN_LABELS[cabinClass]}
+                {offers.length > 0 && ` · Showing ${from}–${to}`}
               </p>
             </div>
 
@@ -637,10 +663,10 @@ function FlightsPageInner() {
           {offers.length === 0 ? (
             <EmptyState message="No flights match your filters. Try adjusting Refine." />
           ) : (
-            offers.slice(0, 15).map((offer, i) => (
+            pageOffers.map((offer, i) => (
               <Fragment key={offer.id}>
                 <FlightCard offer={offer} />
-                {i === 1 && offers.length >= 3 && (
+                {i === 1 && pageOffers.length >= 3 && (
                   <AffiliateAdSpot
                     slot="flights_inline"
                     variant="inline_banner"
@@ -651,6 +677,17 @@ function FlightsPageInner() {
               </Fragment>
             ))
           )}
+
+          <Pagination
+            page={safePage}
+            perPage={perPage}
+            totalItems={offers.length}
+            onPageChange={goToPage}
+            onPerPageChange={setPerPage}
+            isDark={isDark}
+            itemLabel="flight"
+            idPrefix="flights"
+          />
         </div>
 
       ) : flightSearch.isSuccess ? (

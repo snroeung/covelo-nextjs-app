@@ -227,6 +227,95 @@ test.describe('Flights page — results', () => {
   });
 });
 
+test.describe('Flights page — pagination', () => {
+  test('page 1 caps at the page size and states the range', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
+
+    const cards = page.getByTestId('flight-card');
+    const count = await cards.count();
+    expect(count).toBeLessThanOrEqual(50);
+
+    const rangeText = await pager.getByRole('status').textContent();
+    const match = rangeText?.match(/Showing (\d+)[–-](\d+) of (\d+)/i);
+    expect(match).not.toBeNull();
+    const total = Number(match![3]);
+    // Regression guard: this used to hard-cap at 15 regardless of total.
+    if (total > 15) expect(count).toBeGreaterThan(15);
+
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('per-page selector caps the list', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
+
+    await page.getByLabel('Per page').selectOption('10');
+    await expect(page.getByTestId('flight-card')).toHaveCount(10);
+    await expect(page.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Next page' })).toBeEnabled();
+  });
+
+  test('Next advances the page, swaps the results, and scrolls to top', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
+
+    await page.getByLabel('Per page').selectOption('10');
+    const firstCardBefore = await page.getByTestId('flight-card').first().innerText();
+
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+    const firstCardAfter = await page.getByTestId('flight-card').first().innerText();
+    expect(firstCardAfter).not.toBe(firstCardBefore);
+
+    const scrollTop = await page.getByRole('main').evaluate((el) => el.scrollTop);
+    expect(scrollTop).toBe(0);
+
+    await page.getByRole('button', { name: 'Previous page' }).click();
+    await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('changing sort resets to page 1', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
+
+    await page.getByLabel('Per page').selectOption('10');
+    await page.getByRole('button', { name: 'Next page' }).click();
+    await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+
+    await page.getByRole('button', { name: 'Cheap' }).click();
+    await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+  });
+
+  test('per-page choice persists across reload', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
+
+    await page.getByLabel('Per page').selectOption('10');
+    await gotoFlightsWithResults(page);
+
+    await expect(page.getByLabel('Per page')).toHaveValue('10');
+    await expect(page.getByTestId('flight-card')).toHaveCount(10);
+  });
+});
+
 test.describe('Flights page — banners', () => {
   test.describe.configure({ mode: 'serial' });
   const PARTNER_PROGRAM = `${TEST_PREFIX} Test Airline Miles`;

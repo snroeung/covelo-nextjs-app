@@ -94,6 +94,8 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
             <img
               src={firstPhoto}
               alt={name}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
           ) : (
