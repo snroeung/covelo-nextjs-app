@@ -16,11 +16,12 @@ import type {
 } from '../scripts/portal-sync/schemas';
 
 // Chainable query/insert builder. `.select().eq().eq().limit()` is awaited
-// directly (thenable), matching how upsert.ts's hasApprovedMatch consumes it.
+// directly (thenable), matching how upsert.ts's hasMatchingRow consumes it.
 function makeQueryBuilder(result: { data: unknown; error: unknown }) {
   const b: Record<string, unknown> = {};
   b.select = () => b;
   b.eq = () => b;
+  b.is = () => b;
   b.limit = () => b;
   b.insert = () => Promise.resolve({ error: result.error });
   b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
@@ -106,8 +107,9 @@ describe('upsertTransferPartner', () => {
 
   it('returns false when the insert itself errors', async () => {
     const supabase = makeSupabase([
-      { data: [], error: null },
-      { data: null, error: { message: 'insert failed' } },
+      { data: [], error: null }, // hasTransferPartnerMatch: approved - no dedup match
+      { data: [], error: null }, // hasTransferPartnerMatch: pending - no dedup match
+      { data: null, error: { message: 'insert failed' } }, // insert
     ]);
     const result = await upsertTransferPartner({ supabase, sourceUrl }, record);
     expect(result).toBe(false);
@@ -231,7 +233,8 @@ describe('upsertTransferBonus', () => {
     let insertedRow: Record<string, unknown> | undefined;
     let i = 0;
     const fromResults = [
-      { data: [], error: null }, // hasApprovedTransferBonusMatch: no dedup match
+      { data: [], error: null }, // hasTransferBonusMatch: approved - no dedup match
+      { data: [], error: null }, // hasTransferBonusMatch: pending - no dedup match
       { data: [{ program: 'United Airlines MileagePlus' }], error: null }, // resolveCanonicalPartnerName: found
     ];
     const supabase = {
@@ -438,6 +441,7 @@ describe('upsertTravelCollection', () => {
         seenMatch[key] = value;
         return b;
       };
+      b.is = () => b;
       b.limit = () => b;
       b.then = (resolve: (v: unknown) => unknown) =>
         Promise.resolve({ data: [{ id: 'existing' }], error: null }).then(resolve);
@@ -463,6 +467,7 @@ describe('upsertTravelCollection', () => {
         seenMatch[key] = value;
         return b;
       };
+      b.is = () => b;
       b.limit = () => b;
       b.then = (resolve: (v: unknown) => unknown) =>
         Promise.resolve({ data: [{ id: 'existing' }], error: null }).then(resolve);

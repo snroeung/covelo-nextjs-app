@@ -23,6 +23,9 @@ export interface SourceConfig {
   // Shared result container all clickTriggerSelector triggers render into.
   // Required when clickTriggerSelector is set.
   clickResultSelector?: string;
+  // Flat repeated-item lists (e.g. a partner grid) where every item shares
+  // one utility class already present in the DOM — see fetchRenderedItems.
+  itemSelector?: string;
   // Extra guidance appended to the extraction prompt for this source only —
   // for pages whose structure/semantics the generic per-recordType prompt
   // can't infer (e.g. how to read a tabbed layout, or that no pricing is
@@ -119,15 +122,21 @@ export const SOURCES: SourceConfig[] = [
       `Page is a carousel of individually hyperlinked hotel names — each linked name is a distinct property. Emit one record per property found: collection_name is always "The Hotel Collection", property_name is that property's exact linked name, perk_summary is the shared program-level benefit copy found elsewhere on the page (a $100 credit towards eligible charges, 4pm late check-out when available, room upgrade upon arrival when available) since it applies to every property on this page, not per-property. The page does not show a per-property points or dollar price — do not invent one; omit original_amount, original_unit, discount_amount, and discount_unit entirely rather than guessing. Every record from this page has type "hotel". ${LIMITED_TIME_INSTRUCTION}`,
   },
   // robots.txt checked 2026-07-21 — global.americanexpress.com has no
-  // robots.txt (404), fails open per isAllowed(). Full partner list present
-  // in static HTML (server-rendered), no browser needed.
+  // robots.txt (404), fails open per isAllowed(). Confirmed 2026-08-11: page
+  // is client-rendered (static fetch returns ~124 chars of nav chrome, no
+  // partner data) — needs a browser. Each partner card is a
+  // ".flex.flex-justify-between.flex-align-center" element; see
+  // fetchRenderedItems in fetch.ts.
   {
     key: "amex_membership_rewards_transfer",
     portalId: "amex",
     url: "https://global.americanexpress.com/rewards/transfer",
     recordType: "transfer_partner",
-    needsBrowser: false,
+    needsBrowser: true,
     isTpgFallback: false,
+    itemSelector: ".flex.flex-justify-between.flex-align-center",
+    extraInstructions:
+      'Each line is one partner card with its text run together with no separators, e.g. "Aer Lingus AerClub1,000 Points =1,000 AviosShow Details" or "Cathay Pacific1,000 Points =800 Asia MilesTMShow Details". Strip the trailing "Show Details" boilerplate from every line. The partner name (program) is everything before the ratio, which always starts at the digit run before "Points =" (e.g. program "Aer Lingus AerClub", ratio "1,000 Points = 1,000 Avios"; program "Cathay Pacific", ratio "1,000 Points = 800 Asia Miles"). portal_id is always "amex". Set type to "airline" for frequent-flyer programs and "hotel" for hotel loyalty programs, based on the program name.',
   },
   // robots.txt checked 2026-07-21 — upgradedpoints.com allows /news/. Static
   // HTML has offer text.
@@ -138,7 +147,8 @@ export const SOURCES: SourceConfig[] = [
     recordType: "spending_bonus",
     needsBrowser: false,
     isTpgFallback: true,
-    extraInstructions: LIMITED_TIME_INSTRUCTION,
+    extraInstructions:
+      `Page has a "Company | Amex Offer | Expiration Date" table, one row per merchant offer. merchant_name is the Company column. end_date is the Expiration Date column in YYYY-MM-DD form. The Amex Offer column follows one of three patterns: "Spend $X or more, earn $Y back" → bonus_type "dollar_amount", bonus_multiplier Y, spending_minimum X; "Earn N% back on purchases, up to a total of $Y" → bonus_type "cash_back_pct", bonus_multiplier N, note the $Y cap in description (the schema has no separate cap field); "Spend $X or more, earn N Membership Rewards points" (a flat point bonus at that spend level, not a per-dollar rate) → bonus_type "points_multiplier", bonus_multiplier N, spending_minimum X, and say in description this is a flat bonus rather than a per-dollar earn rate. When an offer repeats ("up to 3 times for a total of $300"), use the per-occurrence amount ($100) as bonus_multiplier, not the multi-use total — note the repeat cap in description. ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "bilt_transfer_partners",

@@ -1,7 +1,14 @@
 import "dotenv/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { SOURCES, type SourceConfig } from "./sources";
-import { fetchStatic, fetchRendered, fetchRenderedSections, fetchClickThroughPanels, closeBrowser } from "./fetch";
+import {
+  fetchStatic,
+  fetchRendered,
+  fetchRenderedSections,
+  fetchRenderedItems,
+  fetchClickThroughPanels,
+  closeBrowser,
+} from "./fetch";
 import { extractRecords } from "./extract";
 import { upsertRecord } from "./upsert";
 import { invalidateCacheFor } from "./cache";
@@ -27,6 +34,7 @@ function fetchForSource(source: SourceConfig): ReturnType<typeof fetchStatic> {
     return fetchClickThroughPanels(source.url, source.clickTriggerSelector, source.clickResultSelector);
   }
   if (source.sections) return fetchRenderedSections(source.url, source.sections);
+  if (source.itemSelector) return fetchRenderedItems(source.url, source.itemSelector);
   if (source.needsBrowser) return fetchRendered(source.url);
   return fetchStatic(source.url);
 }
