@@ -116,11 +116,13 @@ test.describe('Flights page — results', () => {
     await compareButton.click();
     // The two default-visible rows are the best direct-book portal and the best
     // transfer partner; every other option lives in the grouped popover.
-    await expect(card.getByText('Best portal value')).toBeVisible();
+    // Exactly one of the two carries the "Best choice" highlight — whichever
+    // actually beats the other, portal or transfer — never both, never neither.
+    await expect(card.getByText('Best choice')).toHaveCount(1);
     await expect(card.getByRole('button', { name: /^View .+ deal$/ }).first()).toBeVisible();
 
     await card.getByRole('button', { name: '↑ Hide' }).click();
-    await expect(card.getByText('Best portal value')).not.toBeVisible();
+    await expect(card.getByText('Best choice')).not.toBeVisible();
   });
 
   test('a transfer row always says which card the points come out of', async ({ page }) => {
@@ -136,15 +138,17 @@ test.describe('Flights page — results', () => {
     test.skip(!hasCompare, 'No points data for this offer');
     await compareButton.click();
 
-    const transferRow = card.getByText('Transfer partner', { exact: true });
-    const hasTransfer = await transferRow.isVisible().catch(() => false);
+    // Only a transfer row renders source-card chips — a more reliable presence
+    // check than the row's badge text, which now reads "Best choice" instead of
+    // "Transfer partner" whenever the transfer row is the winning option.
+    const grid = card.getByTestId('redemption-table');
+    const chips = grid.getByTestId('source-chip');
+    const hasTransfer = await chips.first().isVisible().catch(() => false);
     test.skip(!hasTransfer, 'No transfer partner priced this itinerary');
 
     // The row names an issuer ("… via Chase"), so it must also say whether that
     // issuer is in the user's wallet. Asserted on chip state rather than on a
     // named program, so changing live inventory can't invalidate the spec.
-    const grid = card.getByTestId('redemption-table');
-    const chips = grid.getByTestId('source-chip');
     await expect(chips.first()).toBeVisible({ timeout: 10_000 });
 
     // Ownership belongs to the chip, not the row: some chips may be owned while

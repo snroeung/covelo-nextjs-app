@@ -337,6 +337,42 @@ describe('buildRowView — transfer rows', () => {
   });
 });
 
+// The two featured rows (one portal, one transfer) are shown side by side —
+// isBestChoice is what tells the UI which one to highlight, since kind alone
+// ("portal" vs "transfer") doesn't say which is the better deal.
+describe('buildRowView — isBestChoice', () => {
+  it('portal row is the best choice when no transfer beats it', () => {
+    const result = makePointsResult(
+      [makePortalGroup('chase', 1.5)],
+      [makeTransferResult({ isBetterThanPortal: false })],
+    );
+    const portalView = viewOf(result, r => r.kind === 'portal');
+    const transferView = viewOf(result, r => r.kind === 'transfer');
+
+    expect(portalView.isBestChoice).toBe(true);
+    expect(transferView.isBestChoice).toBe(false);
+  });
+
+  it('transfer row is the best choice when TransferResult.isBetterThanPortal is true', () => {
+    const result = makePointsResult(
+      [makePortalGroup('chase', 1.0)],
+      [makeTransferResult({ isBetterThanPortal: true })],
+    );
+    const portalView = viewOf(result, r => r.kind === 'portal');
+    const transferView = viewOf(result, r => r.kind === 'transfer');
+
+    expect(transferView.isBestChoice).toBe(true);
+    expect(portalView.isBestChoice).toBe(false);
+  });
+
+  it('portal row is the best choice by default when there are no transfer alternatives', () => {
+    const result = makePointsResult([makePortalGroup('chase', 1.5)]);
+    const portalView = viewOf(result, r => r.kind === 'portal');
+
+    expect(portalView.isBestChoice).toBe(true);
+  });
+});
+
 describe('splitFeatured', () => {
   function views(result: PointsResult): OptionRowView[] {
     return rankOptions(result)

@@ -67,15 +67,15 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-function RankBadge({ kind, isDark }: { kind: OptionRowView['kind']; isDark: boolean }) {
+function RankBadge({ kind, isBestChoice, isDark }: { kind: OptionRowView['kind']; isBestChoice: boolean; isDark: boolean }) {
   const isPortal = kind === 'portal';
   return (
     <p className={`text-[10px] font-bold font-mono uppercase tracking-widest mt-1.5 ${
-      isPortal
+      isBestChoice
         ? isDark ? 'text-cv-green-400' : 'text-cv-green-800'
         : isDark ? 'text-cv-sky-300'   : 'text-cv-blue-600'
     }`}>
-      {isPortal ? 'Best portal value' : 'Transfer partner'}
+      {isBestChoice ? 'Best choice' : isPortal ? 'Direct portal' : 'Transfer partner'}
     </p>
   );
 }
@@ -206,18 +206,20 @@ function SourceCards({ view, isDark }: { view: OptionRowView; isDark: boolean })
 }
 
 function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean }) {
-  const isPortal = view.kind === 'portal';
   const tier = view.cpp !== null ? cppTier(view.cpp) : null;
   const earnLine = cashEarnLine(view);
 
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
-  const surface = isPortal
+  // Green marks whichever row is actually the better deal — a transfer that
+  // beats the portal (TransferResult.isBetterThanPortal) gets the highlight
+  // instead of the portal, not the other way around.
+  const surface = view.isBestChoice
     ? isDark ? 'bg-green-950/25' : 'bg-cv-green-50'
     : isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-50';
 
-  const btnCls = isPortal
+  const btnCls = view.isBestChoice
     ? 'bg-cv-green-800 hover:bg-cv-green-700 text-white'
     : isDark
       ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg'
@@ -235,7 +237,7 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
             {view.bonus && <BonusBadge bonus={view.bonus} isDark={isDark} />}
           </div>
           {view.context && <p className={`text-xs mt-0.5 ${mutedCls}`}>{view.context}</p>}
-          <RankBadge kind={view.kind} isDark={isDark} />
+          <RankBadge kind={view.kind} isBestChoice={view.isBestChoice} isDark={isDark} />
           {view.unlockNote && (
             <p className={`text-xs mt-1 ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'}`}>
               {view.unlockNote}

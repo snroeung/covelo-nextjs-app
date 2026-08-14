@@ -114,7 +114,7 @@ test.describe('Hotels page — results', () => {
     await expect(card.getByText('From · Cash')).toBeVisible();
     await expect(card.getByTestId('redemption-table')).toHaveCount(0);
     await expect(card.getByRole('button', { name: /^Compare \d+ portals?/ })).toHaveCount(0);
-    await expect(card.getByText('Best portal value')).toHaveCount(0);
+    await expect(card.getByText('Best choice')).toHaveCount(0);
     await expect(card.getByText('Select your cards to compare points pricing across portals.')).toHaveCount(0);
   });
 

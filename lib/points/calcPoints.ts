@@ -20,9 +20,9 @@ const ALL_CARD_IDS = Object.keys(PORTAL_CPP) as CardId[];
 const VALID_CARD_IDS = new Set<string>(ALL_CARD_IDS);
 
 function resolveCpp(cardId: CardId, bookingType: BookingType): number {
-  const value = PORTAL_CPP[cardId];
-  if (typeof value === 'number') return value;
-  return value[bookingType];
+  const { cpp } = PORTAL_CPP[cardId];
+  if (typeof cpp === 'number') return cpp;
+  return cpp[bookingType];
 }
 
 function resolveEarnRate(cardId: CardId, bookingType: BookingType): number {

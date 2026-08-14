@@ -87,6 +87,13 @@ export interface OptionRowView {
   bonus?: TransferBonus;
   /** Tooltip for the "est." mark — transfer rows carry a stronger caveat */
   estNote: string;
+  /**
+   * True on whichever of the two featured rows is actually the better deal —
+   * the portal row when no transfer beats it, or the transfer row when
+   * `TransferResult.isBetterThanPortal` says it does. Kind alone ("portal" vs
+   * "transfer") doesn't tell you which one to highlight: a transfer can win.
+   */
+  isBestChoice: boolean;
 }
 
 /** Issuer brand, not portal brand — "Flying Blue via American Express". */
@@ -117,7 +124,7 @@ function earnFor(group: PortalGroup | undefined): OptionRowView['earn'] {
   };
 }
 
-function portalView(group: PortalGroup): OptionRowView {
+function portalView(group: PortalGroup): Omit<OptionRowView, 'isBestChoice'> {
   const best = group.results[0];
   return {
     key: group.portalId,
@@ -189,7 +196,7 @@ function transferView(
   result: PointsResult,
   bonus?: TransferBonus,
   bonusPortalId?: PortalId,
-): OptionRowView {
+): Omit<OptionRowView, 'isBestChoice'> {
   const issuers = transfer.sourceIssuers ?? [];
   const owned = issuers.filter(i => i.owned);
   const recommended = pickRecommendation(owned, bonus ? bonusPortalId : undefined);
@@ -288,9 +295,19 @@ export function buildRowView(
   /** The owned issuer the bonus belongs to — see findBonusForEligibleCards */
   bonusPortalId?: PortalId,
 ): OptionRowView {
-  return row.kind === 'portal'
+  const view = row.kind === 'portal'
     ? portalView(row.group)
     : transferView(row.key, row.transfer, result, bonus, bonusPortalId);
+  return {
+    ...view,
+    // Transfer rows carry their own answer; the portal row is the best choice
+    // exactly when no transfer alternative beats it. Checked directly against
+    // the array rather than result.bestTransferResult so this holds regardless
+    // of how that field was derived by the caller.
+    isBestChoice: row.kind === 'transfer'
+      ? row.transfer.isBetterThanPortal
+      : !result.transferAlternatives.some(t => t.isBetterThanPortal),
+  };
 }
 
 /**

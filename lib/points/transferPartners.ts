@@ -59,50 +59,69 @@ export function classifyRoute(originIata?: string | null, destIata?: string | nu
 
 type TransferValueCpp = Partial<Record<Cabin, number>>;
 
+type PartnerCppEntry =
+  | { type: 'airline'; cpp: TransferValueCpp }
+  | { type: 'hotel'; cpp: number };
+
 /**
- * Typical redemption value (cents per point) for each airline program's saver
- * awards. The `economy` figure approximates The Points Guy's blended monthly
+ * Typical redemption value (cents per point) for each transfer partner
+ * program — airlines keyed by IATA code, hotels by chain key. Single merged
+ * table (was two: TRANSFER_CPP + HOTEL_CPP) so a new source (e.g. a scraped
+ * TPG monthly-valuations feed) has one place to write into.
+ *
+ * Airline `economy` figures approximate The Points Guy's blended monthly
  * valuation (thepointsguy.com/guide/monthly-valuations/) as of 2025 — TPG
  * publishes one number per program, not a cabin breakdown. `business`/`first`
  * are NOT sourced from TPG: they're an unverified estimate (~1.2-1.6x economy,
  * reflecting that premium-cabin awards are typically better value) and should
  * be replaced with real award-chart data before this is treated as accurate.
- * Unlike a flat miles chart, this scales with the flight's actual price the
+ * Hotel entries have no cabin tiers, so it's a single flat rate per chain —
+ * real award cost still varies by property category, which the accompanying
+ * note callout communicates.
+ *
+ * Unlike a flat miles chart, this scales with the trip's actual price the
  * same way PORTAL_CPP drives PortalResult.pointsNeeded in calcPoints.ts —
- * estimatedPointsNeeded = priceUsd / (cpp / 100), so two flights on the same
+ * partnerPointsNeeded = priceUsd / (cpp / 100), so two trips on the same
  * program never coincidentally land on the same points figure.
  */
-const TRANSFER_CPP: Record<string, TransferValueCpp> = {
-  UA: { economy: 1.3, business: 1.5, first: 1.7 },
-  WN: { economy: 1.4 },
-  BA: { economy: 1.3, business: 1.6, first: 1.8 },
-  AF: { economy: 1.3, business: 1.6, first: 1.9 },
-  KL: { economy: 1.3, business: 1.6, first: 1.9 },
-  SQ: { economy: 1.7, business: 2.3, first: 3.0 },
-  NH: { economy: 1.5, business: 2.0, first: 2.6 },
-  VS: { economy: 1.5, business: 2.0, first: 2.4 },
-  AC: { economy: 1.3, business: 1.6, first: 1.9 },
-  EK: { economy: 1.0, business: 1.6, first: 2.2 },
-  EY: { economy: 1.2, business: 1.6, first: 2.0 },
-  HA: { economy: 1.0, business: 1.3 },
-  IB: { economy: 1.4, business: 1.7 },
-  EI: { economy: 1.4, business: 1.7 },
-  B6: { economy: 1.3 },
-  QF: { economy: 1.4, business: 1.8, first: 2.2 },
-  DL: { economy: 1.1, business: 1.3, first: 1.5 },
-  AA: { economy: 1.5, business: 1.8, first: 2.1 },
-  AS: { economy: 1.6, business: 2.0 },
-  AV: { economy: 1.4, business: 1.7 },
-  TK: { economy: 1.5, business: 2.0 },
-  CX: { economy: 1.5, business: 2.2, first: 2.8 },
-  TP: { economy: 1.3, business: 1.6 },
-  BR: { economy: 1.4, business: 1.8, first: 2.2 },
+const PARTNER_CPP: Record<string, PartnerCppEntry> = {
+  UA: { type: 'airline', cpp: { economy: 1.3, business: 1.5, first: 1.7 } },
+  WN: { type: 'airline', cpp: { economy: 1.4 } },
+  BA: { type: 'airline', cpp: { economy: 1.3, business: 1.6, first: 1.8 } },
+  AF: { type: 'airline', cpp: { economy: 1.3, business: 1.6, first: 1.9 } },
+  KL: { type: 'airline', cpp: { economy: 1.3, business: 1.6, first: 1.9 } },
+  SQ: { type: 'airline', cpp: { economy: 1.7, business: 2.3, first: 3.0 } },
+  NH: { type: 'airline', cpp: { economy: 1.5, business: 2.0, first: 2.6 } },
+  VS: { type: 'airline', cpp: { economy: 1.5, business: 2.0, first: 2.4 } },
+  AC: { type: 'airline', cpp: { economy: 1.3, business: 1.6, first: 1.9 } },
+  EK: { type: 'airline', cpp: { economy: 1.0, business: 1.6, first: 2.2 } },
+  EY: { type: 'airline', cpp: { economy: 1.2, business: 1.6, first: 2.0 } },
+  HA: { type: 'airline', cpp: { economy: 1.0, business: 1.3 } },
+  IB: { type: 'airline', cpp: { economy: 1.4, business: 1.7 } },
+  EI: { type: 'airline', cpp: { economy: 1.4, business: 1.7 } },
+  B6: { type: 'airline', cpp: { economy: 1.3 } },
+  QF: { type: 'airline', cpp: { economy: 1.4, business: 1.8, first: 2.2 } },
+  DL: { type: 'airline', cpp: { economy: 1.1, business: 1.3, first: 1.5 } },
+  AA: { type: 'airline', cpp: { economy: 1.5, business: 1.8, first: 2.1 } },
+  AS: { type: 'airline', cpp: { economy: 1.6, business: 2.0 } },
+  AV: { type: 'airline', cpp: { economy: 1.4, business: 1.7 } },
+  TK: { type: 'airline', cpp: { economy: 1.5, business: 2.0 } },
+  CX: { type: 'airline', cpp: { economy: 1.5, business: 2.2, first: 2.8 } },
+  TP: { type: 'airline', cpp: { economy: 1.3, business: 1.6 } },
+  BR: { type: 'airline', cpp: { economy: 1.4, business: 1.8, first: 2.2 } },
+  hyatt:    { type: 'hotel', cpp: 1.7 },
+  wyndham:  { type: 'hotel', cpp: 0.9 },
+  marriott: { type: 'hotel', cpp: 0.8 },
+  choice:   { type: 'hotel', cpp: 0.6 },
+  ihg:      { type: 'hotel', cpp: 0.5 },
+  hilton:   { type: 'hotel', cpp: 0.5 },
 };
 
 function lookupTransferCpp(iataCodes: string[], cabin: Cabin): number | null {
   for (const code of iataCodes) {
-    const rates = TRANSFER_CPP[code.toUpperCase()];
-    if (!rates) continue;
+    const entry = PARTNER_CPP[code.toUpperCase()];
+    if (!entry || entry.type !== 'airline') continue;
+    const rates = entry.cpp;
     // Fall back from first → business → economy if the specific cabin isn't listed
     if (cabin === 'first' && rates.first) return rates.first;
     if ((cabin === 'first' || cabin === 'business') && rates.business) return rates.business;
@@ -111,26 +130,11 @@ function lookupTransferCpp(iataCodes: string[], cabin: Cabin): number | null {
   return null;
 }
 
-/**
- * Typical redemption value (cents per point) for each hotel chain's standard
- * award pricing. Same role as TRANSFER_CPP for airlines: approximates TPG's
- * monthly hotel-points valuations (thepointsguy.com/guide/monthly-valuations/)
- * as of 2025. Hotels have no cabin tiers, so this is a single flat rate per
- * chain rather than economy/business/first — real award cost still varies by
- * property category, which the accompanying note callout communicates.
- */
-const HOTEL_CPP: Record<string, number> = {
-  hyatt:    1.7,
-  wyndham:  0.9,
-  marriott: 0.8,
-  choice:   0.6,
-  ihg:      0.5,
-  hilton:   0.5,
-};
-
 function lookupHotelCpp(chainKey: string | undefined): number | null {
   if (!chainKey) return null;
-  return HOTEL_CPP[chainKey] ?? null;
+  const entry = PARTNER_CPP[chainKey];
+  if (!entry || entry.type !== 'hotel') return null;
+  return entry.cpp;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,8 +256,8 @@ function resolveChainKey(hotelChain: string): string | null {
 }
 
 function portalCppFor(cardId: CardId, bookingType: BookingType): number {
-  const value = PORTAL_CPP[cardId];
-  return typeof value === 'number' ? value : value[bookingType];
+  const { cpp } = PORTAL_CPP[cardId];
+  return typeof cpp === 'number' ? cpp : cpp[bookingType];
 }
 
 /** Best card first: better rate wins, then the card whose portal redeems highest. */
@@ -399,7 +403,7 @@ export function calcTransferAlternatives(
 
       let note: string;
 
-      // TRANSFER_CPP/HOTEL_CPP value the *partner's* currency. Keep that value
+      // PARTNER_CPP values the *partner's* currency. Keep that value
       // unscaled here and denominate it in source points once the representative
       // card is known — the ratio is a per-card property, so scaling it against
       // this portal's default card would misprice a row the user reaches with a
@@ -482,10 +486,32 @@ export function calcTransferAlternatives(
       rep.transferRatio = lead.ratio;
 
       if (rep.partnerCpp !== null) {
+        // Display rate: still computed and kept on the row (transferCpp/
+        // estimatedCentsPerPoint feed rowView.ts's bonus-adjusted display and
+        // rankOptions.ts's sort) — but it is NOT used to decide the
+        // recommendation below, which instead compares point counts directly
+        // in two explicit currency stages.
         const sourceCpp = Math.round(rep.partnerCpp * lead.best.multiplier * 100) / 100;
         rep.transferCpp = sourceCpp;
         rep.estimatedCentsPerPoint = sourceCpp;
-        rep.estimatedPointsNeeded = sourceCpp > 0 ? Math.ceil((priceUsd / sourceCpp) * 100) : null;
+
+        // Step 1 — cost of the trip in the PARTNER's own points (priceUsd is
+        // the raw retail price; transferring bypasses the bank's own portal
+        // markup entirely, so it's priced off retail, not portalPrice).
+        const partnerPointsNeeded = rep.partnerCpp > 0
+          ? Math.ceil(priceUsd / (rep.partnerCpp / 100))
+          : null;
+
+        // Step 2 — convert to the SOURCE card's points via the transfer ratio.
+        // rep.partnerCpp is priced in the partner's point (e.g. Hyatt), not the
+        // source card's point (e.g. Chase UR) — this conversion is required,
+        // not optional, or the two currencies get silently mixed.
+        rep.estimatedPointsNeeded =
+          partnerPointsNeeded !== null && lead.best.multiplier > 0
+            ? Math.ceil(partnerPointsNeeded / lead.best.multiplier)
+            : null;
+
+        // Both sides now the same currency (source-card points) — compare directly.
         rep.isBetterThanPortal =
           rep.estimatedPointsNeeded !== null && rep.estimatedPointsNeeded < bestPortalResult.pointsNeeded;
       }

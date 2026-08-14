@@ -166,31 +166,98 @@ export interface PointsResult {
  */
 export const CHASE_LEGACY_RATE_SUNSET_DATE = '2027-10-26';
 
+export interface PortalCppEntry {
+  cpp: number | { hotel: number; flight: number };
+  /** Issuer or, where the issuer's own terms page isn't independently fetchable, the best-available cross-checked source (e.g. TPG's program guide). */
+  sourceUrl: string;
+  /** ISO date this rate was last cross-checked against sourceUrl. */
+  lastVerified: string;
+}
+
 /**
  * Cents per point when redeeming through each card's travel portal.
  * Higher = more value per point = fewer points needed.
- * Source: published portal redemption values, reconfirmed July 2026.
  *
  * chase_reserve/chase_preferred here hold the "new cardholder" Points Boost
  * baseline (1.0¢/pt flat). We don't ask the user which cohort they're in, so
  * calcPoints() also checks CHASE_LEGACY_CPP below and — when present — emits
  * a second row at the old fixed rate alongside this baseline row.
  */
-export const PORTAL_CPP: Record<CardId, number | { hotel: number; flight: number }> = {
-  chase_reserve:           1.0,   // Points Boost baseline; actual per-booking boost (up to 2.0) not modeled
-  chase_preferred:         1.0,   // Points Boost baseline; actual per-booking boost (up to 1.75 flight/1.5 hotel) not modeled
-  chase_freedom_unlimited: 1.0,   // no portal bonus
-  c1_venture_x:            1.0,   // 1¢/mile fixed
-  c1_venture:              1.0,
-  c1_savor:                1.0,
-  amex_platinum:           { hotel: 0.7, flight: 1.0 },
-  amex_gold:               { hotel: 0.7, flight: 1.0 },
-  amex_green:              { hotel: 0.7, flight: 1.0 },
-  bilt_blue:                    1.00,  // Bilt Cash
-  bilt_obsidian:                1.00,
-  bilt_palladium:               1.00,
-  citi_strata_premier:     1.0,
-  citi_strata_elite:       1.0,
+export const PORTAL_CPP: Record<CardId, PortalCppEntry> = {
+  chase_reserve: {
+    cpp: 1.0, // Points Boost baseline; actual per-booking boost (up to 2.0) not modeled
+    sourceUrl: 'https://thepointsguy.com/loyalty-programs/chase-ultimate-rewards/',
+    lastVerified: '2026-08-13',
+  },
+  chase_preferred: {
+    cpp: 1.0, // Points Boost baseline; actual per-booking boost (up to 1.75 flight/1.5 hotel) not modeled
+    sourceUrl: 'https://thepointsguy.com/loyalty-programs/chase-ultimate-rewards/',
+    lastVerified: '2026-08-13',
+  },
+  chase_freedom_unlimited: {
+    cpp: 1.0, // no portal bonus
+    sourceUrl: 'https://thepointsguy.com/loyalty-programs/chase-ultimate-rewards/',
+    lastVerified: '2026-08-13',
+  },
+  c1_venture_x: {
+    cpp: 1.0, // 1¢/mile fixed via Capital One's "Cover Travel Purchases" (formerly Purchase Eraser)
+    sourceUrl: 'https://www.capitalone.com/learn-grow/money-management/redeem-rewards-for-expenses/',
+    lastVerified: '2026-08-13',
+  },
+  c1_venture: {
+    cpp: 1.0,
+    sourceUrl: 'https://www.capitalone.com/learn-grow/money-management/redeem-rewards-for-expenses/',
+    lastVerified: '2026-08-13',
+  },
+  c1_savor: {
+    cpp: 1.0,
+    sourceUrl: 'https://www.capitalone.com/learn-grow/money-management/redeem-rewards-for-expenses/',
+    lastVerified: '2026-08-13',
+  },
+  amex_platinum: {
+    cpp: { hotel: 0.7, flight: 1.0 }, // 1¢/pt flights; 0.7¢/pt hotels (except Fine Hotels & Resorts at 1¢, not modeled)
+    sourceUrl: 'https://www.americanexpress.com/en-us/credit-cards/credit-intel/american-express-points-value/',
+    lastVerified: '2026-08-13',
+  },
+  amex_gold: {
+    cpp: { hotel: 0.7, flight: 1.0 },
+    sourceUrl: 'https://www.americanexpress.com/en-us/credit-cards/credit-intel/american-express-points-value/',
+    lastVerified: '2026-08-13',
+  },
+  amex_green: {
+    cpp: { hotel: 0.7, flight: 1.0 },
+    sourceUrl: 'https://www.americanexpress.com/en-us/credit-cards/credit-intel/american-express-points-value/',
+    lastVerified: '2026-08-13',
+  },
+  bilt_blue: {
+    // Verified 2026-08-13: Bilt Travel portal redeems at a flat 1.25¢/pt across
+    // flights/hotels/rental cars, uniform across Blue/Obsidian/Palladium. Prior
+    // value here (1.00) was stale/unsourced — "Bilt Cash" is a separate,
+    // independently-earned currency, not what sets this rate.
+    cpp: 1.25,
+    sourceUrl: 'https://thepointsguy.com/loyalty-programs/bilt-rewards-guide/',
+    lastVerified: '2026-08-13',
+  },
+  bilt_obsidian: {
+    cpp: 1.25,
+    sourceUrl: 'https://thepointsguy.com/loyalty-programs/bilt-rewards-guide/',
+    lastVerified: '2026-08-13',
+  },
+  bilt_palladium: {
+    cpp: 1.25,
+    sourceUrl: 'https://thepointsguy.com/loyalty-programs/bilt-rewards-guide/',
+    lastVerified: '2026-08-13',
+  },
+  citi_strata_premier: {
+    cpp: 1.0, // Citi Travel portal, flat rate across flights/hotels/car rentals/attractions
+    sourceUrl: 'https://www.citi.com/credit-cards/citi-strata-premier-credit-card',
+    lastVerified: '2026-08-13',
+  },
+  citi_strata_elite: {
+    cpp: 1.0,
+    sourceUrl: 'https://www.citi.com/credit-cards/citi-strata-premier-credit-card',
+    lastVerified: '2026-08-13',
+  },
 };
 
 /**

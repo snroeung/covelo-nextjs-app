@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { calcPoints } from '@/lib/points/calcPoints';
 import { calcTransferAlternatives, SEED_TRANSFER_PARTNERS, TransferPartnerConfig } from '@/lib/points/transferPartners';
 import { clusterProgramNames, normalizeProgramName, sameProgram } from '@/lib/points/programNames';
-import { PortalResult, PortalId, CardId, CARD_PORTAL_MAP, ISSUER_CARDS } from '@/lib/points/types';
+import { PortalResult, PortalId, CardId, CARD_PORTAL_MAP, ISSUER_CARDS, PORTAL_CPP } from '@/lib/points/types';
 import { PORTAL_FLIGHT_MARKUP, PORTAL_HOTEL_MARKUP } from '@/lib/points/portalMarkup';
 
 // ---------------------------------------------------------------------------
@@ -436,6 +436,72 @@ describe('calcTransferAlternatives() route selection follows the wallet', () => 
     // Hyatt points are 1.7¢; Reserve transfers 1:1, Preferred gives up a quarter.
     expect(rowFor(['chase_reserve']).transferCpp).toBe(1.7);
     expect(rowFor(['chase_preferred']).transferCpp).toBe(Math.round(1.7 * (3 / 4) * 100) / 100);
+  });
+});
+
+// Provenance is required per-entry (not optional) so a stale rate — like the
+// Bilt entries below, previously 1.00 with no source — gets caught instead of
+// silently persisting.
+describe('PORTAL_CPP provenance', () => {
+  it('every entry has a sourceUrl and an ISO lastVerified date', () => {
+    for (const [cardId, entry] of Object.entries(PORTAL_CPP)) {
+      expect(entry.sourceUrl, `${cardId} sourceUrl`).toMatch(/^https:\/\//);
+      expect(entry.lastVerified, `${cardId} lastVerified`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('bilt cards redeem at the verified 1.25¢/pt Bilt Travel rate, not the stale 1.00 placeholder', () => {
+    expect(PORTAL_CPP.bilt_blue.cpp).toBe(1.25);
+    expect(PORTAL_CPP.bilt_obsidian.cpp).toBe(1.25);
+    expect(PORTAL_CPP.bilt_palladium.cpp).toBe(1.25);
+  });
+});
+
+// Two-step, currency-explicit points calc: partner points needed (in the
+// PARTNER's own currency) are computed first, then converted to the SOURCE
+// card's currency via the transfer ratio — two currencies, two named steps,
+// no intermediate blended rate. Pins the worked example from the approved
+// transfer-recommendation-engine plan so a future refactor can't silently
+// drift back to a single-step calc.
+describe('calcTransferAlternatives() two-step points calc (currency-explicit)', () => {
+  // portalPointsNeeded = ceil(318 / 0.0100) = 31,800, matching the plan's
+  // worked example ($300 x 1.06 chase hotel markup = $318 portalPrice, at
+  // chase_reserve's 1.0¢ PORTAL_CPP baseline).
+  const portalResult300: PortalResult = {
+    ...mockBestPortalResult,
+    priceUsd: 318,
+    pointsNeeded: 31_800,
+  };
+
+  it('ratio 1:1 — partner points needed equals source-card points needed', () => {
+    const results = calcTransferAlternatives(
+      300, 'hotel', ['chase_reserve'], portalResult300, 'Hyatt', undefined, undefined, undefined, SEED_TRANSFER_PARTNERS,
+    );
+    const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
+    // Step 1 (Hyatt's own currency): ceil(300 / (1.7/100)) = ceil(17,647.06) = 17,648 Hyatt points
+    // Step 2 (convert to Chase UR via 1:1): ceil(17,648 / 1) = 17,648 Chase UR points
+    expect(hyatt?.partnerCpp).toBe(1.7);
+    expect(hyatt?.estimatedPointsNeeded).toBe(17_648);
+    expect(hyatt?.isBetterThanPortal).toBe(true);
+  });
+
+  it('unfavorable ratio (1,000:800) — conversion step raises source-card points needed', () => {
+    const partnersMap: Record<PortalId, TransferPartnerConfig[]> = {
+      ...SEED_TRANSFER_PARTNERS,
+      chase: [
+        { program: 'World of Hyatt', type: 'hotel', chainKey: 'hyatt', ratio: '1,000:800' },
+      ],
+    };
+    const results = calcTransferAlternatives(
+      300, 'hotel', ['chase_reserve'], portalResult300, 'Hyatt', undefined, undefined, undefined, partnersMap,
+    );
+    const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
+    // Step 1 is unchanged (still Hyatt's own currency): 17,648 Hyatt points.
+    // Step 2 (convert via 1,000:800 → 0.8 Hyatt pts per Chase pt): ceil(17,648 / 0.8) = 22,060
+    expect(hyatt?.estimatedPointsNeeded).toBe(22_060);
+    // Still fewer than the 31,800-point portal baseline, but a narrower margin
+    // than the 1:1 case above — the conversion step is what produces that gap.
+    expect(hyatt?.isBetterThanPortal).toBe(true);
   });
 });
 
