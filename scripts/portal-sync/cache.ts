@@ -12,6 +12,7 @@ const CACHE_KEYS_BY_RECORD_TYPE: Record<RecordType, () => string[]> = {
   travel_collection: () => [cacheKeys.travelCollections("hotel"), cacheKeys.travelCollections("flight")],
   transfer_bonus: () => [cacheKeys.transferBonuses()],
   spending_bonus: () => [cacheKeys.spendingBonuses()],
+  points_valuation: () => [cacheKeys.pointsValuations()],
 };
 
 export async function invalidateCacheFor(recordType: RecordType): Promise<void> {

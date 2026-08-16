@@ -5,6 +5,7 @@ import type {
   TransferBonusRecord,
   SpendingBonusRecord,
   TravelCollectionRecord,
+  PointsValuationRecord,
 } from "./schemas";
 import { normalizeProgramName, sameProgram } from "@/lib/points/programNames";
 import { ISSUER_CARDS, type CardId, type PortalId } from "@/lib/points/types";
@@ -16,13 +17,14 @@ function validCardIds(issuer: string, cardIds: string[] | undefined): string[] {
   return (cardIds ?? []).filter((id) => allowed.includes(id as CardId));
 }
 
-type TableName = "transfer_partners" | "transfer_bonuses" | "spending_bonuses" | "travel_collections";
+type TableName = "transfer_partners" | "transfer_bonuses" | "spending_bonuses" | "travel_collections" | "points_valuations";
 
 export const TABLE_BY_RECORD_TYPE: Record<RecordType, TableName> = {
   transfer_partner: "transfer_partners",
   transfer_bonus: "transfer_bonuses",
   spending_bonus: "spending_bonuses",
   travel_collection: "travel_collections",
+  points_valuation: "points_valuations",
 };
 
 export interface UpsertContext {
@@ -297,10 +299,36 @@ export async function upsertTravelCollection(
   return !error;
 }
 
+// Dedup keyed on (program, source_month) — not on program alone. A key
+// scoped to program alone would silently drop every subsequent month's real
+// update; the same failure mode fixed once already for the Amex/transfer-bonus
+// sources (commit e1999c0) by adding end_date to their match.
+export async function upsertPointsValuation(
+  ctx: UpsertContext,
+  record: PointsValuationRecord,
+): Promise<boolean> {
+  const match = { program: record.program, source_month: record.source_month };
+  if (await hasMatchingRow(ctx.supabase, "points_valuations", "approved", match)) return false;
+  if (await hasMatchingRow(ctx.supabase, "points_valuations", "pending", match)) return false;
+
+  const { error } = await ctx.supabase.from("points_valuations").insert({
+    ...match,
+    cpp: record.cpp,
+    source: "cron",
+    status: "pending",
+    active: false,
+    source_url: ctx.sourceUrl,
+  });
+  if (error) {
+    console.error(`[upsert:points_valuation] insert failed for "${record.program}" (${ctx.sourceUrl}): ${error.message}`);
+  }
+  return !error;
+}
+
 export async function upsertRecord(
   ctx: UpsertContext,
   recordType: RecordType,
-  record: TransferPartnerRecord | TransferBonusRecord | SpendingBonusRecord | TravelCollectionRecord,
+  record: TransferPartnerRecord | TransferBonusRecord | SpendingBonusRecord | TravelCollectionRecord | PointsValuationRecord,
 ): Promise<boolean> {
   switch (recordType) {
     case "transfer_partner":
@@ -311,6 +339,8 @@ export async function upsertRecord(
       return upsertSpendingBonus(ctx, record as SpendingBonusRecord);
     case "travel_collection":
       return upsertTravelCollection(ctx, record as TravelCollectionRecord);
+    case "points_valuation":
+      return upsertPointsValuation(ctx, record as PointsValuationRecord);
     default:
       return false;
   }

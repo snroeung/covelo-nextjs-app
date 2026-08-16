@@ -43,6 +43,19 @@ export interface TravelCollection {
   updated_at: string;
 }
 
+export interface PointsValuation {
+  id: string;
+  program: string;
+  cpp: number;
+  source_month: string;
+  source: SyncSource;
+  status: SyncStatus;
+  source_url: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PortalSyncRun {
   id: string;
   source_key: string;
@@ -62,7 +75,8 @@ export type PendingReviewTable =
   | 'transfer_partners'
   | 'travel_collections'
   | 'transfer_bonuses'
-  | 'spending_bonuses';
+  | 'spending_bonuses'
+  | 'points_valuations';
 
 export interface PendingReviewRow {
   table: PendingReviewTable;

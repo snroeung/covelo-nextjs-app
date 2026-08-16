@@ -4,7 +4,11 @@ import type { SectionSpec } from "./fetch";
 
 export interface SourceConfig {
   key: string;
-  portalId: PortalId;
+  // Omit for sources whose records aren't scoped to one issuer (e.g.
+  // points_valuation, which spans every program on one TPG page) — setting
+  // it forces every extracted record's portal/issuer field to that one
+  // value, which would be actively wrong for a multi-program page.
+  portalId?: PortalId;
   url: string;
   recordType: RecordType;
   needsBrowser: boolean;
@@ -271,5 +275,16 @@ export const SOURCES: SourceConfig[] = [
     isTpgFallback: false,
     extraInstructions:
       'This page lists live transfer bonuses across multiple issuers (Chase, Amex, Capital One, Citi — ignore Bilt if present, we source Bilt separately). Each entry states which issuer program the bonus transfers FROM (e.g. "Chase Ultimate Rewards", "Amex Membership Rewards", "Citi ThankYou Points", "Capital One Miles") — map that to issuer: "Chase Ultimate Rewards"→chase, "Amex Membership Rewards"→amex, "Citi ThankYou"→citi, "Capital One"→c1. Skip any row whose source program is not one of these four, or whose source program is Bilt. transfer_partner is the destination loyalty program name (e.g. "World of Hyatt", "Flying Blue"). bonus_pct is the stated bonus percentage. The page usually omits start_date — omit it (do not guess). end_date is REQUIRED by the schema — the page often states only a month/day (e.g. "Ends 8/31") with no year; infer the year as the nearest FUTURE occurrence of that month/day relative to today, in YYYY-MM-DD form. If a row states a bonus but you cannot resolve a plausible end_date, SKIP that row entirely rather than guessing — one invalid record drops the entire extracted batch (schema requires end_date non-empty). If a bonus is described as tiered (e.g. different pct at different transfer amounts), use the highest tier\'s pct and note the tiering in description. Set limited_time_offer to true on every emitted record — everything on this page is by definition limited-time.',
+  },
+  {
+    key: "tpg_monthly_valuations",
+    // no portalId — this page covers every program across all issuers, not
+    // one issuer's own data
+    url: "https://thepointsguy.com/loyalty-programs/monthly-valuations/",
+    recordType: "points_valuation",
+    needsBrowser: true,
+    isTpgFallback: false,
+    extraInstructions:
+      'The valuations are a table, flattened in the page text to one "cell | cell" line per row. The header row is "Program | <Month> <Year> valuation (cents)" — read the month and year directly from that header text (e.g. "August 2026") and use it verbatim as source_month on every emitted record; do not use today\'s date or guess a month. Every row below the header is "<Program Name> | <value>": program is the program name exactly as listed (e.g. "Chase Ultimate Rewards", "World of Hyatt", "United MileagePlus") — do not abbreviate or rename it. The header already states the value is in cents, so cpp is that number as-is (e.g. a row of "World of Hyatt | 1.7" → cpp: 1.7, not 0.017 and not 170). If a row states a range instead of a single value, use the midpoint. Skip any row with no numeric value.',
   }
 ];

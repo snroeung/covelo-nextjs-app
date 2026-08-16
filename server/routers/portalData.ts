@@ -47,12 +47,14 @@ const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
   "travel_collections",
   "transfer_bonuses",
   "spending_bonuses",
+  "points_valuations",
 ];
 
 async function invalidatePortalDataCache(): Promise<void> {
   await redis.del(cacheKeys.transferPartners()).catch(() => {});
   await redis.del(cacheKeys.travelCollections("hotel")).catch(() => {});
   await redis.del(cacheKeys.travelCollections("flight")).catch(() => {});
+  await redis.del(cacheKeys.pointsValuations()).catch(() => {});
 }
 
 export const portalDataRouter = router({
@@ -160,7 +162,7 @@ export const portalDataRouter = router({
 
     approve: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations"]),
         id:    z.string().uuid(),
         runId: z.string().uuid().optional(),
         edits: z.record(z.string(), z.string()).optional(),
@@ -183,7 +185,8 @@ export const portalDataRouter = router({
               record_type:     input.table === "transfer_partners" ? "transfer_partner"
                               : input.table === "travel_collections" ? "travel_collection"
                               : input.table === "transfer_bonuses" ? "transfer_bonus"
-                              : "spending_bonus",
+                              : input.table === "spending_bonuses" ? "spending_bonus"
+                              : "points_valuation",
               field,
               extracted_value: original[field] != null ? String(original[field]) : null,
               corrected_value: value,
@@ -209,7 +212,7 @@ export const portalDataRouter = router({
 
     reject: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations"]),
         id:    z.string().uuid(),
       }))
       .mutation(async ({ input }) => {

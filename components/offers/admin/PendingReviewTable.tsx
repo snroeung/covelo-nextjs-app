@@ -15,6 +15,7 @@ export const TABLE_LABELS: Record<PendingTableName, string> = {
   travel_collections: 'Travel collection',
   transfer_bonuses:  'Transfer bonus',
   spending_bonuses:  'Spending bonus',
+  points_valuations: 'Points valuation',
 };
 
 type TableFilter = 'all' | PendingTableName;
@@ -25,6 +26,7 @@ const TABLE_FILTER_TABS: { key: TableFilter; label: string }[] = [
   { key: 'travel_collections', label: 'Travel collection' },
   { key: 'transfer_bonuses',  label: 'Transfer bonus' },
   { key: 'spending_bonuses',  label: 'Spending bonus' },
+  { key: 'points_valuations', label: 'Points valuation' },
 ];
 
 export function rowTitle(item: PendingReviewRow): string {
@@ -38,6 +40,8 @@ export function rowTitle(item: PendingReviewRow): string {
       return `${r.issuer} → ${r.transfer_partner}`;
     case 'spending_bonuses':
       return `${r.issuer} · ${r.merchant_name}`;
+    case 'points_valuations':
+      return String(r.program);
   }
 }
 
@@ -56,11 +60,15 @@ export function rowDetail(item: PendingReviewRow): string {
         : r.bonus_type === 'cash_back_pct'
           ? `${r.bonus_multiplier}% cash back`
           : `${r.bonus_multiplier}× points`;
+    case 'points_valuations':
+      return `${r.cpp}¢/pt · ${r.source_month}`;
   }
 }
 
-// transfer_partners keys its issuer off portal_id; the other three tables
-// carry an explicit `issuer` column.
+// transfer_partners keys its issuer off portal_id; travel_collections/
+// transfer_bonuses/spending_bonuses carry an explicit `issuer` column;
+// points_valuations spans every issuer's programs on one page and has
+// neither field.
 function rowIssuer(item: PendingReviewRow): string {
   return String(item.table === 'transfer_partners' ? item.row.portal_id : item.row.issuer ?? '');
 }
@@ -164,7 +172,8 @@ export function PendingReviewTable({ rows, isDark }: Props) {
     const field = item.table === 'transfer_partners' ? 'ratio'
       : item.table === 'travel_collections' ? 'perk_summary'
       : item.table === 'transfer_bonuses' ? 'bonus_pct'
-      : 'bonus_multiplier';
+      : item.table === 'spending_bonuses' ? 'bonus_multiplier'
+      : 'cpp';
     setEditingId(item.row.id as string);
     setEditField(field);
     setEditValue(String(item.row[field] ?? ''));

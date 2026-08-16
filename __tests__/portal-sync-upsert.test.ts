@@ -5,6 +5,7 @@ import {
   upsertTransferBonus,
   upsertSpendingBonus,
   upsertTravelCollection,
+  upsertPointsValuation,
   upsertRecord,
   TABLE_BY_RECORD_TYPE,
 } from '../scripts/portal-sync/upsert';
@@ -13,6 +14,7 @@ import type {
   TransferBonusRecord,
   SpendingBonusRecord,
   TravelCollectionRecord,
+  PointsValuationRecord,
 } from '../scripts/portal-sync/schemas';
 
 // Chainable query/insert builder. `.select().eq().eq().limit()` is awaited
@@ -484,6 +486,72 @@ describe('upsertTravelCollection', () => {
   });
 });
 
+describe('upsertPointsValuation', () => {
+  const record: PointsValuationRecord = {
+    program: 'World of Hyatt',
+    cpp: 1.7,
+    source_month: 'August 2026',
+  };
+
+  // Dedup keyed on (program, source_month), not program alone — a key
+  // scoped to program alone would silently drop every subsequent month's
+  // real update (the same failure mode fixed once already for the
+  // Amex/transfer-bonus sources, commit e1999c0, by adding end_date to
+  // their match).
+  it('dedups on (program, source_month)', async () => {
+    const supabase = makeSupabase([{ data: [{ id: 'existing' }], error: null }]);
+    let seenTable = '';
+    const seenMatch: Record<string, unknown> = {};
+    supabase.from = ((table: string) => {
+      seenTable = table;
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = (key: string, value: unknown) => {
+        seenMatch[key] = value;
+        return b;
+      };
+      b.is = () => b;
+      b.limit = () => b;
+      b.then = (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: [{ id: 'existing' }], error: null }).then(resolve);
+      return b;
+    }) as unknown as typeof supabase.from;
+    await upsertPointsValuation({ supabase, sourceUrl }, record);
+    expect(seenTable).toBe('points_valuations');
+    expect(seenMatch).toEqual({
+      program: 'World of Hyatt',
+      source_month: 'August 2026',
+      status: 'approved',
+    });
+  });
+
+  it('no-ops (skips insert) when a pending row for the same program and source_month already exists', async () => {
+    const supabase = makeSupabase([
+      { data: [], error: null },             // approved check: no match
+      { data: [{ id: 'existing' }], error: null }, // pending check: match
+    ]);
+    expect(await upsertPointsValuation({ supabase, sourceUrl }, record)).toBe(false);
+  });
+
+  it('inserts a new pending candidate when the program advances to a new source_month', async () => {
+    const supabase = makeSupabase([
+      { data: [], error: null }, // approved check: no match for this source_month
+      { data: [], error: null }, // pending check: no match for this source_month
+      { data: null, error: null }, // insert
+    ]);
+    expect(await upsertPointsValuation({ supabase, sourceUrl }, { ...record, source_month: 'September 2026' })).toBe(true);
+  });
+
+  it('returns false when the insert itself errors', async () => {
+    const supabase = makeSupabase([
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: null, error: { message: 'insert failed' } },
+    ]);
+    expect(await upsertPointsValuation({ supabase, sourceUrl }, record)).toBe(false);
+  });
+});
+
 describe('upsertRecord', () => {
   it('dispatches transfer_partner records to upsertTransferPartner', async () => {
     const supabase = makeSupabase([
@@ -497,6 +565,20 @@ describe('upsertRecord', () => {
       ratio: '1:1',
     };
     expect(await upsertRecord({ supabase, sourceUrl }, 'transfer_partner', record)).toBe(true);
+  });
+
+  it('dispatches points_valuation records to upsertPointsValuation', async () => {
+    const supabase = makeSupabase([
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: null, error: null },
+    ]);
+    const record: PointsValuationRecord = {
+      program: 'Chase Ultimate Rewards',
+      cpp: 2.0,
+      source_month: 'August 2026',
+    };
+    expect(await upsertRecord({ supabase, sourceUrl }, 'points_valuation', record)).toBe(true);
   });
 
   it('returns false for an unrecognized record type', async () => {
@@ -514,5 +596,6 @@ describe('upsertRecord', () => {
     expect(TABLE_BY_RECORD_TYPE.transfer_bonus).toBe('transfer_bonuses');
     expect(TABLE_BY_RECORD_TYPE.spending_bonus).toBe('spending_bonuses');
     expect(TABLE_BY_RECORD_TYPE.travel_collection).toBe('travel_collections');
+    expect(TABLE_BY_RECORD_TYPE.points_valuation).toBe('points_valuations');
   });
 });

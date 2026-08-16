@@ -74,21 +74,32 @@ export const TravelCollectionRecordSchema = z.object({
 });
 export type TravelCollectionRecord = z.infer<typeof TravelCollectionRecordSchema>;
 
+export const PointsValuationRecordSchema = z.object({
+  program: z.string().min(1),
+  cpp: z.number().positive(),
+  // TPG's stated valuation month, e.g. "August 2026" — not the fetch date.
+  source_month: z.string().min(1),
+});
+export type PointsValuationRecord = z.infer<typeof PointsValuationRecordSchema>;
+
 export type RecordType =
   | "transfer_partner"
   | "transfer_bonus"
   | "spending_bonus"
-  | "travel_collection";
+  | "travel_collection"
+  | "points_valuation";
 
 export const RECORD_SCHEMAS = {
   transfer_partner: TransferPartnerRecordSchema,
   transfer_bonus: TransferBonusRecordSchema,
   spending_bonus: SpendingBonusRecordSchema,
   travel_collection: TravelCollectionRecordSchema,
+  points_valuation: PointsValuationRecordSchema,
 } as const;
 
 export type AnyRecord =
   | TransferPartnerRecord
   | TransferBonusRecord
   | SpendingBonusRecord
-  | TravelCollectionRecord;
+  | TravelCollectionRecord
+  | PointsValuationRecord;
