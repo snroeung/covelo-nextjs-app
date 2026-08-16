@@ -235,7 +235,7 @@ describe('portalData.admin.listTransferPartners()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// admin.listAll() — pending review across four tables
+// admin.listAll() — pending review across five tables
 // ---------------------------------------------------------------------------
 
 describe('portalData.admin.listAll()', () => {
@@ -245,12 +245,13 @@ describe('portalData.admin.listAll()', () => {
     vi.clearAllMocks();
   });
 
-  it('flattens rows from all four tables with their table name attached', async () => {
+  it('flattens rows from all five tables with their table name attached', async () => {
     setupSupabase([
       { data: [{ id: '1' }], error: null }, // transfer_partners
       { data: [{ id: '2' }], error: null }, // travel_collections
       { data: [], error: null },            // transfer_bonuses
       { data: [{ id: '3' }], error: null }, // spending_bonuses
+      { data: [{ id: '4' }], error: null }, // points_valuations
     ]);
 
     const result = await caller.portalData.admin.listAll();
@@ -259,6 +260,7 @@ describe('portalData.admin.listAll()', () => {
       { table: 'transfer_partners', row: { id: '1' } },
       { table: 'travel_collections', row: { id: '2' } },
       { table: 'spending_bonuses', row: { id: '3' } },
+      { table: 'points_valuations', row: { id: '4' } },
     ]);
   });
 
@@ -266,6 +268,7 @@ describe('portalData.admin.listAll()', () => {
     setupSupabase([
       { data: null, error: { message: 'boom' } },
       { data: [{ id: '2' }], error: null },
+      { data: [], error: null },
       { data: [], error: null },
       { data: [], error: null },
     ]);
