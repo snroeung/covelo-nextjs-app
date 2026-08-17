@@ -10,6 +10,15 @@ import {
   IssuerFilterSelect, type IssuerFilter,
 } from './adminTableShared';
 
+// transfer_bonuses/spending_bonuses are edited on the Offers tab, through the
+// same AdminOfferEditor a published offer uses — not the single-field inline
+// edit the other three pending-review tables fall back to below. Editing
+// them is a navigation (onEditOffer, handled by OffersAdminShell), not
+// something this table renders itself.
+function isOfferTable(table: PendingTableName): table is 'transfer_bonuses' | 'spending_bonuses' {
+  return table === 'transfer_bonuses' || table === 'spending_bonuses';
+}
+
 export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_partners: 'Transfer partner',
   travel_collections: 'Travel collection',
@@ -85,9 +94,13 @@ function rowIsLimitedTime(item: PendingReviewRow): boolean {
 interface Props {
   rows:   PendingReviewRow[];
   isDark: boolean;
+  // Pending transfer_bonuses/spending_bonuses rows edit on the Offers tab —
+  // the parent shell owns tab switching and the editingOffer state that
+  // opens AdminOfferEditor there, so this table just asks for it.
+  onEditOffer: (item: PendingReviewRow) => void;
 }
 
-export function PendingReviewTable({ rows, isDark }: Props) {
+export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -169,10 +182,12 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   }`;
 
   function startEdit(item: PendingReviewRow) {
+    if (isOfferTable(item.table)) {
+      onEditOffer(item);
+      return;
+    }
     const field = item.table === 'transfer_partners' ? 'ratio'
       : item.table === 'travel_collections' ? 'perk_summary'
-      : item.table === 'transfer_bonuses' ? 'bonus_pct'
-      : item.table === 'spending_bonuses' ? 'bonus_multiplier'
       : 'cpp';
     setEditingId(item.row.id as string);
     setEditField(field);

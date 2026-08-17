@@ -467,3 +467,87 @@ test.describe('Flights page — banners', () => {
     await expect(tooltip).toBeVisible({ timeout: 5_000 });
   });
 });
+
+test.describe('Flights page — Best value reflects live transfer bonus', () => {
+  const PARTNER_PROGRAM = `${TEST_PREFIX} Best Value Bonus Test`;
+  let bonusCreated = false;
+  let partnerCreated = false;
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    if (bonusCreated) await setOfferActive(page, PARTNER_PROGRAM, false).catch(() => {});
+    if (partnerCreated) await setTransferPartnerActive(page, PARTNER_PROGRAM, false).catch(() => {});
+    await ctx.close();
+  });
+
+  // Regression for BestRedemptionBar computing "Best value" from the raw,
+  // pre-bonus transferCpp instead of the bonus-adjusted rate RedemptionTable
+  // already shows (e.g. a live Chase → British Airways transfer bonus). Both
+  // components render the same winning option, so their cpp figures must
+  // agree once BestRedemptionBar folds the bonus in too.
+  test('BestRedemptionBar "Best value" cpp matches the bonus-adjusted featured row', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    // Real seeded transfer partners depend on which carrier this sandbox
+    // account's search happens to return — tie the test partner to whatever
+    // actually operates the first result, same technique as the
+    // TransferBonusBanner test above.
+    const badge = cards.first().getByTestId('airline-badge').first();
+    const iataCode = (await badge.textContent())?.trim() || null;
+    test.skip(!iataCode || iataCode === '?', 'Could not read an operating-carrier IATA code from the first result');
+
+    await createTransferPartner(page, {
+      portal: 'Chase',
+      type: 'airline',
+      program: PARTNER_PROGRAM,
+      ratio: '1:1',
+      iataCodes: iataCode!,
+    });
+    partnerCreated = true;
+
+    // Large enough that partnerCpp × (1 + bonusPct/100) clears every fixed
+    // portal baseline (~1.0–1.25¢/pt) regardless of which carrier this
+    // reached — the point is to make this transfer route the undisputed
+    // overall winner, so "Best value" and the featured row are guaranteed to
+    // be describing the same option.
+    await createTransferBonus(page, {
+      issuer: 'chase',
+      partner: PARTNER_PROGRAM,
+      bonusPct: 100,
+      startDate: today(),
+      endDate: daysFromNow(30),
+      description: 'E2E best-value bonus regression test.',
+    });
+    bonusCreated = true;
+
+    // The flight list itself is server-cached by query params (carriers don't
+    // change), but the transfer/bonus match is computed client-side from
+    // fresh portalData.listTransferPartners + offers.listTransferBonuses
+    // data — no cache-busting offset needed, same as the TransferBonusBanner
+    // test above.
+    await gotoFlightsWithResults(page);
+    const refreshedCard = page.getByTestId('flight-card').first();
+
+    // Confirm this specific bonus is actually what's driving the winning
+    // row before comparing numbers — otherwise a coincidental match would
+    // prove nothing. (Both the bonus banner text and the "Best transfer"
+    // metric name the partner, hence .first().)
+    await expect(refreshedCard.getByText(PARTNER_PROGRAM).first()).toBeVisible({ timeout: 15_000 });
+
+    const barCppText = await refreshedCard.getByTestId('best-value-cpp').innerText();
+
+    await refreshedCard.getByRole('button', { name: /Compare \d+ portals?/ }).click();
+    const featuredCppText = await refreshedCard.getByTestId('best-choice-cpp').innerText();
+
+    // Both render as e.g. "1.69cpp" / "1.69¢" — compare the leading numeric
+    // portion only.
+    const barValue = parseFloat(barCppText);
+    const featuredValue = parseFloat(featuredCppText);
+    expect(barValue).toBeGreaterThan(0);
+    expect(barValue).toBe(featuredValue);
+  });
+});

@@ -1,9 +1,12 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { PointsResult } from '@/lib/points/types';
+import { useQuery } from '@tanstack/react-query';
+import type { PointsResult, TransferResult } from '@/lib/points/types';
 import { rankOptions } from '@/lib/points/rankOptions';
 import { buildRowView } from '@/lib/points/rowView';
+import { findBonusForEligibleCards } from '@/lib/points/transferBonus';
+import { trpc } from '@/lib/trpc-client';
 
 interface Props {
   result: PointsResult;
@@ -41,11 +44,34 @@ function Metric({ label, children }: { label: string; children: ReactNode }) {
 export function BestRedemptionBar({
   result, expanded, onToggle, showMetrics, trailing, roundedBottom = true, isDark,
 }: Props) {
-  const rows = rankOptions(result);
-  if (rows.length === 0) return null;
+  // Same bonus lookup RedemptionTable uses — without it, this bar's "Best
+  // value" cpp would show the raw pre-bonus rate even when a live transfer
+  // bonus applies to the winning row (e.g. a Chase → British Airways promo).
+  // No staleTime override — a promo starting or ending shouldn't sit stale
+  // in an already-open tab; falls back to the 5-min app default in
+  // app/providers.tsx.
+  const { data: transferBonuses = [], dataUpdatedAt } = useQuery({
+    queryKey: ['offers.transferBonuses'],
+    queryFn:  () => trpc.offers.listTransferBonuses.query(),
+  });
+  const now = dataUpdatedAt || null;
+  const bonusFor = (t: TransferResult) =>
+    now === null ? undefined : findBonusForEligibleCards(t, transferBonuses, now);
 
-  const best = buildRowView(rows[0], result);
-  const count = rows.length;
+  // Ranking happens on the raw rate, but bonuses are folded into cpp inside
+  // buildRowView, so the displayed rate can differ — re-sort on the
+  // displayed value (mirrors RedemptionTable) so this bar never shows a
+  // lower cpp as the winner when a bonus-boosted row actually beats it.
+  const views = rankOptions(result)
+    .map(row => {
+      const match = row.kind === 'transfer' ? bonusFor(row.transfer) : undefined;
+      return buildRowView(row, result, match?.bonus, match?.portalId);
+    })
+    .sort((a, b) => (b.cpp ?? -Infinity) - (a.cpp ?? -Infinity));
+  if (views.length === 0) return null;
+
+  const best = views[0];
+  const count = views.length;
 
   return (
     <div className={`flex flex-wrap items-center gap-4 md:gap-7 px-5 py-3 ${roundedBottom ? 'rounded-b-xl' : ''} ${
@@ -61,7 +87,7 @@ export function BestRedemptionBar({
 
           <Metric label="Best value">
             {best.cpp !== null ? (
-              <p className="text-lg font-extrabold font-mono tabular-nums text-cv-green-500 leading-none">
+              <p data-testid="best-value-cpp" className="text-lg font-extrabold font-mono tabular-nums text-cv-green-500 leading-none">
                 {best.cpp}
                 <span className="text-[10px] font-bold ml-0.5">cpp</span>
               </p>

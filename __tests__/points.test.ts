@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calcPoints } from '@/lib/points/calcPoints';
-import { calcTransferAlternatives, SEED_TRANSFER_PARTNERS, TransferPartnerConfig } from '@/lib/points/transferPartners';
+import { calcTransferAlternatives, SEED_TRANSFER_PARTNERS, TransferPartnerConfig, PointsValuationConfig } from '@/lib/points/transferPartners';
 import { clusterProgramNames, normalizeProgramName, sameProgram } from '@/lib/points/programNames';
 import { PortalResult, PortalId, CardId, CARD_PORTAL_MAP, ISSUER_CARDS, PORTAL_CPP } from '@/lib/points/types';
 import { PORTAL_FLIGHT_MARKUP, PORTAL_HOTEL_MARKUP } from '@/lib/points/portalMarkup';
@@ -502,6 +502,61 @@ describe('calcTransferAlternatives() two-step points calc (currency-explicit)', 
     // Still fewer than the 31,800-point portal baseline, but a narrower margin
     // than the 1:1 case above — the conversion step is what produces that gap.
     expect(hyatt?.isBetterThanPortal).toBe(true);
+  });
+});
+
+// Admin-approved TPG monthly valuations (trpc.portalData.listPointsValuations)
+// override the hardcoded PARTNER_CPP table when a program matches — for every
+// cabin, since neither side of this system has cabin-specific data (PARTNER_CPP
+// is one flat figure per program, and points_valuations has no cabin column).
+describe('calcTransferAlternatives() DB-sourced points_valuations override', () => {
+  it('overrides the hardcoded hotel rate when the program matches exactly', () => {
+    const pointsValuations: PointsValuationConfig[] = [{ program: 'World of Hyatt', cpp: 2.0 }];
+    const results = calcTransferAlternatives(
+      300, 'hotel', ['chase_reserve'], mockBestPortalResult, 'Hyatt', undefined, undefined, undefined, SEED_TRANSFER_PARTNERS, pointsValuations,
+    );
+    const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
+    // Hardcoded PARTNER_CPP.hyatt is 1.7 — the DB value (2.0) should win.
+    expect(hyatt?.partnerCpp).toBe(2.0);
+  });
+
+  it('overrides via sameProgram() aliasing, not just an exact string match', () => {
+    const pointsValuations: PointsValuationConfig[] = [{ program: 'Hyatt', cpp: 2.2 }];
+    const results = calcTransferAlternatives(
+      300, 'hotel', ['chase_reserve'], mockBestPortalResult, 'Hyatt', undefined, undefined, undefined, SEED_TRANSFER_PARTNERS, pointsValuations,
+    );
+    const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
+    expect(hyatt?.partnerCpp).toBe(2.2);
+  });
+
+  it('falls back to the hardcoded rate when no DB valuation matches the program', () => {
+    const pointsValuations: PointsValuationConfig[] = [{ program: 'Marriott Bonvoy', cpp: 5.0 }];
+    const results = calcTransferAlternatives(
+      300, 'hotel', ['chase_reserve'], mockBestPortalResult, 'Hyatt', undefined, undefined, undefined, SEED_TRANSFER_PARTNERS, pointsValuations,
+    );
+    const hyatt = results.find((r) => r.partnerProgram === 'World of Hyatt');
+    expect(hyatt?.partnerCpp).toBe(1.7);
+  });
+
+  it('overrides the economy rate for a flight partner when the program matches', () => {
+    const pointsValuations: PointsValuationConfig[] = [{ program: 'United MileagePlus', cpp: 3.0 }];
+    const flightBest: PortalResult = { ...mockBestPortalResult, bookingType: 'flight' };
+    const results = calcTransferAlternatives(
+      500, 'flight', ['chase_reserve'], flightBest, undefined, 'UA', { cabin: 'economy' }, undefined, SEED_TRANSFER_PARTNERS, pointsValuations,
+    );
+    const united = results.find((r) => r.partnerProgram === 'United MileagePlus');
+    // Hardcoded PARTNER_CPP.UA is 1.3 — the DB value (3.0) should win.
+    expect(united?.partnerCpp).toBe(3.0);
+  });
+
+  it('overrides business/first cabins too — PARTNER_CPP has no cabin split, so there is no cabin-specific hardcoded value to protect', () => {
+    const pointsValuations: PointsValuationConfig[] = [{ program: 'United MileagePlus', cpp: 3.0 }];
+    const flightBest: PortalResult = { ...mockBestPortalResult, bookingType: 'flight' };
+    const results = calcTransferAlternatives(
+      500, 'flight', ['chase_reserve'], flightBest, undefined, 'UA', { cabin: 'business' }, undefined, SEED_TRANSFER_PARTNERS, pointsValuations,
+    );
+    const united = results.find((r) => r.partnerProgram === 'United MileagePlus');
+    expect(united?.partnerCpp).toBe(3.0);
   });
 });
 

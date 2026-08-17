@@ -232,8 +232,10 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
 
-  const { mutate: updateTransfer, isPending: updatingTransfer } = useMutation({
-    mutationFn: () => trpc.offers.admin.updateTransferBonus.mutate({
+  // Shared with the Publish action below — publishing re-saves the form's
+  // current fields (not just whatever the row already had) before approving.
+  function transferUpdatePayload() {
+    return {
       id:               (initT as TransferBonus).id,
       issuer:           transfer.issuer as Issuer,
       transfer_partner: transfer.transfer_partner,
@@ -249,16 +251,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
-      onSave();
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
-  });
+    };
+  }
 
-  const { mutate: updateSpending, isPending: updatingSpending } = useMutation({
-    mutationFn: () => trpc.offers.admin.updateSpendingBonus.mutate({
+  function spendingUpdatePayload() {
+    return {
       id:               (initS as SpendingBonus).id,
       issuer:           spending.issuer as Issuer,
       merchant_name:    spending.merchant_name,
@@ -275,7 +272,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       source_url:       spending.source_url || null,
       country:          spending.country,
       active:           spending.active,
-    }),
+    };
+  }
+
+  const { mutate: updateTransfer, isPending: updatingTransfer } = useMutation({
+    mutationFn: () => trpc.offers.admin.updateTransferBonus.mutate(transferUpdatePayload()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
       onSave();
@@ -283,7 +284,42 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
 
-  const isPending = creatingTransfer || creatingSpending || updatingTransfer || updatingSpending;
+  const { mutate: updateSpending, isPending: updatingSpending } = useMutation({
+    mutationFn: () => trpc.offers.admin.updateSpendingBonus.mutate(spendingUpdatePayload()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
+      onSave();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
+  });
+
+  // Publish = save the form's current fields, then flip the pending row to
+  // status: approved / active: true (the same transition Pending review's
+  // own Approve button makes) — one action instead of "Save changes" then
+  // switching tabs back to Pending review to click Approve separately.
+  const { mutate: publishPending, isPending: publishing } = useMutation({
+    mutationFn: async () => {
+      if (offerType === 'transfer') {
+        await trpc.offers.admin.updateTransferBonus.mutate(transferUpdatePayload());
+        return trpc.portalData.admin.approve.mutate({ table: 'transfer_bonuses', id: (initT as TransferBonus).id });
+      }
+      await trpc.offers.admin.updateSpendingBonus.mutate(spendingUpdatePayload());
+      return trpc.portalData.admin.approve.mutate({ table: 'spending_bonuses', id: (initS as SpendingBonus).id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
+      queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
+      onSave();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Publish failed'),
+  });
+
+  const isPending = creatingTransfer || creatingSpending || updatingTransfer || updatingSpending || publishing;
+
+  // A row synced in by the scraper (source: 'cron') stays status: 'pending'
+  // until an admin approves it — offer to publish it directly from here
+  // instead of requiring a trip back to Pending review's Approve button.
+  const isPendingOffer = isEditing && (offerType === 'transfer' ? initT?.status === 'pending' : initS?.status === 'pending');
 
   function setT<K extends keyof TransferForm>(key: K, value: TransferForm[K]) {
     setTransfer((prev) => ({ ...prev, [key]: value }));
@@ -372,6 +408,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       if (offerType === 'transfer') createTransfer();
       else createSpending();
     }
+  }
+
+  function handlePublishPending() {
+    setError(null);
+    publishPending();
   }
 
   const transferChecks = [
@@ -851,6 +892,15 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                 ? (isEditing ? 'Saving…' : 'Publishing…')
                 : (isEditing ? 'Save changes' : 'Publish offer')}
             </button>
+            {isPendingOffer && (
+              <button
+                disabled={isPending || !allValid}
+                onClick={handlePublishPending}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {publishing ? 'Publishing…' : 'Publish'}
+              </button>
+            )}
           </div>
         </div>
 

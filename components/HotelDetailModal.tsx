@@ -250,6 +250,15 @@ function RoomCard({
     staleTime: 60 * 60 * 1000,
   });
 
+  // No staleTime override — unlike transferPartners above, valuations are
+  // scraped weekly and only reach this query once an admin approves a
+  // pending row, so an already-open tab should pick that up sooner than an
+  // hour. Falls back to the 5-min app default in app/providers.tsx.
+  const { data: pointsValuations } = useQuery({
+    queryKey: ['portalData.pointsValuations'],
+    queryFn:  () => trpc.portalData.listPointsValuations.query(),
+  });
+
   const rate            = cheapestRoomRate(room);
   const pricePerRoom    = rate ? parseFloat(rate.total_amount) : 0;
   const perNight        = nights > 0 && pricePerRoom > 0 ? pricePerRoom / nights : pricePerRoom;
@@ -266,7 +275,7 @@ function RoomCard({
   const totalPrice      = pricePerRoom * roomQty;
 
   const pointsResult = totalPrice > 0
-    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain, transferPartners)
+    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain, transferPartners, pointsValuations)
     : null;
 
   const cardBg      = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-gray-50 border-gray-200';

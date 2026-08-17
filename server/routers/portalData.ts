@@ -6,10 +6,12 @@ import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
 import { createClient } from "@/lib/supabase/server";
 import type { PortalId } from "@/lib/points/types";
-import type { TransferPartnerConfig } from "@/lib/points/transferPartners";
+import type { TransferPartnerConfig, PointsValuationConfig } from "@/lib/points/transferPartners";
+import { sameProgram } from "@/lib/points/programNames";
 import type {
   TransferPartnerRow,
   TravelCollection,
+  PointsValuation,
   PortalSyncRun,
   PendingReviewRow,
   PendingReviewTable,
@@ -98,6 +100,30 @@ export const portalDataRouter = router({
       return result;
     }),
 
+  listPointsValuations: flaggedProcedure("api:portal-data")
+    .query(async (): Promise<PointsValuationConfig[]> => {
+      const key = cacheKeys.pointsValuations();
+      const cached = await cacheGet<PointsValuationConfig[]>(key);
+      if (cached) return cached;
+
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from("points_valuations")
+        .select("program, cpp")
+        .in("status", ["admin", "approved"])
+        .eq("active", true)
+        // Defensive backstop for rows that predate approve-time supersede, or
+        // any future direct-insert path that bypasses admin.approve — the
+        // caller (lookupPartnerValuationCpp) takes the first sameProgram()
+        // match, so newest-first ordering here is what makes that correct.
+        .order("created_at", { ascending: false });
+
+      if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+      const result = (data ?? []) as PointsValuationConfig[];
+      await cacheSet(key, result, CACHE.pointsValuations.ttl);
+      return result;
+    }),
+
   admin: router({
     listTransferPartners: adminProcedure("api:portal-data")
       .query(async (): Promise<TransferPartnerRow[]> => {
@@ -121,6 +147,18 @@ export const portalDataRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         return (data ?? []) as TravelCollection[];
+      }),
+
+    listPointsValuations: adminProcedure("api:portal-data")
+      .query(async (): Promise<PointsValuation[]> => {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("points_valuations")
+          .select("*")
+          .order("program", { ascending: true });
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        return (data ?? []) as PointsValuation[];
       }),
 
     listAll: adminProcedure("api:portal-data")
@@ -206,6 +244,30 @@ export const portalDataRouter = router({
           .single();
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+
+        // A program can accumulate several approved points_valuations rows
+        // over time (dedup key is program+source_month, so a new month
+        // inserts rather than overwrites) — deactivate every other
+        // approved+active row for the same program so exactly one stays live
+        // for lookupPartnerValuationCpp to find. Matched via sameProgram(),
+        // same comparator transfer_partners matching already uses, not an
+        // exact string (issuers/scrapes spell one program several ways).
+        if (input.table === "points_valuations") {
+          const { data: others } = await supabase
+            .from("points_valuations")
+            .select("id, program")
+            .eq("status", "approved")
+            .eq("active", true);
+
+          const staleIds = ((others as { id: string; program: string }[] | null) ?? [])
+            .filter((row) => row.id !== data.id && sameProgram(row.program, data.program))
+            .map((row) => row.id);
+
+          if (staleIds.length > 0) {
+            await supabase.from("points_valuations").update({ active: false }).in("id", staleIds);
+          }
+        }
+
         await invalidatePortalDataCache();
         return data;
       }),
@@ -342,6 +404,51 @@ export const portalDataRouter = router({
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await invalidatePortalDataCache();
         return data as TravelCollection;
+      }),
+
+    createPointsValuation: adminProcedure("api:portal-data")
+      .input(z.object({
+        program:      z.string().min(1),
+        cpp:          z.number().positive(),
+        source_month: z.string().min(1),
+        source_url:   z.string().nullable().optional(),
+        active:       z.boolean().default(true),
+      }))
+      .mutation(async ({ input }) => {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("points_valuations")
+          .insert({ ...input, source: "admin", status: "admin" })
+          .select()
+          .single();
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await invalidatePortalDataCache();
+        return data as PointsValuation;
+      }),
+
+    updatePointsValuation: adminProcedure("api:portal-data")
+      .input(z.object({
+        id:           z.string().uuid(),
+        program:      z.string().min(1).optional(),
+        cpp:          z.number().positive().optional(),
+        source_month: z.string().min(1).optional(),
+        source_url:   z.string().nullable().optional(),
+        active:       z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...fields } = input;
+        const supabase = await createClient();
+        const { data, error } = await supabase
+          .from("points_valuations")
+          .update(fields)
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        await invalidatePortalDataCache();
+        return data as PointsValuation;
       }),
   }),
 });

@@ -255,7 +255,10 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
         <div className={`${VALUE_COL} shrink-0`}>
           {view.cpp !== null && tier ? (
             <>
-              <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${inkCls}`}>
+              <p
+                data-testid={view.isBestChoice ? 'best-choice-cpp' : undefined}
+                className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${inkCls}`}
+              >
                 {view.cpp}<span className="text-xl">¢</span>
               </p>
               <p className={`text-xs font-mono mt-1.5 ${mutedCls}`}>
