@@ -70,7 +70,7 @@ export const SOURCES: SourceConfig[] = [
     needsBrowser: true,
     isTpgFallback: false,
     extraInstructions:
-      `Page lists both hotel and flight Points Boost entries — hotel entries reference a property name, flight entries reference an airline + route/cabin. Set type accordingly; fill property_name only for hotel rows, airline_name/airline_iata_code/cabin_class only for flight rows; use the boosted vs. standard points shown for original_amount/discount_amount (unit "points") — omit both entirely if the page doesn't show a concrete number for that entry. ${LIMITED_TIME_INSTRUCTION}`,
+      `Page lists both hotel and flight Points Boost entries — hotel entries reference a property name, flight entries reference an airline + route/cabin. Set type accordingly; fill property_name only for hotel rows, airline_name/airline_iata_code/origin_iata_code/destination_iata_code/cabin_class only for flight rows. For flight rows, origin_iata_code/destination_iata_code are the 3-letter airport codes for the route's start and end (e.g. "SFO" -> "NRT") — omit both if the entry doesn't name a specific route (applies to the whole airline instead). Use the boosted vs. standard points shown for original_amount/discount_amount (unit "points") — omit both entirely if the page doesn't show a concrete number for that entry. ${LIMITED_TIME_INSTRUCTION}`,
   },
   {
     key: "chase_sapphire_preferred_transfer",

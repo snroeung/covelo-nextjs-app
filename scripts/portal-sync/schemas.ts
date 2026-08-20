@@ -63,6 +63,8 @@ export const TravelCollectionRecordSchema = z.object({
   property_name: z.string().nullable().optional(),
   airline_name: z.string().nullable().optional(),
   airline_iata_code: z.string().nullable().optional(),
+  origin_iata_code: z.string().nullable().optional(),
+  destination_iata_code: z.string().nullable().optional(),
   cabin_class: z.enum(["economy", "premium_economy", "business", "first"]).nullable().optional(),
   perk_summary: z.string().min(1),
   original_amount: z.number().positive().nullable().optional(),

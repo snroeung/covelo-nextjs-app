@@ -263,6 +263,8 @@ export async function upsertTravelCollection(
           issuer: record.issuer,
           collection_name: record.collection_name,
           airline_iata_code: record.airline_iata_code ?? null,
+          origin_iata_code: record.origin_iata_code ?? null,
+          destination_iata_code: record.destination_iata_code ?? null,
           cabin_class: record.cabin_class ?? null,
           end_date: record.end_date ?? null,
         }

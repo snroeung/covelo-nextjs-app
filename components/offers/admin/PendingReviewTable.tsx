@@ -43,8 +43,14 @@ export function rowTitle(item: PendingReviewRow): string {
   switch (item.table) {
     case 'transfer_partners':
       return `${r.portal_id} → ${r.program}`;
-    case 'travel_collections':
-      return `${r.issuer} · ${r.collection_name}${r.property_name ? ` — ${r.property_name}` : ''}`;
+    case 'travel_collections': {
+      const suffix = r.property_name
+        ? ` — ${r.property_name}`
+        : r.airline_name
+          ? ` — ${r.airline_name}${r.origin_iata_code && r.destination_iata_code ? ` ${r.origin_iata_code}–${r.destination_iata_code}` : ''}`
+          : '';
+      return `${r.issuer} · ${r.collection_name}${suffix}`;
+    }
     case 'transfer_bonuses':
       return `${r.issuer} → ${r.transfer_partner}`;
     case 'spending_bonuses':

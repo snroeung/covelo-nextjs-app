@@ -13,6 +13,8 @@ interface Props {
   mark?: ReactNode;
   /** False when a CollectionBanner sits above and owns the card's top corners */
   roundedTop?: boolean;
+  /** Optional data-testid on the title element, for callers that need to read it back in tests */
+  titleTestId?: string;
   isDark: boolean;
 }
 
@@ -22,7 +24,7 @@ interface Props {
  * bottom, next to the toggle that opens the full comparison.
  */
 export function ResultSummaryHeader({
-  eyebrow, title, trailing, mark, roundedTop = true, isDark,
+  eyebrow, title, trailing, mark, roundedTop = true, titleTestId, isDark,
 }: Props) {
   const surface = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-200';
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
@@ -40,7 +42,7 @@ export function ResultSummaryHeader({
             <p className={`text-[9px] font-bold font-mono uppercase tracking-widest ${mutedCls}`}>
               {eyebrow}
             </p>
-            <p className={`text-lg md:text-xl font-bold leading-tight mt-0.5 truncate ${inkCls}`}>
+            <p data-testid={titleTestId} className={`text-lg md:text-xl font-bold leading-tight mt-0.5 truncate ${inkCls}`}>
               {title}
             </p>
           </div>

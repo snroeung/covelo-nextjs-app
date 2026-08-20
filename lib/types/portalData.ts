@@ -27,6 +27,8 @@ export interface TravelCollection {
   property_name: string | null;
   airline_name: string | null;
   airline_iata_code: string | null;
+  origin_iata_code: string | null;
+  destination_iata_code: string | null;
   cabin_class: 'economy' | 'premium_economy' | 'business' | 'first' | null;
   perk_summary: string;
   original_amount: number | null;

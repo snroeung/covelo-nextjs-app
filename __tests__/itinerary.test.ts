@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  bestFeaturedPerAirline,
   buildRouteView,
   buildRouteViews,
   formatDayDate,
   formatDuration,
+  getOfferFlightInfo,
   isoToMinutes,
   itineraryMeta,
   stopLabel,
@@ -199,5 +201,89 @@ describe('itineraryMeta', () => {
 
   it('handles an empty itinerary without a stop tail', () => {
     expect(itineraryMeta({ slices: [] })).toBe('0 routes');
+  });
+});
+
+describe('getOfferFlightInfo', () => {
+  it('derives airline identity and route context from the owner and outbound slice', () => {
+    const info = getOfferFlightInfo(ROUND_TRIP);
+    expect(info.airlineIata).toBe('AF');
+    expect(info.airlineName).toBe('Air France');
+    expect(info.ptsCtx).toMatchObject({
+      airlineIata: 'AF',
+      originIata: 'JFK',
+      destIata: 'CDG',
+      cabin: 'economy',
+    });
+  });
+
+  it('falls back to the marketing carrier when the offer has no owner', () => {
+    const info = getOfferFlightInfo({ owner: null, slices: [OUTBOUND] });
+    expect(info.airlineIata).toBe('AF');
+    expect(info.airlineName).toBe('Air France');
+  });
+
+  it('falls back to "Unknown airline" when neither owner nor marketing carrier is present', () => {
+    const noCarrier = { duration: 'PT7H52M', segments: [seg({ marketing_carrier: null })] };
+    const info = getOfferFlightInfo({ owner: null, slices: [noCarrier] });
+    expect(info.airlineName).toBe('Unknown airline');
+    expect(info.airlineIata).toBeNull();
+  });
+
+  it('reads destination off the last segment of a connecting outbound route', () => {
+    const connecting = {
+      duration: 'PT11H',
+      segments: [
+        seg({ destination: { iata_code: 'AMS', city_name: 'Amsterdam' } }),
+        seg({ origin: { iata_code: 'AMS', city_name: 'Amsterdam' }, destination: { iata_code: 'CDG', city_name: 'Paris' } }),
+      ],
+    };
+    const info = getOfferFlightInfo({ owner: { iata_code: 'AF', name: 'Air France' }, slices: [connecting] });
+    expect(info.ptsCtx.originIata).toBe('JFK');
+    expect(info.ptsCtx.destIata).toBe('CDG');
+  });
+
+  it('reads cabin_class off the first passenger of the first segment', () => {
+    const businessSeg = { duration: 'PT7H52M', segments: [seg({ passengers: [{ cabin_class: 'business' }] })] };
+    const info = getOfferFlightInfo({ owner: { iata_code: 'AF', name: 'Air France' }, slices: [businessSeg] });
+    expect(info.ptsCtx.cabin).toBe('business');
+  });
+});
+
+function featuredOffer(id: string, ownerIata: string | null, ownerName: string) {
+  return { id, owner: ownerIata ? { iata_code: ownerIata, name: ownerName } : null, slices: [OUTBOUND] };
+}
+
+describe('bestFeaturedPerAirline', () => {
+  it('keeps only the first (best-ranked) offer per airline', () => {
+    const offers = [
+      featuredOffer('af-1', 'AF', 'Air France'),
+      featuredOffer('af-2', 'AF', 'Air France'),
+      featuredOffer('dl-1', 'DL', 'Delta'),
+    ];
+    expect(bestFeaturedPerAirline(offers).map((o) => o.id)).toEqual(['af-1', 'dl-1']);
+  });
+
+  it('preserves input order and drops nothing when every airline is unique', () => {
+    const offers = [
+      featuredOffer('dl-1', 'DL', 'Delta'),
+      featuredOffer('af-1', 'AF', 'Air France'),
+      featuredOffer('ba-1', 'BA', 'British Airways'),
+    ];
+    expect(bestFeaturedPerAirline(offers).map((o) => o.id)).toEqual(['dl-1', 'af-1', 'ba-1']);
+  });
+
+  it('falls back to airline name for grouping when iata is missing, matching getOfferFlightInfo', () => {
+    const noOwnerSameCarrier = {
+      id: 'noowner-1',
+      owner: null,
+      slices: [{ duration: 'PT7H52M', segments: [seg({ marketing_carrier: { iata_code: 'AF', name: 'Air France' } })] }],
+    };
+    const offers = [featuredOffer('af-1', 'AF', 'Air France'), noOwnerSameCarrier];
+    expect(bestFeaturedPerAirline(offers).map((o) => o.id)).toEqual(['af-1']);
+  });
+
+  it('returns an empty array for an empty input', () => {
+    expect(bestFeaturedPerAirline([])).toEqual([]);
   });
 });

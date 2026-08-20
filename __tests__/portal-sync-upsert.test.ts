@@ -484,6 +484,61 @@ describe('upsertTravelCollection', () => {
       status: 'approved',
     });
   });
+
+  it('persists origin_iata_code/destination_iata_code on the inserted row', async () => {
+    let insertedRow: Record<string, unknown> | undefined;
+    const fromResults = [{ data: [], error: null }, { data: [], error: null }];
+    let i = 0;
+    const supabase = {
+      from: () => {
+        const result = fromResults[i++] ?? { data: null, error: null };
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = () => b;
+        b.is = () => b;
+        b.limit = () => b;
+        b.insert = (row: Record<string, unknown>) => { insertedRow = row; return Promise.resolve({ error: null }); };
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    const routedRecord: TravelCollectionRecord = {
+      ...flightRecord,
+      origin_iata_code: 'SFO',
+      destination_iata_code: 'NRT',
+    };
+    expect(await upsertTravelCollection({ supabase, sourceUrl }, routedRecord)).toBe(true);
+    expect(insertedRow?.origin_iata_code).toBe('SFO');
+    expect(insertedRow?.destination_iata_code).toBe('NRT');
+  });
+
+  it('scopes flight dedup to the route, so a second route for the same airline is not treated as a duplicate', async () => {
+    const seenMatches: Record<string, unknown>[] = [];
+    const supabase = {
+      from: () => {
+        const currentMatch: Record<string, unknown> = {};
+        seenMatches.push(currentMatch);
+        const b: Record<string, unknown> = {};
+        b.select = () => b;
+        b.eq = (key: string, value: unknown) => { currentMatch[key] = value; return b; };
+        b.is = (key: string) => { currentMatch[key] = null; return b; };
+        b.limit = () => b;
+        b.insert = () => Promise.resolve({ error: null });
+        // No existing rows match — both approved and pending checks come back empty.
+        b.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
+        return b;
+      },
+    } as unknown as SupabaseClient;
+    const routeA: TravelCollectionRecord = { ...flightRecord, origin_iata_code: 'MIA', destination_iata_code: 'EZE' };
+    const routeB: TravelCollectionRecord = { ...flightRecord, origin_iata_code: 'JFK', destination_iata_code: 'GIG' };
+    expect(await upsertTravelCollection({ supabase, sourceUrl }, routeA)).toBe(true);
+    expect(await upsertTravelCollection({ supabase, sourceUrl }, routeB)).toBe(true);
+    // Each upsertTravelCollection call issues 3 supabase.from() calls (approved
+    // check, pending check, insert) — index 0 and 3 are the first "approved"
+    // check for routeA and routeB respectively.
+    expect(seenMatches[0]).toMatchObject({ origin_iata_code: 'MIA', destination_iata_code: 'EZE' });
+    expect(seenMatches[3]).toMatchObject({ origin_iata_code: 'JFK', destination_iata_code: 'GIG' });
+  });
 });
 
 describe('upsertPointsValuation', () => {

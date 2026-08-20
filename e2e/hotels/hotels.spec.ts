@@ -166,7 +166,7 @@ test.describe('Hotels page — pagination', () => {
   test('page 1 caps at the page size and states the range', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 regular results returned — pagination not rendered');
 
@@ -177,18 +177,22 @@ test.describe('Hotels page — pagination', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('per-page selector caps the regular list — featured hotels stay pinned on every page', async ({ page }) => {
+  test('per-page selector caps the regular list — the Featured hotels strip pages independently, 2 at a time', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 regular results returned — pagination not rendered');
 
     const cards = page.getByTestId('hotel-card');
-    const featuredCount = await cards.filter({ has: page.getByRole('button', { name: 'View collection perk details' }) }).count();
+    const featuredCards = cards.filter({ has: page.getByRole('button', { name: 'View collection perk details' }) });
+    const featuredCount = await featuredCards.count();
+    // The Featured strip caps itself at 2 regardless of how many hotels
+    // qualify — it has its own separate pager, not the regular-list one.
+    const expectedFeaturedOnPage = Math.min(featuredCount, 2);
 
     await page.getByLabel('Per page').selectOption('10');
-    await expect(cards).toHaveCount(10 + featuredCount);
+    await expect(cards).toHaveCount(10 + expectedFeaturedOnPage);
     await expect(page.getByRole('button', { name: 'Previous page' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Next page' })).toBeEnabled();
   });
@@ -196,7 +200,7 @@ test.describe('Hotels page — pagination', () => {
   test('Next advances the page, swaps the results, and scrolls to top', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 regular results returned — pagination not rendered');
 
@@ -218,7 +222,7 @@ test.describe('Hotels page — pagination', () => {
   test('changing the star filter resets to page 1', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 regular results returned — pagination not rendered');
 
@@ -234,7 +238,7 @@ test.describe('Hotels page — pagination', () => {
   test('per-page choice persists across reload', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 regular results returned — pagination not rendered');
 
@@ -425,5 +429,80 @@ test.describe('Hotels page — banners', () => {
     // the same relatively-positioned wrapper <span>)
     const tooltip = infoBtn.locator('xpath=following-sibling::div').first();
     await expect(tooltip).toBeVisible({ timeout: 5_000 });
+  });
+});
+
+test.describe('Hotels page — featured pagination', () => {
+  test.describe.configure({ mode: 'serial' });
+  const createdCollections: string[] = [];
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    for (const name of createdCollections) {
+      await setTravelCollectionActive(page, name, false).catch(() => {});
+    }
+    await ctx.close();
+  });
+
+  test('Featured hotels section paginates 2 at a time once 3+ hotels qualify', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+    // Collect up to 3 distinct property names from the current result set —
+    // travel collections match by property name, so tying one collection to
+    // each of 3 real hotels gives 3 independently-featured hotels without
+    // depending on any single sandbox property being returned.
+    const names: string[] = [];
+    const count = await cards.count();
+    for (let i = 0; i < count && names.length < 3; i++) {
+      const name = (await cards.nth(i).locator('h3').first().textContent())?.trim();
+      if (name && !names.includes(name)) names.push(name);
+    }
+    test.skip(names.length < 3, 'Fewer than 3 distinct hotels in this result set');
+
+    for (const [i, name] of names.entries()) {
+      const collectionName = `${TEST_PREFIX} Featured Pagination Test ${i + 1}`;
+      await createTravelCollection(page, {
+        type: 'hotel',
+        issuer: 'Amex',
+        collectionName,
+        propertyName: name,
+        perkSummary: 'E2E featured-pagination collection.',
+        limitedTime: true,
+      });
+      createdCollections.push(collectionName);
+    }
+
+    await gotoHotelsWithResults(page);
+    const featuredSection = page.getByTestId('featured-hotels-section');
+    const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasFeatured, 'The fresh search did not redraw any of the 3 targeted hotels');
+
+    const pager = featuredSection.getByTestId('hotels-featured-pagination');
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 3 distinct featured hotels survived the fresh search');
+
+    // Fixed at 2 per page — the Featured strip's own pager, separate from
+    // the regular results' configurable Pagination control.
+    await expect(featuredSection.getByTestId('hotel-card')).toHaveCount(2);
+    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeDisabled();
+    await expect(pager.getByRole('button', { name: 'Next featured page' })).toBeEnabled();
+
+    const firstPageFirstName = await featuredSection.getByTestId('hotel-card').first().locator('h3').first().textContent();
+    await pager.getByRole('button', { name: 'Next featured page' }).click();
+    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeEnabled();
+    const secondPageFirstName = await featuredSection.getByTestId('hotel-card').first().locator('h3').first().textContent();
+    expect(secondPageFirstName).not.toBe(firstPageFirstName);
+
+    // The regular results list below keeps its own independent, unaffected
+    // pager — moving the Featured page never resets or touches it.
+    const regularPager = page.getByRole('navigation', { name: /^hotel results pagination$/i });
+    const hasRegularPager = await regularPager.isVisible().catch(() => false);
+    if (hasRegularPager) {
+      await expect(regularPager.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    }
   });
 });

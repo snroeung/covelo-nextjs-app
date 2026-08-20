@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Duffel offer/slice/segment shapes are untyped in the SDK */
 
+import { classifyRoute } from '@/lib/points/transferPartners';
+import type { Cabin, FlightContext } from '@/lib/points/types';
+
 /**
  * Pure formatting + shaping helpers behind the flight comparison card's
  * itinerary block. Kept out of the component so the round-trip totals and the
@@ -131,4 +134,63 @@ export function itineraryMeta(offer: any): string {
   if (!everyRouteStops) return routeWord;
   const stops = slices.reduce((n: number, s: any) => n + s.segments.length - 1, 0);
   return `${routeWord} · ${stops} stop${stops !== 1 ? 's' : ''}`;
+}
+
+function getCabin(seg: any): Cabin {
+  const raw = seg?.passengers?.[0]?.cabin_class as string | undefined;
+  return raw === 'business' ? 'business' : raw === 'first' ? 'first' : 'economy';
+}
+
+export interface OfferFlightInfo {
+  airlineIata: string | null;
+  airlineName: string;
+  ptsCtx: FlightContext;
+}
+
+/**
+ * Airline identity + points-calc context for an offer's outbound leg — the
+ * derivation FlightCard needs for its header/badge and calcPoints() needs for
+ * its transfer-alternative filtering. Shared so the flights list page can
+ * compute the same PointsResult per offer (for "featured" matching) without
+ * duplicating the origin/destination/cabin extraction.
+ */
+export function getOfferFlightInfo(offer: any): OfferFlightInfo {
+  const firstSlice = offer.slices[0];
+  const firstSeg = firstSlice.segments[0];
+  const lastSeg = firstSlice.segments[firstSlice.segments.length - 1];
+
+  const airlineIata = (offer.owner?.iata_code ?? firstSeg?.marketing_carrier?.iata_code ?? null) as string | null;
+  const airlineName = offer.owner?.name ?? firstSeg?.marketing_carrier?.name ?? 'Unknown airline';
+
+  return {
+    airlineIata,
+    airlineName,
+    ptsCtx: {
+      airlineIata,
+      originIata: firstSeg?.origin?.iata_code ?? null,
+      destIata: lastSeg?.destination?.iata_code ?? null,
+      routeType: classifyRoute(firstSeg?.origin?.iata_code, lastSeg?.destination?.iata_code),
+      cabin: getCabin(firstSeg),
+    },
+  };
+}
+
+/**
+ * One offer per airline. The featured section highlights an airline's best
+ * fare, not every fare that happens to qualify (collection match, live
+ * transfer bonus, live spending bonus) — an airline with three qualifying
+ * offers should show once. Callers pass offers pre-sorted by the active
+ * ranking, so "first occurrence per airline" is "best under that ranking".
+ */
+export function bestFeaturedPerAirline<T>(offers: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const offer of offers) {
+    const { airlineIata, airlineName } = getOfferFlightInfo(offer);
+    const key = airlineIata ?? airlineName;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(offer);
+  }
+  return result;
 }

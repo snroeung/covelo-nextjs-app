@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {
+  createSpendingBonus,
   createTransferBonus,
   createTransferPartner,
   createTravelCollection,
@@ -235,7 +236,7 @@ test.describe('Flights page — pagination', () => {
   test('page 1 caps at the page size and states the range', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
 
@@ -257,7 +258,7 @@ test.describe('Flights page — pagination', () => {
   test('per-page selector caps the list', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
 
@@ -270,7 +271,7 @@ test.describe('Flights page — pagination', () => {
   test('Next advances the page, swaps the results, and scrolls to top', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
 
@@ -292,7 +293,7 @@ test.describe('Flights page — pagination', () => {
   test('changing sort resets to page 1', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
 
@@ -308,7 +309,7 @@ test.describe('Flights page — pagination', () => {
   test('per-page choice persists across reload', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
-    const pager = page.getByRole('navigation', { name: /pagination/i });
+    const pager = page.getByRole('navigation', { name: /results pagination/i });
     const hasPager = await pager.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
     test.skip(!hasPager, 'Fewer than 11 results returned — pagination not rendered');
 
@@ -465,6 +466,175 @@ test.describe('Flights page — banners', () => {
     // the same relatively-positioned wrapper <span>)
     const tooltip = infoBtn.locator('xpath=following-sibling::div').first();
     await expect(tooltip).toBeVisible({ timeout: 5_000 });
+  });
+});
+
+test.describe('Flights page — featured section', () => {
+  test.describe.configure({ mode: 'serial' });
+  const MERCHANT_NAME = `${TEST_PREFIX} Featured Section Spending Bonus`;
+  const COLLECTION_NAME = `${TEST_PREFIX} Featured Section Collection Test`;
+  let spendingBonusCreated = false;
+  // Real airline names read off live sandbox results — populated by the
+  // pagination test below, deactivated alongside MERCHANT_NAME in afterAll.
+  const dynamicMerchantsCreated: string[] = [];
+
+  test.afterAll(async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+    const page = await ctx.newPage();
+    if (spendingBonusCreated) await setOfferActive(page, MERCHANT_NAME, false).catch(() => {});
+    for (const merchant of dynamicMerchantsCreated) {
+      await setOfferActive(page, merchant, false).catch(() => {});
+    }
+    await setTravelCollectionActive(page, COLLECTION_NAME, false).catch(() => {});
+    await ctx.close();
+  });
+
+  test('a flight with a live spending bonus on its airline lands in the Featured flights section', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    // Spending bonuses match by merchant name against the airline — read the
+    // real operating airline's name off the first card rather than guessing
+    // one that may not actually appear in this (randomized) result set.
+    const nameEl = cards.first().getByTestId('airline-name').first();
+    const airlineName = (await nameEl.textContent())?.trim() || null;
+    test.skip(!airlineName, 'Could not read an airline name from the first result');
+
+    await createSpendingBonus(page, {
+      issuer: 'chase',
+      merchant: airlineName!,
+      multiplier: 5,
+      bonusType: 'points_multiplier',
+      endDate: daysFromNow(30),
+      description: 'E2E featured-section spending bonus match.',
+    });
+    spendingBonusCreated = true;
+
+    // Spending-bonus matching is computed client-side from a fresh
+    // offers.listSpendingBonuses query (like the TransferBonusBanner test
+    // above) — no server-side cache to bust, a plain re-search picks it up.
+    await gotoFlightsWithResults(page);
+    const featuredSection = page.getByTestId('featured-flights-section');
+    const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasFeatured, `No flight in this result set carries the airline "${airlineName}" the bonus was tied to`);
+
+    await expect(featuredSection.getByText(airlineName!).first()).toBeVisible();
+    // Best-per-airline dedup: exactly one card for this airline lives in the
+    // Featured section, even if the sandbox happened to return several
+    // qualifying offers on it — any extras fall back into the regular
+    // (paginated) list rather than flooding Featured with every fare.
+    const escapedName = airlineName!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const nameRe = new RegExp(escapedName);
+    const insideFeatured = await featuredSection.getByTestId('flight-card').filter({ hasText: nameRe }).count();
+    expect(insideFeatured).toBe(1);
+
+    // Nothing gets silently dropped — any additional offer on this airline
+    // must still be rendered, just outside Featured.
+    const allWithAirline = await page.getByTestId('flight-card').filter({ hasText: nameRe }).count();
+    expect(allWithAirline).toBeGreaterThanOrEqual(insideFeatured);
+  });
+
+  test('a flight with a live travel collection match lands in the Featured flights section', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    const badge = cards.first().getByTestId('airline-badge').first();
+    const iataCode = (await badge.textContent())?.trim() || null;
+    test.skip(!iataCode || iataCode === '?', 'Could not read an operating-carrier IATA code from the first result');
+
+    await createTravelCollection(page, {
+      type: 'flight',
+      issuer: 'Chase',
+      collectionName: COLLECTION_NAME,
+      airlineIataCode: iataCode!,
+      perkSummary: 'E2E featured-section collection match.',
+      limitedTime: true,
+    });
+
+    // Collection matches are baked into the server-cached search response
+    // (see server/routers/flights.ts) — a fresh, uncached query is required,
+    // same reasoning as the CollectionBanner test above.
+    const freshOffset = 24 + (Date.now() % 1000);
+    await page.goto(`/flights?${FLIGHT_QUERY.replace(DEPART_DATE, daysFromNow(freshOffset)).replace(RETURN_DATE, daysFromNow(freshOffset + 7))}`);
+    await expect(
+      page.getByRole('main').getByText(/flights? · PHL → SFO|No flights found for this route and date|Flight search failed/),
+    ).toBeVisible({ timeout: 30_000 });
+
+    const escapedIata = iataCode!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const iataRe = new RegExp(`\\b${escapedIata}\\b`);
+    const featuredSection = page.getByTestId('featured-flights-section');
+    const hasFeatured = await featuredSection.getByTestId('flight-card').filter({ hasText: iataRe }).first()
+      .waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasFeatured, `The fresh search did not redraw a ${iataCode} flight — sandbox carrier data is randomized per request`);
+
+    await expect(featuredSection.getByText(COLLECTION_NAME)).toBeVisible();
+  });
+
+  test('Featured flights section paginates 2 at a time once 3+ airlines qualify', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
+
+    // Spending bonuses match by merchant/airline name, so tying one bonus to
+    // each of 3 distinct airlines actually present in this result set gives
+    // 3 independently-featured airlines without depending on any single
+    // sandbox carrier being drawn.
+    const names = new Set<string>();
+    const count = await cards.count();
+    for (let i = 0; i < count && names.size < 3; i++) {
+      const name = (await cards.nth(i).getByTestId('airline-name').first().textContent())?.trim();
+      if (name) names.add(name);
+    }
+    test.skip(names.size < 3, 'Fewer than 3 distinct airlines in this result set');
+
+    for (const name of names) {
+      await createSpendingBonus(page, {
+        issuer: 'chase',
+        merchant: name,
+        multiplier: 5,
+        bonusType: 'points_multiplier',
+        endDate: daysFromNow(30),
+        description: 'E2E featured-pagination bonus.',
+      });
+      dynamicMerchantsCreated.push(name);
+    }
+
+    // Spending-bonus matching is computed client-side — a plain re-search
+    // picks up the fresh offers.listSpendingBonuses data, same as the first
+    // test in this block.
+    await gotoFlightsWithResults(page);
+    const featuredSection = page.getByTestId('featured-flights-section');
+    const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    test.skip(!hasFeatured, 'The fresh search did not redraw any of the 3 targeted airlines');
+
+    const pager = featuredSection.getByTestId('flights-featured-pagination');
+    const hasPager = await pager.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
+    test.skip(!hasPager, 'Fewer than 3 distinct featured airlines survived the fresh, randomized search');
+
+    // Fixed at 2 per page — the Featured strip's own pager, separate from
+    // the regular results' configurable Pagination control.
+    await expect(featuredSection.getByTestId('flight-card')).toHaveCount(2);
+    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeDisabled();
+    await expect(pager.getByRole('button', { name: 'Next featured page' })).toBeEnabled();
+
+    const firstPageFirstCard = await featuredSection.getByTestId('flight-card').first().innerText();
+    await pager.getByRole('button', { name: 'Next featured page' }).click();
+    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeEnabled();
+    const secondPageFirstCard = await featuredSection.getByTestId('flight-card').first().innerText();
+    expect(secondPageFirstCard).not.toBe(firstPageFirstCard);
+
+    // The regular results list below keeps its own independent, unaffected
+    // pager — moving the Featured page never resets or touches it.
+    const regularPager = page.getByRole('navigation', { name: /^flight results pagination$/i });
+    const hasRegularPager = await regularPager.isVisible().catch(() => false);
+    if (hasRegularPager) {
+      await expect(regularPager.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    }
   });
 });
 

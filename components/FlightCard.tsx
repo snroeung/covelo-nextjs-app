@@ -9,19 +9,11 @@ import { RedemptionTable } from '@/components/RedemptionTable';
 import { AddToTripButton } from '@/components/AddToTripButton';
 import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
 import { BestRedemptionBar } from '@/components/BestRedemptionBar';
-import { classifyRoute } from '@/lib/points/transferPartners';
-import { Cabin, FlightContext } from '@/lib/points/types';
-import { buildRouteViews, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
+import { buildRouteViews, getOfferFlightInfo, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getCabin(seg: any): Cabin {
-  const raw = seg?.passengers?.[0]?.cabin_class as string | undefined;
-  return raw === 'business' ? 'business' : raw === 'first' ? 'first' : 'economy';
-}
 
 const AIRLINE_COLORS: Record<string, string> = {
   AA: '#c0212b', DL: '#003c7d', UA: '#172649', B6: '#0075ff',
@@ -193,15 +185,7 @@ export function FlightCard({ offer }: { offer: any }) {
   const firstSeg = firstSlice.segments[0];
   const lastSeg  = firstSlice.segments[firstSlice.segments.length - 1];
 
-  const airlineIata = (offer.owner?.iata_code ?? firstSeg?.marketing_carrier?.iata_code ?? null) as string | null;
-
-  const ptsCtx: FlightContext = {
-    airlineIata,
-    originIata: firstSeg?.origin?.iata_code ?? null,
-    destIata:   lastSeg?.destination?.iata_code ?? null,
-    routeType:  classifyRoute(firstSeg?.origin?.iata_code, lastSeg?.destination?.iata_code),
-    cabin:      getCabin(firstSeg),
-  };
+  const { airlineIata, airlineName: airline, ptsCtx } = getOfferFlightInfo(offer);
   const ptsResult = usePointsCalc(totalAmount, 'flight', ptsCtx);
 
   const cardBg      = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
@@ -210,7 +194,6 @@ export function FlightCard({ offer }: { offer: any }) {
   const textMuted   = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
   const sectionBg   = isDark ? 'bg-gph-dark-bg'       : 'bg-gray-50';
 
-  const airline    = offer.owner?.name ?? firstSeg?.marketing_carrier?.name ?? 'Unknown airline';
   const originCode = firstSeg?.origin?.iata_code ?? '';
   const destCode   = lastSeg?.destination?.iata_code ?? '';
 
@@ -247,6 +230,7 @@ export function FlightCard({ offer }: { offer: any }) {
         roundedTop={!collection}
         eyebrow={`${tripWord.toUpperCase()} · ${totalTripDuration(offer.slices).toUpperCase()}`}
         title={airline}
+        titleTestId="airline-name"
         trailing={addToTrip}
         mark={
           <div

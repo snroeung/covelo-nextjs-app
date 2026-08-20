@@ -11,6 +11,7 @@ import { GeoMap, type GeoPin } from '@/components/GeoMap';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { type SelectedPlace } from '@/components/LocationSearch';
 import { Pagination } from '@/components/Pagination';
+import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/FeaturedPagination';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePerPage } from '@/hooks/usePerPage';
@@ -259,6 +260,7 @@ function HotelsPageInner() {
   const [mapVisible, setMapVisible]     = useState(true);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = usePerPage();
+  const [featuredPage, setFeaturedPage] = useState(1);
 
   useEffect(() => {
     const el = document.getElementById(MAIN_SCROLL_ID);
@@ -362,16 +364,24 @@ function HotelsPageInner() {
   if (listKey !== prevListKey) {
     setPrevListKey(listKey);
     setPage(1);
+    setFeaturedPage(1);
   }
 
-  // Featured hotels are pinned to every page, so pagination applies to the
-  // regular list only.
+  // Featured hotels and the regular list page independently.
   const safePage = clampPage(page, regularAccommodations.length, perPage);
   const regularPage = paginate(regularAccommodations, safePage, perPage);
   const { from, to } = pageRange(regularAccommodations.length, safePage, perPage);
 
+  const safeFeaturedPage = clampPage(featuredPage, featuredAccommodations.length, FEATURED_PER_PAGE);
+  const featuredPageAccommodations = paginate(featuredAccommodations, safeFeaturedPage, FEATURED_PER_PAGE);
+
   function goToPage(next: number) {
     setPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
+
+  function goToFeaturedPage(next: number) {
+    setFeaturedPage(next);
     document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
   }
 
@@ -676,17 +686,25 @@ function HotelsPageInner() {
             </div>
           )}
           {featuredAccommodations.length > 0 && (
-            <div className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
+            <div data-testid="featured-hotels-section" className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-3">
                 <h2 className={`text-[10px] font-bold font-mono tracking-widest uppercase ${isDark ? 'text-white' : 'text-cv-navy-900'}`}>
                   ★ Featured hotels
                 </h2>
               </div>
               <div className="space-y-4">
-                {featuredAccommodations.map((sr) => (
+                {featuredPageAccommodations.map((sr) => (
                   <HotelCard key={sr.id} searchResult={sr} onOpenDetail={setDetailResult} />
                 ))}
               </div>
+              <FeaturedPagination
+                page={safeFeaturedPage}
+                totalItems={featuredAccommodations.length}
+                onPageChange={goToFeaturedPage}
+                isDark={isDark}
+                itemLabel="hotel"
+                idPrefix="hotels"
+              />
             </div>
           )}
           {regularPage.map((sr, i) => (

@@ -95,6 +95,8 @@ const mockTravelCollection: TravelCollection = {
   property_name: null,
   airline_name: null,
   airline_iata_code: null,
+  origin_iata_code: null,
+  destination_iata_code: null,
   cabin_class: null,
   perk_summary: 'Free breakfast + room upgrade',
   original_amount: null,
