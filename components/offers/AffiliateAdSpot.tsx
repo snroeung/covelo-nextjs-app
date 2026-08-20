@@ -105,7 +105,6 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
   const { data: rawData, isLoading } = useQuery({
     queryKey: ['offers.featuredAd', slot],
     queryFn:  () => trpc.offers.getFeaturedAd.query({ slot }),
-    staleTime: 0,
   });
 
   const ads = Array.isArray(rawData) ? rawData : rawData ? [rawData] : [];

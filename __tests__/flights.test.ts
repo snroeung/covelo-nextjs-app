@@ -48,6 +48,21 @@ const mockOfferRequest = {
       base_currency: "USD",
       tax_amount: "70.00",
       tax_currency: "USD",
+      // Per-offer owner + slices/segments — matchFlightCollections (invoked by
+      // flights.searchOffers on every response) reads these, distinct from the
+      // offer-request-level `slices` above which only carry origin/destination/date.
+      owner: { iata_code: "BA", name: "British Airways" },
+      slices: [
+        {
+          segments: [
+            {
+              origin: { iata_code: "LHR" },
+              destination: { iata_code: "JFK" },
+              marketing_carrier: { iata_code: "BA", name: "British Airways" },
+            },
+          ],
+        },
+      ],
     },
   ],
 };

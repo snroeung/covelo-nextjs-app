@@ -81,7 +81,6 @@ export function useLiveTransferBonus(result: PointsResult | null): TransferBonus
   const { data, dataUpdatedAt } = useQuery({
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
-    staleTime: 15 * 60 * 1000,
   });
   if (!result || !data || !dataUpdatedAt) return undefined;
   return findLiveBonus(result, data, dataUpdatedAt);

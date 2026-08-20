@@ -454,7 +454,6 @@ function FlightsPageInner() {
   const { data: transferPartners } = useQuery({
     queryKey: ['portalData.transferPartners'],
     queryFn:  () => trpc.portalData.listTransferPartners.query(),
-    staleTime: 60 * 60 * 1000,
   });
   const { data: pointsValuations } = useQuery({
     queryKey: ['portalData.pointsValuations'],
@@ -463,12 +462,10 @@ function FlightsPageInner() {
   const { data: transferBonuses, dataUpdatedAt: transferBonusesUpdatedAt } = useQuery({
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
-    staleTime: 15 * 60 * 1000,
   });
   const { data: spendingBonuses, dataUpdatedAt: spendingBonusesUpdatedAt } = useQuery({
     queryKey: ['offers.spendingBonuses'],
     queryFn:  () => trpc.offers.listSpendingBonuses.query(),
-    staleTime: 15 * 60 * 1000,
   });
 
   const featuredOfferIds = useMemo(() => {

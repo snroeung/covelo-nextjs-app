@@ -549,7 +549,6 @@ export function RedemptionTable({
   const { data: transferBonuses = [], dataUpdatedAt } = useQuery({
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
-    staleTime: 15 * 60 * 1000,
   });
   const now = dataUpdatedAt || null;
   // Matched against the cards the user holds, not the row's default issuer: a

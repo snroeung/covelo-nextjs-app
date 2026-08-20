@@ -247,13 +247,9 @@ function RoomCard({
   const { data: transferPartners } = useQuery({
     queryKey: ['portalData.transferPartners'],
     queryFn:  () => trpc.portalData.listTransferPartners.query(),
-    staleTime: 60 * 60 * 1000,
   });
 
-  // No staleTime override — unlike transferPartners above, valuations are
-  // scraped weekly and only reach this query once an admin approves a
-  // pending row, so an already-open tab should pick that up sooner than an
-  // hour. Falls back to the 5-min app default in app/providers.tsx.
+  // Falls back to the 5-min app default in app/providers.tsx.
   const { data: pointsValuations } = useQuery({
     queryKey: ['portalData.pointsValuations'],
     queryFn:  () => trpc.portalData.listPointsValuations.query(),

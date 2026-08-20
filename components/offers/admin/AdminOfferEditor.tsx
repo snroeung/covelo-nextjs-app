@@ -160,7 +160,6 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
   const { data: transferPartners } = useQuery({
     queryKey: ['portalData.transferPartners'],
     queryFn:  () => trpc.portalData.listTransferPartners.query(),
-    staleTime: 60 * 60 * 1000,
   });
 
   // Transfer partner options filtered by issuer — DB-approved partners only
