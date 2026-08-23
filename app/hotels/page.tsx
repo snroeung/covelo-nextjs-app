@@ -3,15 +3,19 @@
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { AppShell } from '@/components/AppShell';
+import { AppShell, MAIN_SCROLL_ID } from '@/components/AppShell';
 import { type GuestsValue } from '@/components/GuestsDropdown';
 import { HotelCard } from '@/components/HotelCard';
 import { HotelDetailModal } from '@/components/HotelDetailModal';
 import { GeoMap, type GeoPin } from '@/components/GeoMap';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { type SelectedPlace } from '@/components/LocationSearch';
+import { Pagination } from '@/components/Pagination';
+import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/FeaturedPagination';
 import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
+import { usePerPage } from '@/hooks/usePerPage';
+import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 
 
@@ -254,9 +258,12 @@ function HotelsPageInner() {
   const [detailResult, setDetailResult] = useState<any | null>(null);
   const [showBackToTop, setShowBackToTop]     = useState(false);
   const [mapVisible, setMapVisible]     = useState(true);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = usePerPage();
+  const [featuredPage, setFeaturedPage] = useState(1);
 
   useEffect(() => {
-    const el = document.getElementById('app-main-scroll');
+    const el = document.getElementById(MAIN_SCROLL_ID);
     if (!el) return;
     const onScroll = () => setShowBackToTop(el.scrollTop > 420);
     el.addEventListener('scroll', onScroll, { passive: true });
@@ -284,6 +291,14 @@ function HotelsPageInner() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reset to page 1 when a new search resolves — adjusted during render
+  // (React's documented alternative to an effect for this).
+  const [prevHotelData, setPrevHotelData] = useState(hotelSearch.data);
+  if (hotelSearch.data !== prevHotelData) {
+    setPrevHotelData(hotelSearch.data);
+    setPage(1);
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allAccommodations: any[] = useMemo(() => hotelSearch.data ?? [], [hotelSearch.data]);
@@ -341,6 +356,34 @@ function HotelsPageInner() {
 
   const featuredAccommodations = useMemo(() => accommodations.filter((sr) => Boolean(sr.collection)), [accommodations]);
   const regularAccommodations  = useMemo(() => accommodations.filter((sr) => !sr.collection), [accommodations]);
+
+  // Reset to page 1 whenever the filtered/sorted list's shape changes — covers
+  // filter and sort changes that don't produce a new hotelSearch.data identity.
+  const listKey = `${sortOrder}|${minStars}|${[...requiredAmenities].sort().join(',')}`;
+  const [prevListKey, setPrevListKey] = useState(listKey);
+  if (listKey !== prevListKey) {
+    setPrevListKey(listKey);
+    setPage(1);
+    setFeaturedPage(1);
+  }
+
+  // Featured hotels and the regular list page independently.
+  const safePage = clampPage(page, regularAccommodations.length, perPage);
+  const regularPage = paginate(regularAccommodations, safePage, perPage);
+  const { from, to } = pageRange(regularAccommodations.length, safePage, perPage);
+
+  const safeFeaturedPage = clampPage(featuredPage, featuredAccommodations.length, FEATURED_PER_PAGE);
+  const featuredPageAccommodations = paginate(featuredAccommodations, safeFeaturedPage, FEATURED_PER_PAGE);
+
+  function goToPage(next: number) {
+    setPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
+
+  function goToFeaturedPage(next: number) {
+    setFeaturedPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
 
   const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const textMuted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
@@ -533,6 +576,7 @@ function HotelsPageInner() {
           {[
             destPlace?.name,
             guests.adults + guests.children > 0 ? `${guests.adults + guests.children} guest${guests.adults + guests.children !== 1 ? 's' : ''}` : null,
+            regularAccommodations.length > 0 ? `Showing ${from}–${to} of ${regularAccommodations.length}` : null,
           ].filter(Boolean).join(' · ')}
         </p>
       </div>
@@ -606,8 +650,8 @@ function HotelsPageInner() {
       <h1 className="sr-only">Hotel search results</h1>
       {showBackToTop && (
         <button
-          onClick={() => document.getElementById('app-main-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })}
-          className={`hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold shadow-lg transition-colors ${isDark ? 'bg-gph-dark-card text-gph-dark-ink hover:bg-gph-dark-linesoft border-gph-dark-line' : 'bg-white text-gray-900 hover:bg-gray-50 border-gray-200'} border`}
+          onClick={() => document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0, behavior: 'smooth' })}
+          className={`hidden md:flex fixed bottom-24 right-6 z-50 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold shadow-lg transition-colors ${isDark ? 'bg-gph-dark-card text-gph-dark-ink hover:bg-gph-dark-linesoft border-gph-dark-line' : 'bg-white text-gray-900 hover:bg-gray-50 border-gray-200'} border`}
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
@@ -642,23 +686,31 @@ function HotelsPageInner() {
             </div>
           )}
           {featuredAccommodations.length > 0 && (
-            <div className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
+            <div data-testid="featured-hotels-section" className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-3">
                 <h2 className={`text-[10px] font-bold font-mono tracking-widest uppercase ${isDark ? 'text-white' : 'text-cv-navy-900'}`}>
                   ★ Featured hotels
                 </h2>
               </div>
               <div className="space-y-4">
-                {featuredAccommodations.map((sr) => (
+                {featuredPageAccommodations.map((sr) => (
                   <HotelCard key={sr.id} searchResult={sr} onOpenDetail={setDetailResult} />
                 ))}
               </div>
+              <FeaturedPagination
+                page={safeFeaturedPage}
+                totalItems={featuredAccommodations.length}
+                onPageChange={goToFeaturedPage}
+                isDark={isDark}
+                itemLabel="hotel"
+                idPrefix="hotels"
+              />
             </div>
           )}
-          {regularAccommodations.map((sr, i) => (
+          {regularPage.map((sr, i) => (
             <Fragment key={sr.id}>
               <HotelCard searchResult={sr} onOpenDetail={setDetailResult} />
-              {i === 1 && regularAccommodations.length >= 3 && (
+              {i === 1 && regularPage.length >= 3 && (
                 <AffiliateAdSpot
                   slot="hotels_inline"
                   variant="inline_banner"
@@ -668,6 +720,17 @@ function HotelsPageInner() {
               )}
             </Fragment>
           ))}
+
+          <Pagination
+            page={safePage}
+            perPage={perPage}
+            totalItems={regularAccommodations.length}
+            onPageChange={goToPage}
+            onPerPageChange={setPerPage}
+            isDark={isDark}
+            itemLabel="hotel"
+            idPrefix="hotels"
+          />
         </div>
       ) : hotelSearch.isSuccess ? (
         <EmptyState message="No hotels found for this location and dates." />

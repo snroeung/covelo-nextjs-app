@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { PointsResult, PortalId, TransferResult } from '@/lib/points/types';
+import type { PointsResult, PortalId, TransferResult, TransferSourceCard } from '@/lib/points/types';
 import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus, Issuer } from '@/lib/types/offers';
 
@@ -37,6 +37,31 @@ export function findBonusForTransfer(
   );
 }
 
+/**
+ * The bonus that applies to a card the user actually holds, and which card it
+ * is. `findBonusForTransfer` only ever looks at the row's default source, which
+ * misses a promo sitting on a second eligible card — and a promo the user
+ * cannot use has no business changing the row's numbers. Bonuses arrive ordered
+ * by bonus_pct desc, so the first eligible match is the biggest one.
+ */
+export function findBonusForEligibleCards(
+  t: TransferResult,
+  bonuses: TransferBonus[],
+  now: number,
+): { bonus: TransferBonus; card: TransferSourceCard; portalId: PortalId } | undefined {
+  const owned = (t.sourceIssuers ?? []).filter(i => i.owned);
+  if (owned.length === 0) return undefined;
+  for (const bonus of bonuses) {
+    if (bonus.transfer_partner !== t.partnerProgram) continue;
+    if (new Date(bonus.end_date).getTime() <= now) continue;
+    if (bonus.start_date && new Date(bonus.start_date).getTime() > now) continue;
+    const issuer = owned.find(i => i.portalId === ISSUER_TO_PORTAL[bonus.issuer]);
+    // The issuer's best card is the one worth transferring from under the promo.
+    if (issuer) return { bonus, card: issuer.best, portalId: issuer.portalId };
+  }
+  return undefined;
+}
+
 export function findLiveBonus(
   result: PointsResult,
   bonuses: TransferBonus[],
@@ -50,14 +75,13 @@ export function findLiveBonus(
 }
 
 export function useLiveTransferBonus(result: PointsResult | null): TransferBonus | undefined {
-  const { data } = useQuery({
+  // Cached shape must stay the bare array — the offers page reads this same key
+  // and spreads it. `dataUpdatedAt` supplies the fetch time so the date-window
+  // check never calls Date.now() during render.
+  const { data, dataUpdatedAt } = useQuery({
     queryKey: ['offers.transferBonuses'],
-    queryFn:  async () => ({
-      bonuses:   await trpc.offers.listTransferBonuses.query(),
-      fetchedAt: Date.now(),
-    }),
-    staleTime: 15 * 60 * 1000,
+    queryFn:  () => trpc.offers.listTransferBonuses.query(),
   });
-  if (!result || !data) return undefined;
-  return findLiveBonus(result, data.bonuses, data.fetchedAt);
+  if (!result || !data || !dataUpdatedAt) return undefined;
+  return findLiveBonus(result, data, dataUpdatedAt);
 }

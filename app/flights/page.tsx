@@ -3,13 +3,22 @@
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { AppShell } from '@/components/AppShell';
+import { AppShell, MAIN_SCROLL_ID } from '@/components/AppShell';
 import { FlightCard } from '@/components/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { type SelectedPlace } from '@/components/LocationSearch';
+import { Pagination } from '@/components/Pagination';
+import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/FeaturedPagination';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSelectedCards } from '@/contexts/SelectedCardsContext';
+import { usePerPage } from '@/hooks/usePerPage';
 import { trpc } from '@/lib/trpc-client';
+import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
+import { calcPoints } from '@/lib/points/calcPoints';
+import { getOfferFlightInfo, bestFeaturedPerAirline } from '@/lib/flights/itinerary';
+import { findLiveBonus } from '@/lib/points/transferBonus';
+import { findLiveSpendingBonusForAirline } from '@/lib/points/spendingBonusMatch';
 
 type TripType   = 'roundtrip' | 'oneway';
 type CabinClass = 'economy' | 'premium_economy' | 'business' | 'first';
@@ -416,6 +425,10 @@ function FlightsPageInner() {
   });
   const searching = flightSearch.isFetching;
 
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = usePerPage();
+  const [featuredPage, setFeaturedPage] = useState(1);
+
   // Reset filters when new results arrive — adjusted during render
   // (React's documented alternative to an effect for this).
   const [prevFlightSearchData, setPrevFlightSearchData] = useState(flightSearch.data);
@@ -425,10 +438,64 @@ function FlightsPageInner() {
     setExcludedAirlines(new Set());
     setFilterMaxPrice(null);
     setSort('best');
+    setPage(1);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawOffers: any[] = useMemo(() => flightSearch.data?.offers ?? [], [flightSearch.data]);
+
+  // Data behind the "Featured flights" section — same three signals the
+  // per-card banners already show (CollectionBanner, TransferBonusBanner),
+  // plus a live spending bonus on the flight's airline. Fetched once here
+  // rather than per-card so filtering the whole result set doesn't require
+  // rendering every FlightCard first; queryKeys match usePointsCalc/
+  // useLiveTransferBonus so the cache is shared, not duplicated.
+  const { selectedCards } = useSelectedCards();
+  const { data: transferPartners } = useQuery({
+    queryKey: ['portalData.transferPartners'],
+    queryFn:  () => trpc.portalData.listTransferPartners.query(),
+  });
+  const { data: pointsValuations } = useQuery({
+    queryKey: ['portalData.pointsValuations'],
+    queryFn:  () => trpc.portalData.listPointsValuations.query(),
+  });
+  const { data: transferBonuses, dataUpdatedAt: transferBonusesUpdatedAt } = useQuery({
+    queryKey: ['offers.transferBonuses'],
+    queryFn:  () => trpc.offers.listTransferBonuses.query(),
+  });
+  const { data: spendingBonuses, dataUpdatedAt: spendingBonusesUpdatedAt } = useQuery({
+    queryKey: ['offers.spendingBonuses'],
+    queryFn:  () => trpc.offers.listSpendingBonuses.query(),
+  });
+
+  const featuredOfferIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const offer of rawOffers) {
+      if (offer.collection) { ids.add(offer.id); continue; }
+
+      const { airlineName, ptsCtx } = getOfferFlightInfo(offer);
+
+      if (spendingBonuses && spendingBonusesUpdatedAt &&
+          findLiveSpendingBonusForAirline(airlineName, spendingBonuses, spendingBonusesUpdatedAt)) {
+        ids.add(offer.id);
+        continue;
+      }
+
+      const totalAmount = parseFloat(offer.total_amount);
+      if (!transferBonuses || !transferBonusesUpdatedAt || !(totalAmount > 0)) continue;
+      try {
+        const ptsResult = selectedCards.length === 0
+          ? calcPoints(totalAmount, 'flight', undefined, ptsCtx, undefined, undefined, transferPartners, pointsValuations)
+          : calcPoints(totalAmount, 'flight', selectedCards, ptsCtx, undefined, undefined, transferPartners, pointsValuations);
+        if (ptsResult && findLiveBonus(ptsResult, transferBonuses, transferBonusesUpdatedAt)) {
+          ids.add(offer.id);
+        }
+      } catch {
+        // calcPoints can throw on a malformed price/context — not featured.
+      }
+    }
+    return ids;
+  }, [rawOffers, selectedCards, transferPartners, pointsValuations, transferBonuses, transferBonusesUpdatedAt, spendingBonuses, spendingBonusesUpdatedAt]);
 
   // Derived filter data (from full result set)
   const stopCounts = useMemo(() => {
@@ -476,11 +543,54 @@ function FlightsPageInner() {
     result = [...result].sort((a: any, b: any) => {
       if (sort === 'cheap') return parseFloat(a.total_amount) - parseFloat(b.total_amount);
       if (sort === 'fast') return offerTotalMinutes(a) - offerTotalMinutes(b);
-      return 0; // 'best' = Duffel's default ranking
+      // 'best' = float featured (collection/bonus match) flights first, then Duffel's default ranking
+      const aFeatured = featuredOfferIds.has(a.id);
+      const bFeatured = featuredOfferIds.has(b.id);
+      if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
+      return 0;
     });
 
     return result;
-  }, [rawOffers, sort, excludedStops, excludedAirlines, filterMaxPrice]);
+  }, [rawOffers, sort, excludedStops, excludedAirlines, filterMaxPrice, featuredOfferIds]);
+
+  // Only one offer per airline makes the cut for the Featured strip — an
+  // airline with several qualifying fares (collection match, live bonus)
+  // would otherwise flood the section. The rest fall back into the regular,
+  // paginated list rather than disappearing.
+  const featuredOffers = useMemo(
+    () => bestFeaturedPerAirline(offers.filter((o) => featuredOfferIds.has(o.id))),
+    [offers, featuredOfferIds],
+  );
+  const featuredOfferIdSet = useMemo(() => new Set(featuredOffers.map((o) => o.id)), [featuredOffers]);
+  const regularOffers = useMemo(() => offers.filter((o) => !featuredOfferIdSet.has(o.id)), [offers, featuredOfferIdSet]);
+
+  // Reset to page 1 whenever the filtered/sorted list's shape changes — covers
+  // filter and sort changes that don't produce a new flightSearch.data identity.
+  const listKey = `${sort}|${filterMaxPrice}|${[...excludedStops].sort().join(',')}|${[...excludedAirlines].sort().join(',')}`;
+  const [prevListKey, setPrevListKey] = useState(listKey);
+  if (listKey !== prevListKey) {
+    setPrevListKey(listKey);
+    setPage(1);
+    setFeaturedPage(1);
+  }
+
+  // Featured flights and the regular list page independently.
+  const safePage = clampPage(page, regularOffers.length, perPage);
+  const pageOffers = paginate(regularOffers, safePage, perPage);
+  const { from, to } = pageRange(regularOffers.length, safePage, perPage);
+
+  const safeFeaturedPage = clampPage(featuredPage, featuredOffers.length, FEATURED_PER_PAGE);
+  const featuredPageOffers = paginate(featuredOffers, safeFeaturedPage, FEATURED_PER_PAGE);
+
+  function goToPage(next: number) {
+    setPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
+
+  function goToFeaturedPage(next: number) {
+    setFeaturedPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
 
   const filterCount =
     (excludedStops.size    > 0 ? 1 : 0) +
@@ -607,6 +717,7 @@ function FlightsPageInner() {
               </h2>
               <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-1.5 ${subTextCls}`}>
                 {startDate} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'} · {CABIN_LABELS[cabinClass]}
+                {offers.length > 0 && ` · Showing ${from}–${to}`}
               </p>
             </div>
 
@@ -633,14 +744,37 @@ function FlightsPageInner() {
             </div>
           </div>
 
+          {featuredOffers.length > 0 && (
+            <div data-testid="featured-flights-section" className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-3">
+                <h2 className={`text-[10px] font-bold font-mono tracking-widest uppercase ${isDark ? 'text-white' : 'text-cv-navy-900'}`}>
+                  ★ Featured flights
+                </h2>
+              </div>
+              <div className="space-y-4">
+                {featuredPageOffers.map((offer) => (
+                  <FlightCard key={offer.id} offer={offer} />
+                ))}
+              </div>
+              <FeaturedPagination
+                page={safeFeaturedPage}
+                totalItems={featuredOffers.length}
+                onPageChange={goToFeaturedPage}
+                isDark={isDark}
+                itemLabel="flight"
+                idPrefix="flights"
+              />
+            </div>
+          )}
+
           {/* Flight results */}
           {offers.length === 0 ? (
             <EmptyState message="No flights match your filters. Try adjusting Refine." />
           ) : (
-            offers.slice(0, 15).map((offer, i) => (
+            pageOffers.map((offer, i) => (
               <Fragment key={offer.id}>
                 <FlightCard offer={offer} />
-                {i === 1 && offers.length >= 3 && (
+                {i === 1 && pageOffers.length >= 3 && (
                   <AffiliateAdSpot
                     slot="flights_inline"
                     variant="inline_banner"
@@ -651,6 +785,17 @@ function FlightsPageInner() {
               </Fragment>
             ))
           )}
+
+          <Pagination
+            page={safePage}
+            perPage={perPage}
+            totalItems={regularOffers.length}
+            onPageChange={goToPage}
+            onPerPageChange={setPerPage}
+            isDark={isDark}
+            itemLabel="flight"
+            idPrefix="flights"
+          />
         </div>
 
       ) : flightSearch.isSuccess ? (

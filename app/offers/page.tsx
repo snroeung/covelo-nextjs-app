@@ -22,13 +22,11 @@ function OffersPageInner() {
   const { data: transferBonuses = [], isLoading: loadingTransfer } = useQuery({
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
-    staleTime: 15 * 60 * 1000,
   });
 
   const { data: spendingBonuses = [], isLoading: loadingSpending } = useQuery({
     queryKey: ['offers.spendingBonuses'],
     queryFn:  () => trpc.offers.listSpendingBonuses.query(),
-    staleTime: 15 * 60 * 1000,
   });
 
   const isLoading = loadingTransfer || loadingSpending;

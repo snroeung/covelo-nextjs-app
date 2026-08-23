@@ -303,6 +303,59 @@ async function fetchClickThroughPanelsUncached(
   }
 }
 
+// For flat repeated-item lists (e.g. a partner grid) where every card and
+// the fragments inside it share the same utility class, so itemSelector
+// matches the wrapper AND its own inner spans. Can't disambiguate by walking
+// the DOM with .evaluate() — some sites (global.americanexpress.com)
+// monkeypatch eval in-page, which breaks Playwright's evaluate() on any
+// locator, not just script tags — so this reads only real Playwright API
+// calls (.textContent()) and dedupes structurally afterward: a wrapper's
+// text is always a superstring of its own inner fragments' text, so drop
+// any match whose text is fully contained in a longer match, keeping just
+// the outermost block per item.
+export async function fetchRenderedItems(url: string, itemSelector: string): Promise<FetchResult | null> {
+  if (!(await isAllowed(url, USER_AGENT))) return null;
+  await throttle(url);
+
+  console.log(`[fetch:rendered-items] GET ${url} (items: "${itemSelector}")`);
+  const browser = await getBrowser();
+  const context = await browser.newContext({ userAgent: USER_AGENT });
+  try {
+    const page = await context.newPage();
+    const response = await page.goto(url, { waitUntil: "load", timeout: 30_000 });
+    if (response && !response.ok()) {
+      console.error(`[fetch:rendered-items] ${url} → HTTP ${response.status()} ${response.statusText()}`);
+    }
+    await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {
+      console.warn(`[fetch:rendered-items] ${url} never reached networkidle within 5s, proceeding anyway`);
+    });
+
+    const locators = await page.locator(itemSelector).all();
+    const texts: string[] = [];
+    for (const loc of locators) {
+      const raw = (await loc.textContent().catch(() => null)) ?? "";
+      const cleaned = raw.replace(/\s+/g, " ").trim();
+      if (cleaned) texts.push(cleaned);
+    }
+
+    const items = texts.filter(
+      (text, i) => !texts.some((other, j) => j !== i && other.length > text.length && other.includes(text)),
+    );
+
+    if (items.length === 0) {
+      console.error(`[fetch:rendered-items] selector "${itemSelector}" matched 0 items for ${url}`);
+      return null;
+    }
+    return { text: items.join("\n"), fetchedUrl: url };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[fetch:rendered-items] failed for ${url}: ${message}`);
+    throw err;
+  } finally {
+    await context.close();
+  }
+}
+
 export async function closeBrowser(): Promise<void> {
   if (sharedBrowser) {
     await sharedBrowser.close();

@@ -13,6 +13,7 @@ interface DuffelSearchResult {
 interface FlightOffer {
   id: string;
   owner: { iata_code: string | null };
+  slices: { segments: { origin: { iata_code: string | null }; destination: { iata_code: string | null } }[] }[];
 }
 
 export type CollectionMatchEntry = {
@@ -93,7 +94,18 @@ export function matchFlightCollections(
   );
 
   for (const offer of offers) {
-    const match = candidates.find((c) => c.airline_iata_code === offer.owner.iata_code);
+    const firstSlice = offer.slices[0];
+    const originIata = firstSlice?.segments[0]?.origin?.iata_code ?? null;
+    const destIata = firstSlice?.segments[firstSlice.segments.length - 1]?.destination?.iata_code ?? null;
+
+    // A null origin/destination on the collection is a wildcard for that field —
+    // preserves airline-only matching for rows that haven't been given a route yet.
+    const match = candidates.find(
+      (c) =>
+        c.airline_iata_code === offer.owner.iata_code &&
+        (c.origin_iata_code === null || c.origin_iata_code === originIata) &&
+        (c.destination_iata_code === null || c.destination_iata_code === destIata),
+    );
     if (match) {
       result.set(offer.id, toMatchEntry(match));
     }

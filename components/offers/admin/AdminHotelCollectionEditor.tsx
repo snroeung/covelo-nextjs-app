@@ -20,6 +20,8 @@ interface Form {
   property_name:      string;
   airline_name:       string;
   airline_iata_code:  string;
+  origin_iata_code:      string;
+  destination_iata_code: string;
   cabin_class:        string;
   perk_summary:       string;
   original_amount:    string;
@@ -69,6 +71,8 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
     property_name:      initial?.property_name ?? '',
     airline_name:       initial?.airline_name ?? '',
     airline_iata_code:  initial?.airline_iata_code ?? '',
+    origin_iata_code:      initial?.origin_iata_code ?? '',
+    destination_iata_code: initial?.destination_iata_code ?? '',
     cabin_class:        initial?.cabin_class ?? 'economy',
     perk_summary:       initial?.perk_summary ?? '',
     original_amount:    initial?.original_amount != null ? String(initial.original_amount) : '',
@@ -94,6 +98,8 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
       property_name:      form.type === 'hotel' ? (form.property_name || undefined) : undefined,
       airline_name:       form.type === 'flight' ? (form.airline_name || undefined) : undefined,
       airline_iata_code:  form.type === 'flight' ? (form.airline_iata_code || undefined) : undefined,
+      origin_iata_code:      form.type === 'flight' ? (form.origin_iata_code || undefined) : undefined,
+      destination_iata_code: form.type === 'flight' ? (form.destination_iata_code || undefined) : undefined,
       cabin_class:        form.type === 'flight' ? (form.cabin_class as 'economy' | 'premium_economy' | 'business' | 'first') : undefined,
       perk_summary:       form.perk_summary,
       original_amount:    numOrUndefined(form.original_amount),
@@ -229,6 +235,26 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
                     onChange={(e) => setForm({ ...form, airline_iata_code: e.target.value.toUpperCase() })}
                     placeholder="UA"
                     maxLength={2}
+                    className={`${inputCls(isDark)} mt-1`}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls(isDark)}>Origin IATA code</label>
+                  <input
+                    value={form.origin_iata_code}
+                    onChange={(e) => setForm({ ...form, origin_iata_code: e.target.value.toUpperCase() })}
+                    placeholder="SFO (leave blank for any route)"
+                    maxLength={3}
+                    className={`${inputCls(isDark)} mt-1`}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls(isDark)}>Destination IATA code</label>
+                  <input
+                    value={form.destination_iata_code}
+                    onChange={(e) => setForm({ ...form, destination_iata_code: e.target.value.toUpperCase() })}
+                    placeholder="NRT (leave blank for any route)"
+                    maxLength={3}
                     className={`${inputCls(isDark)} mt-1`}
                   />
                 </div>
@@ -368,7 +394,7 @@ export function AdminHotelCollectionEditor({ initial, isDark, onCancel, onSave }
             <p className={`text-sm font-semibold ${ink}`}>
               {ISSUER_LABELS[form.issuer]} · {form.collection_name || '—'}
               {form.type === 'hotel' && form.property_name ? ` — ${form.property_name}` : ''}
-              {form.type === 'flight' && form.airline_name ? ` — ${form.airline_name} (${form.airline_iata_code || '—'})` : ''}
+              {form.type === 'flight' && form.airline_name ? ` — ${form.airline_name} (${form.airline_iata_code || '—'})${form.origin_iata_code || form.destination_iata_code ? ` ${form.origin_iata_code || '—'}→${form.destination_iata_code || '—'}` : ''}` : ''}
             </p>
             <p className={`text-xs mt-1 ${muted}`}>{form.perk_summary || 'No perk summary yet'}</p>
             {form.limited_time_offer && (

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AddToTripButton } from '@/components/AddToTripButton';
-import { BestPortalPanel } from '@/components/BestPortalPanel';
+import { HotelBestRedemptionBar } from '@/components/HotelBestRedemptionBar';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { calcPoints } from '@/lib/points/calcPoints';
 import type { PointsResult } from '@/lib/points/types';
-import { PointsGrid } from '@/components/PointsGrid';
+import { RedemptionTable } from '@/components/RedemptionTable';
 import { trpc } from '@/lib/trpc-client';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
@@ -121,7 +121,12 @@ function RoomComparePopup({
 
         {/* scrollable ranked comparison */}
         <div className="px-6 py-4 overflow-y-auto flex-1">
-          <PointsGrid result={pointsResult} />
+          <RedemptionTable
+            result={pointsResult}
+            scopeLabel={`${nights} night${nights !== 1 ? 's' : ''}`}
+            scopeAdj="stay"
+            scopeNote={`applies to all ${nights} night${nights !== 1 ? 's' : ''}`}
+          />
         </div>
       </div>
     </div>,
@@ -242,7 +247,12 @@ function RoomCard({
   const { data: transferPartners } = useQuery({
     queryKey: ['portalData.transferPartners'],
     queryFn:  () => trpc.portalData.listTransferPartners.query(),
-    staleTime: 60 * 60 * 1000,
+  });
+
+  // Falls back to the 5-min app default in app/providers.tsx.
+  const { data: pointsValuations } = useQuery({
+    queryKey: ['portalData.pointsValuations'],
+    queryFn:  () => trpc.portalData.listPointsValuations.query(),
   });
 
   const rate            = cheapestRoomRate(room);
@@ -261,7 +271,7 @@ function RoomCard({
   const totalPrice      = pricePerRoom * roomQty;
 
   const pointsResult = totalPrice > 0
-    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain, transferPartners)
+    ? calcPoints(totalPrice, 'hotel', selectedCards.length > 0 ? selectedCards : undefined, undefined, portalPrices, hotelChain, transferPartners, pointsValuations)
     : null;
 
   const cardBg      = isDark ? 'bg-gph-dark-bg border-gph-dark-line' : 'bg-gray-50 border-gray-200';
@@ -364,10 +374,8 @@ function RoomCard({
         </div>
 
         {/* Best portal panel */}
-        <BestPortalPanel
+        <HotelBestRedemptionBar
           result={pointsResult}
-          isDark={isDark}
-          variant="stacked"
           primaryCta={{ label: 'Reserve →' }}
           compareLabel={`Compare ${pointsResult?.portalGroups.length ?? 0} portals`}
           onCompareClick={() => setShowPopup(true)}

@@ -87,6 +87,8 @@ export const FEW_SHOT_EXAMPLES: Partial<Record<RecordType, unknown[]>> = {
       collection_name: "Points Boost",
       airline_name: "United Airlines",
       airline_iata_code: "UA",
+      origin_iata_code: "SFO",
+      destination_iata_code: "NRT",
       cabin_class: "business",
       perk_summary: "Reduced points price on business class fares through Chase Travel",
       original_amount: 120000,

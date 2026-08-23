@@ -69,7 +69,9 @@ export function BalancePanel() {
 
   const panelBg  = isDark ? 'bg-gph-dark-bg'     : 'bg-gray-100';
   const inkCls   = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  // gray-500 on this panel's gray-100 fill lands at ~4.4:1 — under the 4.5:1
+  // floor for the 10px labels it is used on. gray-600 clears it.
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const inputCls = isDark
     ? 'bg-gph-dark-card border-gph-dark-line text-gph-dark-ink focus:border-gph-dark-action'
     : 'bg-white border-gray-300 text-gray-900 focus:border-gray-500';

@@ -45,6 +45,11 @@ describe('invalidateCacheFor', () => {
     expect(redis.del).toHaveBeenCalledWith(cacheKeys.spendingBonuses());
   });
 
+  it('deletes the points valuations cache key for points_valuation', async () => {
+    await invalidateCacheFor('points_valuation');
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.pointsValuations());
+  });
+
   it('no-ops when the redis integration flag is disabled', async () => {
     isEnabledMock.mockReturnValue(false);
     await invalidateCacheFor('transfer_partner');
