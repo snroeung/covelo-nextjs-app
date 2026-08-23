@@ -61,4 +61,38 @@ test.describe('Offers page — general', () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
+  test('36. survives a client-side hop from a results page that warmed the bonuses cache', async ({ page }) => {
+    // Regression: flight/hotel cards and this page share the react-query key
+    // 'offers.transferBonuses'. When the card side cached an envelope object
+    // instead of the bare array, whichever page mounted second spread a
+    // non-iterable and the offers page threw on render.
+    const errors: string[] = [];
+    page.on('pageerror', e => errors.push(e.message));
+
+    const depart = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10);
+    const params = new URLSearchParams({
+      origin: 'PHL',
+      originName: 'Philadelphia International Airport',
+      destinationCode: 'SFO',
+      destination: 'San Francisco International Airport',
+      tripType: 'oneway',
+      departDate: depart,
+      adults: '1',
+      cabinClass: 'economy',
+    });
+    await page.goto(`/flights?${params.toString()}`);
+    await page
+      .getByRole('main')
+      .getByText(/flights? · PHL → SFO|No flights found for this route and date|Flight search failed/)
+      .waitFor({ timeout: 30_000 });
+
+    // Client-side nav keeps the query cache — a full page load would not.
+    await page.getByRole('link', { name: /offers/i }).first().click();
+    await expect(page).toHaveURL(/\/offers/);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: /transfer bonuses/i })).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
+
 });

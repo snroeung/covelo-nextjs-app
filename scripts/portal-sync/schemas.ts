@@ -63,6 +63,8 @@ export const TravelCollectionRecordSchema = z.object({
   property_name: z.string().nullable().optional(),
   airline_name: z.string().nullable().optional(),
   airline_iata_code: z.string().nullable().optional(),
+  origin_iata_code: z.string().nullable().optional(),
+  destination_iata_code: z.string().nullable().optional(),
   cabin_class: z.enum(["economy", "premium_economy", "business", "first"]).nullable().optional(),
   perk_summary: z.string().min(1),
   original_amount: z.number().positive().nullable().optional(),
@@ -74,21 +76,32 @@ export const TravelCollectionRecordSchema = z.object({
 });
 export type TravelCollectionRecord = z.infer<typeof TravelCollectionRecordSchema>;
 
+export const PointsValuationRecordSchema = z.object({
+  program: z.string().min(1),
+  cpp: z.number().positive(),
+  // TPG's stated valuation month, e.g. "August 2026" — not the fetch date.
+  source_month: z.string().min(1),
+});
+export type PointsValuationRecord = z.infer<typeof PointsValuationRecordSchema>;
+
 export type RecordType =
   | "transfer_partner"
   | "transfer_bonus"
   | "spending_bonus"
-  | "travel_collection";
+  | "travel_collection"
+  | "points_valuation";
 
 export const RECORD_SCHEMAS = {
   transfer_partner: TransferPartnerRecordSchema,
   transfer_bonus: TransferBonusRecordSchema,
   spending_bonus: SpendingBonusRecordSchema,
   travel_collection: TravelCollectionRecordSchema,
+  points_valuation: PointsValuationRecordSchema,
 } as const;
 
 export type AnyRecord =
   | TransferPartnerRecord
   | TransferBonusRecord
   | SpendingBonusRecord
-  | TravelCollectionRecord;
+  | TravelCollectionRecord
+  | PointsValuationRecord;

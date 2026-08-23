@@ -9,6 +9,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
+/** DOM id of the results scroll container — used by pagination's scroll-to-top
+ *  and the hotels back-to-top button. */
+export const MAIN_SCROLL_ID = 'app-main-scroll';
+
 export function AppShell({
   header,
   children,
@@ -95,7 +99,7 @@ export function AppShell({
         </aside>
 
         {/* Results */}
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <main id={MAIN_SCROLL_ID} className="flex-1 p-4 md:p-6 overflow-y-auto">
           {children}
         </main>
 

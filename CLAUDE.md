@@ -32,8 +32,8 @@ Be straight forward and quick to the point
 | Token | Hex | Usage |
 |---|---|---|
 | `cv-green-500` | `#22C55E` | Review score label ("Excellent", "Very Good") |
-| `cv-green-700` | `#3F8F4E` | PointsGrid "Great" tier badge |
-| `cv-green-800` | `#2D7A3A` | PointsGrid "Excellent" tier badge |
+| `cv-green-700` | `#3F8F4E` | RedemptionTable "Great" tier badge |
+| `cv-green-800` | `#2D7A3A` | RedemptionTable "Excellent" tier badge |
 
 #### Blue (legacy dark mode palette)
 | Token | Hex | Usage |
@@ -120,11 +120,58 @@ Sidebar card selector with:
 - Desktop: image left (w-44) + info + price | Mobile: image top
 - "★ Best Value" badge overlay when cpp > 1.0
 - Favorite (heart) button — UI only, no persistence
-- Dark navy bottom bar: Best Portal | Redeem (points·cpp) | Value tier | Compare button
-- "Compare N portals →" toggles `PointsGrid` inline
+- Cash price only — **no redemption comparison.** Hotel pricing is per room type,
+  so the comparison belongs to the room cards in `HotelDetailModal`, not the result card
+- Clicking the photo or the name opens `HotelDetailModal`
 
-### `PointsGrid` (`components/PointsGrid.tsx`)
-Renders portal groups and transfer alternatives. Called from `HotelCard` and `FlightCard`.
+### Redemption comparison components
+Three renderings of the same `PointsResult`, chosen by how much room the surface has:
+
+| Component | Shape | Used by |
+|---|---|---|
+| `RedemptionTable` (`components/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote | `FlightCard`, `HotelDetailModal` room comparison popup, `SearchBoard` |
+| `BestRedemptionBar` (`components/BestRedemptionBar.tsx`) | Horizontal dark strip closing a result card — winner + "Compare N portals →" toggle | `FlightCard` |
+| `HotelBestRedemptionBar` (`components/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
+
+The grouped-alternatives overlay inside `RedemptionTable` is `absolute inset-0` over the
+table's own box — it covers the table exactly rather than hanging off its trigger, so an
+open popover never spills onto the next result card.
+
+**One partner is one row, and every row names routes the user can actually take.**
+
+A loyalty program is a partner of several issuers, so `calcTransferAlternatives` merges
+them into one row. Merging is by **program identity**, not string equality — issuers spell
+the same program differently ("British Airways Club" on Capital One vs "British Airways
+Executive Club" on Chase), and an exact key produced two rows for one transfer, one marked
+owned and one not. `sameProgram`/`clusterProgramNames` in `lib/points/programNames.ts`
+compare brand tokens with loyalty scaffolding (club, executive, privilege, rewards, avios,
+miles…) stripped; add to `PROGRAM_ALIASES` only when two names share no brand word at all.
+
+`TransferResult.sourceIssuers` carries every issuer that reaches the program, owned first.
+Ownership is an **issuer** property (one points pool per issuer); the ratio is a **card**
+property (Chase pays 1:1 on Reserve, 4:3 on Preferred from 2026). Chips split accordingly:
+
+| Chip | Rendered for | Style |
+|---|---|---|
+| One per owned **card** | Each card the user holds that reaches the partner, at its own ratio | Filled |
+| One per unowned **issuer** | That issuer's best available rate; per-card breakdown in `title` | Dashed outline, no fill |
+
+Colour is independent of ownership: green when that chip's issuer runs a live bonus, amber
+below 0.99¢, neutral otherwise. The row reads "… via `<issuer>`" for one owned card,
+"… via N cards" when several tie, and shows the "Not in your wallet" note only when **no**
+chip is owned.
+
+A bonus only counts when it sits on an issuer the user holds — use
+`findBonusForEligibleCards`, not `findBonusForTransfer`, anywhere the bonus changes a
+displayed rate.
+
+**Ratios are free text.** The table stores strings like `"1,000:1,200 (Strata Elite/Premier/
+Prestige) or 1,000:840 or 700 (other Citi ThankYou cards)"`. Always go through
+`parseTransferRatio(raw, cardName)` in `lib/points/transferRatio.ts` — it picks the variant
+matching that card, reads thousands separators, and returns a short `label` plus the
+original `detail` for hover. Never regex a ratio inline. `TRANSFER_CPP`/`HOTEL_CPP` hold
+partner-side values; `TransferResult.partnerCpp` keeps them unscaled so each chip restates
+the rate at its own card's ratio.
 
 ---
 
@@ -337,7 +384,20 @@ Claude will prompt: `💾 Good commit point —` followed by a suggested message
 - A bug is fixed and verified
 - A new component is complete and visually verified
 
-**Before prompting to commit, always run `npm run lint -- --fix`, `npm run build`, `npm run lint`, `npm run typecheck`, `npx vitest run --coverage`, `npm audit --audit-level=high` — and `npm run test:e2e` for commits that touch UI.** Run `npm run lint -- --fix` first, every time, the same as `npm run build`; `eslint.config.mjs` ignores `coverage/**` and `playwright-report/**` so this is safe to run unscoped across the whole repo. Re-check `git diff` after autofixing to confirm the fixes are sane before staging. Vercel runs `npm run build` on every push to deploy the app — if the build is broken, the deployment fails and the branch is dead in production. Run `npm run build`, `npm run lint`, and `npm run typecheck` and confirm there are no errors before suggesting a commit. Run `npx vitest run --coverage` and confirm the suite passes — check the coverage report for gaps in any logic touched by the commit. If the commit touches any component or page, also run `npm run test:e2e` (or the narrower `npm run test:e2e -- e2e/<route>/` for the touched route) and confirm it passes. Also run `npm audit --audit-level=high` and ensure all dependencies are safe from high vulnerabilities. Any vulnerabilities from npm audit can be resolved using `npm audit fix --force` Common failure modes: missing npm dependencies (not in `package.json`), `useSearchParams()` without a `<Suspense>` wrapper, TypeScript errors, and unresolved imports. Fix any build errors before committing.
+**Every task runs exactly two gates: `npm run lint -- --fix` then `npm run build`.** Nothing else is automatic. Run the autofix first, re-check `git diff` to confirm the fixes are sane, then build. Vercel runs `npm run build` on every push, so a broken build kills the branch in production — that is why this one is unconditional. Common failure modes: missing npm dependencies (not in `package.json`), `useSearchParams()` without a `<Suspense>` wrapper, TypeScript errors, and unresolved imports. `eslint.config.mjs` ignores `coverage/**` and `playwright-report/**`, so linting unscoped across the repo is safe.
+
+Everything else runs **only when the change reaches it**, and the narrowest form is the right one:
+
+| Run | When |
+|---|---|
+| `npx tsc --noEmit` | Types changed in a way the build might not surface (shared interfaces, generics) |
+| `npx vitest run <file>` | The task touched the module under test — the single file, not the suite |
+| `npx vitest run` | A shared type or `lib/points/*` primitive changed, where the blast radius is real |
+| `npm run test:e2e -- e2e/<route>/` | The task changed that route's UI |
+| `npm run test:e2e` | Only before a release, or when the change is cross-route (layout, providers, auth) |
+| `npm audit --audit-level=high` | `package.json` changed, or before a release — not for code-only work |
+
+Don't run the full unit suite, full e2e, or an audit "to be safe" on a typo fix or a scoped component change; say which gates you ran and why the others didn't apply.
 
 ### Commit size
 Keep commits **small and focused**. One logical change per commit. Avoid bundling unrelated changes.
@@ -365,7 +425,7 @@ chore(deps): upgrade @duffel/api to latest
 
 ### Unit tests are mandatory after every non-trivial task
 
-After adding or changing any function in `lib/`, `server/routers/`, or `hooks/`, add or update Jest tests in `__tests__/` before considering the task done. Run `npm test` and confirm it passes.
+After adding or changing any function in `lib/`, `server/routers/`, or `hooks/`, add or update tests in `__tests__/` before considering the task done. Run the file you touched — `npx vitest run __tests__/<file>.test.ts` — not the whole suite; reach for `npx vitest run` only when a shared type or points primitive changed.
 
 **New or changed UI (component or page) requires a Playwright e2e test before the task is considered done.** Add or update a spec under `e2e/<route>/`, following the patterns in `e2e/utils/admin-helpers.ts` (reuse existing helpers, extend them, or add new ones there rather than duplicating logic inline). Run `npm run test:e2e -- e2e/<route>/` and confirm it passes. Pure `lib/`/`server/routers/`/`hooks/` changes with no UI surface keep the unit-test-only rule above — e2e is not required for those.
 
@@ -373,7 +433,7 @@ After adding or changing any function in `lib/`, `server/routers/`, or `hooks/`,
 - All `lib/` modules require Jest unit tests in `__tests__/`
 - Points engine (`calcPoints.ts`, `transferPartners.ts`) requires 10+ test cases covering edge cases (Amex hotel/flight split, deduplication, transfer partner math)
 - tRPC routers (offers, flights) are tested by mocking `@/lib/supabase/server`, `@/lib/duffel`, `@/lib/redis`, and `@/lib/feature-flags` — no live API calls
-- Run before committing: `npm test`
+- Run the touched spec while working; the full suite is a release gate, not a per-task one
 
 ### E2E (Playwright)
 - Critical user flows and admin operations require Playwright tests
@@ -549,7 +609,7 @@ zod
 *~6,000 tokens/session saved*
 - `app/trip-planner/[id]/page.tsx` (~78 KB) — use `grep -n` or offset reads; avoid full reads
 - `components/HotelDetailModal.tsx` (~52 KB) — targeted grep preferred; full reads are very expensive
-- `app/trip-planner/page.tsx` (~38 KB), `components/PointsGrid.tsx` (~28 KB), `lib/points/transferPartners.ts` (~22 KB) — grep before reading
+- `app/trip-planner/page.tsx` (~38 KB), `components/RedemptionTable.tsx` (~28 KB), `lib/points/transferPartners.ts` (~22 KB) — grep before reading
 - `node_modules/@duffel/api/dist/Stays/StaysTypes.d.ts` (~23 KB) — read repeatedly across many sessions for `StaysAccommodation`/`StaysRoom`/`StaysPhoto`; grep for the specific interface name (e.g. `grep -n 'StaysRoom\b'`) instead of reading the whole file
 - `e2e/offers/offers-admin.spec.ts` (~17-30 KB) and `e2e/utils/admin-helpers.ts` (~7-14 KB) are hot files edited nearly every session — read the exact section first (`grep -n "test('"` to find line numbers) since ambiguous `Edit` calls on these files frequently fail with "String to replace not found" or "Found N matches"
 

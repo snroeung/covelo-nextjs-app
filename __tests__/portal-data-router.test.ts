@@ -19,7 +19,7 @@ vi.mock('@/lib/feature-flags', () => ({
 import { createClient } from '@/lib/supabase/server';
 import { redis } from '@/lib/redis';
 import { appRouter } from '@/server/routers/_app';
-import type { TransferPartnerRow, TravelCollection, PortalSyncRun } from '@/lib/types/portalData';
+import type { TransferPartnerRow, TravelCollection, PortalSyncRun, PointsValuation } from '@/lib/types/portalData';
 import { cacheKeys } from '@/lib/cache-config';
 
 // ---------------------------------------------------------------------------
@@ -95,6 +95,8 @@ const mockTravelCollection: TravelCollection = {
   property_name: null,
   airline_name: null,
   airline_iata_code: null,
+  origin_iata_code: null,
+  destination_iata_code: null,
   cabin_class: null,
   perk_summary: 'Free breakfast + room upgrade',
   original_amount: null,
@@ -107,6 +109,19 @@ const mockTravelCollection: TravelCollection = {
   status: 'admin',
   source_url: null,
   active: true,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+};
+
+const mockPointsValuation: PointsValuation = {
+  id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  program: 'World of Hyatt',
+  cpp: 1.7,
+  source_month: 'August 2026',
+  source: 'cron',
+  status: 'pending',
+  source_url: 'https://thepointsguy.com/loyalty-programs/monthly-valuations/',
+  active: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
@@ -235,7 +250,33 @@ describe('portalData.admin.listTransferPartners()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// admin.listAll() — pending review across four tables
+// admin.listPointsValuations() — full uncached rows
+// ---------------------------------------------------------------------------
+
+describe('portalData.admin.listPointsValuations()', () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns raw rows', async () => {
+    setupSupabase({ data: [mockPointsValuation], error: null });
+
+    const result = await caller.portalData.admin.listPointsValuations();
+
+    expect(result).toEqual([mockPointsValuation]);
+  });
+
+  it('rejects non-admin callers', async () => {
+    setupSupabase({ data: [], error: null }, { isAdmin: false });
+
+    await expect(caller.portalData.admin.listPointsValuations()).rejects.toThrow('Sign in required.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// admin.listAll() — pending review across five tables
 // ---------------------------------------------------------------------------
 
 describe('portalData.admin.listAll()', () => {
@@ -245,12 +286,13 @@ describe('portalData.admin.listAll()', () => {
     vi.clearAllMocks();
   });
 
-  it('flattens rows from all four tables with their table name attached', async () => {
+  it('flattens rows from all five tables with their table name attached', async () => {
     setupSupabase([
       { data: [{ id: '1' }], error: null }, // transfer_partners
       { data: [{ id: '2' }], error: null }, // travel_collections
       { data: [], error: null },            // transfer_bonuses
       { data: [{ id: '3' }], error: null }, // spending_bonuses
+      { data: [{ id: '4' }], error: null }, // points_valuations
     ]);
 
     const result = await caller.portalData.admin.listAll();
@@ -259,6 +301,7 @@ describe('portalData.admin.listAll()', () => {
       { table: 'transfer_partners', row: { id: '1' } },
       { table: 'travel_collections', row: { id: '2' } },
       { table: 'spending_bonuses', row: { id: '3' } },
+      { table: 'points_valuations', row: { id: '4' } },
     ]);
   });
 
@@ -266,6 +309,7 @@ describe('portalData.admin.listAll()', () => {
     setupSupabase([
       { data: null, error: { message: 'boom' } },
       { data: [{ id: '2' }], error: null },
+      { data: [], error: null },
       { data: [], error: null },
       { data: [], error: null },
     ]);
@@ -368,6 +412,81 @@ describe('portalData.admin.approve()', () => {
     await expect(
       caller.portalData.admin.approve({ table: 'transfer_partners', id: mockTransferPartner.id }),
     ).rejects.toThrow('not found');
+  });
+
+  // A program can accumulate multiple approved points_valuations rows over
+  // time (dedup key is program+source_month, a new month inserts rather than
+  // overwrites) — approving one supersedes (deactivates) any other
+  // approved+active row for the same program, matched via sameProgram().
+  it('deactivates another approved+active points_valuations row for the same program', async () => {
+    const approved = { ...mockPointsValuation, status: 'approved' as const, active: true };
+    const { mockFrom } = setupSupabase([
+      { data: mockPointsValuation, error: null },                                  // fetch original
+      { data: approved, error: null },                                             // main update
+      { data: [{ id: 'stale-id', program: 'World of Hyatt' }], error: null },       // select other approved rows
+      { data: null, error: null },                                                 // supersede update
+    ]);
+
+    await caller.portalData.admin.approve({ table: 'points_valuations', id: mockPointsValuation.id });
+
+    expect(mockFrom).toHaveBeenCalledTimes(4);
+    const supersedeBuilder = mockFrom.mock.results[3].value as { update: ReturnType<typeof vi.fn>; in: ReturnType<typeof vi.fn> };
+    expect(supersedeBuilder.update).toHaveBeenCalledWith({ active: false });
+    expect(supersedeBuilder.in).toHaveBeenCalledWith('id', ['stale-id']);
+  });
+
+  it('deactivates a stale row matched via sameProgram() aliasing, not just an exact string', async () => {
+    const approved = { ...mockPointsValuation, program: 'British Airways Avios', status: 'approved' as const, active: true };
+    const { mockFrom } = setupSupabase([
+      { data: { ...mockPointsValuation, program: 'British Airways Avios' }, error: null },
+      { data: approved, error: null },
+      { data: [{ id: 'stale-id', program: 'British Airways Executive Club' }], error: null },
+      { data: null, error: null },
+    ]);
+
+    await caller.portalData.admin.approve({ table: 'points_valuations', id: mockPointsValuation.id });
+
+    const supersedeBuilder = mockFrom.mock.results[3].value as { in: ReturnType<typeof vi.fn> };
+    expect(supersedeBuilder.in).toHaveBeenCalledWith('id', ['stale-id']);
+  });
+
+  it('leaves a different program\'s approved row untouched', async () => {
+    const approved = { ...mockPointsValuation, status: 'approved' as const, active: true };
+    const { mockFrom } = setupSupabase([
+      { data: mockPointsValuation, error: null },
+      { data: approved, error: null },
+      { data: [{ id: 'other-id', program: 'Marriott Bonvoy' }], error: null }, // unrelated program
+    ]);
+
+    await caller.portalData.admin.approve({ table: 'points_valuations', id: mockPointsValuation.id });
+
+    // No 4th call — nothing matched, so the supersede update never fires.
+    expect(mockFrom).toHaveBeenCalledTimes(3);
+  });
+
+  it('makes no supersede update when no other approved row exists', async () => {
+    const approved = { ...mockPointsValuation, status: 'approved' as const, active: true };
+    const { mockFrom } = setupSupabase([
+      { data: mockPointsValuation, error: null },
+      { data: approved, error: null },
+      { data: [], error: null }, // no other approved rows at all
+    ]);
+
+    await caller.portalData.admin.approve({ table: 'points_valuations', id: mockPointsValuation.id });
+
+    expect(mockFrom).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not run the supersede lookup for non-points_valuations tables', async () => {
+    const { mockFrom } = setupSupabase([
+      { data: mockTransferPartner, error: null },
+      { data: mockTransferPartner, error: null },
+    ]);
+
+    await caller.portalData.admin.approve({ table: 'transfer_partners', id: mockTransferPartner.id });
+
+    // Only fetch original + main update — no extra points_valuations lookup.
+    expect(mockFrom).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -535,5 +654,73 @@ describe('portalData.admin.updateTravelCollection()', () => {
     });
 
     expect(result.perk_summary).toBe('Free suite upgrade');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// admin.createPointsValuation() / updatePointsValuation()
+// ---------------------------------------------------------------------------
+
+describe('portalData.admin.createPointsValuation()', () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(redis.del).mockResolvedValue(1);
+  });
+
+  it('inserts with source=admin and status=admin', async () => {
+    setupSupabase({ data: mockPointsValuation, error: null });
+
+    const result = await caller.portalData.admin.createPointsValuation({
+      program: 'World of Hyatt',
+      cpp: 1.7,
+      source_month: 'August 2026',
+    });
+
+    expect(result.id).toBe(mockPointsValuation.id);
+  });
+
+  it('invalidates the points valuations cache', async () => {
+    setupSupabase({ data: mockPointsValuation, error: null });
+
+    await caller.portalData.admin.createPointsValuation({
+      program: 'World of Hyatt',
+      cpp: 1.7,
+      source_month: 'August 2026',
+    });
+
+    expect(redis.del).toHaveBeenCalledWith(cacheKeys.pointsValuations());
+  });
+
+  it('rejects a non-positive cpp', async () => {
+    setupSupabase({ data: mockPointsValuation, error: null });
+
+    await expect(caller.portalData.admin.createPointsValuation({
+      program: 'World of Hyatt',
+      cpp: 0,
+      source_month: 'August 2026',
+    })).rejects.toThrow();
+  });
+});
+
+describe('portalData.admin.updatePointsValuation()', () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(redis.del).mockResolvedValue(1);
+  });
+
+  it('updates fields and returns the updated row', async () => {
+    const updated = { ...mockPointsValuation, active: false };
+    setupSupabase({ data: updated, error: null });
+
+    const result = await caller.portalData.admin.updatePointsValuation({
+      id: mockPointsValuation.id,
+      active: false,
+    });
+
+    expect(result.active).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ const RECORD_TYPE_LABEL: Record<RecordType, string> = {
   transfer_bonus: "limited-time transfer bonus promotion",
   spending_bonus: "spending or category bonus promotion",
   travel_collection: "hotel or flight collection / points boost program",
+  points_valuation: "loyalty program point/mile valuation",
 };
 
 export interface ExtractResult<T> {
@@ -29,11 +30,15 @@ export interface ExtractResult<T> {
 
 // Field that carries the portal/issuer identifier differs by schema
 // (transfer_partner uses "portal_id", every other record type uses "issuer").
+// points_valuation has no portal/issuer field and no source ever passes it a
+// portalId (see SourceConfig.portalId), so this entry is never read — present
+// only to satisfy Record<RecordType, string> exhaustiveness.
 const PORTAL_FIELD_NAME: Record<RecordType, string> = {
   transfer_partner: "portal_id",
   transfer_bonus: "issuer",
   spending_bonus: "issuer",
   travel_collection: "issuer",
+  points_valuation: "n/a",
 };
 
 // Card-specific eligibility is often stated only in prose ("Sapphire Reserve

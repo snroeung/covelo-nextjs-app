@@ -41,8 +41,8 @@ function makeTransferResult(overrides: Partial<TransferResult> = {}): TransferRe
     note: '',
     isBetterThanPortal: true,
     estimated: true,
-    eligibleCards: [],
-    recommendedCards: [],
+    partnerCpp: 1.5,
+    sourceIssuers: [],
     ...overrides,
   };
 }

@@ -13,16 +13,16 @@ import {
   PORTAL_NAMES,
   CHASE_LEGACY_CPP,
 } from './types';
-import { calcTransferAlternatives, TransferPartnerConfig } from './transferPartners';
+import { calcTransferAlternatives, TransferPartnerConfig, PointsValuationConfig } from './transferPartners';
 import { PORTAL_FLIGHT_MARKUP, PORTAL_HOTEL_MARKUP } from './portalMarkup';
 
 const ALL_CARD_IDS = Object.keys(PORTAL_CPP) as CardId[];
 const VALID_CARD_IDS = new Set<string>(ALL_CARD_IDS);
 
 function resolveCpp(cardId: CardId, bookingType: BookingType): number {
-  const value = PORTAL_CPP[cardId];
-  if (typeof value === 'number') return value;
-  return value[bookingType];
+  const { cpp } = PORTAL_CPP[cardId];
+  if (typeof cpp === 'number') return cpp;
+  return cpp[bookingType];
 }
 
 function resolveEarnRate(cardId: CardId, bookingType: BookingType): number {
@@ -46,6 +46,8 @@ export function calcPoints(
   hotelChain?: string | null,
   /** DB-backed partner map (trpc.portalData.listTransferPartners) — omitted yields no transfer alternatives, never a hardcoded fallback. */
   transferPartners?: Record<PortalId, TransferPartnerConfig[]>,
+  /** Admin-approved TPG valuations (trpc.portalData.listPointsValuations) — omitted falls back to the hardcoded PARTNER_CPP table entirely. */
+  pointsValuations?: PointsValuationConfig[],
 ): PointsResult {
   if (priceUsd <= 0) throw new Error('priceUsd must be greater than 0');
 
@@ -143,6 +145,7 @@ export function calcPoints(
     flightCtx,
     validCards,
     transferPartners,
+    pointsValuations,
   );
 
   const betterTransfers  = transferAlternatives.filter((t) => t.isBetterThanPortal);

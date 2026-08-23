@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findBonusForTransfer, findLiveBonus } from '@/lib/points/transferBonus';
+import { findBonusForTransfer, findBonusForEligibleCards, findLiveBonus } from '@/lib/points/transferBonus';
 import type { TransferResult, PointsResult } from '@/lib/points/types';
 import type { TransferBonus } from '@/lib/types/offers';
 
@@ -18,8 +18,8 @@ function mkTransfer(overrides: Partial<TransferResult> = {}): TransferResult {
     note: '',
     isBetterThanPortal: true,
     estimated: true,
-    eligibleCards: [],
-    recommendedCards: [],
+    partnerCpp: 1.5,
+    sourceIssuers: [],
     ...overrides,
   };
 }
@@ -151,5 +151,48 @@ describe('findLiveBonus()', () => {
   it('12. returns undefined when bonuses list is empty', () => {
     const result = mkResult([mkTransfer()]);
     expect(findLiveBonus(result, [], NOW)).toBeUndefined();
+  });
+});
+
+describe('findBonusForEligibleCards()', () => {
+  const card = (cardId: 'c1_venture_x' | 'chase_reserve', cardName: string) =>
+    ({ cardId, cardName, multiplier: 1, ratioLabel: '1:1' });
+  const issuer = (portalId: 'c1' | 'chase', owned: boolean, cardId: 'c1_venture_x' | 'chase_reserve', cardName: string) => {
+    const only = card(cardId, cardName);
+    return { portalId, owned, cards: [only], best: only, ratio: '1:1' };
+  };
+  const c1Owned = issuer('c1', true, 'c1_venture_x', 'Capital One Venture X');
+  const chaseOwned = issuer('chase', true, 'chase_reserve', 'Chase Sapphire Reserve');
+  const chaseUnowned = issuer('chase', false, 'chase_reserve', 'Chase Sapphire Reserve');
+
+  it('13. finds a bonus on a second owned issuer, not just the row default', () => {
+    const t = mkTransfer({ sourcePortalId: 'c1', sourceIssuers: [c1Owned, chaseOwned] });
+    const match = findBonusForEligibleCards(t, [mkBonus({ issuer: 'chase' })], NOW);
+    expect(match?.portalId).toBe('chase');
+    expect(match?.card.cardId).toBe('chase_reserve');
+  });
+
+  it('14. ignores a bonus on an issuer the user does not hold', () => {
+    const t = mkTransfer({ sourcePortalId: 'c1', sourceIssuers: [c1Owned, chaseUnowned] });
+    expect(findBonusForEligibleCards(t, [mkBonus({ issuer: 'chase' })], NOW)).toBeUndefined();
+  });
+
+  it('15. ignores every bonus when no owned issuer reaches the partner', () => {
+    const t = mkTransfer({ sourceIssuers: [chaseUnowned] });
+    expect(findBonusForEligibleCards(t, [mkBonus({ issuer: 'chase' })], NOW)).toBeUndefined();
+  });
+
+  it('16. takes the biggest bonus among held issuers (server pre-sorts by bonus_pct desc)', () => {
+    const t = mkTransfer({ sourceIssuers: [c1Owned, chaseOwned] });
+    const bonuses = [mkBonus({ id: 'best', issuer: 'chase', bonus_pct: 50 }), mkBonus({ id: 'worse', issuer: 'c1', bonus_pct: 20 })];
+    const match = findBonusForEligibleCards(t, bonuses, NOW);
+    expect(match?.bonus.id).toBe('best');
+    expect(match?.portalId).toBe('chase');
+  });
+
+  it('17. respects the live date window', () => {
+    const t = mkTransfer({ sourceIssuers: [chaseOwned] });
+    const expired = mkBonus({ issuer: 'chase', end_date: '2026-01-01' });
+    expect(findBonusForEligibleCards(t, [expired], NOW)).toBeUndefined();
   });
 });

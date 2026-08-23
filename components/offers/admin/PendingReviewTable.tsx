@@ -10,11 +10,21 @@ import {
   IssuerFilterSelect, type IssuerFilter,
 } from './adminTableShared';
 
+// transfer_bonuses/spending_bonuses are edited on the Offers tab, through the
+// same AdminOfferEditor a published offer uses — not the single-field inline
+// edit the other three pending-review tables fall back to below. Editing
+// them is a navigation (onEditOffer, handled by OffersAdminShell), not
+// something this table renders itself.
+function isOfferTable(table: PendingTableName): table is 'transfer_bonuses' | 'spending_bonuses' {
+  return table === 'transfer_bonuses' || table === 'spending_bonuses';
+}
+
 export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_partners: 'Transfer partner',
   travel_collections: 'Travel collection',
   transfer_bonuses:  'Transfer bonus',
   spending_bonuses:  'Spending bonus',
+  points_valuations: 'Points valuation',
 };
 
 type TableFilter = 'all' | PendingTableName;
@@ -25,6 +35,7 @@ const TABLE_FILTER_TABS: { key: TableFilter; label: string }[] = [
   { key: 'travel_collections', label: 'Travel collection' },
   { key: 'transfer_bonuses',  label: 'Transfer bonus' },
   { key: 'spending_bonuses',  label: 'Spending bonus' },
+  { key: 'points_valuations', label: 'Points valuation' },
 ];
 
 export function rowTitle(item: PendingReviewRow): string {
@@ -32,12 +43,20 @@ export function rowTitle(item: PendingReviewRow): string {
   switch (item.table) {
     case 'transfer_partners':
       return `${r.portal_id} → ${r.program}`;
-    case 'travel_collections':
-      return `${r.issuer} · ${r.collection_name}${r.property_name ? ` — ${r.property_name}` : ''}`;
+    case 'travel_collections': {
+      const suffix = r.property_name
+        ? ` — ${r.property_name}`
+        : r.airline_name
+          ? ` — ${r.airline_name}${r.origin_iata_code && r.destination_iata_code ? ` ${r.origin_iata_code}–${r.destination_iata_code}` : ''}`
+          : '';
+      return `${r.issuer} · ${r.collection_name}${suffix}`;
+    }
     case 'transfer_bonuses':
       return `${r.issuer} → ${r.transfer_partner}`;
     case 'spending_bonuses':
       return `${r.issuer} · ${r.merchant_name}`;
+    case 'points_valuations':
+      return String(r.program);
   }
 }
 
@@ -56,11 +75,15 @@ export function rowDetail(item: PendingReviewRow): string {
         : r.bonus_type === 'cash_back_pct'
           ? `${r.bonus_multiplier}% cash back`
           : `${r.bonus_multiplier}× points`;
+    case 'points_valuations':
+      return `${r.cpp}¢/pt · ${r.source_month}`;
   }
 }
 
-// transfer_partners keys its issuer off portal_id; the other three tables
-// carry an explicit `issuer` column.
+// transfer_partners keys its issuer off portal_id; travel_collections/
+// transfer_bonuses/spending_bonuses carry an explicit `issuer` column;
+// points_valuations spans every issuer's programs on one page and has
+// neither field.
 function rowIssuer(item: PendingReviewRow): string {
   return String(item.table === 'transfer_partners' ? item.row.portal_id : item.row.issuer ?? '');
 }
@@ -77,9 +100,13 @@ function rowIsLimitedTime(item: PendingReviewRow): boolean {
 interface Props {
   rows:   PendingReviewRow[];
   isDark: boolean;
+  // Pending transfer_bonuses/spending_bonuses rows edit on the Offers tab —
+  // the parent shell owns tab switching and the editingOffer state that
+  // opens AdminOfferEditor there, so this table just asks for it.
+  onEditOffer: (item: PendingReviewRow) => void;
 }
 
-export function PendingReviewTable({ rows, isDark }: Props) {
+export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -161,10 +188,13 @@ export function PendingReviewTable({ rows, isDark }: Props) {
   }`;
 
   function startEdit(item: PendingReviewRow) {
+    if (isOfferTable(item.table)) {
+      onEditOffer(item);
+      return;
+    }
     const field = item.table === 'transfer_partners' ? 'ratio'
       : item.table === 'travel_collections' ? 'perk_summary'
-      : item.table === 'transfer_bonuses' ? 'bonus_pct'
-      : 'bonus_multiplier';
+      : 'cpp';
     setEditingId(item.row.id as string);
     setEditField(field);
     setEditValue(String(item.row[field] ?? ''));

@@ -11,6 +11,8 @@ function makeCollection(overrides: Partial<TravelCollection> = {}): TravelCollec
     property_name: "The Ritz-Carlton New York",
     airline_name: null,
     airline_iata_code: null,
+    origin_iata_code: null,
+    destination_iata_code: null,
     cabin_class: null,
     perk_summary: "Free breakfast, room upgrade, $100 credit",
     original_amount: null,
@@ -147,8 +149,12 @@ function makeFlightCollection(overrides: Partial<TravelCollection> = {}): Travel
   });
 }
 
-function makeOffer(id: string, iataCode: string) {
-  return { id, owner: { iata_code: iataCode } };
+function makeOffer(id: string, iataCode: string, originIata = "SFO", destIata = "JFK") {
+  return {
+    id,
+    owner: { iata_code: iataCode },
+    slices: [{ segments: [{ origin: { iata_code: originIata }, destination: { iata_code: destIata } }] }],
+  };
 }
 
 describe("matchFlightCollections", () => {
@@ -197,5 +203,42 @@ describe("matchFlightCollections", () => {
     const offers = [makeOffer("offer_5", "UA")];
     const matches = matchFlightCollections(offers, collections);
     expect(matches.has("offer_5")).toBe(false);
+  });
+
+  it("matches when airline, origin, and destination all match", () => {
+    const collection = makeFlightCollection({ origin_iata_code: "SFO", destination_iata_code: "NRT" });
+    const offers = [makeOffer("offer_6", "UA", "SFO", "NRT")];
+    const matches = matchFlightCollections(offers, [collection]);
+    expect(matches.get("offer_6")).toEqual(makeMatchEntry(collection));
+  });
+
+  it("does not match when airline matches but origin differs", () => {
+    const collections = [makeFlightCollection({ origin_iata_code: "SFO", destination_iata_code: "NRT" })];
+    const offers = [makeOffer("offer_7", "UA", "LAX", "NRT")];
+    const matches = matchFlightCollections(offers, collections);
+    expect(matches.has("offer_7")).toBe(false);
+  });
+
+  it("does not match when airline matches but destination differs", () => {
+    const collections = [makeFlightCollection({ origin_iata_code: "SFO", destination_iata_code: "NRT" })];
+    const offers = [makeOffer("offer_8", "UA", "SFO", "HND")];
+    const matches = matchFlightCollections(offers, collections);
+    expect(matches.has("offer_8")).toBe(false);
+  });
+
+  it("matches on airline alone when the collection's route fields are both null (wildcard)", () => {
+    const collection = makeFlightCollection({ origin_iata_code: null, destination_iata_code: null });
+    const offers = [makeOffer("offer_9", "UA", "ORD", "LHR")];
+    const matches = matchFlightCollections(offers, [collection]);
+    expect(matches.has("offer_9")).toBe(true);
+  });
+
+  it("treats a null origin as wildcard even when destination is set", () => {
+    const collection = makeFlightCollection({ origin_iata_code: null, destination_iata_code: "NRT" });
+    const matchingOffer = makeOffer("offer_10a", "UA", "LAX", "NRT");
+    const nonMatchingOffer = makeOffer("offer_10b", "UA", "LAX", "HND");
+    const matches = matchFlightCollections([matchingOffer, nonMatchingOffer], [collection]);
+    expect(matches.has("offer_10a")).toBe(true);
+    expect(matches.has("offer_10b")).toBe(false);
   });
 });

@@ -24,7 +24,12 @@ export function usePointsCalc(
   const { data: transferPartners } = useQuery({
     queryKey: ['portalData.transferPartners'],
     queryFn:  () => trpc.portalData.listTransferPartners.query(),
-    staleTime: 60 * 60 * 1000,
+  });
+
+  // Falls back to the 5-min app default in app/providers.tsx.
+  const { data: pointsValuations } = useQuery({
+    queryKey: ['portalData.pointsValuations'],
+    queryFn:  () => trpc.portalData.listPointsValuations.query(),
   });
 
   return useMemo(() => {
@@ -32,15 +37,15 @@ export function usePointsCalc(
     try {
       // No cards selected → default to all available cards (shows disclaimer in UI)
       return selectedCards.length === 0
-        ? calcPoints(priceUsd, bookingType, undefined, flightCtx, portalPrices, hotelChain, transferPartners)
-        : calcPoints(priceUsd, bookingType, selectedCards, flightCtx, portalPrices, hotelChain, transferPartners);
+        ? calcPoints(priceUsd, bookingType, undefined, flightCtx, portalPrices, hotelChain, transferPartners, pointsValuations)
+        : calcPoints(priceUsd, bookingType, selectedCards, flightCtx, portalPrices, hotelChain, transferPartners, pointsValuations);
     } catch {
       return null;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceUsd, bookingType, selectedCards,
     flightCtx?.airlineIata, flightCtx?.originIata, flightCtx?.destIata,
-    flightCtx?.routeType, flightCtx?.cabin, hotelChain, transferPartners,
+    flightCtx?.routeType, flightCtx?.cabin, hotelChain, transferPartners, pointsValuations,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(portalPrices)]);
 }

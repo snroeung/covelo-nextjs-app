@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
 import { AdminOffersTable, offerStatus } from '@/components/offers/admin/AdminOffersTable';
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
@@ -13,13 +13,15 @@ import { AdminTransferPartnerEditor } from '@/components/offers/admin/AdminTrans
 import { AdminHotelCollectionEditor } from '@/components/offers/admin/AdminHotelCollectionEditor';
 import { AdminTransferPartnersTable, partnerStatus } from '@/components/offers/admin/AdminTransferPartnersTable';
 import { AdminTravelCollectionsTable, collectionStatus } from '@/components/offers/admin/AdminTravelCollectionsTable';
+import { AdminPointsValuationEditor } from '@/components/offers/admin/AdminPointsValuationEditor';
+import { AdminPointsValuationsTable, valuationStatus } from '@/components/offers/admin/AdminPointsValuationsTable';
 import { StatusFilterTabs, IssuerFilterSelect, ISSUER_FILTER_OPTIONS, type StatusFilter, type IssuerFilter } from '@/components/offers/admin/adminTableShared';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
-import type { TransferPartnerRow, TravelCollection } from '@/lib/types/portalData';
+import type { TransferPartnerRow, TravelCollection, PointsValuation, PendingReviewRow } from '@/lib/types/portalData';
 
-type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections';
+type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections' | 'valuations';
 type OfferTypeFilter = 'all' | 'transfer' | 'spending';
 
 const OFFER_TYPE_TABS: { key: OfferTypeFilter; label: string }[] = [
@@ -44,6 +46,7 @@ function statusCounts<T>(items: T[], statusOf: (item: T) => StatusFilter): Recor
 
 export function OffersAdminShell() {
   const { isDark } = useTheme();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('offers');
   const [offerFilter, setOfferFilter] = useState<StatusFilter>('all');
   const [offerTypeFilter, setOfferTypeFilter] = useState<OfferTypeFilter>('all');
@@ -58,8 +61,24 @@ export function OffersAdminShell() {
   >(null);
   const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingCollection, setEditingCollection] = useState<TravelCollection | null | undefined>(undefined); // undefined = hidden, null = new
+  const [editingValuation, setEditingValuation] = useState<PointsValuation | null | undefined>(undefined); // undefined = hidden, null = new
   const [partnerFilter, setPartnerFilter] = useState<IssuerFilter>('all');
   const [collectionFilter, setCollectionFilter] = useState<IssuerFilter>('all');
+
+  // Every editor here renders as the first element of its tab's content —
+  // directly under the header/section tabs — but each tab's own list is
+  // long and unpaginated (hundreds of rows). If the page was scrolled down
+  // when an editor opens (e.g. a "Save & approve"-adjacent Edit click, or a
+  // Pending review row jumping here via handleEditPendingOffer below), the
+  // editor renders off-screen above the current scroll position. Snap back
+  // to the top whenever one opens so it's actually visible.
+  const anyEditorOpen =
+    editingOffer !== null || editingAd !== undefined || editingPartner !== undefined ||
+    editingCollection !== undefined || editingValuation !== undefined;
+  useEffect(() => {
+    if (anyEditorOpen) window.scrollTo({ top: 0 });
+  }, [anyEditorOpen]);
+  const [valuationStatusFilter, setValuationStatusFilter] = useState<StatusFilter>('all');
 
   const { data: offersData, isLoading: loadingOffers } = useQuery({
     queryKey: ['offers.admin.listAll'],
@@ -98,6 +117,24 @@ export function OffersAdminShell() {
     enabled:  tab === 'collections',
   });
 
+  const { data: pointsValuations = [], isLoading: loadingValuations } = useQuery({
+    queryKey: ['portalData.admin.listPointsValuations'],
+    queryFn:  () => trpc.portalData.admin.listPointsValuations.query(),
+    enabled:  tab === 'valuations',
+  });
+
+  // A pending transfer_bonuses/spending_bonuses row edits on the same
+  // AdminOfferEditor a published offer uses — jump to the Offers tab and
+  // open it there instead of duplicating that editor inside Pending review.
+  function handleEditPendingOffer(item: PendingReviewRow) {
+    if (item.table === 'transfer_bonuses') {
+      setEditingOffer({ mode: 'transfer', offer: item.row as unknown as TransferBonus });
+    } else if (item.table === 'spending_bonuses') {
+      setEditingOffer({ mode: 'spending', offer: item.row as unknown as SpendingBonus });
+    }
+    setTab('offers');
+  }
+
   const pageBg   = isDark ? 'bg-gph-dark-bg' : 'bg-gray-100';
   const ink      = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
   const muted    = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
@@ -130,6 +167,8 @@ export function OffersAdminShell() {
   const filteredCollections = hotelCollections
     .filter((c) => collectionFilter === 'all' || c.issuer === collectionFilter)
     .filter((c) => collectionStatusFilter === 'all' || collectionStatus(c) === collectionStatusFilter);
+  const filteredValuations = pointsValuations
+    .filter((v) => valuationStatusFilter === 'all' || valuationStatus(v) === valuationStatusFilter);
 
   return (
     <div className={`flex flex-col min-h-screen ${pageBg}`}>
@@ -209,6 +248,19 @@ export function OffersAdminShell() {
                 New collection
               </button>
             )}
+            {tab === 'valuations' && (
+              <button
+                onClick={() => setEditingValuation(null)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                New valuation
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -228,6 +280,9 @@ export function OffersAdminShell() {
           <button onClick={() => setTab('collections')} className={navTabCls(tab === 'collections')}>
             Travel collections
           </button>
+          <button onClick={() => setTab('valuations')} className={navTabCls(tab === 'valuations')}>
+            Points valuations
+          </button>
           <button onClick={() => setTab('pending')} className={navTabCls(tab === 'pending')}>
             Pending review
           </button>
@@ -246,7 +301,13 @@ export function OffersAdminShell() {
                   editingOffer.mode === 'spending' ? { type: 'spending', offer: editingOffer.offer } :
                   undefined
                 }
-                onSave={() => setEditingOffer(null)}
+                onSave={() => {
+                  // Covers the case this editor was opened from a pending
+                  // row (Pending review → Edit) — its own list otherwise
+                  // wouldn't reflect the edit until Pending review refetches.
+                  queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
+                  setEditingOffer(null);
+                }}
                 onCancel={() => setEditingOffer(null)}
                 isDark={isDark}
               />
@@ -366,7 +427,7 @@ export function OffersAdminShell() {
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
               <>
-                <PendingReviewTable rows={pendingRows} isDark={isDark} />
+                <PendingReviewTable rows={pendingRows} isDark={isDark} onEditOffer={handleEditPendingOffer} />
                 <SyncRunsLog runs={syncRuns} isDark={isDark} />
               </>
             )}
@@ -443,6 +504,38 @@ export function OffersAdminShell() {
               <AdminTravelCollectionsTable
                 collections={filteredCollections}
                 onEdit={(collection) => setEditingCollection(collection)}
+                isDark={isDark}
+              />
+            )}
+          </>
+        )}
+
+        {tab === 'valuations' && (
+          <>
+            {editingValuation !== undefined && (
+              <AdminPointsValuationEditor
+                initial={editingValuation ?? null}
+                onSave={() => setEditingValuation(undefined)}
+                onCancel={() => setEditingValuation(undefined)}
+                isDark={isDark}
+              />
+            )}
+
+            {/* Status filter tabs */}
+            <StatusFilterTabs
+              value={valuationStatusFilter}
+              onChange={setValuationStatusFilter}
+              filterTabCls={filterTabCls}
+              mutedCls={muted}
+              counts={statusCounts(pointsValuations, valuationStatus)}
+            />
+
+            {loadingValuations ? (
+              <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
+            ) : (
+              <AdminPointsValuationsTable
+                valuations={filteredValuations}
+                onEdit={(valuation) => setEditingValuation(valuation)}
                 isDark={isDark}
               />
             )}
