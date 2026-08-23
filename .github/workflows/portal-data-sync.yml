@@ -9,6 +9,14 @@ on:
         description: "Source key to re-run (default: all)"
         required: false
         default: "all"
+      environment:
+        description: "Target environment"
+        required: false
+        default: "Preview"
+        type: choice
+        options:
+          - Preview
+          - Production
 
 concurrency:
   group: portal-data-sync
@@ -19,6 +27,7 @@ jobs:
     name: Fetch, extract, upsert pending portal data
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'Production' }}
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
