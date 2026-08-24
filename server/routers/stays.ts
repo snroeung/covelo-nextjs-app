@@ -278,7 +278,7 @@ export const staysRouter = router({
       // Build travel_collections match map if the lookup succeeded
       let collectionMatchMap = new Map<string, CollectionMatchEntry>();
       if (collectionsOutcome.status === "fulfilled") {
-        collectionMatchMap = matchHotelCollections(searchResults, collectionsOutcome.value);
+        collectionMatchMap = matchHotelCollections(searchResults, collectionsOutcome.value, checkInDate);
         console.log(`[stays] matched ${collectionMatchMap.size}/${searchResults.length} hotels to collections`);
       } else {
         console.warn("[stays] travel_collections ✗", collectionsOutcome.reason);

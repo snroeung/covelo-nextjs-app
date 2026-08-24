@@ -87,7 +87,7 @@ export const flightsRouter = router({
         console.warn("[flights] travel_collections ✗", err);
       }
 
-      const collectionMatchMap = matchFlightCollections(offerRequest.data.offers, collections);
+      const collectionMatchMap = matchFlightCollections(offerRequest.data.offers, collections, departureDate);
       const result = {
         ...offerRequest.data,
         offers: offerRequest.data.offers.map((offer) => {
