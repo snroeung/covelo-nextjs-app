@@ -9,7 +9,7 @@ import { RedemptionTable } from '@/components/RedemptionTable';
 import { AddToTripButton } from '@/components/AddToTripButton';
 import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
 import { BestRedemptionBar } from '@/components/BestRedemptionBar';
-import { buildRouteViews, getOfferFlightInfo, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
+import { buildRouteViews, getOfferFlightInfo, getOfferTripDates, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -188,6 +188,8 @@ export function FlightCard({ offer }: { offer: any }) {
   const { airlineIata, airlineName: airline, ptsCtx } = getOfferFlightInfo(offer);
   const ptsResult = usePointsCalc(totalAmount, 'flight', ptsCtx);
 
+  const tripDates = getOfferTripDates(offer);
+
   const cardBg      = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const textPrimary = isDark ? 'text-gph-dark-ink'    : 'text-gray-900';
@@ -246,6 +248,7 @@ export function FlightCard({ offer }: { offer: any }) {
       {/* 2. Transfer-bonus notice */}
       <TransferBonusBanner
         result={ptsResult}
+        tripDates={tripDates}
         rounded={false}
         scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
       />

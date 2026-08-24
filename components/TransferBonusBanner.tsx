@@ -11,16 +11,19 @@ import type { PointsResult } from '@/lib/points/types';
  */
 export function TransferBonusBanner({
   result,
+  tripDates,
   rounded = true,
   scopeNote = 'applies to the complete booking',
 }: {
   result: PointsResult | null;
+  /** Check-in/check-out (hotels) or departure/return (flights) — bonus only shows if one falls in its date window */
+  tripDates: string[];
   rounded?: boolean;
   /** Clarifies what the promo covers — 'applies to the complete round trip' */
   scopeNote?: string;
 }) {
   const { isDark } = useTheme();
-  const bonus = useLiveTransferBonus(result);
+  const bonus = useLiveTransferBonus(result, tripDates);
   const [open, setOpen]     = useState(false);
   const [pinned, setPinned] = useState(false);
   if (!bonus) return null;

@@ -56,7 +56,8 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
   const collection = searchResult.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
 
   const ptsResult = usePointsCalc(totalAmount, 'hotel', undefined, undefined, name);
-  const bonus = useLiveTransferBonus(ptsResult);
+  const tripDates = [checkIn, checkOut];
+  const bonus = useLiveTransferBonus(ptsResult, tripDates);
   const hasTopBanner = !!collection || !!bonus;
   const scopeNote = `applies to all ${nightLabel}`;
 
@@ -75,7 +76,7 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
         />
       )}
       {/* 1. Transfer-bonus notice */}
-      <TransferBonusBanner result={ptsResult} rounded={!collection} scopeNote={scopeNote} />
+      <TransferBonusBanner result={ptsResult} tripDates={tripDates} rounded={!collection} scopeNote={scopeNote} />
 
       {/* 2. Property block — last section, so it owns the card's bottom corners.
              The redemption comparison lives in the detail modal's room cards:

@@ -62,19 +62,35 @@ export function findBonusForEligibleCards(
   return undefined;
 }
 
+/**
+ * A bonus is only relevant to a search if the trip actually falls inside the
+ * promo window — a bonus live today doesn't help a booking for dates outside
+ * it. `tripDates` is check-in/check-out (hotels) or departure/return
+ * (flights); the bonus counts if any one of them lands in [start_date, end_date].
+ */
+export function matchesTripDates(bonus: TransferBonus, tripDates: string[]): boolean {
+  const end = new Date(bonus.end_date).getTime();
+  const start = bonus.start_date ? new Date(bonus.start_date).getTime() : -Infinity;
+  return tripDates.some(d => {
+    const t = new Date(d).getTime();
+    return t >= start && t <= end;
+  });
+}
+
 export function findLiveBonus(
   result: PointsResult,
   bonuses: TransferBonus[],
   now: number,
+  tripDates: string[],
 ): TransferBonus | undefined {
   for (const t of result.transferAlternatives) {
     const match = findBonusForTransfer(t, bonuses, now);
-    if (match) return match;
+    if (match && matchesTripDates(match, tripDates)) return match;
   }
   return undefined;
 }
 
-export function useLiveTransferBonus(result: PointsResult | null): TransferBonus | undefined {
+export function useLiveTransferBonus(result: PointsResult | null, tripDates: string[]): TransferBonus | undefined {
   // Cached shape must stay the bare array — the offers page reads this same key
   // and spreads it. `dataUpdatedAt` supplies the fetch time so the date-window
   // check never calls Date.now() during render.
@@ -83,5 +99,5 @@ export function useLiveTransferBonus(result: PointsResult | null): TransferBonus
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
   });
   if (!result || !data || !dataUpdatedAt) return undefined;
-  return findLiveBonus(result, data, dataUpdatedAt);
+  return findLiveBonus(result, data, dataUpdatedAt, tripDates);
 }

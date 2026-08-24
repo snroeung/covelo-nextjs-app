@@ -186,18 +186,18 @@ export interface PortalCppEntry {
 export const PORTAL_CPP: Record<CardId, PortalCppEntry> = {
   chase_reserve: {
     cpp: 1.0, // Points Boost baseline; actual per-booking boost (up to 2.0) not modeled
-    sourceUrl: 'https://thepointsguy.com/loyalty-programs/chase-ultimate-rewards/',
-    lastVerified: '2026-08-13',
+    sourceUrl: 'https://www.chase.com/travel/guide/trips/chase-sapphire-points-boost-benefits-guide',
+    lastVerified: '2026-08-23',
   },
   chase_preferred: {
     cpp: 1.0, // Points Boost baseline; actual per-booking boost (up to 1.75 flight/1.5 hotel) not modeled
-    sourceUrl: 'https://thepointsguy.com/loyalty-programs/chase-ultimate-rewards/',
-    lastVerified: '2026-08-13',
+    sourceUrl: 'https://www.chase.com/travel/guide/trips/chase-sapphire-points-boost-benefits-guide',
+    lastVerified: '2026-08-23',
   },
   chase_freedom_unlimited: {
-    cpp: 1.0, // no portal bonus
-    sourceUrl: 'https://thepointsguy.com/loyalty-programs/chase-ultimate-rewards/',
-    lastVerified: '2026-08-13',
+    cpp: 1.0, // no portal bonus — Chase's own page states a flat 1¢/pt for travel bookings
+    sourceUrl: 'https://www.chase.com/personal/credit-cards/education/chase-cards/use-chase-freedom-unlimited-rewards-for-travel',
+    lastVerified: '2026-08-23',
   },
   c1_venture_x: {
     cpp: 1.0, // 1¢/mile fixed via Capital One's "Cover Travel Purchases" (formerly Purchase Eraser)
@@ -235,18 +235,18 @@ export const PORTAL_CPP: Record<CardId, PortalCppEntry> = {
     // value here (1.00) was stale/unsourced — "Bilt Cash" is a separate,
     // independently-earned currency, not what sets this rate.
     cpp: 1.25,
-    sourceUrl: 'https://thepointsguy.com/loyalty-programs/bilt-rewards-guide/',
-    lastVerified: '2026-08-13',
+    sourceUrl: 'https://support.biltrewards.com/hc/en-us/articles/6584404460429-What-is-the-value-of-a-Bilt-Point',
+    lastVerified: '2026-08-23',
   },
   bilt_obsidian: {
     cpp: 1.25,
-    sourceUrl: 'https://thepointsguy.com/loyalty-programs/bilt-rewards-guide/',
-    lastVerified: '2026-08-13',
+    sourceUrl: 'https://support.biltrewards.com/hc/en-us/articles/6584404460429-What-is-the-value-of-a-Bilt-Point',
+    lastVerified: '2026-08-23',
   },
   bilt_palladium: {
     cpp: 1.25,
-    sourceUrl: 'https://thepointsguy.com/loyalty-programs/bilt-rewards-guide/',
-    lastVerified: '2026-08-13',
+    sourceUrl: 'https://support.biltrewards.com/hc/en-us/articles/6584404460429-What-is-the-value-of-a-Bilt-Point',
+    lastVerified: '2026-08-23',
   },
   citi_strata_premier: {
     cpp: 1.0, // Citi Travel portal, flat rate across flights/hotels/car rentals/attractions
