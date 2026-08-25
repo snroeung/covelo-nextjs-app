@@ -8,6 +8,7 @@ import { duffel } from "@/lib/duffel";
 import { redis } from "@/lib/redis";
 import { searchHotels } from "@/lib/hotelbeds";
 import { adaptHotelBedsResults } from "@/lib/adapters/hotelbeds-adapter";
+import { groupDuffelRooms, type NormalizedRoom } from "@/lib/adapters/duffel-rooms-adapter";
 import { matchHotels } from "@/lib/hotelbeds-match";
 import { matchHotelCollections, type CollectionMatchEntry } from "@/lib/travelCollectionMatch";
 import { createClient } from "@/lib/supabase/server";
@@ -50,20 +51,7 @@ interface AccommodationStaticDetails {
   roomPhotosByName: Record<string, Array<{ url: string }>>;
 }
 
-interface RoomSummary {
-  name: string;
-  beds: Array<{ type: string; count: number }>;
-  photos: Array<{ url: string }>;
-  rates: Array<{
-    id: string;
-    total_amount: string;
-    total_currency: string;
-    board_type: string;
-    payment_type: string;
-    quantity_available: number | null;
-    cancellation_timeline: Array<{ refund_amount: string; before: string; currency: string }>;
-  }>;
-}
+type RoomSummary = NormalizedRoom;
 
 export const staysRouter = router({
   accommodationDetails: flaggedProcedure("api:stays")
@@ -147,7 +135,9 @@ export const staysRouter = router({
               })),
             };
           });
-          console.log(`[stays] fetchAllRates ${input.searchResultId} → ${rooms!.length} rooms`);
+          const rawRoomCount = rooms!.length;
+          rooms = groupDuffelRooms(rooms!);
+          console.log(`[stays] fetchAllRates ${input.searchResultId} → ${rawRoomCount} raw → ${rooms.length} grouped rooms`);
           rooms!.forEach((r) => {
             const src = r.photos.length > 0
               ? (photosByName[r.name]?.length && r.photos[0].url === photosByName[r.name][0].url ? "accommodation.get" : "fetchAllRates")
@@ -288,7 +278,7 @@ export const staysRouter = router({
       // Build travel_collections match map if the lookup succeeded
       let collectionMatchMap = new Map<string, CollectionMatchEntry>();
       if (collectionsOutcome.status === "fulfilled") {
-        collectionMatchMap = matchHotelCollections(searchResults, collectionsOutcome.value);
+        collectionMatchMap = matchHotelCollections(searchResults, collectionsOutcome.value, checkInDate);
         console.log(`[stays] matched ${collectionMatchMap.size}/${searchResults.length} hotels to collections`);
       } else {
         console.warn("[stays] travel_collections ✗", collectionsOutcome.reason);

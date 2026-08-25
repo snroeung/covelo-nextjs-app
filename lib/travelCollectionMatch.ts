@@ -30,6 +30,11 @@ export type CollectionMatchEntry = {
 
 const MATCH_THRESHOLD = 0.7;
 
+/** No end_date means open-ended; otherwise the collection must still cover the search date. */
+function isLiveForSearch(c: TravelCollection, searchDate: string): boolean {
+  return !c.end_date || new Date(c.end_date).getTime() >= new Date(searchDate).getTime();
+}
+
 function toMatchEntry(c: TravelCollection): CollectionMatchEntry {
   return {
     collection_name: c.collection_name,
@@ -47,6 +52,7 @@ function toMatchEntry(c: TravelCollection): CollectionMatchEntry {
 export function matchHotelCollections(
   duffelResults: DuffelSearchResult[],
   collections: TravelCollection[],
+  searchDate: string,
 ): Map<string, CollectionMatchEntry> {
   const result = new Map<string, CollectionMatchEntry>();
 
@@ -54,7 +60,11 @@ export function matchHotelCollections(
   // same visibility rule as listTravelCollections/listTransferPartners, which
   // already treat admin+approved as publicly visible.
   const candidates = collections.filter(
-    (c) => c.type === "hotel" && c.property_name && (c.status === "approved" || c.status === "admin"),
+    (c) =>
+      c.type === "hotel" &&
+      c.property_name &&
+      (c.status === "approved" || c.status === "admin") &&
+      isLiveForSearch(c, searchDate),
   );
 
   for (const sr of duffelResults) {
@@ -83,6 +93,7 @@ export function matchHotelCollections(
 export function matchFlightCollections(
   offers: FlightOffer[],
   collections: TravelCollection[],
+  searchDate: string,
 ): Map<string, CollectionMatchEntry> {
   const result = new Map<string, CollectionMatchEntry>();
 
@@ -90,7 +101,10 @@ export function matchFlightCollections(
   // same visibility rule as listTravelCollections/listTransferPartners, which
   // already treat admin+approved as publicly visible.
   const candidates = collections.filter(
-    (c) => c.type === "flight" && (c.status === "approved" || c.status === "admin"),
+    (c) =>
+      c.type === "flight" &&
+      (c.status === "approved" || c.status === "admin") &&
+      isLiveForSearch(c, searchDate),
   );
 
   for (const offer of offers) {

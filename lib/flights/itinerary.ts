@@ -176,6 +176,22 @@ export function getOfferFlightInfo(offer: any): OfferFlightInfo {
 }
 
 /**
+ * Departure date of the outbound slice, plus the return slice's departure
+ * date for round trips. Shared so both FlightCard (banner gating) and the
+ * flights list page ("featured" bonus matching) check a live transfer bonus
+ * against the same trip dates instead of each re-deriving them.
+ */
+export function getOfferTripDates(offer: any): string[] {
+  const firstSeg = offer.slices[0]?.segments?.[0];
+  const dates = [firstSeg?.departing_at as string | undefined];
+  if (offer.slices.length > 1) {
+    const lastSlice = offer.slices[offer.slices.length - 1];
+    dates.push(lastSlice.segments?.[0]?.departing_at as string | undefined);
+  }
+  return dates.filter((d): d is string => !!d);
+}
+
+/**
  * One offer per airline. The featured section highlights an airline's best
  * fare, not every fare that happens to qualify (collection match, live
  * transfer bonus, live spending bonus) — an airline with three qualifying

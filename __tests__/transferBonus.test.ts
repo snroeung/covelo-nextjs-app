@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findBonusForTransfer, findBonusForEligibleCards, findLiveBonus } from '@/lib/points/transferBonus';
+import { findBonusForTransfer, findBonusForEligibleCards, findLiveBonus, matchesTripDates } from '@/lib/points/transferBonus';
 import type { TransferResult, PointsResult } from '@/lib/points/types';
 import type { TransferBonus } from '@/lib/types/offers';
 
@@ -129,28 +129,65 @@ describe('findBonusForTransfer()', () => {
 });
 
 describe('findLiveBonus()', () => {
+  const inWindow = ['2026-08-15'];
+
   it('9. scans transferAlternatives and returns the first live match', () => {
     const noMatch = mkTransfer({ partnerProgram: 'Flying Blue' });
     const match = mkTransfer({ partnerProgram: 'World of Hyatt' });
     const result = mkResult([noMatch, match]);
     const bonus = mkBonus();
-    expect(findLiveBonus(result, [bonus], NOW)).toBe(bonus);
+    expect(findLiveBonus(result, [bonus], NOW, inWindow)).toBe(bonus);
   });
 
   it('10. returns undefined when no transferAlternatives match any bonus', () => {
     const result = mkResult([mkTransfer({ partnerProgram: 'Flying Blue' })]);
     const bonus = mkBonus({ transfer_partner: 'World of Hyatt' });
-    expect(findLiveBonus(result, [bonus], NOW)).toBeUndefined();
+    expect(findLiveBonus(result, [bonus], NOW, inWindow)).toBeUndefined();
   });
 
   it('11. returns undefined when transferAlternatives is empty', () => {
     const result = mkResult([]);
-    expect(findLiveBonus(result, [mkBonus()], NOW)).toBeUndefined();
+    expect(findLiveBonus(result, [mkBonus()], NOW, inWindow)).toBeUndefined();
   });
 
   it('12. returns undefined when bonuses list is empty', () => {
     const result = mkResult([mkTransfer()]);
-    expect(findLiveBonus(result, [], NOW)).toBeUndefined();
+    expect(findLiveBonus(result, [], NOW, inWindow)).toBeUndefined();
+  });
+
+  it('18. returns undefined when no search date falls inside the bonus window', () => {
+    const result = mkResult([mkTransfer()]);
+    const bonus = mkBonus({ end_date: '2026-08-31' });
+    expect(findLiveBonus(result, [bonus], NOW, ['2026-09-15', '2026-09-20'])).toBeUndefined();
+  });
+
+  it('19. matches when only one of the two search dates falls inside the window', () => {
+    const result = mkResult([mkTransfer()]);
+    const bonus = mkBonus({ end_date: '2026-08-31' });
+    expect(findLiveBonus(result, [bonus], NOW, ['2026-07-20', '2026-08-05'])).toBe(bonus);
+  });
+});
+
+describe('matchesTripDates()', () => {
+  it('20. true when a trip date sits inside an open-ended-start window', () => {
+    const bonus = mkBonus({ start_date: null, end_date: '2026-08-31' });
+    expect(matchesTripDates(bonus, ['2026-08-01'])).toBe(true);
+  });
+
+  it('21. false when every trip date is after end_date', () => {
+    const bonus = mkBonus({ start_date: null, end_date: '2026-08-31' });
+    expect(matchesTripDates(bonus, ['2026-09-01', '2026-09-10'])).toBe(false);
+  });
+
+  it('22. false when every trip date is before start_date', () => {
+    const bonus = mkBonus({ start_date: '2026-08-01', end_date: '2026-08-31' });
+    expect(matchesTripDates(bonus, ['2026-07-01'])).toBe(false);
+  });
+
+  it('23. true on exact start_date/end_date boundaries (inclusive)', () => {
+    const bonus = mkBonus({ start_date: '2026-08-01', end_date: '2026-08-31' });
+    expect(matchesTripDates(bonus, ['2026-08-01'])).toBe(true);
+    expect(matchesTripDates(bonus, ['2026-08-31'])).toBe(true);
   });
 });
 

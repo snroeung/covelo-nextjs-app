@@ -16,7 +16,7 @@ import { trpc } from '@/lib/trpc-client';
 import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { calcPoints } from '@/lib/points/calcPoints';
-import { getOfferFlightInfo, bestFeaturedPerAirline } from '@/lib/flights/itinerary';
+import { getOfferFlightInfo, getOfferTripDates, bestFeaturedPerAirline } from '@/lib/flights/itinerary';
 import { findLiveBonus } from '@/lib/points/transferBonus';
 import { findLiveSpendingBonusForAirline } from '@/lib/points/spendingBonusMatch';
 
@@ -487,7 +487,7 @@ function FlightsPageInner() {
         const ptsResult = selectedCards.length === 0
           ? calcPoints(totalAmount, 'flight', undefined, ptsCtx, undefined, undefined, transferPartners, pointsValuations)
           : calcPoints(totalAmount, 'flight', selectedCards, ptsCtx, undefined, undefined, transferPartners, pointsValuations);
-        if (ptsResult && findLiveBonus(ptsResult, transferBonuses, transferBonusesUpdatedAt)) {
+        if (ptsResult && findLiveBonus(ptsResult, transferBonuses, transferBonusesUpdatedAt, getOfferTripDates(offer))) {
           ids.add(offer.id);
         }
       } catch {
