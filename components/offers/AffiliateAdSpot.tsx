@@ -105,6 +105,16 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
   const { data: rawData, isLoading } = useQuery({
     queryKey: ['offers.featuredAd', slot],
     queryFn:  () => trpc.offers.getFeaturedAd.query({ slot }),
+    // This slot is decorative/best-effort — if the backend can't answer
+    // (RLS hiccup, cold Supabase connection, transient 5xx), the right
+    // outcome is "nothing to show", not a skeleton that sits through the
+    // app-wide default retry+backoff cycle. Without this override the
+    // component inherits the generic 1-retry policy from app/providers.tsx,
+    // which on a real failure keeps `isLoading` true (isLoading = isPending
+    // && isFetching, and a query mid-retry is still "fetching") through a
+    // second attempt and its backoff delay before finally settling — a
+    // multi-second skeleton for content that was never coming.
+    retry: false,
   });
 
   const ads = Array.isArray(rawData) ? rawData : rawData ? [rawData] : [];
@@ -130,7 +140,12 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
 
   if (isLoading) {
     const skeletonH = variant === 'compact' ? 'h-16' : variant === 'native' ? 'h-44' : 'h-52';
-    return <div className={`rounded-xl border animate-pulse ${skeletonH} ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-100 border-gray-200'}`} />;
+    return (
+      <div
+        data-testid="affiliate-ad-skeleton"
+        className={`rounded-xl border animate-pulse ${skeletonH} ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-100 border-gray-200'}`}
+      />
+    );
   }
 
   if (ads.length === 0) return null;

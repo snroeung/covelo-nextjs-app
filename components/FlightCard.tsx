@@ -9,23 +9,11 @@ import { RedemptionTable } from '@/components/RedemptionTable';
 import { AddToTripButton } from '@/components/AddToTripButton';
 import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
 import { BestRedemptionBar } from '@/components/BestRedemptionBar';
-import { buildRouteViews, getOfferFlightInfo, getOfferTripDates, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
+import { buildRouteViews, getAirlineColor, getOfferFlightInfo, getOfferTripDates, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const AIRLINE_COLORS: Record<string, string> = {
-  AA: '#c0212b', DL: '#003c7d', UA: '#172649', B6: '#0075ff',
-  WN: '#ff4500', AS: '#0074c8', NK: '#ffd300', F9: '#007a3d',
-  HA: '#7b1fa2', QR: '#5c0716', EK: '#c8102e', LH: '#05164d',
-  BA: '#075aaa', AC: '#c0202d', AF: '#002157', KL: '#00a1de',
-  SQ: '#0032a0', CX: '#006564', JL: '#e11931', NH: '#003087',
-};
-
-function getAirlineColor(iata: string | null): string {
-  return (iata && AIRLINE_COLORS[iata]) ?? '#374151';
-}
 
 function Chevron({ open }: { open: boolean }) {
   return (
