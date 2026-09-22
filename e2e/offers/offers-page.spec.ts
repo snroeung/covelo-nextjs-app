@@ -95,4 +95,19 @@ test.describe('Offers page — general', () => {
     expect(errors).toEqual([]);
   });
 
+  test('37. no sponsored-ad placeholder lingers on /offers when the slot has no active ad', async ({ page }) => {
+    // AffiliateAdSpot (slot="below_grid") must settle to rendering nothing
+    // when there's no ad to show — not leave its loading skeleton box on
+    // the page. Regression test for a bug where the skeleton stayed up
+    // through the app's default query retry+backoff cycle instead of
+    // clearing as soon as there was nothing left to wait for.
+    await page.goto('/offers');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+    // Give the query a moment to settle, then assert the skeleton is gone —
+    // whether the slot ends up empty or showing a real ad, it must not be
+    // this loading placeholder.
+    await expect(page.getByTestId('affiliate-ad-skeleton')).toHaveCount(0, { timeout: 10_000 });
+  });
+
 });

@@ -141,6 +141,10 @@ test.describe('Sponsored Ad — flights_inline slot', () => {
     await searchFlights(page, 'JFK', 'LAX');
     await page.locator('[data-testid="flight-card"]').first().waitFor({ timeout: 45_000 });
     await expect(page.getByText(AD_HEADLINE_EDIT)).toHaveCount(0, { timeout: 10_000 });
+    // Regression guard: with zero active ads for the slot, AffiliateAdSpot
+    // must resolve to nothing rendered — not leave its loading skeleton box
+    // sitting on the page (see components/offers/AffiliateAdSpot.tsx).
+    await expect(page.getByTestId('affiliate-ad-skeleton')).toHaveCount(0, { timeout: 10_000 });
   });
 });
 
@@ -215,6 +219,10 @@ test.describe('Sponsored Ad — hotels_inline slot', () => {
     await searchHotels(page, 'New York');
     await page.locator('[data-testid="hotel-card"]').first().waitFor({ timeout: 45_000 });
     await expect(page.getByText(AD_HEADLINE)).toHaveCount(0, { timeout: 10_000 });
+    // Regression guard: with zero active ads for the slot, AffiliateAdSpot
+    // must resolve to nothing rendered — not leave its loading skeleton box
+    // sitting on the page (see components/offers/AffiliateAdSpot.tsx).
+    await expect(page.getByTestId('affiliate-ad-skeleton')).toHaveCount(0, { timeout: 10_000 });
   });
 });
 
