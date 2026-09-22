@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   buildLeadCopy, buildStoryCopy, buildModalCopy, formatDate, formatDateShort,
-  daysUntil, relativeTime, todayPill,
+  daysUntil, relativeTime, todayPill, sortByValueThenRecency,
 } from '@/lib/discover/offerCopy';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
@@ -164,5 +164,25 @@ describe('buildModalCopy', () => {
     const copy = buildModalCopy(mkSpending());
     expect(copy.howItWorks).toHaveLength(3);
     expect(copy.minimum).toBe('$300 minimum spend');
+  });
+});
+
+describe('sortByValueThenRecency', () => {
+  it('ranks higher upvotes first', () => {
+    const low  = mkSpending({ id: 'low', upvotes: 1 });
+    const high = mkTransfer({ id: 'high', upvotes: 50 });
+    expect([low, high].sort(sortByValueThenRecency).map((o) => o.id)).toEqual(['high', 'low']);
+  });
+
+  it('breaks a tie in upvotes by soonest expiration', () => {
+    const soon  = mkSpending({ id: 'soon', upvotes: 10, end_date: '2026-05-01' });
+    const later = mkTransfer({ id: 'later', upvotes: 10, end_date: '2026-06-01' });
+    expect([later, soon].sort(sortByValueThenRecency).map((o) => o.id)).toEqual(['soon', 'later']);
+  });
+
+  it('treats a null/undefined end date as never-expiring, sorting it last among ties', () => {
+    const noExpiry = mkSpending({ id: 'no-expiry', upvotes: 10, end_date: null });
+    const expiring = mkTransfer({ id: 'expiring', upvotes: 10, end_date: '2026-06-01' });
+    expect([noExpiry, expiring].sort(sortByValueThenRecency).map((o) => o.id)).toEqual(['expiring', 'no-expiry']);
   });
 });

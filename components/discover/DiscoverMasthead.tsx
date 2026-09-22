@@ -1,16 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { todayPill } from '@/lib/discover/offerCopy';
+import { gphTheme } from '@/lib/discover/theme';
 
 interface Props {
   isDark: boolean;
   offerCount: number;
-  onSeeAll: () => void;
 }
 
-export function DiscoverMasthead({ isDark, offerCount, onSeeAll }: Props) {
-  const ink    = isDark ? 'text-gph-dark-ink'   : 'text-gph-ink';
-  const rule   = isDark ? 'border-gph-dark-ink' : 'border-gph-ink';
+export function DiscoverMasthead({ isDark, offerCount }: Props) {
+  const { ink, rule, accent } = gphTheme(isDark);
   const pillBg = isDark ? 'bg-gph-dark-actionsoft text-gph-dark-action' : 'bg-gph-actionsoft text-gph-action';
   const ghostCls = isDark
     ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
@@ -28,7 +28,7 @@ export function DiscoverMasthead({ isDark, offerCount, onSeeAll }: Props) {
           </span>
         </div>
         <h1 className={`text-4xl md:text-5xl font-extrabold leading-none tracking-tight ${ink}`}>
-          Discover<span className={isDark ? 'text-gph-dark-action' : 'text-gph-action'}>.</span>
+          Discover<span className={accent}>.</span>
         </h1>
       </div>
       <div className="flex items-center gap-2">
@@ -41,16 +41,17 @@ export function DiscoverMasthead({ isDark, offerCount, onSeeAll }: Props) {
           </svg>
           Saved · 3
         </button>
-        <button
-          type="button"
-          onClick={onSeeAll}
+        <Link
+          href="/offers"
+          target="_blank"
+          rel="noopener noreferrer"
           className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-colors min-h-11 ${solidCls}`}
         >
           See all offers · {offerCount}
           <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
             <path d="M2 6h8M6.5 2.5L10 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        </button>
+        </Link>
       </div>
     </div>
   );

@@ -166,27 +166,6 @@ export function NavBar() {
             {discoverOpen && (
               <div className="absolute top-full left-0 w-[244px] pt-1.5 z-50">
                 <div className={`rounded-xl border shadow-lg overflow-hidden p-1.5 ${dropdownSurface}`}>
-                  <Link
-                    href="/discover"
-                    onClick={closeDiscover}
-                    className={`block px-3.5 py-2.5 rounded-lg transition-colors ${
-                      pathname === '/discover'
-                        ? isDark ? 'bg-white/10' : 'bg-gray-100'
-                        : isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>Front page</span>
-                      {pathname === '/discover' && (
-                        <svg className={`w-3 h-3 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`} viewBox="0 0 12 12" fill="none">
-                          <path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className={`text-[10.5px] font-mono mt-0.5 tracking-wide ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
-                      Featured offers and deals
-                    </div>
-                  </Link>
                   <div className={`px-3.5 py-2.5 rounded-lg cursor-default ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-bold tracking-tight">The board</span>
@@ -198,6 +177,27 @@ export function NavBar() {
                     </div>
                     <div className="text-[10.5px] font-mono mt-0.5 tracking-wide">Community offers and tips</div>
                   </div>
+                  <Link
+                    href="/offers"
+                    onClick={closeDiscover}
+                    className={`block px-3.5 py-2.5 rounded-lg transition-colors ${
+                      pathname === '/offers'
+                        ? isDark ? 'bg-white/10' : 'bg-gray-100'
+                        : isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-sm font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>All offers</span>
+                      {pathname === '/offers' && (
+                        <svg className={`w-3 h-3 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`} viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className={`text-[10.5px] font-mono mt-0.5 tracking-wide ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+                      Every active offer, filterable by card
+                    </div>
+                  </Link>
                 </div>
               </div>
             )}

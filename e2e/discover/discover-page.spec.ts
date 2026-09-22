@@ -20,23 +20,36 @@ test.describe('Discover page — general', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('32. old /offers route redirects to /discover', async ({ page }) => {
-    await page.goto('/offers');
-    await expect(page).toHaveURL(/\/discover/);
+  test('32. masthead "See all offers" opens /offers in a new tab', async ({ page, context }) => {
+    await page.goto('/discover');
+    const seeAll = page.getByRole('link', { name: /see all offers/i }).first();
+    const [popup] = await Promise.all([
+      context.waitForEvent('page'),
+      seeAll.click(),
+    ]);
+    await popup.waitForLoadState();
+    await expect(popup).toHaveURL(/\/offers/);
   });
 
-  test('33. "See all offers" reveals the rest of the rail', async ({ page }) => {
+  test('33. rail "See all offers" opens /offers in a new tab', async ({ page, context }) => {
     await page.goto('/discover');
 
-    // The rail (and its "MORE OFFERS" heading) only mounts once there's a
-    // remaining-offers pool — skip quietly in an environment with none.
+    // The rail's own "See all offers" only mounts once there's a
+    // remaining-offers pool beyond the collapsed cutoff, after the offers
+    // query resolves — count() checks the DOM immediately with no polling,
+    // so wait via a (possibly failing) expect and treat a timeout as absence.
     const railHeading = page.getByText(/more offers/i);
-    if (await railHeading.count() === 0) test.skip(true, 'No remaining offers in this environment — nothing to expand');
+    const railMounted = await expect(railHeading).toBeVisible({ timeout: 10_000 }).then(() => true, () => false);
+    if (!railMounted) test.skip(true, 'No remaining offers in this environment — nothing to see');
 
-    const seeAll = page.getByRole('button', { name: /see all offers/i }).first();
-    if (await seeAll.count() === 0) test.skip(true, 'Rail already shows every offer — no "see all" control to click');
-    await seeAll.click();
-    await expect(railHeading).toBeVisible();
+    const seeAll = page.getByRole('link', { name: /see all offers/i }).last();
+    if (await seeAll.count() === 0) test.skip(true, 'Rail already shows every offer — no "see all" link to click');
+    const [popup] = await Promise.all([
+      context.waitForEvent('page'),
+      seeAll.click(),
+    ]);
+    await popup.waitForLoadState();
+    await expect(popup).toHaveURL(/\/offers/);
   });
 
   test('34. Discover link on the homepage navigates to /discover', async ({ page }) => {
@@ -44,6 +57,26 @@ test.describe('Discover page — general', () => {
 
     await page.getByRole('link', { name: /discover/i }).click();
     await expect(page).toHaveURL(/\/discover/);
+  });
+
+  test('34b. Discover dropdown lists only "The board" and "All offers"', async ({ page }) => {
+    // The homepage's own "Discover" link is a plain dashboard promo card with
+    // no NavBar — use a page that renders NavBar (and its dropdown) instead.
+    await page.goto('/discover');
+
+    await page.getByRole('link', { name: /^discover$/i }).hover();
+
+    // The dropdown's "All offers" link is identified by its description
+    // line, since the masthead's "See all offers · N" link also matches a
+    // loose "all offers" name search on this page.
+    const allOffersItem = page.getByRole('link').filter({ hasText: 'Every active offer' });
+
+    await expect(page.getByText(/^the board$/i)).toBeVisible();
+    await expect(allOffersItem).toBeVisible();
+    await expect(page.getByText(/^front page$/i)).toHaveCount(0);
+
+    await allOffersItem.click();
+    await expect(page).toHaveURL(/\/offers/);
   });
 
   test('35. board promo is visible on /discover', async ({ page }) => {

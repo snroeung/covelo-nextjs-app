@@ -1,5 +1,7 @@
 'use client';
 
+import { gphTheme } from '@/lib/discover/theme';
+
 // Static, illustrative content — there is no live community-board backend in
 // this app yet (the board it links to isn't built either, per scope). Mirrors
 // what CommunityBoard.tsx already showed, minus the blur/fade/"launching"
@@ -30,13 +32,7 @@ interface Props {
 }
 
 export function DiscoverBoardPromo({ isDark }: Props) {
-  const cardBg = isDark ? 'bg-gph-dark-card' : 'bg-gph-card';
-  const bg     = isDark ? 'bg-gph-dark-bg'   : 'bg-gph-bg';
-  const rule   = isDark ? 'border-gph-dark-ink'  : 'border-gph-ink';
-  const line   = isDark ? 'border-gph-dark-line' : 'border-gph-line';
-  const ink    = isDark ? 'text-gph-dark-ink'    : 'text-gph-ink';
-  const muted  = isDark ? 'text-gph-dark-muted'  : 'text-gph-muted';
-  const accent = isDark ? 'text-gph-dark-action' : 'text-gph-action';
+  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme(isDark);
   // Large 24px bold text only needs 3:1 contrast, so the shared "good" token
   // (#0f9d58) is fine there — but the 13px bold vote count needs 4.5:1, which
   // that token misses against the light bg (#f5f5f4 → 3.21:1). Darker green

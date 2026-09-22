@@ -3,6 +3,7 @@
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { buildStoryCopy } from '@/lib/discover/offerCopy';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
+import { gphTheme } from '@/lib/discover/theme';
 
 type Offer = TransferBonus | SpendingBonus;
 
@@ -13,10 +14,7 @@ interface Props {
 }
 
 export function DiscoverSecondary({ offers, isDark, onOpen }: Props) {
-  const line   = isDark ? 'border-gph-dark-line' : 'border-gph-line';
-  const ink    = isDark ? 'text-gph-dark-ink'   : 'text-gph-ink';
-  const muted  = isDark ? 'text-gph-dark-muted' : 'text-gph-muted';
-  const accent = isDark ? 'text-gph-dark-action' : 'text-gph-action';
+  const { line, ink, muted, accent } = gphTheme(isDark);
 
   return (
     <>

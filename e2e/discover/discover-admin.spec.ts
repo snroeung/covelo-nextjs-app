@@ -16,12 +16,13 @@ import {
   TEST_PREFIX,
 } from '../utils/admin-helpers';
 
-// Rail collapses to 3 rows by default (components/discover/DiscoverRail.tsx)
-// — expand it before searching for an offer that may have been pushed past
-// that cutoff by other offers created elsewhere in this suite.
+// The /discover rail collapses to 3 rows (components/discover/DiscoverRail.tsx)
+// and its "See all offers" now opens /offers in a new tab rather than
+// expanding in place. /offers renders every offer with the same OfferRow
+// markup the rail uses, so navigating there directly finds offers pushed
+// past the rail's cutoff by other offers created elsewhere in this suite.
 async function expandOffers(page: import('@playwright/test').Page) {
-  const btn = page.getByRole('button', { name: /see all offers/i }).first();
-  if (await btn.isVisible({ timeout: 2_000 }).catch(() => false)) await btn.click();
+  await page.goto('/offers');
 }
 
 // ---------------------------------------------------------------------------
@@ -323,7 +324,7 @@ test.describe('Spending Bonus — create and display', () => {
     spendingBonusCreated = true;
   });
 
-  test('12. spending bonus story/row is visible on /discover', async ({ page }) => {
+  test('12. spending bonus story/row is visible on /offers', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     await page.goto('/discover');
     await expandOffers(page);
@@ -412,7 +413,7 @@ test.describe('Spending Bonus — create and display', () => {
     await expect(cardSection.getByText(/3%|cash back/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test('19. deactivating a spending bonus removes it from /discover', async ({ page }) => {
+  test('19. deactivating a spending bonus removes it from /offers', async ({ page }) => {
     test.setTimeout(180_000); // setOfferActive may sweep duplicate offers left by failed runs
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     await setOfferActive(page, MERCHANT, false);
@@ -522,7 +523,7 @@ test.describe('Transfer Bonus — create and display', () => {
     await expect(modal.getByText(/expir/i)).toBeVisible();
   });
 
-  test('28. deactivate and reactivate: offer disappears then reappears on /discover', async ({ page }) => {
+  test('28. deactivate and reactivate: offer disappears then reappears on /offers', async ({ page }) => {
     test.setTimeout(180_000); // setOfferActive may sweep duplicate offers left by failed runs
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
     // "World of Hyatt" doesn't appear anywhere else on the page (the board
@@ -545,7 +546,7 @@ test.describe('Transfer Bonus — create and display', () => {
     await expect(page.getByText(offerHeading).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test('29. /discover passes accessibility checks with transfer bonuses present', async ({ page }) => {
+  test('29. /offers passes accessibility checks with transfer bonuses present', async ({ page }) => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
     await page.goto('/discover');
     await expandOffers(page);

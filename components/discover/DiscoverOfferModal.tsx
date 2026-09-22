@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { buildModalCopy, isTransfer, daysUntil, ISSUER_LABELS } from '@/lib/discover/offerCopy';
+import { gphTheme } from '@/lib/discover/theme';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { CARD_PORTAL_MAP } from '@/lib/points/types';
@@ -40,12 +41,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
 
   const urgentDays = offer.end_date != null ? daysUntil(offer.end_date) : null;
 
-  const cardBg  = isDark ? 'bg-gph-dark-card' : 'bg-gph-card';
-  const bg      = isDark ? 'bg-gph-dark-bg'   : 'bg-gph-bg';
-  const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gph-ink';
-  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gph-muted';
-  const accent  = isDark ? 'text-gph-dark-action' : 'text-gph-action';
-  const line    = isDark ? 'border-gph-dark-line' : 'border-gph-line';
+  const { bg, cardBg, line, ink, muted, accent } = gphTheme(isDark);
   const plaqueBg  = isDark ? 'bg-gph-dark-action' : 'bg-gph-action';
   const plaqueInk = isDark ? 'text-gph-dark-bg'   : 'text-white';
   const ghostCls = isDark

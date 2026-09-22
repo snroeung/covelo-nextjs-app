@@ -3,6 +3,7 @@
 import type { TransferBonus } from '@/lib/types/offers';
 import { buildLeadCopy } from '@/lib/discover/offerCopy';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
+import { gphTheme } from '@/lib/discover/theme';
 
 interface Props {
   offer: TransferBonus;
@@ -13,10 +14,7 @@ interface Props {
 export function DiscoverLead({ offer, isDark, onOpen }: Props) {
   const copy = buildLeadCopy(offer);
 
-  const ink    = isDark ? 'text-gph-dark-ink'   : 'text-gph-ink';
-  const muted  = isDark ? 'text-gph-dark-muted' : 'text-gph-muted';
-  const accent = isDark ? 'text-gph-dark-action' : 'text-gph-action';
-  const line   = isDark ? 'border-gph-dark-line' : 'border-gph-line';
+  const { ink, muted, accent, line } = gphTheme(isDark);
   const plaqueBg = isDark ? 'bg-gph-dark-action' : 'bg-gph-action';
   const plaqueInk = isDark ? 'text-gph-dark-bg' : 'text-white';
 

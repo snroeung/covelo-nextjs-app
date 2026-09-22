@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { NavBar } from '@/components/NavBar';
 import { Footer } from '@/components/Footer';
@@ -14,22 +14,15 @@ import { DiscoverOfferModal } from '@/components/discover/DiscoverOfferModal';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
+import { sortByValueThenRecency } from '@/lib/discover/offerCopy';
+import { gphTheme } from '@/lib/discover/theme';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
 
-function sortByValueThenRecency(a: Offer, b: Offer) {
-  if (b.upvotes !== a.upvotes) return b.upvotes - a.upvotes;
-  const aEnd = 'end_date' in a && a.end_date ? new Date(a.end_date).getTime() : Infinity;
-  const bEnd = 'end_date' in b && b.end_date ? new Date(b.end_date).getTime() : Infinity;
-  return aEnd - bEnd;
-}
-
 function DiscoverPageInner() {
   const { isDark } = useTheme();
-  const [showAllOffers, setShowAllOffers] = useState(false);
   const [openOffer, setOpenOffer] = useState<Offer | null>(null);
-  const railRef = useRef<HTMLDivElement>(null);
 
   const { data: transferBonuses = [], isLoading: loadingTransfer } = useQuery({
     queryKey: ['offers.transferBonuses'],
@@ -56,15 +49,7 @@ function DiscoverPageInner() {
   const secondaryOffers = remainingPool.slice(0, 2);
   const railOffers = remainingPool.slice(2);
 
-  const bg    = isDark ? 'bg-gph-dark-bg' : 'bg-gph-bg';
-  const muted = isDark ? 'text-gph-dark-muted' : 'text-gph-muted';
-  const line  = isDark ? 'border-gph-dark-line' : 'border-gph-line';
-  const cardBg = isDark ? 'bg-gph-dark-card' : 'bg-gph-card';
-
-  function seeAllOffers() {
-    setShowAllOffers(true);
-    railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  const { bg, cardBg, line, muted } = gphTheme(isDark);
 
   return (
     <div className={`flex flex-col min-h-screen ${bg}`}>
@@ -72,7 +57,7 @@ function DiscoverPageInner() {
 
       <main className="flex-1">
         <div className={`px-4 md:px-7 py-5 max-w-5xl mx-auto flex flex-col gap-7 border-b ${cardBg} ${line}`}>
-          <DiscoverMasthead isDark={isDark} offerCount={remainingPool.length} onSeeAll={seeAllOffers} />
+          <DiscoverMasthead isDark={isDark} offerCount={remainingPool.length} />
 
           {isLoading ? (
             <div className="flex flex-col gap-3 animate-pulse py-2">
@@ -88,15 +73,9 @@ function DiscoverPageInner() {
           )}
 
           {!isLoading && remainingPool.length > 0 && (
-            <div ref={railRef} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_0.95fr] gap-6 md:gap-0 scroll-mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_0.95fr] gap-6 md:gap-0 scroll-mt-6">
               <DiscoverSecondary offers={secondaryOffers} isDark={isDark} onOpen={setOpenOffer} />
-              <DiscoverRail
-                offers={railOffers}
-                isDark={isDark}
-                expanded={showAllOffers}
-                onToggle={() => setShowAllOffers((v) => !v)}
-                onOpen={setOpenOffer}
-              />
+              <DiscoverRail offers={railOffers} isDark={isDark} onOpen={setOpenOffer} />
             </div>
           )}
         </div>

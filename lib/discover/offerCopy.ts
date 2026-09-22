@@ -175,3 +175,11 @@ export function buildModalCopy(offer: Offer): ModalCopy {
     time: n.time, minimum: n.minimum, terms: n.terms, howItWorks: n.howItWorks,
   };
 }
+
+/** Highest upvotes first, then soonest-expiring; used by /discover and /offers. */
+export function sortByValueThenRecency(a: Offer, b: Offer): number {
+  if (b.upvotes !== a.upvotes) return b.upvotes - a.upvotes;
+  const aEnd = 'end_date' in a && a.end_date ? new Date(a.end_date).getTime() : Infinity;
+  const bEnd = 'end_date' in b && b.end_date ? new Date(b.end_date).getTime() : Infinity;
+  return aEnd - bEnd;
+}
