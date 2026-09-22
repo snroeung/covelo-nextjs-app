@@ -89,7 +89,7 @@ function ArrowIcon({ color = 'currentColor' }: { color?: string }) {
   );
 }
 
-export type AdVariant = 'compact' | 'inline_banner' | 'native' | 'strip';
+export type AdVariant = 'compact' | 'inline_banner' | 'native' | 'strip' | 'editorial';
 
 interface Props {
   slot: AdSlot;
@@ -129,7 +129,7 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
   function goTo(i: number) { setIndex(i); setResetKey((k) => k + 1); }
 
   if (isLoading) {
-    const skeletonH = variant === 'compact' ? 'h-16' : variant === 'native' ? 'h-44' : 'h-52';
+    const skeletonH = variant === 'compact' ? 'h-16' : variant === 'native' ? 'h-44' : variant === 'editorial' ? 'h-24' : 'h-52';
     return <div className={`rounded-xl border animate-pulse ${skeletonH} ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-100 border-gray-200'}`} />;
   }
 
@@ -141,7 +141,63 @@ export function AffiliateAdSpot({ slot, isDark, variant = 'compact', context }: 
   if (variant === 'inline_banner') return <InlineBanner ad={ad} isDark={isDark} context={context} isMulti={isMulti} index={index} total={ads.length} goTo={goTo} />;
   if (variant === 'native')        return <NativeAd     ad={ad} isDark={isDark} context={context} />;
   if (variant === 'strip')         return <StripAd      ad={ad} context={context} />;
+  if (variant === 'editorial')     return <EditorialAd  ad={ad} isDark={isDark} isMulti={isMulti} index={index} total={ads.length} goTo={goTo} />;
   return <CompactAd ad={ad} isDark={isDark} isMulti={isMulti} index={index} total={ads.length} goTo={goTo} />;
+}
+
+// ─── Editorial (Discover front page) ─────────────────────────────────────────
+
+function EditorialAd({ ad, isDark, isMulti, index, total, goTo }: {
+  ad: AdData; isDark: boolean;
+  isMulti: boolean; index: number; total: number; goTo: (i: number) => void;
+}) {
+  const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gph-ink';
+  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gph-muted';
+  const topRule = isDark ? 'border-t-gph-dark-ink' : 'border-t-gph-ink';
+  const botRule = isDark ? 'border-b-gph-dark-line' : 'border-b-gph-line';
+  const sponsBg = isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gph-linesoft text-gph-muted';
+
+  return (
+    <div className={`py-5 border-t-[1.5px] border-b ${topRule} ${botRule}`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={`text-[9px] font-mono font-extrabold tracking-[0.12em] px-1.5 py-0.5 rounded ${sponsBg}`}>SPONSORED</span>
+            <span className={`text-[10px] font-mono font-extrabold tracking-[0.14em] ${muted}`}>
+              {ad.partner.toUpperCase()} · {ad.product.toUpperCase()}
+            </span>
+          </div>
+          <p className={`text-base font-extrabold leading-snug tracking-tight ${ink}`}>{ad.headline}</p>
+          {ad.bullets.filter(Boolean).length > 0 && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5">
+              {ad.bullets.filter(Boolean).map((b: string) => (
+                <span key={b} className={`flex items-center gap-1 text-[10.5px] font-mono font-semibold ${muted}`}>
+                  <CheckIcon /> {b}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <a
+          href={ad.cta_url} target="_blank" rel="noopener noreferrer sponsored"
+          className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[12px] font-bold transition-colors ${
+            isDark ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi' : 'bg-gph-action text-white hover:bg-gph-actionhi'
+          }`}
+        >
+          {ad.cta_label} <ArrowIcon />
+        </a>
+      </div>
+
+      {isMulti && (
+        <div className="flex items-center gap-1.5 mt-3">
+          {Array.from({ length: total }).map((_, i) => (
+            <button key={i} onClick={() => goTo(i)} aria-label={`Ad ${i + 1}`}
+              className={`rounded-full transition-all duration-200 ${i === index ? `w-3.5 h-1.5 ${isDark ? 'bg-gph-dark-ink' : 'bg-gph-ink'}` : `w-1.5 h-1.5 ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Compact (existing sidebar / below_grid) ────────────────────────────────

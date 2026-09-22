@@ -6,7 +6,7 @@ export type FlagName =
   | "ui:flights"
   | "ui:search"
   | "ui:trip-planner"
-  | "ui:offers"
+  | "ui:discover"
   | "ui:settings"
   | "ui:admin"
   // tRPC routers
@@ -56,7 +56,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:redis:offers":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — offers router" },
   "integration:supabase":              { enabledIn: ["local", "beta", "production"], description: "Supabase (auth — keep always-on)" },
 
-  "ui:offers":                         { enabledIn: ["local", "beta", "production"], description: "/offers page" },
+  "ui:discover":                       { enabledIn: ["local", "beta", "production"], description: "/discover page" },
   "ui:settings":                       { enabledIn: ["local", "beta", "production"], description: "/settings page" },
   "ui:admin":                          { enabledIn: ["local", "beta", "production"], description: "/admin page" },
   "api:offers":                        { enabledIn: ["local", "beta", "production"], description: "offers tRPC router" },

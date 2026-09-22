@@ -11,7 +11,8 @@ const ROUTE_FLAGS: Array<{ prefix: string; flag: FlagName }> = [
   { prefix: '/flights',      flag: 'ui:flights' },
   { prefix: '/search',       flag: 'ui:search' },
   { prefix: '/trip-planner', flag: 'ui:trip-planner' },
-  { prefix: '/offers',       flag: 'ui:offers' },
+  { prefix: '/discover',    flag: 'ui:discover' },
+  { prefix: '/offers',      flag: 'ui:discover' },
   { prefix: '/settings',    flag: 'ui:settings' },
   { prefix: '/admin',       flag: 'ui:admin' },
 ];

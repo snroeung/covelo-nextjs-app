@@ -16,6 +16,14 @@ import {
   TEST_PREFIX,
 } from '../utils/admin-helpers';
 
+// Rail collapses to 3 rows by default (components/discover/DiscoverRail.tsx)
+// — expand it before searching for an offer that may have been pushed past
+// that cutoff by other offers created elsewhere in this suite.
+async function expandOffers(page: import('@playwright/test').Page) {
+  const btn = page.getByRole('button', { name: /see all offers/i }).first();
+  if (await btn.isVisible({ timeout: 2_000 }).catch(() => false)) await btn.click();
+}
+
 // ---------------------------------------------------------------------------
 // Scenario 1: flights_inline — create and verify in flight results
 // ---------------------------------------------------------------------------
@@ -315,17 +323,19 @@ test.describe('Spending Bonus — create and display', () => {
     spendingBonusCreated = true;
   });
 
-  test('12. spending bonus card is visible on /offers', async ({ page }) => {
+  test('12. spending bonus story/row is visible on /discover', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     const card = page.getByText(MERCHANT).first();
     await expect(card).toBeVisible({ timeout: 10_000 });
   });
 
-  test('13. spending bonus card shows correct multiplier and issuer', async ({ page }) => {
+  test('13. spending bonus story/row shows correct multiplier and issuer', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
-    await page.goto('/offers');
-    // Offer card root is role="button"; hero + body both mention 5× → use .first()
+    await page.goto('/discover');
+    await expandOffers(page);
+    // Story column and rail row roots are both role="button"
     const cardSection = page.locator('[role="button"]').filter({ hasText: MERCHANT }).first();
     await expect(cardSection.getByText(/5\s*[×x]/i).first()).toBeVisible({ timeout: 10_000 });
     await expect(cardSection.getByText(/chase/i).first()).toBeVisible();
@@ -333,7 +343,8 @@ test.describe('Spending Bonus — create and display', () => {
 
   test('14. clicking card opens the detail modal with correct content', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await page.getByText(MERCHANT).first().click();
 
     const modal = page.getByRole('dialog');
@@ -342,20 +353,10 @@ test.describe('Spending Bonus — create and display', () => {
     await expect(modal.getByText(/5\s*[×x]/i).first()).toBeVisible();
   });
 
-  test('15. filtering by "Spending bonuses" chip hides transfer cards', async ({ page }) => {
-    test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
-    await page.goto('/offers');
-    await page.getByRole('button', { name: /spending bonuses/i }).click();
-
-    // Spending bonus must be visible
-    await expect(page.getByText(MERCHANT).first()).toBeVisible({ timeout: 5_000 });
-    // Transfer-type cards should be absent — their hero reads "+N% transfer to <partner>"
-    await expect(page.getByText(/%\s*transfer to /i)).toHaveCount(0);
-  });
-
   test('16. pressing Escape closes the detail modal', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await page.getByText(MERCHANT).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
@@ -365,7 +366,8 @@ test.describe('Spending Bonus — create and display', () => {
 
   test('17. clicking backdrop closes the detail modal', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await page.getByText(MERCHANT).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
@@ -374,7 +376,7 @@ test.describe('Spending Bonus — create and display', () => {
     await expect(page.getByRole('dialog')).toBeHidden();
   });
 
-  test('18a. dollar_amount bonus type shows "$" label on card', async ({ page }) => {
+  test('18a. dollar_amount bonus type shows "$" label', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     const merchant = `${TEST_PREFIX} Uber Dollar`;
     await createSpendingBonus(page, {
@@ -386,12 +388,13 @@ test.describe('Spending Bonus — create and display', () => {
       endDate: daysFromNow(30),
     });
 
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     const cardSection = page.locator('[role="button"]').filter({ hasText: merchant }).first();
     await expect(cardSection.getByText(/\$\s*10/).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test('18b. cash_back_pct bonus type shows "%" on card', async ({ page }) => {
+  test('18b. cash_back_pct bonus type shows "%"', async ({ page }) => {
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     const merchant = `${TEST_PREFIX} Target Cashback`;
     await createSpendingBonus(page, {
@@ -403,17 +406,19 @@ test.describe('Spending Bonus — create and display', () => {
       endDate: daysFromNow(30),
     });
 
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     const cardSection = page.locator('[role="button"]').filter({ hasText: merchant }).first();
     await expect(cardSection.getByText(/3%|cash back/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test('19. deactivating a spending bonus removes it from /offers', async ({ page }) => {
+  test('19. deactivating a spending bonus removes it from /discover', async ({ page }) => {
     test.setTimeout(180_000); // setOfferActive may sweep duplicate offers left by failed runs
     test.skip(!spendingBonusCreated, 'Skipped: spending bonus creation (test 11) failed');
     await setOfferActive(page, MERCHANT, false);
 
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await expect(page.getByText(MERCHANT).first()).toBeHidden({ timeout: 10_000 });
   });
 
@@ -455,28 +460,22 @@ test.describe('Transfer Bonus — create and display', () => {
     transferBonusCreated = true;
   });
 
-  test('22. featured hero shows the transfer bonus when it has highest bonus_pct', async ({ page }) => {
+  test('22. lead story shows the transfer bonus when it has the highest bonus_pct', async ({ page }) => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
-    await page.goto('/offers');
-    // Featured hero section contains the bonus percentage and partner name.
-    // FeaturedOfferHero has no data-testid or hero/featured class, so this
-    // locator only ever matches when a "Featured" section is rendered above it.
-    const hero = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Featured', exact: true }) });
-    // If our 30% bonus is the highest it appears in the hero — check the
-    // "Issuer → Partner" heading specifically, not the whole hero text blob,
-    // since that also contains an expiry date ("Ends July 30…") whose "30"
-    // substring would otherwise false-positive this guard.
-    const heroHeading = await hero.getByRole('heading', { level: 2 }).textContent({ timeout: 3_000 }).catch(() => '');
-    if (heroHeading && new RegExp(PARTNER, 'i').test(heroHeading)) {
-      await expect(hero.getByText(/30%/).first()).toBeVisible();
-      await expect(hero.getByText(new RegExp(PARTNER, 'i')).first()).toBeVisible();
+    await page.goto('/discover');
+    // The lead is always the highest bonus_pct transfer bonus. If a higher one
+    // exists elsewhere in this env, ours renders in the secondary/rail instead —
+    // covered by test 23 — so only assert when it did land as the lead.
+    const leadKicker = page.getByText(new RegExp(`CHASE.*${PARTNER}`, 'i')).first();
+    if (await leadKicker.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await expect(page.getByText(`+${BONUS_PCT}%`).first()).toBeVisible();
     }
-    // Otherwise it appears in the grid — covered by test 23
   });
 
-  test('23. transfer card in grid shows issuer → partner and bonus pct', async ({ page }) => {
+  test('23. transfer story/row shows issuer → partner and bonus pct', async ({ page }) => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     const card = page.getByText(PARTNER).first();
     await expect(card).toBeVisible({ timeout: 10_000 });
 
@@ -485,7 +484,7 @@ test.describe('Transfer Bonus — create and display', () => {
     await expect(cardSection.getByText(/chase/i).first()).toBeVisible();
   });
 
-  test('24. urgency badge appears when bonus expires within 7 days', async ({ page }) => {
+  test('24. urgency line appears in the modal when the bonus expires within 7 days', async ({ page }) => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
     // Transfer partner is a fixed dropdown backed by TRANSFER_PARTNERS — use a
     // real program name and rely on the description for TEST_PREFIX traceability
@@ -498,51 +497,42 @@ test.describe('Transfer Bonus — create and display', () => {
       description: `${TEST_PREFIX} Urgent IHG transfer bonus`,
     });
 
-    await page.goto('/offers');
-    const card = page.getByText(GRID_PARTNER).first().locator('../..').locator('../..');
-    // Urgency indicator — text or badge (rendered as "Xd left")
-    await expect(
-      card.getByText(/expir|urgent|soon|days left|\d+d left/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    await page.goto('/discover');
+    await expandOffers(page);
+    await page.getByText(GRID_PARTNER).first().click();
+
+    const modal = page.getByRole('dialog');
+    await expect(modal).toBeVisible();
+    await expect(modal.getByText(/ends in \d+ days?/i)).toBeVisible({ timeout: 5_000 });
   });
 
   test('25. clicking card opens detail modal with full offer details', async ({ page }) => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
-    await page.goto('/offers');
-    // PARTNER is always the top bonus_pct and only renders in the non-interactive
-    // featured hero — click the grid card from test 24 instead (see GRID_PARTNER note above)
+    await page.goto('/discover');
+    await expandOffers(page);
+    // PARTNER is always the top bonus_pct and only renders as the non-interactive
+    // lead story — click the row from test 24 instead (see GRID_PARTNER note above)
     await page.getByText(GRID_PARTNER).first().click();
 
     const modal = page.getByRole('dialog');
     await expect(modal).toBeVisible();
     await expect(modal.getByText(new RegExp(GRID_PARTNER, 'i'))).toBeVisible();
     await expect(modal.getByText(new RegExp(`${GRID_BONUS_PCT}%|\\+${GRID_BONUS_PCT}`, 'i'))).toBeVisible();
-    // Expiry date and source sections should be present
-    await expect(modal.getByText(/expir|end date/i)).toBeVisible();
+    // Expiry shows in the value plaque ("expires …")
+    await expect(modal.getByText(/expir/i)).toBeVisible();
   });
 
-  test('27. filtering by "Transfer bonuses" chip hides spending cards', async ({ page }) => {
-    test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
-    await page.goto('/offers');
-    await page.getByRole('button', { name: /transfer bonuses/i }).click();
-
-    await expect(page.getByText(PARTNER).first()).toBeVisible({ timeout: 5_000 });
-    // Spending cards (identified by merchant/multiplier pattern) should be gone
-    const spendingIndicators = page.getByText(/×.*points|cash back|merchant/i);
-    await expect(spendingIndicators).toHaveCount(0);
-  });
-
-  test('28. deactivate and reactivate: offer disappears then reappears on /offers', async ({ page }) => {
+  test('28. deactivate and reactivate: offer disappears then reappears on /discover', async ({ page }) => {
     test.setTimeout(180_000); // setOfferActive may sweep duplicate offers left by failed runs
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
-    // "World of Hyatt" also appears verbatim in CommunityBoard's static mock preview
-    // rows, unrelated to this offer — match the "Issuer → Partner" heading text
-    // (rendered by both the featured hero and grid card) to avoid that collision.
+    // "World of Hyatt" doesn't appear anywhere else on the page (the board
+    // promo's static content doesn't reference it), so this stays unambiguous.
     const offerHeading = /chase\s*→\s*world of hyatt/i;
 
     // Deactivate
     await setOfferActive(page, PARTNER, false);
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await expect(page.getByText(offerHeading).first()).toBeHidden({ timeout: 10_000 });
 
     // Reactivate (makes it visible again) — setOfferActive waits for the mutation
@@ -550,13 +540,15 @@ test.describe('Transfer Bonus — create and display', () => {
     // away before the request completes.
     await setOfferActive(page, PARTNER, true);
 
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await expect(page.getByText(offerHeading).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test('29. /offers page passes accessibility checks with transfer bonuses present', async ({ page }) => {
+  test('29. /discover passes accessibility checks with transfer bonuses present', async ({ page }) => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
-    await page.goto('/offers');
+    await page.goto('/discover');
+    await expandOffers(page);
     await expect(page.getByText(PARTNER).first()).toBeVisible({ timeout: 10_000 });
 
     const results = await new AxeBuilder({ page }).analyze();

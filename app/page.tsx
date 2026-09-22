@@ -214,7 +214,7 @@ export default function StartPage() {
                   { href: '/search',      label: 'Search Flights and Hotels',      sub: 'Compare price across all credit card portals and travel partners' },
                   // Trip Planner temporarily hidden — ui:trip-planner disabled in lib/feature-flags.ts
                   // { href: '/trip-planner', label: 'Trip Planner',         sub: 'Plan your next adventure'         },
-                  { href: '/offers',       label: 'Offers',  sub: 'Unlock deals tailored to you'      },
+                  { href: '/discover',     label: 'Discover',  sub: 'Unlock deals tailored to you'      },
                 ].map(({ href, label, sub }) => (
                   <Link key={href} href={href} style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',

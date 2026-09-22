@@ -72,8 +72,8 @@ export interface TravelCollectionData {
 }
 
 export async function navigateToAdminSection(page: Page, tab: 'Offers' | 'Ads') {
-  // 1. Go to /offers
-  await page.goto('/offers');
+  // 1. Go to /discover
+  await page.goto('/discover');
   // 2. Open profile popup
   await page.getByRole('button', { name: /open profile|profile/i }).click();
   // 3. Click "Admin" in the popup (renamed from "Offers Admin" when the

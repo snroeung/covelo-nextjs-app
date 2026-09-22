@@ -11,7 +11,7 @@ import { isEnabled } from '@/lib/feature-flags';
 
 const flightsEnabled    = isEnabled('ui:flights');
 const hotelsEnabled     = isEnabled('ui:hotels');
-const offersEnabled     = isEnabled('ui:offers');
+const discoverEnabled   = isEnabled('ui:discover');
 
 export function NavBar() {
   const { isDark }   = useTheme();
@@ -20,8 +20,10 @@ export function NavBar() {
   const router       = useRouter();
   const avatarRef    = useRef<HTMLButtonElement>(null);
   const searchRef    = useRef<HTMLDivElement>(null);
-  const [popupOpen, setPopupOpen]   = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const discoverRef  = useRef<HTMLDivElement>(null);
+  const [popupOpen, setPopupOpen]     = useState(false);
+  const [searchOpen, setSearchOpen]   = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
 
   const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
@@ -43,24 +45,32 @@ export function NavBar() {
     setSearchOpen(false);
   }
 
-  // Close the Search dropdown when clicking outside
+  function closeDiscover() {
+    setDiscoverOpen(false);
+  }
+
+  // Close the Search / Discover dropdowns when clicking outside
   useEffect(() => {
-    if (!searchOpen) return;
+    if (!searchOpen && !discoverOpen) return;
     function handleClick(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      if (searchOpen && searchRef.current && !searchRef.current.contains(e.target as Node)) {
         closeSearch();
+      }
+      if (discoverOpen && discoverRef.current && !discoverRef.current.contains(e.target as Node)) {
+        closeDiscover();
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [searchOpen]);
+  }, [searchOpen, discoverOpen]);
 
-  // Close Search dropdown on navigation — adjusted during render (React's
-  // documented alternative to an effect for this), not via useEffect.
+  // Close Search/Discover dropdowns on navigation — adjusted during render
+  // (React's documented alternative to an effect for this), not via useEffect.
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
     closeSearch();
+    closeDiscover();
   }
 
   const initials = profile?.display_name
@@ -133,10 +143,65 @@ export function NavBar() {
         </Link>
         */}
 
-        {offersEnabled && (
-          <Link href="/offers" className={navLinkCls(pathname.startsWith('/offers'))}>
-            Offers
-          </Link>
+        {discoverEnabled && (
+          <div
+            ref={discoverRef}
+            className="relative"
+            onMouseEnter={() => setDiscoverOpen(true)}
+            onMouseLeave={() => setDiscoverOpen(false)}
+          >
+            <Link
+              href="/discover"
+              onClick={closeDiscover}
+              className={`${navLinkCls(pathname.startsWith('/discover') || pathname.startsWith('/offers'))} flex items-center gap-1.5`}
+              aria-haspopup="true"
+              aria-expanded={discoverOpen}
+            >
+              Discover
+              <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
+                <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+
+            {discoverOpen && (
+              <div className="absolute top-full left-0 w-[244px] pt-1.5 z-50">
+                <div className={`rounded-xl border shadow-lg overflow-hidden p-1.5 ${dropdownSurface}`}>
+                  <Link
+                    href="/discover"
+                    onClick={closeDiscover}
+                    className={`block px-3.5 py-2.5 rounded-lg transition-colors ${
+                      pathname === '/discover'
+                        ? isDark ? 'bg-white/10' : 'bg-gray-100'
+                        : isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-sm font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>Front page</span>
+                      {pathname === '/discover' && (
+                        <svg className={`w-3 h-3 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`} viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className={`text-[10.5px] font-mono mt-0.5 tracking-wide ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+                      Featured offers and deals
+                    </div>
+                  </Link>
+                  <div className={`px-3.5 py-2.5 rounded-lg cursor-default ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-bold tracking-tight">The board</span>
+                      <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
+                        isDark ? 'bg-gph-dark-line' : 'bg-gray-100'
+                      }`}>
+                        Soon
+                      </span>
+                    </div>
+                    <div className="text-[10.5px] font-mono mt-0.5 tracking-wide">Community offers and tips</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
