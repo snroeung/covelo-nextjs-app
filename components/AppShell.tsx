@@ -8,6 +8,7 @@ import { NavBar } from '@/components/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { gphTheme } from '@/lib/discover/theme';
 
 /** DOM id of the results scroll container — used by pagination's scroll-to-top
  *  and the hotels back-to-top button. */
@@ -37,12 +38,8 @@ export function AppShell({
     if (hasResults) setHeaderOpen(false);
   }
 
-  const pageBg    = isDark ? 'bg-gph-dark-bg'   : 'bg-gray-100';
-  const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
-  const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
+  const { bg: pageBg, cardBg: surfaceBg, line: borderCls, muted: chevronColor } = gphTheme;
   const allCardsMode = selectedCards.length === 0;
-
-  const chevronColor = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
 
   return (
     <div className={`flex flex-col h-screen overflow-hidden font-sans ${pageBg}`}>

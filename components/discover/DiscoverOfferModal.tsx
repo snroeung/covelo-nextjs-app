@@ -41,7 +41,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
 
   const urgentDays = offer.end_date != null ? daysUntil(offer.end_date) : null;
 
-  const { bg, cardBg, line, ink, muted, accent } = gphTheme(isDark);
+  const { bg, cardBg, line, ink, muted, accent } = gphTheme;
   const plaqueBg  = isDark ? 'bg-gph-dark-action' : 'bg-gph-action';
   const plaqueInk = isDark ? 'text-gph-dark-bg'   : 'text-white';
   const ghostCls = isDark

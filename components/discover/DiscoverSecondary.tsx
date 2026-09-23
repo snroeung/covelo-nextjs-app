@@ -9,12 +9,11 @@ type Offer = TransferBonus | SpendingBonus;
 
 interface Props {
   offers: Offer[];
-  isDark: boolean;
   onOpen: (offer: Offer) => void;
 }
 
-export function DiscoverSecondary({ offers, isDark, onOpen }: Props) {
-  const { line, ink, muted, accent } = gphTheme(isDark);
+export function DiscoverSecondary({ offers, onOpen }: Props) {
+  const { line, ink, muted, accent } = gphTheme;
 
   return (
     <>

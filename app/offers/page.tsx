@@ -43,7 +43,7 @@ function OffersPageInner() {
     ? allOffers
     : allOffers.filter((o) => o.issuer === issuerFilter);
 
-  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme(isDark);
+  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme;
 
   function pillCls(active: boolean) {
     const base = 'shrink-0 px-3.5 py-2 rounded-full text-xs font-bold transition-colors min-h-11 flex items-center';
@@ -94,7 +94,7 @@ function OffersPageInner() {
                 {visibleOffers.length} OFFER{visibleOffers.length === 1 ? '' : 'S'}
               </div>
               {visibleOffers.map((offer) => (
-                <OfferRow key={offer.id} offer={offer} isDark={isDark} onOpen={setOpenOffer} />
+                <OfferRow key={offer.id} offer={offer} onOpen={setOpenOffer} />
               ))}
             </div>
           )}

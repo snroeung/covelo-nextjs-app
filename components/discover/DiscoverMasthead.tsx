@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function DiscoverMasthead({ isDark, offerCount }: Props) {
-  const { ink, rule, accent } = gphTheme(isDark);
+  const { ink, rule, accent } = gphTheme;
   const pillBg = isDark ? 'bg-gph-dark-actionsoft text-gph-dark-action' : 'bg-gph-actionsoft text-gph-action';
   const ghostCls = isDark
     ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'

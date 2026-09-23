@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePopup } from '@/components/ProfilePopup';
 import { isEnabled } from '@/lib/feature-flags';
+import { gphTheme } from '@/lib/discover/theme';
 
 const flightsEnabled    = isEnabled('ui:flights');
 const hotelsEnabled     = isEnabled('ui:hotels');
 const discoverEnabled   = isEnabled('ui:discover');
 
 export function NavBar() {
-  const { isDark }   = useTheme();
+  const { cardBg, line, ink, muted } = gphTheme;
   const { user, profile, loading } = useAuth();
   const pathname     = usePathname();
   const router       = useRouter();
@@ -25,20 +25,13 @@ export function NavBar() {
   const [searchOpen, setSearchOpen]   = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
 
-  const surfaceBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
-  const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
-
   const searchActive = pathname === '/search' || pathname === '/flights' || pathname === '/hotels';
   const searchLabel  = pathname === '/flights' ? 'Flights' : pathname === '/hotels' ? 'Hotels' : null;
 
   function navLinkCls(active: boolean) {
     const base = 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors';
-    if (active) return isDark
-      ? `${base} bg-white text-gray-900`
-      : `${base} bg-gray-900 text-white`;
-    return isDark
-      ? `${base} text-gph-dark-muted hover:text-gph-dark-ink`
-      : `${base} text-gray-500 hover:text-gray-900`;
+    if (active) return `${base} bg-cv-green-800 text-white`;
+    return `${base} ${muted} hover:text-gph-accent-green`;
   }
 
   function closeSearch() {
@@ -77,14 +70,10 @@ export function NavBar() {
     ? profile.display_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
     : user?.email?.[0]?.toUpperCase() ?? '?';
 
-  const dropdownSurface = isDark
-    ? 'bg-gph-dark-card border-gph-dark-line'
-    : 'bg-white border-gray-200';
-
   return (
-    <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${surfaceBg} ${borderCls}`}>
-      <Link href="/" className={`text-lg font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-        covelo<span className={isDark ? 'text-gph-dark-muted' : 'text-gray-400'}>.</span>
+    <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${cardBg} ${line}`}>
+      <Link href="/" className={`text-lg font-bold tracking-tight ${ink}`}>
+        covelo<span className="text-gph-accent-green">.</span>
       </Link>
 
       <div className="flex items-center gap-1">
@@ -103,11 +92,7 @@ export function NavBar() {
           >
             Search
             {searchLabel && (
-              <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
-                isDark
-                  ? 'bg-black/15 text-gray-900'
-                  : 'bg-white/20 text-white'
-              }`}>
+              <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-white text-cv-green-800">
                 {searchLabel}
               </span>
             )}
@@ -115,13 +100,12 @@ export function NavBar() {
 
           {searchOpen && (
             <div className="absolute top-full left-0 w-44 pt-1.5 z-50">
-            <div className={`rounded-xl border shadow-lg overflow-hidden ${dropdownSurface}`}>
+            <div className={`rounded-xl border shadow-lg overflow-hidden ${cardBg} ${line}`}>
               <SearchDropdownItem
                 href="/flights"
                 label="Flights"
                 enabled={flightsEnabled}
                 active={pathname === '/flights'}
-                isDark={isDark}
                 onClick={() => setSearchOpen(false)}
               />
               <SearchDropdownItem
@@ -129,7 +113,6 @@ export function NavBar() {
                 label="Hotels"
                 enabled={hotelsEnabled}
                 active={pathname === '/hotels'}
-                isDark={isDark}
                 onClick={() => setSearchOpen(false)}
               />
             </div>
@@ -165,13 +148,11 @@ export function NavBar() {
 
             {discoverOpen && (
               <div className="absolute top-full left-0 w-[244px] pt-1.5 z-50">
-                <div className={`rounded-xl border shadow-lg overflow-hidden p-1.5 ${dropdownSurface}`}>
-                  <div className={`px-3.5 py-2.5 rounded-lg cursor-default ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+                <div className={`rounded-xl border shadow-lg overflow-hidden p-1.5 ${cardBg} ${line}`}>
+                  <div className={`px-3.5 py-2.5 rounded-lg cursor-default ${muted}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-bold tracking-tight">The board</span>
-                      <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
-                        isDark ? 'bg-gph-dark-line' : 'bg-gray-100'
-                      }`}>
+                      <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft">
                         Soon
                       </span>
                     </div>
@@ -180,21 +161,19 @@ export function NavBar() {
                   <Link
                     href="/offers"
                     onClick={closeDiscover}
-                    className={`block px-3.5 py-2.5 rounded-lg transition-colors ${
-                      pathname === '/offers'
-                        ? isDark ? 'bg-white/10' : 'bg-gray-100'
-                        : isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'
+                    className={`block px-3.5 py-2.5 rounded-lg transition-colors hover:bg-gph-linesoft ${
+                      pathname === '/offers' ? 'bg-gph-linesoft' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-bold tracking-tight ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`}>All offers</span>
+                      <span className={`text-sm font-bold tracking-tight ${ink}`}>All offers</span>
                       {pathname === '/offers' && (
-                        <svg className={`w-3 h-3 ${isDark ? 'text-gph-dark-ink' : 'text-gray-900'}`} viewBox="0 0 12 12" fill="none">
+                        <svg className={`w-3 h-3 ${ink}`} viewBox="0 0 12 12" fill="none">
                           <path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </div>
-                    <div className={`text-[10.5px] font-mono mt-0.5 tracking-wide ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`}>
+                    <div className={`text-[10.5px] font-mono mt-0.5 tracking-wide ${muted}`}>
                       Every active offer, filterable by card
                     </div>
                   </Link>
@@ -209,13 +188,13 @@ export function NavBar() {
         <ThemeToggle compact />
 
         {loading ? (
-          <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          <div className="w-9 h-9 rounded-full bg-gph-linesoft animate-pulse" />
         ) : user ? (
           <div className="relative">
             <button
               ref={avatarRef}
               onClick={() => setPopupOpen((v) => !v)}
-              className="w-9 h-9 rounded-full bg-green-700 flex items-center justify-center text-white text-xs font-bold select-none hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+              className="w-9 h-9 rounded-full bg-cv-green-800 flex items-center justify-center text-white text-xs font-bold select-none hover:bg-cv-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-cv-green-500 focus:ring-offset-2"
               aria-label="Open profile"
               aria-expanded={popupOpen}
             >
@@ -231,11 +210,7 @@ export function NavBar() {
         ) : (
           <button
             onClick={() => router.push('/auth')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-              isDark
-                ? 'bg-white text-gray-900 hover:bg-gray-100'
-                : 'bg-gray-900 text-white hover:bg-gray-700'
-            }`}
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors bg-cv-green-800 text-white hover:brightness-110"
           >
             Sign in
           </button>
@@ -250,20 +225,18 @@ interface SearchDropdownItemProps {
   label: string;
   enabled: boolean;
   active: boolean;
-  isDark: boolean;
   onClick: () => void;
 }
 
-function SearchDropdownItem({ href, label, enabled, active, isDark, onClick }: SearchDropdownItemProps) {
+function SearchDropdownItem({ href, label, enabled, active, onClick }: SearchDropdownItemProps) {
+  const { ink, muted } = gphTheme;
   const base = 'flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold transition-colors';
 
   if (!enabled) {
     return (
-      <div className={`${base} ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'} cursor-default`}>
+      <div className={`${base} ${muted} cursor-default`}>
         {label}
-        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
-          isDark ? 'bg-gph-dark-line text-gph-dark-muted' : 'bg-gray-100 text-gray-400'
-        }`}>
+        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft ${muted}`}>
           Soon
         </span>
       </div>
@@ -274,11 +247,7 @@ function SearchDropdownItem({ href, label, enabled, active, isDark, onClick }: S
     <Link
       href={href}
       onClick={onClick}
-      className={`${base} ${
-        active
-          ? isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-900'
-          : isDark ? 'text-gph-dark-ink hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'
-      }`}
+      className={`${base} hover:bg-gph-linesoft ${active ? `bg-gph-linesoft ${ink}` : muted}`}
     >
       {label}
     </Link>

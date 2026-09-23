@@ -16,7 +16,7 @@ interface Props {
 const COLLAPSED_COUNT = 3;
 
 export function DiscoverRail({ offers, isDark, onOpen }: Props) {
-  const { rule, muted } = gphTheme(isDark);
+  const { rule, muted } = gphTheme;
   const ghostCls = isDark
     ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
     : 'bg-gph-card border border-gph-line text-gph-ink hover:bg-gph-linesoft';
@@ -32,7 +32,7 @@ export function DiscoverRail({ offers, isDark, onOpen }: Props) {
         MORE OFFERS
       </div>
       {visible.map((offer) => (
-        <OfferRow key={offer.id} offer={offer} isDark={isDark} onOpen={onOpen} />
+        <OfferRow key={offer.id} offer={offer} onOpen={onOpen} />
       ))}
       {hasMore && (
         <Link

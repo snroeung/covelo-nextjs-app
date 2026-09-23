@@ -8,12 +8,11 @@ type Offer = TransferBonus | SpendingBonus;
 
 interface Props {
   offer: Offer;
-  isDark: boolean;
   onOpen: (offer: Offer) => void;
 }
 
-export function OfferRow({ offer, isDark, onOpen }: Props) {
-  const { line, ink, muted, accent } = gphTheme(isDark);
+export function OfferRow({ offer, onOpen }: Props) {
+  const { line, ink, muted, accent } = gphTheme;
 
   const copy = buildStoryCopy(offer);
   return (

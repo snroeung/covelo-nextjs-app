@@ -22,6 +22,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (stored) setIsDark(stored === 'dark');
   }, []);
 
+  // Mirrors isDark onto <html data-theme> so the CSS-reactive gph-* tokens
+  // (app/globals.css) can switch value without a JS-driven class ternary.
+  useEffect(() => {
+    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+  }, [isDark]);
+
   function toggleTheme() {
     setIsDark((prev) => {
       const next = !prev;

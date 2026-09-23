@@ -14,7 +14,7 @@ interface Props {
 export function DiscoverLead({ offer, isDark, onOpen }: Props) {
   const copy = buildLeadCopy(offer);
 
-  const { ink, muted, accent, line } = gphTheme(isDark);
+  const { ink, muted, accent, line } = gphTheme;
   const plaqueBg = isDark ? 'bg-gph-dark-action' : 'bg-gph-action';
   const plaqueInk = isDark ? 'text-gph-dark-bg' : 'text-white';
 

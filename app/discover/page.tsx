@@ -49,7 +49,7 @@ function DiscoverPageInner() {
   const secondaryOffers = remainingPool.slice(0, 2);
   const railOffers = remainingPool.slice(2);
 
-  const { bg, cardBg, line, muted } = gphTheme(isDark);
+  const { bg, cardBg, line, muted } = gphTheme;
 
   return (
     <div className={`flex flex-col min-h-screen ${bg}`}>
@@ -74,7 +74,7 @@ function DiscoverPageInner() {
 
           {!isLoading && remainingPool.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_0.95fr] gap-6 md:gap-0 scroll-mt-6">
-              <DiscoverSecondary offers={secondaryOffers} isDark={isDark} onOpen={setOpenOffer} />
+              <DiscoverSecondary offers={secondaryOffers} onOpen={setOpenOffer} />
               <DiscoverRail offers={railOffers} isDark={isDark} onOpen={setOpenOffer} />
             </div>
           )}

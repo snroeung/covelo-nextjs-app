@@ -32,7 +32,7 @@ interface Props {
 }
 
 export function DiscoverBoardPromo({ isDark }: Props) {
-  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme(isDark);
+  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme;
   // Large 24px bold text only needs 3:1 contrast, so the shared "good" token
   // (#0f9d58) is fine there — but the 13px bold vote count needs 4.5:1, which
   // that token misses against the light bg (#f5f5f4 → 3.21:1). Darker green

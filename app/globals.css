@@ -57,9 +57,63 @@
  * background, DiscoverBoardPromo's CSS-triangle vote indicator) — contexts
  * Tailwind utility classes can't reach because the color is chosen at
  * runtime from a string, not a static class name. Single source of truth:
- * component files should reference these, never re-hardcode the hex. */
+ * component files should reference these, never re-hardcode the hex.
+ *
+ * `gph-dark-*` names are the ORIGINAL, fixed palette — always the dark
+ * value regardless of theme. Most of the app still branches manually
+ * (`isDark ? 'bg-gph-dark-card' : 'bg-gph-card'`), so these stay put.
+ *
+ * The bare `gph-*` names (no "-dark-") are theme-REACTIVE: one class,
+ * value flips via `:root[data-theme="dark"]` below, driven by the
+ * `data-theme` attribute ThemeContext sets on <html>. New code (Discover/
+ * Offers, the shared NavBar/Footer/AppShell chrome) should use these bare
+ * names directly and skip the isDark ternary entirely. */
+:root {
+  --gph-bg:          #f5f5f4;
+  --gph-card:        #ffffff;
+  --gph-ink:         #0c0c0d;
+  --gph-muted:       #5f6066;
+  --gph-line:        #e3e3e1;
+  --gph-linesoft:    #ededeb;
+  --gph-action:      #18181b;
+  --gph-actionhi:    #27272a;
+  --gph-actionsoft:  #e9e9e7;
+  --gph-navy:        #0a0a0a;
+  /* Shell accent green — cv-green-800 vs. cv-green-400, each chosen for
+     >=4.5:1 text contrast against gph-bg/gph-dark-bg respectively. */
+  --gph-accent-green: #2D7A3A;
+}
+
+:root[data-theme="dark"] {
+  --gph-bg:          #0a0a0b;
+  --gph-card:        #161618;
+  --gph-ink:         #f3f3f1;
+  --gph-muted:       #8a8a90;
+  --gph-line:        #262629;
+  --gph-linesoft:    #1c1c1f;
+  --gph-action:      #e4e4e1;
+  --gph-actionhi:    #f3f3f0;
+  --gph-actionsoft:  #222226;
+  --gph-navy:        #000000;
+  --gph-accent-green: #7DC48A;
+}
+
+@theme inline {
+  --color-gph-bg:          var(--gph-bg);
+  --color-gph-card:        var(--gph-card);
+  --color-gph-ink:         var(--gph-ink);
+  --color-gph-muted:       var(--gph-muted);
+  --color-gph-line:        var(--gph-line);
+  --color-gph-linesoft:    var(--gph-linesoft);
+  --color-gph-action:      var(--gph-action);
+  --color-gph-actionhi:    var(--gph-actionhi);
+  --color-gph-actionsoft:  var(--gph-actionsoft);
+  --color-gph-navy:        var(--gph-navy);
+  --color-gph-accent-green: var(--gph-accent-green);
+}
+
 @theme {
-  /* Graphite dark mode palette */
+  /* Graphite dark mode palette — fixed, non-reactive (see note above) */
   --color-gph-dark-bg:        #0a0a0b;
   --color-gph-dark-card:      #161618;
   --color-gph-dark-ink:       #f3f3f1;
@@ -70,18 +124,6 @@
   --color-gph-dark-actionhi:  #f3f3f0;
   --color-gph-dark-actionsoft:#222226;
   --color-gph-dark-navy:      #000000;
-
-  /* Graphite light mode palette */
-  --color-gph-bg:         #f5f5f4;
-  --color-gph-card:       #ffffff;
-  --color-gph-ink:        #0c0c0d;
-  --color-gph-muted:      #5f6066;
-  --color-gph-line:       #e3e3e1;
-  --color-gph-linesoft:   #ededeb;
-  --color-gph-action:     #18181b;
-  --color-gph-actionhi:   #27272a;
-  --color-gph-actionsoft: #e9e9e7;
-  --color-gph-navy:       #0a0a0a;
 
   /* Theme-invariant accents */
   --color-gph-good: #0f9d58;
