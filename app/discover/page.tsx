@@ -15,7 +15,6 @@ import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { sortByValueThenRecency } from '@/lib/discover/offerCopy';
-import { gphTheme } from '@/lib/discover/theme';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
@@ -49,14 +48,12 @@ function DiscoverPageInner() {
   const secondaryOffers = remainingPool.slice(0, 2);
   const railOffers = remainingPool.slice(2);
 
-  const { bg, cardBg, line, muted } = gphTheme;
-
   return (
-    <div className={`flex flex-col min-h-screen ${bg}`}>
+    <div className="flex flex-col min-h-screen bg-gph-bg">
       <NavBar />
 
       <main className="flex-1">
-        <div className={`px-4 md:px-7 py-5 max-w-5xl mx-auto flex flex-col gap-7 border-b ${cardBg} ${line}`}>
+        <div className="px-4 md:px-7 py-5 max-w-5xl mx-auto flex flex-col gap-7 border-b bg-gph-card border-gph-line">
           <DiscoverMasthead isDark={isDark} offerCount={remainingPool.length} />
 
           {isLoading ? (
@@ -69,7 +66,7 @@ function DiscoverPageInner() {
           ) : featuredOffer ? (
             <DiscoverLead offer={featuredOffer} isDark={isDark} onOpen={() => setOpenOffer(featuredOffer)} />
           ) : (
-            <p className={`text-sm py-6 ${muted}`}>No featured offer right now — check back soon.</p>
+            <p className="text-sm py-6 text-gph-muted">No featured offer right now — check back soon.</p>
           )}
 
           {!isLoading && remainingPool.length > 0 && (

@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { todayPill } from '@/lib/discover/offerCopy';
-import { gphTheme } from '@/lib/discover/theme';
 
 interface Props {
   isDark: boolean;
@@ -10,7 +9,6 @@ interface Props {
 }
 
 export function DiscoverMasthead({ isDark, offerCount }: Props) {
-  const { ink, rule, accent } = gphTheme;
   const pillBg = isDark ? 'bg-gph-dark-actionsoft text-gph-dark-action' : 'bg-gph-actionsoft text-gph-action';
   const ghostCls = isDark
     ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
@@ -20,15 +18,15 @@ export function DiscoverMasthead({ isDark, offerCount }: Props) {
     : 'bg-gph-action text-white hover:bg-gph-actionhi';
 
   return (
-    <div className={`flex items-end justify-between gap-6 flex-wrap pb-3.5 border-b-2 ${rule}`}>
+    <div className="flex items-end justify-between gap-6 flex-wrap pb-3.5 border-b-2 border-gph-ink">
       <div>
         <div className="flex items-center gap-2.5 mb-2.5">
           <span className={`text-[10px] font-mono font-extrabold tracking-[0.14em] px-2 py-1 rounded ${pillBg}`}>
             {todayPill()}
           </span>
         </div>
-        <h1 className={`text-4xl md:text-5xl font-extrabold leading-none tracking-tight ${ink}`}>
-          Discover<span className={accent}>.</span>
+        <h1 className="text-4xl md:text-5xl font-extrabold leading-none tracking-tight text-gph-ink">
+          Discover<span className="text-gph-action">.</span>
         </h1>
       </div>
       <div className="flex items-center gap-2">

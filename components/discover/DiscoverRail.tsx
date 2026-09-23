@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { OfferRow } from '@/components/discover/OfferRow';
-import { gphTheme } from '@/lib/discover/theme';
 
 type Offer = TransferBonus | SpendingBonus;
 
@@ -16,7 +15,6 @@ interface Props {
 const COLLAPSED_COUNT = 3;
 
 export function DiscoverRail({ offers, isDark, onOpen }: Props) {
-  const { rule, muted } = gphTheme;
   const ghostCls = isDark
     ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
     : 'bg-gph-card border border-gph-line text-gph-ink hover:bg-gph-linesoft';
@@ -28,7 +26,7 @@ export function DiscoverRail({ offers, isDark, onOpen }: Props) {
 
   return (
     <div>
-      <div className={`pb-2 mb-1 border-b-[1.5px] text-[10px] font-mono font-extrabold tracking-[0.14em] ${rule} ${muted}`}>
+      <div className="pb-2 mb-1 border-b-[1.5px] text-[10px] font-mono font-extrabold tracking-[0.14em] border-gph-ink text-gph-muted">
         MORE OFFERS
       </div>
       {visible.map((offer) => (

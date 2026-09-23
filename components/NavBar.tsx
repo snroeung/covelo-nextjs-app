@@ -7,14 +7,12 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePopup } from '@/components/ProfilePopup';
 import { isEnabled } from '@/lib/feature-flags';
-import { gphTheme } from '@/lib/discover/theme';
 
 const flightsEnabled    = isEnabled('ui:flights');
 const hotelsEnabled     = isEnabled('ui:hotels');
 const discoverEnabled   = isEnabled('ui:discover');
 
 export function NavBar() {
-  const { cardBg, line, ink, muted } = gphTheme;
   const { user, profile, loading } = useAuth();
   const pathname     = usePathname();
   const router       = useRouter();
@@ -31,7 +29,7 @@ export function NavBar() {
   function navLinkCls(active: boolean) {
     const base = 'px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors';
     if (active) return `${base} bg-cv-green-800 text-white`;
-    return `${base} ${muted} hover:text-gph-accent-green`;
+    return `${base} text-gph-muted hover:text-gph-accent-green`;
   }
 
   function closeSearch() {
@@ -71,8 +69,8 @@ export function NavBar() {
     : user?.email?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <nav className={`flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 ${cardBg} ${line}`}>
-      <Link href="/" className={`text-lg font-bold tracking-tight ${ink}`}>
+    <nav className="flex items-center gap-4 px-4 md:px-6 py-3 border-b shrink-0 bg-gph-card border-gph-line">
+      <Link href="/" className="text-lg font-bold tracking-tight text-gph-ink">
         covelo<span className="text-gph-accent-green">.</span>
       </Link>
 
@@ -100,7 +98,7 @@ export function NavBar() {
 
           {searchOpen && (
             <div className="absolute top-full left-0 w-44 pt-1.5 z-50">
-            <div className={`rounded-xl border shadow-lg overflow-hidden ${cardBg} ${line}`}>
+            <div className="rounded-xl border shadow-lg overflow-hidden bg-gph-card border-gph-line">
               <SearchDropdownItem
                 href="/flights"
                 label="Flights"
@@ -148,8 +146,8 @@ export function NavBar() {
 
             {discoverOpen && (
               <div className="absolute top-full left-0 w-[244px] pt-1.5 z-50">
-                <div className={`rounded-xl border shadow-lg overflow-hidden p-1.5 ${cardBg} ${line}`}>
-                  <div className={`px-3.5 py-2.5 rounded-lg cursor-default ${muted}`}>
+                <div className="rounded-xl border shadow-lg overflow-hidden p-1.5 bg-gph-card border-gph-line">
+                  <div className="px-3.5 py-2.5 rounded-lg cursor-default text-gph-muted">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-bold tracking-tight">The board</span>
                       <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft">
@@ -166,14 +164,14 @@ export function NavBar() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className={`text-sm font-bold tracking-tight ${ink}`}>All offers</span>
+                      <span className="text-sm font-bold tracking-tight text-gph-ink">All offers</span>
                       {pathname === '/offers' && (
-                        <svg className={`w-3 h-3 ${ink}`} viewBox="0 0 12 12" fill="none">
+                        <svg className="w-3 h-3 text-gph-ink" viewBox="0 0 12 12" fill="none">
                           <path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </div>
-                    <div className={`text-[10.5px] font-mono mt-0.5 tracking-wide ${muted}`}>
+                    <div className="text-[10.5px] font-mono mt-0.5 tracking-wide text-gph-muted">
                       Every active offer, filterable by card
                     </div>
                   </Link>
@@ -229,14 +227,13 @@ interface SearchDropdownItemProps {
 }
 
 function SearchDropdownItem({ href, label, enabled, active, onClick }: SearchDropdownItemProps) {
-  const { ink, muted } = gphTheme;
   const base = 'flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold transition-colors';
 
   if (!enabled) {
     return (
-      <div className={`${base} ${muted} cursor-default`}>
+      <div className={`${base} text-gph-muted cursor-default`}>
         {label}
-        <span className={`text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft ${muted}`}>
+        <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft text-gph-muted">
           Soon
         </span>
       </div>
@@ -247,7 +244,7 @@ function SearchDropdownItem({ href, label, enabled, active, onClick }: SearchDro
     <Link
       href={href}
       onClick={onClick}
-      className={`${base} hover:bg-gph-linesoft ${active ? `bg-gph-linesoft ${ink}` : muted}`}
+      className={`${base} hover:bg-gph-linesoft ${active ? 'bg-gph-linesoft text-gph-ink' : 'text-gph-muted'}`}
     >
       {label}
     </Link>

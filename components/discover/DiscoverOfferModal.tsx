@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { buildModalCopy, isTransfer, daysUntil, ISSUER_LABELS } from '@/lib/discover/offerCopy';
-import { gphTheme } from '@/lib/discover/theme';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { CARD_PORTAL_MAP } from '@/lib/points/types';
@@ -41,7 +40,6 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
 
   const urgentDays = offer.end_date != null ? daysUntil(offer.end_date) : null;
 
-  const { bg, cardBg, line, ink, muted, accent } = gphTheme;
   const plaqueBg  = isDark ? 'bg-gph-dark-action' : 'bg-gph-action';
   const plaqueInk = isDark ? 'text-gph-dark-bg'   : 'text-white';
   const ghostCls = isDark
@@ -59,7 +57,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={copy.headline}
-        className={`relative w-full max-w-[900px] max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl ${cardBg} ${line}`}
+        className="relative w-full max-w-[900px] max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl bg-gph-card border-gph-line"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative">
@@ -88,53 +86,53 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
 
         <div className="grid grid-cols-1 md:grid-cols-[1.35fr_1fr]">
           <div className="p-6 md:p-7">
-            <h2 className={`text-2xl md:text-[30px] leading-tight font-extrabold tracking-tight ${ink}`} style={{ textWrap: 'pretty' }}>
+            <h2 className="text-2xl md:text-[30px] leading-tight font-extrabold tracking-tight text-gph-ink" style={{ textWrap: 'pretty' }}>
               {copy.headline}
             </h2>
-            <div className={`flex items-center gap-2.5 mt-3 text-[10px] font-mono font-extrabold tracking-[0.12em] ${muted}`}>
+            <div className="flex items-center gap-2.5 mt-3 text-[10px] font-mono font-extrabold tracking-[0.12em] text-gph-muted">
               <span>{copy.time}</span>
             </div>
-            <p className={`mt-4 text-[14.5px] leading-relaxed ${ink}`} style={{ textWrap: 'pretty' }}>
+            <p className="mt-4 text-[14.5px] leading-relaxed text-gph-ink" style={{ textWrap: 'pretty' }}>
               {copy.standfirst}
             </p>
             {offer.description && (
-              <p className={`mt-3 text-sm leading-relaxed ${muted}`}>{offer.description}</p>
+              <p className="mt-3 text-sm leading-relaxed text-gph-muted">{offer.description}</p>
             )}
 
-            <div className={`mt-5 pt-4 border-t ${line}`}>
-              <div className={`text-[10px] font-mono font-extrabold tracking-[0.14em] mb-3 ${muted}`}>HOW IT WORKS</div>
+            <div className="mt-5 pt-4 border-t border-gph-line">
+              <div className="text-[10px] font-mono font-extrabold tracking-[0.14em] mb-3 text-gph-muted">HOW IT WORKS</div>
               {copy.howItWorks.map((s) => (
-                <div key={s.step} className={`grid grid-cols-[26px_1fr] gap-3 py-2.5 border-b ${line}`}>
-                  <span className={`text-[11px] font-mono font-extrabold tracking-wide ${accent}`}>{s.step}</span>
+                <div key={s.step} className="grid grid-cols-[26px_1fr] gap-3 py-2.5 border-b border-gph-line">
+                  <span className="text-[11px] font-mono font-extrabold tracking-wide text-gph-action">{s.step}</span>
                   <div>
-                    <div className={`text-[13.5px] font-bold tracking-tight ${ink}`}>{s.title}</div>
-                    <div className={`text-xs mt-1 leading-relaxed ${muted}`}>{s.detail}</div>
+                    <div className="text-[13.5px] font-bold tracking-tight text-gph-ink">{s.title}</div>
+                    <div className="text-xs mt-1 leading-relaxed text-gph-muted">{s.detail}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className={`p-6 md:p-7 border-t md:border-t-0 md:border-l flex flex-col gap-3.5 ${bg} ${line}`}>
+          <div className="p-6 md:p-7 border-t md:border-t-0 md:border-l flex flex-col gap-3.5 bg-gph-bg border-gph-line">
             {transfer && (
-              <div className={`p-4 rounded-lg border ${cardBg} ${line}`}>
-                <div className={`text-[9px] font-mono font-extrabold tracking-[0.14em] ${muted}`}>
+              <div className="p-4 rounded-lg border bg-gph-card border-gph-line">
+                <div className="text-[9px] font-mono font-extrabold tracking-[0.14em] text-gph-muted">
                   YOUR {issuerLabel.toUpperCase()} BALANCE
                 </div>
                 {issuerBalance > 0 ? (
                   <>
-                    <div className={`text-2xl font-mono font-extrabold tracking-tight mt-1.5 leading-none ${ink}`}>
+                    <div className="text-2xl font-mono font-extrabold tracking-tight mt-1.5 leading-none text-gph-ink">
                       {issuerBalance.toLocaleString()}
                     </div>
                     {afterBonus != null && (
-                      <div className={`flex items-baseline gap-2 mt-2.5 pt-2.5 border-t ${line}`}>
+                      <div className="flex items-baseline gap-2 mt-2.5 pt-2.5 border-t border-gph-line">
                         <span className="text-lg font-mono font-extrabold tracking-tight text-gph-good">{afterBonus.toLocaleString()}</span>
-                        <span className={`text-[9px] font-mono font-extrabold tracking-[0.14em] ${muted}`}>AFTER BONUS</span>
+                        <span className="text-[9px] font-mono font-extrabold tracking-[0.14em] text-gph-muted">AFTER BONUS</span>
                       </div>
                     )}
                   </>
                 ) : (
-                  <p className={`text-xs leading-relaxed mt-1.5 ${muted}`}>
+                  <p className="text-xs leading-relaxed mt-1.5 text-gph-muted">
                     Add a {issuerLabel} card balance to see it here.
                   </p>
                 )}
@@ -163,12 +161,12 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
               </button>
             </div>
 
-            <div className={`p-4 rounded-lg border ${cardBg} ${line}`}>
-              <div className={`text-[10px] font-mono font-extrabold tracking-[0.14em] pb-2.5 mb-0.5 border-b ${line} ${muted}`}>TERMS</div>
+            <div className="p-4 rounded-lg border bg-gph-card border-gph-line">
+              <div className="text-[10px] font-mono font-extrabold tracking-[0.14em] pb-2.5 mb-0.5 border-b border-gph-line text-gph-muted">TERMS</div>
               {copy.terms.map((t) => (
-                <div key={t.label} className={`flex items-baseline justify-between gap-2.5 py-1.5 border-b last:border-b-0 ${line}`}>
-                  <span className={`text-[11.5px] ${muted}`}>{t.label}</span>
-                  <span className={`text-[11.5px] font-mono font-bold text-right ${ink}`}>{t.value}</span>
+                <div key={t.label} className="flex items-baseline justify-between gap-2.5 py-1.5 border-b last:border-b-0 border-gph-line">
+                  <span className="text-[11.5px] text-gph-muted">{t.label}</span>
+                  <span className="text-[11.5px] font-mono font-bold text-right text-gph-ink">{t.value}</span>
                 </div>
               ))}
               {urgentDays != null && urgentDays > 0 && urgentDays <= 7 && (
@@ -178,7 +176,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
               )}
             </div>
 
-            <div className={`text-[10.5px] font-mono leading-relaxed tracking-wide ${muted}`}>
+            <div className="text-[10.5px] font-mono leading-relaxed tracking-wide text-gph-muted">
               Verified by the covelo desk against issuer terms. Rates and terms apply.
             </div>
           </div>

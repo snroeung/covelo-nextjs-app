@@ -8,7 +8,6 @@ import { NavBar } from '@/components/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { gphTheme } from '@/lib/discover/theme';
 
 /** DOM id of the results scroll container — used by pagination's scroll-to-top
  *  and the hotels back-to-top button. */
@@ -38,11 +37,10 @@ export function AppShell({
     if (hasResults) setHeaderOpen(false);
   }
 
-  const { bg: pageBg, cardBg: surfaceBg, line: borderCls, muted: chevronColor } = gphTheme;
   const allCardsMode = selectedCards.length === 0;
 
   return (
-    <div className={`flex flex-col h-screen overflow-hidden font-sans ${pageBg}`}>
+    <div className="flex flex-col h-screen overflow-hidden font-sans bg-gph-bg">
 
       {/* ① Nav — shared across all pages */}
       <NavBar />
@@ -51,7 +49,7 @@ export function AppShell({
       {/* ③ Search bar — full width, above the sidebar/results split */}
 
       {/* Mobile: collapsible */}
-      <div className={`md:hidden shrink-0 border-b ${surfaceBg} ${borderCls}`}>
+      <div className="md:hidden shrink-0 border-b bg-gph-card border-gph-line">
         {headerOpen && (
           <div className="px-4 pt-4 pb-2">
             {header}
@@ -59,7 +57,7 @@ export function AppShell({
         )}
         <button
           onClick={() => setHeaderOpen(o => !o)}
-          className={`w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${chevronColor}`}
+          className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-gph-muted"
         >
           <span>{headerOpen ? 'Collapse search' : 'Modify search'}</span>
           <svg
@@ -72,7 +70,7 @@ export function AppShell({
       </div>
 
       {/* Desktop: always visible, full width */}
-      <header className={`hidden md:block border-b px-6 py-4 shrink-0 ${surfaceBg} ${borderCls}`}>
+      <header className="hidden md:block border-b px-6 py-4 shrink-0 bg-gph-card border-gph-line">
         {header}
       </header>
 
@@ -80,7 +78,7 @@ export function AppShell({
       <div className="flex flex-1 overflow-hidden">
 
         {/* Sidebar — desktop only */}
-        <aside className={`hidden md:flex w-64 shrink-0 border-r flex-col overflow-hidden ${surfaceBg} ${borderCls}`}>
+        <aside className="hidden md:flex w-64 shrink-0 border-r flex-col overflow-hidden bg-gph-card border-gph-line">
           {allCardsMode && (
             <div className={`px-4 py-3 border-b ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
               <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-900'}`}>

@@ -3,7 +3,6 @@
 import type { TransferBonus } from '@/lib/types/offers';
 import { buildLeadCopy } from '@/lib/discover/offerCopy';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
-import { gphTheme } from '@/lib/discover/theme';
 
 interface Props {
   offer: TransferBonus;
@@ -14,7 +13,6 @@ interface Props {
 export function DiscoverLead({ offer, isDark, onOpen }: Props) {
   const copy = buildLeadCopy(offer);
 
-  const { ink, muted, accent, line } = gphTheme;
   const plaqueBg = isDark ? 'bg-gph-dark-action' : 'bg-gph-action';
   const plaqueInk = isDark ? 'text-gph-dark-bg' : 'text-white';
 
@@ -24,7 +22,7 @@ export function DiscoverLead({ offer, isDark, onOpen }: Props) {
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => e.key === 'Enter' && onOpen()}
-      className={`grid grid-cols-1 md:grid-cols-[1.12fr_1fr] gap-6 md:gap-8 pb-6 border-b cursor-pointer ${line}`}
+      className="grid grid-cols-1 md:grid-cols-[1.12fr_1fr] gap-6 md:gap-8 pb-6 border-b cursor-pointer border-gph-line"
     >
       <div className="relative">
         <PhotoPlaceholder issuer={offer.issuer} label={copy.kicker} className="h-[220px] md:h-full md:min-h-[320px] rounded-md" />
@@ -38,16 +36,16 @@ export function DiscoverLead({ offer, isDark, onOpen }: Props) {
         </div>
       </div>
       <div className="flex flex-col justify-center">
-        <div className={`text-[10px] font-mono font-extrabold tracking-[0.14em] mb-3 ${accent}`}>
+        <div className="text-[10px] font-mono font-extrabold tracking-[0.14em] mb-3 text-gph-action">
           {copy.kicker}
         </div>
-        <h2 className={`text-[28px] md:text-[42px] leading-[1.05] font-extrabold tracking-tight ${ink}`} style={{ textWrap: 'pretty' }}>
+        <h2 className="text-[28px] md:text-[42px] leading-[1.05] font-extrabold tracking-tight text-gph-ink" style={{ textWrap: 'pretty' }}>
           {copy.headline}
         </h2>
-        <p className={`mt-4 text-[15.5px] leading-relaxed ${muted}`} style={{ textWrap: 'pretty' }}>
+        <p className="mt-4 text-[15.5px] leading-relaxed text-gph-muted" style={{ textWrap: 'pretty' }}>
           {copy.standfirst}
         </p>
-        <div className={`mt-5 text-[10px] font-mono font-extrabold tracking-[0.14em] ${muted}`}>
+        <div className="mt-5 text-[10px] font-mono font-extrabold tracking-[0.14em] text-gph-muted">
           {copy.time}
         </div>
       </div>

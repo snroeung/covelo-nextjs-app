@@ -9,7 +9,6 @@ import { DiscoverOfferModal } from '@/components/discover/DiscoverOfferModal';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { ISSUER_LABELS, sortByValueThenRecency } from '@/lib/discover/offerCopy';
-import { gphTheme } from '@/lib/discover/theme';
 import type { TransferBonus, SpendingBonus, Issuer } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
@@ -43,8 +42,6 @@ function OffersPageInner() {
     ? allOffers
     : allOffers.filter((o) => o.issuer === issuerFilter);
 
-  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme;
-
   function pillCls(active: boolean) {
     const base = 'shrink-0 px-3.5 py-2 rounded-full text-xs font-bold transition-colors min-h-11 flex items-center';
     if (active) return isDark
@@ -56,13 +53,13 @@ function OffersPageInner() {
   }
 
   return (
-    <div className={`flex flex-col min-h-screen ${bg}`}>
+    <div className="flex flex-col min-h-screen bg-gph-bg">
       <NavBar />
 
       <main className="flex-1">
-        <div className={`px-4 md:px-7 py-5 max-w-3xl mx-auto flex flex-col gap-5 border-b ${cardBg} ${line}`}>
-          <h1 className={`text-3xl md:text-4xl font-extrabold leading-none tracking-tight ${ink}`}>
-            All offers<span className={accent}>.</span>
+        <div className="px-4 md:px-7 py-5 max-w-3xl mx-auto flex flex-col gap-5 border-b bg-gph-card border-gph-line">
+          <h1 className="text-3xl md:text-4xl font-extrabold leading-none tracking-tight text-gph-ink">
+            All offers<span className="text-gph-action">.</span>
           </h1>
 
           <div className="flex gap-2 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -87,10 +84,10 @@ function OffersPageInner() {
               <div className={`h-3 w-2/3 rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
             </div>
           ) : visibleOffers.length === 0 ? (
-            <p className={`text-sm py-6 ${muted}`}>No offers match this filter right now.</p>
+            <p className="text-sm py-6 text-gph-muted">No offers match this filter right now.</p>
           ) : (
             <div>
-              <div className={`pb-2 mb-1 border-b-[1.5px] text-[10px] font-mono font-extrabold tracking-[0.14em] ${rule} ${muted}`}>
+              <div className="pb-2 mb-1 border-b-[1.5px] text-[10px] font-mono font-extrabold tracking-[0.14em] border-gph-ink text-gph-muted">
                 {visibleOffers.length} OFFER{visibleOffers.length === 1 ? '' : 'S'}
               </div>
               {visibleOffers.map((offer) => (

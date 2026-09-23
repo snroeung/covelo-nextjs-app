@@ -1,7 +1,5 @@
 'use client';
 
-import { gphTheme } from '@/lib/discover/theme';
-
 // Static, illustrative content — there is no live community-board backend in
 // this app yet (the board it links to isn't built either, per scope). Mirrors
 // what CommunityBoard.tsx already showed, minus the blur/fade/"launching"
@@ -32,7 +30,6 @@ interface Props {
 }
 
 export function DiscoverBoardPromo({ isDark }: Props) {
-  const { bg, cardBg, line, rule, ink, muted, accent } = gphTheme;
   // Large 24px bold text only needs 3:1 contrast, so the shared "good" token
   // (#0f9d58) is fine there — but the 13px bold vote count needs 4.5:1, which
   // that token misses against the light bg (#f5f5f4 → 3.21:1). Darker green
@@ -47,24 +44,24 @@ export function DiscoverBoardPromo({ isDark }: Props) {
     : 'bg-gph-action text-white hover:bg-gph-actionhi';
 
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-[1fr_1.15fr] rounded-xl border-[1.5px] overflow-hidden ${rule} ${cardBg}`}>
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_1.15fr] rounded-xl border-[1.5px] overflow-hidden border-gph-ink bg-gph-card">
       <div className="p-7 md:p-8">
-        <div className={`text-[10px] font-mono font-extrabold tracking-[0.14em] mb-3 ${muted}`}>
+        <div className="text-[10px] font-mono font-extrabold tracking-[0.14em] mb-3 text-gph-muted">
           COMMUNITY · 4,812 MEMBERS · 38 POSTS TODAY
         </div>
-        <h2 className={`text-[28px] md:text-[34px] leading-[1.05] font-extrabold tracking-tight ${ink}`}>
-          The board<span className={accent}>.</span>
+        <h2 className="text-[28px] md:text-[34px] leading-[1.05] font-extrabold tracking-tight text-gph-ink">
+          The board<span className="text-gph-action">.</span>
         </h2>
-        <p className={`mt-3 text-[14.5px] leading-relaxed max-w-[440px] ${muted}`} style={{ textWrap: 'pretty' }}>
+        <p className="mt-3 text-[14.5px] leading-relaxed max-w-[440px] text-gph-muted" style={{ textWrap: 'pretty' }}>
           Members post the deals they find and the tricks that got them booked. Every offer is
           checked by a covelo admin before it carries a verified mark — tips and questions post
           freely.
         </p>
         <div className="flex gap-7 mt-6">
-          {([['~6h', 'AVG REVIEW', ink], ['100%', 'HUMAN-CHECKED', good], ['312', 'VERIFIED · 30D', accent]] as const).map(([v, l, c]) => (
+          {([['~6h', 'AVG REVIEW', 'text-gph-ink'], ['100%', 'HUMAN-CHECKED', good], ['312', 'VERIFIED · 30D', 'text-gph-action']] as const).map(([v, l, c]) => (
             <div key={l}>
               <div className={`text-2xl font-mono font-extrabold tracking-tight leading-none ${c}`}>{v}</div>
-              <div className={`text-[9px] font-mono font-extrabold tracking-[0.14em] mt-1.5 ${muted}`}>{l}</div>
+              <div className="text-[9px] font-mono font-extrabold tracking-[0.14em] mt-1.5 text-gph-muted">{l}</div>
             </div>
           ))}
         </div>
@@ -87,15 +84,15 @@ export function DiscoverBoardPromo({ isDark }: Props) {
         </div>
       </div>
 
-      <div className={`p-6 md:p-7 border-t md:border-t-0 md:border-l ${line} ${bg}`}>
-        <div className={`flex items-baseline justify-between pb-2.5 mb-1 border-b ${line}`}>
-          <span className={`text-[10px] font-mono font-extrabold tracking-[0.14em] ${muted}`}>HOTTEST TODAY</span>
-          <span className={`text-[10px] font-mono font-extrabold tracking-[0.14em] ${accent}`}>SEE ALL →</span>
+      <div className="p-6 md:p-7 border-t md:border-t-0 md:border-l border-gph-line bg-gph-bg">
+        <div className="flex items-baseline justify-between pb-2.5 mb-1 border-b border-gph-line">
+          <span className="text-[10px] font-mono font-extrabold tracking-[0.14em] text-gph-muted">HOTTEST TODAY</span>
+          <span className="text-[10px] font-mono font-extrabold tracking-[0.14em] text-gph-action">SEE ALL →</span>
         </div>
         {HOT_THREADS.map((c) => (
           <div
             key={c.id}
-            className={`grid grid-cols-[auto_1fr_auto] gap-3.5 items-center py-3 border-b transition-transform hover:translate-x-1 ${line}`}
+            className="grid grid-cols-[auto_1fr_auto] gap-3.5 items-center py-3 border-b transition-transform hover:translate-x-1 border-gph-line"
           >
             <div className="text-center min-w-[34px]">
               <div
@@ -106,20 +103,20 @@ export function DiscoverBoardPromo({ isDark }: Props) {
                   borderBottom: `7px solid ${c.votes > 50 ? 'var(--color-gph-good)' : isDark ? 'var(--color-gph-dark-muted)' : 'var(--color-gph-muted)'}`,
                 }}
               />
-              <div className={`text-[13px] font-mono font-extrabold tracking-tight ${c.votes > 50 ? voteGood : ink}`}>{c.votes}</div>
+              <div className={`text-[13px] font-mono font-extrabold tracking-tight ${c.votes > 50 ? voteGood : 'text-gph-ink'}`}>{c.votes}</div>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <Flair label={c.flair} isDark={isDark} />
               </div>
-              <div className={`text-[13.5px] font-bold leading-snug tracking-tight ${ink}`} style={{ textWrap: 'pretty' }}>
+              <div className="text-[13.5px] font-bold leading-snug tracking-tight text-gph-ink" style={{ textWrap: 'pretty' }}>
                 {c.title}
               </div>
-              <div className={`text-[9px] font-mono font-extrabold tracking-[0.1em] mt-1.5 ${muted}`}>
+              <div className="text-[9px] font-mono font-extrabold tracking-[0.1em] mt-1.5 text-gph-muted">
                 {c.author.toUpperCase()} · {c.time.toUpperCase()} AGO · {c.comments} REPLIES
               </div>
             </div>
-            <div className={`text-[17px] font-mono font-extrabold tracking-tight ${accent}`}>{c.value}</div>
+            <div className="text-[17px] font-mono font-extrabold tracking-tight text-gph-action">{c.value}</div>
           </div>
         ))}
       </div>
