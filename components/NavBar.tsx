@@ -97,23 +97,25 @@ export function NavBar() {
           </button>
 
           {searchOpen && (
-            <div className="absolute top-full left-0 w-44 pt-1.5 z-50">
-            <div className="rounded-xl border shadow-lg overflow-hidden bg-gph-card border-gph-line">
-              <SearchDropdownItem
-                href="/flights"
-                label="Flights"
-                enabled={flightsEnabled}
-                active={pathname === '/flights'}
-                onClick={() => setSearchOpen(false)}
-              />
-              <SearchDropdownItem
-                href="/hotels"
-                label="Hotels"
-                enabled={hotelsEnabled}
-                active={pathname === '/hotels'}
-                onClick={() => setSearchOpen(false)}
-              />
-            </div>
+            <div className="absolute top-full left-0 w-61 pt-1.5 z-50">
+              <div className="rounded-xl border shadow-lg overflow-hidden p-1.5 flex flex-col gap-1 bg-gph-card border-gph-line">
+                <SearchDropdownItem
+                  href="/flights"
+                  label="Flights"
+                  description=""
+                  enabled={flightsEnabled}
+                  active={pathname === '/flights'}
+                  onClick={() => setSearchOpen(false)}
+                />
+                <SearchDropdownItem
+                  href="/hotels"
+                  label="Hotels"
+                  description=""
+                  enabled={hotelsEnabled}
+                  active={pathname === '/hotels'}
+                  onClick={() => setSearchOpen(false)}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -134,19 +136,16 @@ export function NavBar() {
             <Link
               href="/discover"
               onClick={closeDiscover}
-              className={`${navLinkCls(pathname.startsWith('/discover') || pathname.startsWith('/offers'))} flex items-center gap-1.5`}
+              className={navLinkCls(pathname.startsWith('/discover') || pathname.startsWith('/offers'))}
               aria-haspopup="true"
               aria-expanded={discoverOpen}
             >
               Discover
-              <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
-                <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
             </Link>
 
             {discoverOpen && (
               <div className="absolute top-full left-0 w-[244px] pt-1.5 z-50">
-                <div className="rounded-xl border shadow-lg overflow-hidden p-1.5 bg-gph-card border-gph-line">
+                <div className="rounded-xl border shadow-lg overflow-hidden p-1.5 flex flex-col gap-1 bg-gph-card border-gph-line">
                   <div className="px-3.5 py-2.5 rounded-lg cursor-default text-gph-muted">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-bold tracking-tight">The board</span>
@@ -221,21 +220,23 @@ export function NavBar() {
 interface SearchDropdownItemProps {
   href: string;
   label: string;
+  description: string;
   enabled: boolean;
   active: boolean;
   onClick: () => void;
 }
 
-function SearchDropdownItem({ href, label, enabled, active, onClick }: SearchDropdownItemProps) {
-  const base = 'flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold transition-colors';
-
+function SearchDropdownItem({ href, label, description, enabled, active, onClick }: SearchDropdownItemProps) {
   if (!enabled) {
     return (
-      <div className={`${base} text-gph-muted cursor-default`}>
-        {label}
-        <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft text-gph-muted">
-          Soon
-        </span>
+      <div className="px-3.5 py-2.5 rounded-lg cursor-default text-gph-muted">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-bold tracking-tight">{label}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft">
+            Soon
+          </span>
+        </div>
+        <div className="text-[10.5px] font-mono mt-0.5 tracking-wide">{description}</div>
       </div>
     );
   }
@@ -244,9 +245,17 @@ function SearchDropdownItem({ href, label, enabled, active, onClick }: SearchDro
     <Link
       href={href}
       onClick={onClick}
-      className={`${base} hover:bg-gph-linesoft ${active ? 'bg-gph-linesoft text-gph-ink' : 'text-gph-muted'}`}
+      className={`block px-3.5 py-2.5 rounded-lg transition-colors hover:bg-gph-linesoft ${active ? 'bg-gph-linesoft' : ''}`}
     >
-      {label}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-bold tracking-tight text-gph-ink">{label}</span>
+        {active && (
+          <svg className="w-3 h-3 text-gph-ink" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 6.5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </div>
+      <div className="text-[10.5px] font-mono mt-0.5 tracking-wide text-gph-muted">{description}</div>
     </Link>
   );
 }
