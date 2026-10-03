@@ -125,13 +125,37 @@ Sidebar card selector with:
 - Clicking the photo or the name opens `HotelDetailModal`
 
 ### Redemption comparison components
-Three renderings of the same `PointsResult`, chosen by how much room the surface has:
+Renderings of the same `PointsResult`, chosen by how much room the surface has. All of
+them rank through `hooks/useRankedViews.ts` (bonus lookup + rank + re-sort on displayed
+cpp) so a card's "Best value" and the table's top row can never disagree:
 
 | Component | Shape | Used by |
 |---|---|---|
-| `RedemptionTable` (`components/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote | `FlightCard`, `HotelDetailModal` room comparison popup, `SearchBoard` |
-| `BestRedemptionBar` (`components/BestRedemptionBar.tsx`) | Horizontal dark strip closing a result card — winner + "Compare N portals →" toggle | `FlightCard` |
+| `RedemptionTable` (`components/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote. Optional `booking` prop turns on View deal + per-row user reports | `CompareModal`, `SearchBoard` |
+| `CompareModal` (`components/booking/CompareModal.tsx`) | Popup (bottom sheet on phones) wrapping `RedemptionTable` with the book & report flow | `FlightCard` "Compare →", `HotelDetailModal` room comparison popup |
+| `FlightCard` price column | FROM cash + Best value box (top option + cpp) + "Compare →" | `FlightCard` |
 | `HotelBestRedemptionBar` (`components/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
+
+### Book & report flow (`components/booking/`)
+Inside `CompareModal`, a row's **View deal** starts a two-step flow instead of navigating:
+1. `LeavingPanel` — "You're leaving Covelo…", editable Cash / Points / dates (`QuoteFields`;
+   Departure/Return for flights, Check-in/Check-out for hotels). **Submit result** opens the
+   site in a new tab and advances; an edit shows a change notice whose Submit saves "Different".
+2. `ReportPanel` — "Did you find this result?" Yes (optionally edited) / No → Matched,
+   Different or Not found.
+
+Every submit returns to the table with that option's `ReportsList` open and a thank-you line.
+Rows toggle their reports panel on click; only one is open at a time.
+
+Reports live in Supabase `booking_reports` (migration 024) behind the `api:reports` router:
+- `reports.list` reads the `booking_reports_feed` view — public, exposes `is_mine`, never `user_id`.
+- `reports.submit` is signed-in only (`authedProcedure`), re-classifies server-side
+  (`lib/reports/classify.ts`), throttles (one per option per 10 min, 30/hr), and inserts with the
+  service role — clients hold no INSERT grant.
+- Not cached: user-generated and must appear right after submit.
+- Subject identity is wallet-independent: `flightSubjectKey` / `hotelSubjectKey` in
+  `lib/reports/subject.ts`. A transfer option is matched to its reports with `sameProgram`
+  (`reportsForOption`), never `OptionRowView.key` — that key carries a list index and issuer.
 
 The grouped-alternatives overlay inside `RedemptionTable` is `absolute inset-0` over the
 table's own box — it covers the table exactly rather than hanging off its trigger, so an
