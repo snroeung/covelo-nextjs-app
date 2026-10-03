@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AddToTripButton } from '@/components/AddToTripButton';
 import { HotelBestRedemptionBar } from '@/components/HotelBestRedemptionBar';
-import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { calcPoints } from '@/lib/points/calcPoints';
 import type { PointsResult } from '@/lib/points/types';
-import { RedemptionTable } from '@/components/RedemptionTable';
+import { CompareModal } from '@/components/booking/CompareModal';
+import { hotelSubjectKey } from '@/lib/reports/subject';
 import { trpc } from '@/lib/trpc-client';
 import { getBestOption } from '@/lib/points/rankOptions';
 import { PORTAL_TRAVEL_URLS, resolvePartnerUrl } from '@/lib/points/partnerLinks';
@@ -61,88 +61,58 @@ const BOARD_LABELS: Record<string, string> = {
   all_inclusive: 'All-inclusive',
 };
 
-// Popup overlay — z-[60] sits above the hotel modal (z-50).
-// Uses capture-phase Escape so it doesn't bubble to the parent modal's handler.
+// Room comparison popup — CompareModal sits at z-200, above the hotel modal
+// (z-50), and its capture-phase Escape keeps the parent modal open.
 function RoomComparePopup({
-  room, nights, currency, pointsResult, isDark, onClose,
+  room, nights, currency, pointsResult, hotelId, checkIn, checkOut, isDark, onClose,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   room: any;
   nights: number;
   currency: string;
   pointsResult: PointsResult;
+  hotelId: string;
+  checkIn: string;
+  checkOut: string;
   isDark: boolean;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopImmediatePropagation(); onClose(); }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
-
-  const rate     = cheapestRoomRate(room);
-  const price    = rate ? parseFloat(rate.total_amount) : 0;
+  const price    = pointsResult.priceUsd;
   const perNight = nights > 0 && price > 0 ? price / nights : price;
   const beds     = bedLabel(room.beds);
+  const roomName = (room.name ?? 'Room') as string;
 
-  const cardBg  = isDark ? 'bg-gph-dark-card'     : 'bg-white';
-  const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const textPrimary = isDark ? 'text-gph-dark-ink'  : 'text-gray-900';
   const textMuted   = isDark ? 'text-gph-dark-muted': 'text-gray-500';
+  const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 });
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-200 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className={`w-full max-w-2xl max-h-[85vh] rounded-xl shadow-xl border flex flex-col ${cardBg} ${borderCls}`}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {/* header */}
-        <div className={`px-6 pt-5 pb-4 border-b shrink-0 ${cardBg} ${borderCls}`}>
-          <div className="flex justify-between items-start gap-4">
-            <div className="min-w-0">
-              <p className={`text-[9.5px] font-bold font-mono tracking-widest uppercase mb-1 ${textMuted}`}>
-                Points vs Cash · {pointsResult.portalGroups.length} Portals
-              </p>
-              <h3 className={`text-lg font-extrabold leading-tight tracking-tight ${textPrimary}`}>
-                {room.name}
-              </h3>
-              <p className={`text-sm mt-1 ${textMuted}`}>
-                {beds && <>{beds} · </>}
-                <span className={`font-bold font-mono ${textPrimary}`}>
-                  {price.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}
-                </span>
-                {' '}cash · {perNight.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}/night · {nights} nights
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              aria-label="Close comparison"
-              className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border transition-colors ${borderCls} ${isDark ? 'bg-gph-dark-linesoft hover:bg-gph-dark-line' : 'bg-gray-100 hover:bg-gray-200'}`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2} fill="none" className={textPrimary}>
-                <path strokeLinecap="round" d="M6 6l12 12M6 18L18 6"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* scrollable ranked comparison */}
-        <div className="px-6 py-4 overflow-y-auto flex-1">
-          <RedemptionTable
-            result={pointsResult}
-            scopeLabel={`${nights} night${nights !== 1 ? 's' : ''}`}
-            scopeAdj="stay"
-            scopeNote={`applies to all ${nights} night${nights !== 1 ? 's' : ''}`}
-          />
-        </div>
-      </div>
-    </div>,
-    document.body,
+  return (
+    <CompareModal
+      result={pointsResult}
+      subjectType="hotel"
+      subjectKey={hotelSubjectKey(hotelId, roomName, checkIn, checkOut)}
+      baseQuote={{ cash: price, start: checkIn.slice(0, 10), end: checkOut.slice(0, 10) }}
+      label={`Compare booking options — ${roomName}`}
+      header={
+        <>
+          <p className={`text-[9.5px] font-bold font-mono tracking-widest uppercase mb-1 ${textMuted}`}>
+            Points vs Cash · {pointsResult.portalGroups.length} Portals
+          </p>
+          <h3 className={`text-lg font-extrabold leading-tight tracking-tight ${textPrimary}`}>
+            {roomName}
+          </h3>
+          <p className={`text-sm mt-1 ${textMuted}`}>
+            {beds && <>{beds} · </>}
+            <span className={`font-bold font-mono ${textPrimary}`}>{fmt(price)}</span>
+            {' '}cash · {fmt(perNight)}/night · {nights} nights
+          </p>
+        </>
+      }
+      scopeLabel={`${nights} night${nights !== 1 ? 's' : ''}`}
+      scopeAdj="stay"
+      scopeNote={`applies to all ${nights} night${nights !== 1 ? 's' : ''}`}
+      onClose={onClose}
+    />
   );
 }
 
@@ -239,6 +209,9 @@ function RoomCard({
   selectedCards,
   portalPrices,
   hotelChain,
+  hotelId,
+  checkIn,
+  checkOut,
   isDark,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,6 +225,9 @@ function RoomCard({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   portalPrices: any;
   hotelChain?: string;
+  hotelId: string;
+  checkIn: string;
+  checkOut: string;
   isDark: boolean;
 }) {
   const [showPopup, setShowPopup] = useState(false);
@@ -412,6 +388,9 @@ function RoomCard({
           nights={nights}
           currency={currency}
           pointsResult={pointsResult}
+          hotelId={hotelId}
+          checkIn={checkIn}
+          checkOut={checkOut}
           isDark={isDark}
           onClose={() => setShowPopup(false)}
         />
@@ -749,6 +728,9 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                         selectedCards={selectedCards}
                         portalPrices={searchResult.portalPrices}
                         hotelChain={name}
+                        hotelId={String(acc.id ?? name)}
+                        checkIn={checkIn}
+                        checkOut={checkOut}
                         isDark={isDark}
                       />
                     ))
