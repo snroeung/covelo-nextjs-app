@@ -4,12 +4,14 @@ vi.mock('@/lib/duffel', () => ({
   duffel: { offerRequests: { create: vi.fn() }, stays: { search: vi.fn() } },
 }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
+vi.mock('@/lib/supabase/admin', () => ({ getSupabaseAdmin: vi.fn() }));
 vi.mock('@/lib/redis', () => ({ redis: { get: vi.fn(), set: vi.fn(), del: vi.fn() } }));
 
 const flagState = { enabled: true };
 vi.mock('@/lib/feature-flags', () => ({ isEnabled: () => flagState.enabled }));
 
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { appRouter } from '@/server/routers/_app';
 
 function makeQueryBuilder(result: { data: unknown; error: unknown }) {
@@ -37,6 +39,9 @@ function setup(userId: string | null, fromResults: { data: unknown; error: unkno
     },
     from,
   } as never);
+  // Inserts go through the service-role client; it shares the same queue so
+  // builders[] keeps call order across both clients.
+  vi.mocked(getSupabaseAdmin).mockReturnValue({ from } as never);
   return { from, builders };
 }
 
@@ -101,6 +106,7 @@ describe('reports.submit', () => {
       user_id: 'u-me', reporter_name: 'Nina R', result: 'different', reported_cash: 1350,
     }));
     expect(out.isMine).toBe(true);
+    expect(getSupabaseAdmin).toHaveBeenCalledTimes(1);
   });
 
   it('not found stores no reported values', async () => {
@@ -134,6 +140,7 @@ describe('reports.submit', () => {
     await expect(caller().reports.submit({ ...submitInput, entered: quote }))
       .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
     expect(builders).toHaveLength(1);
+    expect(getSupabaseAdmin).not.toHaveBeenCalled();
   });
 
   it('TOO_MANY_REQUESTS past the hourly cap', async () => {

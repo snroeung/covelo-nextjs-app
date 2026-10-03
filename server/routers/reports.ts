@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, flaggedProcedure, authedProcedure } from "@/server/trpc";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { classifyReport } from "@/lib/reports/classify";
 import type { BookingReport, ReportResult } from "@/lib/reports/types";
 
@@ -81,7 +82,9 @@ export const reportsRouter = router({
         .eq("subject_type", input.subjectType)
         .eq("subject_key", input.subjectKey)
         .order("created_at", { ascending: false })
-        .limit(200);
+        // Whole subject, every option — sized so a quiet option's reports
+        // aren't crowded out by a busy one on the same trip.
+        .limit(500);
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
@@ -143,7 +146,9 @@ export const reportsRouter = router({
         (typeof meta.full_name === "string" ? meta.full_name.trim() : "") ||
         "Traveler";
 
-      const { data, error } = await supabase
+      // Service role: clients hold no INSERT grant on booking_reports, so this
+      // procedure's checks can't be skipped by writing through PostgREST.
+      const { data, error } = await getSupabaseAdmin()
         .from("booking_reports")
         .insert({
           user_id: user.id,

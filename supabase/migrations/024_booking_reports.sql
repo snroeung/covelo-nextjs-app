@@ -2,7 +2,7 @@
 -- booking_reports: what travellers actually saw after clicking through to a
 -- booking option (portal or transfer partner) from a Covelo comparison.
 -- Shared with every viewer of the same itinerary/room, so reads are public;
--- writes are the signed-in reporter's own rows only, and rows are immutable.
+-- writes happen only server-side (service role), and rows are immutable.
 
 CREATE TABLE public.booking_reports (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,9 +33,10 @@ CREATE POLICY "booking_reports_public_read" ON public.booking_reports
   FOR SELECT
   USING (true);
 
-CREATE POLICY "booking_reports_insert_own" ON public.booking_reports
-  FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+-- No INSERT policy and no INSERT grant: clients can't write directly. Every
+-- report goes through the reports.submit tRPC procedure (date validation,
+-- server-side classification, throttle), which inserts with the service role.
+REVOKE INSERT, UPDATE, DELETE ON public.booking_reports FROM anon, authenticated;
 
 CREATE INDEX booking_reports_subject_idx
   ON public.booking_reports (subject_type, subject_key, option_key, created_at DESC);
