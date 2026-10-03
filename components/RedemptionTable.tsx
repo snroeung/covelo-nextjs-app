@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PointsResult, PortalId } from '@/lib/points/types';
 import { useRankedViews } from '@/hooks/useRankedViews';
 import { cashEarnLine, splitFeatured, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
@@ -105,6 +105,52 @@ function BonusBadge({ bonus, isDark }: { bonus: TransferBonus; isDark: boolean }
     }`}>
       {bonus.bonus_pct != null ? `+${bonus.bonus_pct}% bonus` : 'status match'}
     </span>
+  );
+}
+
+/**
+ * Opt-in book & report flow. When set, each row's CTA becomes "View deal"
+ * (handed back to the caller instead of navigating) and each row gets a
+ * user-reports panel; only one panel is open at a time, owned by the caller.
+ */
+export interface RedemptionBooking {
+  onViewDeal: (view: OptionRowView, url: string) => void;
+  reportCount: (view: OptionRowView) => number;
+  openReportsKey: string | null;
+  onToggleReports: (key: string) => void;
+  renderReports: (view: OptionRowView) => ReactNode;
+}
+
+function ReportsToggle({ view, booking, isDark }: { view: OptionRowView; booking: RedemptionBooking; isDark: boolean }) {
+  const open = booking.openReportsKey === view.key;
+  const n = booking.reportCount(view);
+  return (
+    <button
+      type="button"
+      data-testid="reports-toggle"
+      aria-expanded={open}
+      onClick={(e) => { e.stopPropagation(); booking.onToggleReports(view.key); }}
+      className={`min-h-11 inline-flex items-center gap-1.5 text-[11px] font-bold font-mono ${
+        isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'
+      }`}
+    >
+      {open ? 'Hide' : 'See'} {n} user report{n !== 1 ? 's' : ''}
+      <ChevronIcon open={open} />
+    </button>
+  );
+}
+
+/** Row CTA in booking mode — a button that starts the leaving / report flow. */
+function ViewDealButton({ view, url, booking, className }: { view: OptionRowView; url: string; booking: RedemptionBooking; className: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); booking.onViewDeal(view, url); }}
+      aria-label={`View deal on ${view.sourceName}`}
+      className={className}
+    >
+      View deal →
+    </button>
   );
 }
 
@@ -223,7 +269,7 @@ function SourceCards({ view, isDark }: { view: OptionRowView; isDark: boolean })
   );
 }
 
-function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean }) {
+function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: boolean; booking?: RedemptionBooking }) {
   const tier = view.cpp !== null ? cppTier(view.cpp) : null;
   const earnLine = cashEarnLine(view);
   const dealUrl = resolveDeepLink(view);
@@ -244,9 +290,14 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
       ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg'
       : 'bg-cv-navy-950 hover:bg-cv-navy-900 text-white';
 
+  const reportsOpen = booking?.openReportsKey === view.key;
+
   return (
     <div className={`border-b ${borderCls} ${surface}`}>
-      <div className="px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5">
+      <div
+        className={`px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5 ${booking ? 'cursor-pointer' : ''}`}
+        onClick={booking ? () => booking.onToggleReports(view.key) : undefined}
+      >
 
         {/* Booking source + context */}
         <div className="min-w-0 md:flex-1">
@@ -268,6 +319,7 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
               {earnLine}
             </p>
           )}
+          {booking && <ReportsToggle view={view} booking={booking} isDark={isDark} />}
         </div>
 
         {/* Value + redemption requirement */}
@@ -296,7 +348,14 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
 
         {/* Action */}
         <div className={`${ACTION_COL} shrink-0`}>
-          {dealUrl ? (
+          {dealUrl && booking ? (
+            <ViewDealButton
+              view={view}
+              url={dealUrl}
+              booking={booking}
+              className={`flex items-center justify-center min-h-11 w-full px-4 rounded-lg text-sm font-bold text-center transition-colors ${btnCls}`}
+            />
+          ) : dealUrl ? (
             <a
               href={dealUrl}
               target="_blank"
@@ -322,6 +381,9 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
           )}
         </div>
       </div>
+      {booking && reportsOpen && (
+        <div className="px-5 pb-4">{booking.renderReports(view)}</div>
+      )}
     </div>
   );
 }
@@ -334,10 +396,12 @@ function AlternativeRow({
   view,
   scopeLabel,
   isDark,
+  booking,
 }: {
   view: OptionRowView;
   scopeLabel: string;
   isDark: boolean;
+  booking?: RedemptionBooking;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
@@ -345,69 +409,85 @@ function AlternativeRow({
   const earnLine = cashEarnLine(view);
   const dealUrl = resolveDeepLink(view);
 
+  const reportsOpen = booking?.openReportsKey === view.key;
+  const altBtnCls = `shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center transition-colors ${
+    isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
+  }`;
+
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 border-b last:border-b-0 ${borderCls}`}>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: markColor(view) }} aria-hidden="true" />
-          <span className={`text-xs font-bold truncate ${inkCls}`}>{view.displayName}</span>
-          {view.cpp !== null && (
-            <span className={`text-xs font-extrabold font-mono tabular-nums ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
-              {view.cpp} cpp
-            </span>
-          )}
-          {view.bonus && <BonusBadge bonus={view.bonus} isDark={isDark} />}
-        </div>
-        <p className={`text-[10px] font-mono mt-1 ${mutedCls}`}>
-          {scopeLabel} ·{' '}
-          {view.points !== null ? `${view.points.toLocaleString()} ${view.pointsUnit}` : 'award rate varies'}
-          {view.cashUsd !== null ? ` · or ${fmtUsd(view.cashUsd)} cash` : ' · direct award'}
-        </p>
-        {/* Too tight for chips — one line saying whose card it comes out of. */}
-        {view.kind === 'transfer' && view.sourceCards.length > 0 && (() => {
-          const owned = view.sourceCards.filter(c => c.owned);
-          return (
-            <p className={`text-[10px] font-mono mt-0.5 ${
-              owned.length > 0 ? mutedCls : isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'
-            }`}>
-              {owned.length === 0
-                ? `Not in your wallet — needs ${view.sourceCards.map(c => c.label).join(' or ')}`
-                : owned.length > 1
-                  ? 'Transfer from any of these cards'
-                  : `Transfer from ${owned[0].label}`}
-            </p>
-          );
-        })()}
-        {earnLine && <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{earnLine}</p>}
-        {!dealUrl && (
-          <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>
-            Not linked yet — visit {view.sourceName} directly to book
+    <div className={`border-b last:border-b-0 ${borderCls}`}>
+      <div
+        className={`flex items-center gap-3 px-4 py-3 ${booking ? 'cursor-pointer' : ''}`}
+        onClick={booking ? () => booking.onToggleReports(view.key) : undefined}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: markColor(view) }} aria-hidden="true" />
+            <span className={`text-xs font-bold truncate ${inkCls}`}>{view.displayName}</span>
+            {view.cpp !== null && (
+              <span className={`text-xs font-extrabold font-mono tabular-nums ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
+                {view.cpp} cpp
+              </span>
+            )}
+            {view.bonus && <BonusBadge bonus={view.bonus} isDark={isDark} />}
+          </div>
+          <p className={`text-[10px] font-mono mt-1 ${mutedCls}`}>
+            {scopeLabel} ·{' '}
+            {view.points !== null ? `${view.points.toLocaleString()} ${view.pointsUnit}` : 'award rate varies'}
+            {view.cashUsd !== null ? ` · or ${fmtUsd(view.cashUsd)} cash` : ' · direct award'}
           </p>
+          {/* Too tight for chips — one line saying whose card it comes out of. */}
+          {view.kind === 'transfer' && view.sourceCards.length > 0 && (() => {
+            const owned = view.sourceCards.filter(c => c.owned);
+            return (
+              <p className={`text-[10px] font-mono mt-0.5 ${
+                owned.length > 0 ? mutedCls : isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'
+              }`}>
+                {owned.length === 0
+                  ? `Not in your wallet — needs ${view.sourceCards.map(c => c.label).join(' or ')}`
+                  : owned.length > 1
+                    ? 'Transfer from any of these cards'
+                    : `Transfer from ${owned[0].label}`}
+              </p>
+            );
+          })()}
+          {earnLine && <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{earnLine}</p>}
+          {!dealUrl && (
+            <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>
+              Not linked yet — visit {view.sourceName} directly to book
+            </p>
+          )}
+          {booking && <ReportsToggle view={view} booking={booking} isDark={isDark} />}
+        </div>
+
+        {dealUrl && booking ? (
+          <ViewDealButton view={view} url={dealUrl} booking={booking} className={altBtnCls} />
+        ) : dealUrl ? (
+          <a
+            href={dealUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={ctaAriaLabel(view)}
+            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center transition-colors ${
+              isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
+            }`}
+          >
+            {ctaLabel(view.kind)} →
+          </a>
+        ) : (
+          <span
+            aria-hidden="true"
+            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center opacity-50 cursor-not-allowed ${
+              isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
+            }`}
+          >
+            {ctaLabel(view.kind)} →
+          </span>
         )}
       </div>
-
-      {dealUrl ? (
-        <a
-          href={dealUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          aria-label={ctaAriaLabel(view)}
-          className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center transition-colors ${
-            isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
-          }`}
-        >
-          {ctaLabel(view.kind)} →
-        </a>
-      ) : (
-        <span
-          aria-hidden="true"
-          className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center opacity-50 cursor-not-allowed ${
-            isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-          }`}
-        >
-          {ctaLabel(view.kind)} →
-        </span>
+      {booking && reportsOpen && (
+        <div className="px-4 pb-3">{booking.renderReports(view)}</div>
       )}
     </div>
   );
@@ -485,6 +565,7 @@ function AlternativesOverlay({
   unitNoun,
   onClose,
   isDark,
+  booking,
 }: {
   views: OptionRowView[];
   scopeLabel: string;
@@ -492,6 +573,7 @@ function AlternativesOverlay({
   unitNoun: string;
   onClose: () => void;
   isDark: boolean;
+  booking?: RedemptionBooking;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
@@ -527,7 +609,7 @@ function AlternativesOverlay({
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {views.map(v => (
-          <AlternativeRow key={v.key} view={v} scopeLabel={scopeLabel} isDark={isDark} />
+          <AlternativeRow key={v.key} view={v} scopeLabel={scopeLabel} isDark={isDark} booking={booking} />
         ))}
       </div>
 
@@ -564,6 +646,7 @@ export function RedemptionTable({
   unitNoun = 'options',
   scopeNote = 'applies to the complete booking',
   showBonusNotice = true,
+  booking,
 }: {
   result: PointsResult;
   /** Prefixes every redemption line — 'Round trip', 'One way', '3 nights' */
@@ -576,6 +659,8 @@ export function RedemptionTable({
   scopeNote?: string;
   /** Off when the surrounding card already renders a TransferBonusBanner */
   showBonusNotice?: boolean;
+  /** Turns on the View deal → report flow and per-row user reports */
+  booking?: RedemptionBooking;
 }) {
   const { isDark } = useTheme();
   const [altOpen, setAltOpen] = useState(false);
@@ -617,7 +702,7 @@ export function RedemptionTable({
       <ColumnHeaders isDark={isDark} />
 
       {featured.map(view => (
-        <FeaturedRow key={view.key} view={view} isDark={isDark} />
+        <FeaturedRow key={view.key} view={view} isDark={isDark} booking={booking} />
       ))}
 
       {alternatives.length > 0 && (
@@ -647,6 +732,7 @@ export function RedemptionTable({
           unitNoun={unitNoun}
           onClose={() => setAltOpen(false)}
           isDark={isDark}
+          booking={booking}
         />
       )}
     </div>
