@@ -298,7 +298,7 @@ test.describe('Flights page — results', () => {
     const card = cards.first();
     await expect(card.getByText('Outbound', { exact: true }).first()).toBeVisible();
     await expect(card.getByText('Return', { exact: true }).first()).toBeVisible();
-    await expect(card.getByText(/round-trip · /i).first()).toBeVisible();
+    await expect(card.getByText(/round-trip · /i).filter({ visible: true }).first()).toBeVisible();
     await expect(card.getByRole('button', { name: /Round-trip itinerary/ })).toHaveCount(0);
   });
 });
