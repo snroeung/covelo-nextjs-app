@@ -28,7 +28,7 @@ export function quoteFromDraft(d: QuoteDraft, hasEnd: boolean): QuoteValues | nu
   const points = rawPts === '' ? null : Number(rawPts);
   if (points !== null && (!Number.isInteger(points) || points < 0)) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.start)) return null;
-  if (hasEnd && !/^\d{4}-\d{2}-\d{2}$/.test(d.end)) return null;
+  if (hasEnd && (!/^\d{4}-\d{2}-\d{2}$/.test(d.end) || d.end < d.start)) return null;
   return { cash, points, start: d.start, end: hasEnd ? d.end : null };
 }
 

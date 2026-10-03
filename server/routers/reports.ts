@@ -25,11 +25,12 @@ const quoteSchema = z.object({
   points: z.number().int().nonnegative().max(100_000_000).nullable(),
   start: isoDate,
   end: isoDate.nullable(),
-});
+}).refine((q) => q.end === null || q.end >= q.start, { message: "End date is before start date", path: ["end"] });
 
+/** A booking_reports_feed row — user_id never leaves the database, only is_mine. */
 interface ReportRow {
   id: string;
-  user_id: string;
+  is_mine: boolean | null;
   reporter_name: string;
   option_key: string;
   option_name: string;
@@ -42,10 +43,12 @@ interface ReportRow {
   created_at: string;
 }
 
+const INSERT_COLUMNS = "id, reporter_name, option_key, option_name, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at";
+const FEED_COLUMNS = `${INSERT_COLUMNS}, is_mine`;
+
 const num = (v: number | string | null): number | null => (v === null ? null : Number(v));
 
-/** Strips user_id — the client only learns whether a row is its own. */
-function toReport(row: ReportRow, viewerId: string | null): BookingReport {
+function toReport(row: ReportRow): BookingReport {
   return {
     id: row.id,
     optionKey: row.option_key,
@@ -58,7 +61,7 @@ function toReport(row: ReportRow, viewerId: string | null): BookingReport {
     reportedStart: row.reported_start,
     reportedEnd: row.reported_end,
     createdAt: row.created_at,
-    isMine: viewerId !== null && row.user_id === viewerId,
+    isMine: row.is_mine === true,
   };
 }
 
@@ -72,10 +75,9 @@ export const reportsRouter = router({
     .input(z.object({ subjectType, subjectKey: z.string().min(1).max(500) }))
     .query(async ({ input }): Promise<BookingReport[]> => {
       const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
-        .from("booking_reports")
-        .select("id, user_id, reporter_name, option_key, option_name, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at")
+        .from("booking_reports_feed")
+        .select(FEED_COLUMNS)
         .eq("subject_type", input.subjectType)
         .eq("subject_key", input.subjectKey)
         .order("created_at", { ascending: false })
@@ -83,7 +85,7 @@ export const reportsRouter = router({
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
-      return ((data ?? []) as ReportRow[]).map(row => toReport(row, user?.id ?? null));
+      return ((data ?? []) as unknown as ReportRow[]).map(toReport);
     }),
 
   /**
@@ -106,10 +108,11 @@ export const reportsRouter = router({
 
       const now = Date.now();
       const { data: recent, error: recentError } = await supabase
-        .from("booking_reports")
+        .from("booking_reports_feed")
         .select("subject_key, option_key, created_at")
-        .eq("user_id", user.id)
+        .eq("is_mine", true)
         .gte("created_at", new Date(now - 60 * 60 * 1000).toISOString())
+        .order("created_at", { ascending: false })
         .limit(REPORTS_PER_HOUR);
       if (recentError) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: recentError.message });
       const recentRows = (recent ?? []) as { subject_key: string; option_key: string; created_at: string }[];
@@ -159,12 +162,12 @@ export const reportsRouter = router({
           reported_end: input.entered?.end ?? null,
           result,
         })
-        .select("id, user_id, reporter_name, option_key, option_name, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at")
+        .select(INSERT_COLUMNS)
         .single();
 
       if (error || !data) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error?.message ?? "Insert failed" });
       }
-      return toReport(data as ReportRow, user.id);
+      return toReport({ ...(data as unknown as Omit<ReportRow, "is_mine">), is_mine: true });
     }),
 });

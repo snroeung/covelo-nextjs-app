@@ -41,7 +41,7 @@ function setup(userId: string | null, fromResults: { data: unknown; error: unkno
 }
 
 const row = (over: Record<string, unknown> = {}) => ({
-  id: 'r1', user_id: 'u-other', reporter_name: 'Ana', option_key: 'portal:chase', option_name: 'Chase Travel', result: 'matched',
+  id: 'r1', is_mine: false, reporter_name: 'Ana', option_key: 'portal:chase', option_name: 'Chase Travel', result: 'matched',
   quoted_cash: '1302', reported_cash: '1302', reported_points: 104160,
   reported_start: '2026-11-03', reported_end: null, created_at: '2026-10-01T00:00:00Z', ...over,
 });
@@ -60,16 +60,17 @@ beforeEach(() => {
 
 describe('reports.list', () => {
   it('marks the viewer\'s own rows without exposing user ids', async () => {
-    setup('u-me', [{ data: [row(), row({ id: 'r2', user_id: 'u-me' })], error: null }]);
+    setup('u-me', [{ data: [row(), row({ id: 'r2', is_mine: true })], error: null }]);
     const out = await caller().reports.list({ subjectType: 'flight', subjectKey: 'JFK-LHR' });
     expect(out.map(r => r.isMine)).toEqual([false, true]);
     expect(out[0]).not.toHaveProperty('user_id');
+    expect(out[0]).not.toHaveProperty('is_mine');
     expect(out[0].quotedCash).toBe(1302);
     expect(out[0].optionName).toBe('Chase Travel');
   });
 
-  it('works signed out — nothing is mine', async () => {
-    setup(null, [{ data: [row({ user_id: 'u-me' })], error: null }]);
+  it('works signed out — a null is_mine reads as not mine', async () => {
+    setup(null, [{ data: [row({ is_mine: null })], error: null }]);
     const out = await caller().reports.list({ subjectType: 'flight', subjectKey: 'JFK-LHR' });
     expect(out[0].isMine).toBe(false);
   });
@@ -92,7 +93,7 @@ describe('reports.submit', () => {
     const { builders } = setup('u-me', [
       { data: [], error: null },
       { data: { display_name: 'Nina R' }, error: null },
-      { data: row({ user_id: 'u-me', result: 'different', reported_cash: '1350' }), error: null },
+      { data: row({ result: 'different', reported_cash: '1350' }), error: null },
     ]);
     const out = await caller().reports.submit({ ...submitInput, entered: { ...quote, cash: 1350 } });
     const insert = builders[2].insert as ReturnType<typeof vi.fn>;
@@ -106,7 +107,7 @@ describe('reports.submit', () => {
     const { builders } = setup('u-me', [
       { data: [], error: null },
       { data: { display_name: null }, error: null },
-      { data: row({ user_id: 'u-me', result: 'not_found', reported_cash: null }), error: null },
+      { data: row({ result: 'not_found', reported_cash: null }), error: null },
     ]);
     await caller().reports.submit({ ...submitInput, entered: null });
     expect(builders[2].insert).toHaveBeenCalledWith(expect.objectContaining({
@@ -121,6 +122,8 @@ describe('reports.submit', () => {
     await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '2026-13-45' } }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '2026-02-30' } }))
+      .rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, end: '2026-11-01' } }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 

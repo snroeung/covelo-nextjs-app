@@ -43,3 +43,25 @@ CREATE INDEX booking_reports_subject_idx
 -- Backs the per-user throttle in server/routers/reports.ts submit
 CREATE INDEX booking_reports_user_recent_idx
   ON public.booking_reports (user_id, created_at DESC);
+
+-- user_id must never be readable by clients: with the anon key, PostgREST
+-- would otherwise serve it straight off the public-read policy. Column grants
+-- hide it on the base table; the feed view exposes only "is this mine?".
+REVOKE SELECT ON public.booking_reports FROM anon, authenticated;
+GRANT SELECT (
+  id, reporter_name, subject_type, subject_key, option_key, option_name,
+  quoted_cash, quoted_points, searched_start, searched_end,
+  reported_cash, reported_points, reported_start, reported_end,
+  result, created_at
+) ON public.booking_reports TO anon, authenticated;
+
+-- Runs as the view owner so it can compare user_id; reads are public anyway.
+CREATE VIEW public.booking_reports_feed AS
+  SELECT
+    id, reporter_name, subject_type, subject_key, option_key, option_name,
+    quoted_cash, reported_cash, reported_points, reported_start, reported_end,
+    result, created_at,
+    (user_id = auth.uid()) AS is_mine
+  FROM public.booking_reports;
+
+GRANT SELECT ON public.booking_reports_feed TO anon, authenticated;
