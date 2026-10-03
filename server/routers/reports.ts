@@ -116,8 +116,13 @@ export const reportsRouter = router({
         r.option_key === input.optionKey &&
         now - new Date(r.created_at).getTime() < REPORT_COOLDOWN_MS,
       );
-      if (dupe || recentRows.length >= REPORTS_PER_HOUR) {
-        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You've already reported this recently." });
+      // Best-effort: two parallel submits can both pass this read. Good enough
+      // to stop casual repeats; not a security boundary.
+      if (dupe) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You've already reported this option recently." });
+      }
+      if (recentRows.length >= REPORTS_PER_HOUR) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Report limit reached — try again in an hour." });
       }
 
       const { data: profile } = await supabase
