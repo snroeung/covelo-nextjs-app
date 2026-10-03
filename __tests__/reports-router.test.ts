@@ -14,7 +14,7 @@ import { appRouter } from '@/server/routers/_app';
 
 function makeQueryBuilder(result: { data: unknown; error: unknown }) {
   const b: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'order', 'limit', 'insert']) b[m] = vi.fn().mockReturnValue(b);
+  for (const m of ['select', 'eq', 'gte', 'order', 'limit', 'insert']) b[m] = vi.fn().mockReturnValue(b);
   b.single = vi.fn().mockResolvedValue(result);
   b.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve(result).then(res, rej);
   return b;
@@ -90,11 +90,12 @@ describe('reports.submit', () => {
 
   it('recomputes the result server-side and snapshots the display name', async () => {
     const { builders } = setup('u-me', [
+      { data: [], error: null },
       { data: { display_name: 'Nina R' }, error: null },
       { data: row({ user_id: 'u-me', result: 'different', reported_cash: '1350' }), error: null },
     ]);
     const out = await caller().reports.submit({ ...submitInput, entered: { ...quote, cash: 1350 } });
-    const insert = builders[1].insert as ReturnType<typeof vi.fn>;
+    const insert = builders[2].insert as ReturnType<typeof vi.fn>;
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({
       user_id: 'u-me', reporter_name: 'Nina R', result: 'different', reported_cash: 1350,
     }));
@@ -103,18 +104,39 @@ describe('reports.submit', () => {
 
   it('not found stores no reported values', async () => {
     const { builders } = setup('u-me', [
+      { data: [], error: null },
       { data: { display_name: null }, error: null },
       { data: row({ user_id: 'u-me', result: 'not_found', reported_cash: null }), error: null },
     ]);
     await caller().reports.submit({ ...submitInput, entered: null });
-    expect(builders[1].insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(builders[2].insert).toHaveBeenCalledWith(expect.objectContaining({
       reporter_name: 'Traveler', result: 'not_found', reported_cash: null, reported_start: null,
     }));
   });
 
-  it('rejects malformed dates', async () => {
+  it('rejects malformed and impossible dates', async () => {
     setup('u-me', []);
     await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '11/03/2026' } }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '2026-13-45' } }))
+      .rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '2026-02-30' } }))
+      .rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('TOO_MANY_REQUESTS on a repeat report for the same option inside the cooldown', async () => {
+    const { builders } = setup('u-me', [
+      { data: [{ subject_key: 'JFK-LHR', option_key: 'chase', created_at: new Date().toISOString() }], error: null },
+    ]);
+    await expect(caller().reports.submit({ ...submitInput, entered: quote }))
+      .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+    expect(builders).toHaveLength(1);
+  });
+
+  it('TOO_MANY_REQUESTS past the hourly cap', async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ subject_key: `s${i}`, option_key: 'amex', created_at: new Date(Date.now() - 40 * 60_000).toISOString() }));
+    setup('u-me', [{ data: rows, error: null }]);
+    await expect(caller().reports.submit({ ...submitInput, entered: quote }))
+      .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
   });
 });

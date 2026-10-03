@@ -39,3 +39,7 @@ CREATE POLICY "booking_reports_insert_own" ON public.booking_reports
 
 CREATE INDEX booking_reports_subject_idx
   ON public.booking_reports (subject_type, subject_key, option_key, created_at DESC);
+
+-- Backs the per-user throttle in server/routers/reports.ts submit
+CREATE INDEX booking_reports_user_recent_idx
+  ON public.booking_reports (user_id, created_at DESC);

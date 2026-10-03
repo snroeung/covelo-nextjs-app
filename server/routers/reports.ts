@@ -10,7 +10,15 @@ import type { BookingReport, ReportResult } from "@/lib/reports/types";
 // indexed lookup. Nothing here goes through lib/cache-config.ts.
 
 const subjectType = z.enum(["flight", "hotel"]);
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+// Shape alone lets 2026-13-45 through to a Postgres DATE cast — round-trip it.
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(
+  (s) => { const d = new Date(`${s}T00:00:00Z`); return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s; },
+  { message: "Invalid date" },
+);
+
+/** One report per user per option per window, and a per-user hourly cap — keeps one account from flooding a subject. */
+const REPORT_COOLDOWN_MS = 10 * 60 * 1000;
+const REPORTS_PER_HOUR = 30;
 
 const quoteSchema = z.object({
   cash: z.number().nonnegative().max(1_000_000),
@@ -94,12 +102,36 @@ export const reportsRouter = router({
       const { supabase, user } = ctx;
       const result = classifyReport(input.quote, input.entered);
 
+      const now = Date.now();
+      const { data: recent, error: recentError } = await supabase
+        .from("booking_reports")
+        .select("subject_key, option_key, created_at")
+        .eq("user_id", user.id)
+        .gte("created_at", new Date(now - 60 * 60 * 1000).toISOString())
+        .limit(REPORTS_PER_HOUR);
+      if (recentError) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: recentError.message });
+      const recentRows = (recent ?? []) as { subject_key: string; option_key: string; created_at: string }[];
+      const dupe = recentRows.some(r =>
+        r.subject_key === input.subjectKey &&
+        r.option_key === input.optionKey &&
+        now - new Date(r.created_at).getTime() < REPORT_COOLDOWN_MS,
+      );
+      if (dupe || recentRows.length >= REPORTS_PER_HOUR) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You've already reported this recently." });
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name")
         .eq("id", user.id)
         .single();
-      const reporterName = (profile as { display_name: string | null } | null)?.display_name?.trim() || "Traveler";
+      // Rows are immutable, so take the best name available now: profile, then
+      // the OAuth name on the auth user, then a neutral fallback.
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const reporterName =
+        (profile as { display_name: string | null } | null)?.display_name?.trim() ||
+        (typeof meta.full_name === "string" ? meta.full_name.trim() : "") ||
+        "Traveler";
 
       const { data, error } = await supabase
         .from("booking_reports")
