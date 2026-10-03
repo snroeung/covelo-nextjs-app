@@ -176,8 +176,21 @@ test.describe('Hotels page — results', () => {
 
     await expect(page.getByRole('button', { name: 'Close comparison' })).toBeVisible({ timeout: 10_000 });
 
+    // View deal → leaving step speaks in stay dates, then back to the table.
+    const modal = page.getByTestId('compare-modal');
+    await modal.getByRole('button', { name: /^View deal on .+$/ }).first().click();
+    const leaving = modal.getByTestId('leaving-panel');
+    await expect(leaving).toBeVisible();
+    await expect(leaving.getByLabel('Check-in')).toBeVisible();
+    await expect(leaving.getByLabel('Check-out')).toBeVisible();
+    await expect(leaving.getByLabel('Departure')).toHaveCount(0);
+    await leaving.getByRole('button', { name: '← Back to comparison' }).click();
+    await expect(modal.getByTestId('redemption-table')).toBeVisible();
+
+    // Escape closes only the comparison — the hotel modal stays open behind it.
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Close comparison' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
   });
 
   test('Reserve link on the best redemption bar opens the booking portal', async ({ page }) => {

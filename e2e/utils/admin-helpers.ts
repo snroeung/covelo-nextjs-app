@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
 
 // All test records use this prefix so cleanup can target them safely
@@ -757,4 +757,26 @@ export async function deleteTestTrip(page: Page): Promise<void> {
   if (!found) return;
   await card.getByRole('button', { name: 'Remove trip' }).click();
   await card.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
+}
+
+/**
+ * Clicks a flight card's "Compare →" and returns the compare popup, or null
+ * when the card has no points data (no cards selected / nothing priced it).
+ */
+export async function openFlightCompare(page: Page, card: Locator): Promise<Locator | null> {
+  const compareButton = card.getByRole('button', { name: 'Compare →' });
+  const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+  if (!hasCompare) return null;
+  await compareButton.click();
+  const modal = page.getByTestId('compare-modal');
+  await modal.waitFor({ state: 'visible' });
+  return modal;
+}
+
+/**
+ * Stubs window.open so "Submit result" doesn't spawn a real partner-site tab
+ * during a test — the flow only needs the step to advance.
+ */
+export async function stubWindowOpen(page: Page) {
+  await page.evaluate(() => { window.open = () => null; });
 }

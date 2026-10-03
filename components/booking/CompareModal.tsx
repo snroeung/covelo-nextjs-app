@@ -86,7 +86,11 @@ export function CompareModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopImmediatePropagation(); onCloseRef.current(); }
+      if (e.key !== 'Escape') return;
+      // An inner layer (the grouped-alternatives overlay) closes first.
+      if (bodyRef.current?.querySelector('[role="dialog"]')) return;
+      e.stopImmediatePropagation();
+      onCloseRef.current();
     };
     window.addEventListener('keydown', onKey, true);
     const prevOverflow = document.body.style.overflow;

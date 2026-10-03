@@ -675,7 +675,11 @@ export function RedemptionTable({
       if (!root.contains(e.target as Node)) setAltOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setAltOpen(false);
+      if (e.key !== 'Escape') return;
+      setAltOpen(false);
+      // Innermost layer wins — don't let the same keypress reach a
+      // window-level modal handler (e.g. HotelDetailModal) and close that too.
+      e.stopPropagation();
     }
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
