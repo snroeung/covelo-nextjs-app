@@ -669,7 +669,10 @@ export function RedemptionTable({
   useEffect(() => {
     if (!altOpen) return;
     function onPointerDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setAltOpen(false);
+      const root = rootRef.current;
+      // A hidden table (CompareModal mid-flow) keeps its overlay for the return trip.
+      if (!root || root.offsetParent === null) return;
+      if (!root.contains(e.target as Node)) setAltOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') setAltOpen(false);
