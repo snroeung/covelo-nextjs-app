@@ -1,14 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { PointsResult, PortalId, TransferResult } from '@/lib/points/types';
-import { rankOptions } from '@/lib/points/rankOptions';
-import { buildRowView, cashEarnLine, splitFeatured, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
+import { PointsResult, PortalId } from '@/lib/points/types';
+import { useRankedViews } from '@/hooks/useRankedViews';
+import { cashEarnLine, splitFeatured, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
 import { useTheme } from '@/contexts/ThemeContext';
-import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus } from '@/lib/types/offers';
-import { ISSUER_LOYALTY_NAME, formatBonusEndDate, findBonusForEligibleCards } from '@/lib/points/transferBonus';
+import { ISSUER_LOYALTY_NAME, formatBonusEndDate } from '@/lib/points/transferBonus';
 import { PORTAL_TRAVEL_URLS, resolvePartnerUrl } from '@/lib/points/partnerLinks';
 
 // ---------------------------------------------------------------------------
@@ -599,34 +597,9 @@ export function RedemptionTable({
     };
   }, [altOpen]);
 
-  // This key is shared with the offers page, so the cached value must stay the
-  // bare array — wrapping it in an envelope here hands that page an object it
-  // then tries to spread. `dataUpdatedAt` already carries the fetch time, so the
-  // date-window check below gets its clock without calling the impure Date.now()
-  // during render (react-hooks/purity forbids that even inside useMemo).
-  const { data: transferBonuses = [], dataUpdatedAt } = useQuery({
-    queryKey: ['offers.transferBonuses'],
-    queryFn:  () => trpc.offers.listTransferBonuses.query(),
-  });
-  const now = dataUpdatedAt || null;
-  // Matched against the cards the user holds, not the row's default issuer: a
-  // promo on a card they don't own must not badge the row or move its numbers.
-  // Date-window guard: admin sessions bypass the public RLS end_date filter,
-  // so re-check here to only badge bonuses currently live on the offers page.
-  const bonusFor = (t: TransferResult) =>
-    now === null ? undefined : findBonusForEligibleCards(t, transferBonuses, now);
-
   // Unified ¢/pt-ranked list — direct-book portals and transfer partners
-  // compete on the same axis; a transfer partner can lead the list. Bonuses are
-  // folded into cpp inside buildRowView, so ranking happens on the raw rate and
-  // the displayed rate can differ — re-sort on the displayed value so the card
-  // never shows a lower cpp above a higher one.
-  const views = rankOptions(result)
-    .map(row => {
-      const match = row.kind === 'transfer' ? bonusFor(row.transfer) : undefined;
-      return buildRowView(row, result, match?.bonus, match?.portalId);
-    })
-    .sort((a, b) => (b.cpp ?? -Infinity) - (a.cpp ?? -Infinity));
+  // compete on the same axis; a transfer partner can lead the list.
+  const views = useRankedViews(result);
 
   const { featured, alternatives } = splitFeatured(views);
   const liveBonus = views.find(v => v.bonus)?.bonus;
