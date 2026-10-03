@@ -41,7 +41,7 @@ function setup(userId: string | null, fromResults: { data: unknown; error: unkno
 }
 
 const row = (over: Record<string, unknown> = {}) => ({
-  id: 'r1', user_id: 'u-other', reporter_name: 'Ana', option_key: 'chase', result: 'matched',
+  id: 'r1', user_id: 'u-other', reporter_name: 'Ana', option_key: 'portal:chase', option_name: 'Chase Travel', result: 'matched',
   quoted_cash: '1302', reported_cash: '1302', reported_points: 104160,
   reported_start: '2026-11-03', reported_end: null, created_at: '2026-10-01T00:00:00Z', ...over,
 });
@@ -59,19 +59,19 @@ beforeEach(() => {
 });
 
 describe('reports.list', () => {
-  it('groups by option and marks the viewer\'s own rows without exposing user ids', async () => {
-    setup('u-me', [{ data: [row(), row({ id: 'r2', user_id: 'u-me' }), row({ id: 'r3', option_key: 'amex' })], error: null }]);
+  it('marks the viewer\'s own rows without exposing user ids', async () => {
+    setup('u-me', [{ data: [row(), row({ id: 'r2', user_id: 'u-me' })], error: null }]);
     const out = await caller().reports.list({ subjectType: 'flight', subjectKey: 'JFK-LHR' });
-    expect(Object.keys(out).sort()).toEqual(['amex', 'chase']);
-    expect(out.chase.map(r => r.isMine)).toEqual([false, true]);
-    expect(out.chase[0]).not.toHaveProperty('user_id');
-    expect(out.chase[0].quotedCash).toBe(1302);
+    expect(out.map(r => r.isMine)).toEqual([false, true]);
+    expect(out[0]).not.toHaveProperty('user_id');
+    expect(out[0].quotedCash).toBe(1302);
+    expect(out[0].optionName).toBe('Chase Travel');
   });
 
   it('works signed out — nothing is mine', async () => {
     setup(null, [{ data: [row({ user_id: 'u-me' })], error: null }]);
     const out = await caller().reports.list({ subjectType: 'flight', subjectKey: 'JFK-LHR' });
-    expect(out.chase[0].isMine).toBe(false);
+    expect(out[0].isMine).toBe(false);
   });
 
   it('NOT_FOUND when the flag is off', async () => {

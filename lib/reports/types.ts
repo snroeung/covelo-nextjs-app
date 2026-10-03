@@ -14,6 +14,8 @@ export interface QuoteValues {
 export interface BookingReport {
   id: string;
   optionKey: string;
+  /** Bare program / portal name at report time — transfer rows match on it via sameProgram */
+  optionName: string;
   reporterName: string;
   result: ReportResult;
   quotedCash: number;

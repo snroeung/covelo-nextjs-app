@@ -32,6 +32,7 @@ interface ReportRow {
   user_id: string;
   reporter_name: string;
   option_key: string;
+  option_name: string;
   result: ReportResult;
   quoted_cash: number | string;
   reported_cash: number | string | null;
@@ -48,6 +49,7 @@ function toReport(row: ReportRow, viewerId: string | null): BookingReport {
   return {
     id: row.id,
     optionKey: row.option_key,
+    optionName: row.option_name,
     reporterName: row.reporter_name,
     result: row.result,
     quotedCash: Number(row.quoted_cash),
@@ -61,15 +63,19 @@ function toReport(row: ReportRow, viewerId: string | null): BookingReport {
 }
 
 export const reportsRouter = router({
-  /** Every report for one itinerary / room, grouped by booking option, newest first. */
+  /**
+   * Every report for one itinerary / room, newest first. Flat on purpose: the
+   * client assigns reports to rows (transfer partners match by program
+   * identity, which an exact key can't express).
+   */
   list: flaggedProcedure("api:reports")
     .input(z.object({ subjectType, subjectKey: z.string().min(1).max(500) }))
-    .query(async ({ input }): Promise<Record<string, BookingReport[]>> => {
+    .query(async ({ input }): Promise<BookingReport[]> => {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("booking_reports")
-        .select("id, user_id, reporter_name, option_key, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at")
+        .select("id, user_id, reporter_name, option_key, option_name, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at")
         .eq("subject_type", input.subjectType)
         .eq("subject_key", input.subjectKey)
         .order("created_at", { ascending: false })
@@ -77,11 +83,7 @@ export const reportsRouter = router({
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
-      const grouped: Record<string, BookingReport[]> = {};
-      for (const row of (data ?? []) as ReportRow[]) {
-        (grouped[row.option_key] ??= []).push(toReport(row, user?.id ?? null));
-      }
-      return grouped;
+      return ((data ?? []) as ReportRow[]).map(row => toReport(row, user?.id ?? null));
     }),
 
   /**
@@ -157,7 +159,7 @@ export const reportsRouter = router({
           reported_end: input.entered?.end ?? null,
           result,
         })
-        .select("id, user_id, reporter_name, option_key, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at")
+        .select("id, user_id, reporter_name, option_key, option_name, result, quoted_cash, reported_cash, reported_points, reported_start, reported_end, created_at")
         .single();
 
       if (error || !data) {

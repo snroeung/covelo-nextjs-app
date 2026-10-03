@@ -14,7 +14,7 @@ import { ReportPanel } from '@/components/booking/ReportPanel';
 import { draftFromQuote, type QuoteDraft } from '@/components/booking/QuoteFields';
 import { bookingStyles } from '@/components/booking/bookingStyles';
 import { useBookingReports } from '@/hooks/useBookingReports';
-import { reportOptionKey } from '@/lib/reports/subject';
+import { reportOptionKey, reportsForOption } from '@/lib/reports/subject';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -77,7 +77,7 @@ export function CompareModal({
   const [openReportsKey, setOpenReportsKey] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
-  const { reportsByOption, now, submit } = useBookingReports(subjectType, subjectKey);
+  const { reports, now, submit } = useBookingReports(subjectType, subjectKey);
 
   // Callers pass inline closures; reading through a ref keeps the mount effect
   // below from re-running (and re-stealing focus) on every parent render.
@@ -121,7 +121,7 @@ export function CompareModal({
 
   function send(view: OptionRowView, entered: QuoteValues | null) {
     submit.mutate(
-      { optionKey: reportOptionKey(view), optionName: view.displayName, quote: optionQuote(view, baseQuote), entered },
+      { optionKey: reportOptionKey(view), optionName: view.sourceName, quote: optionQuote(view, baseQuote), entered },
       {
         onSuccess: () => {
           backToCompare();
@@ -134,12 +134,12 @@ export function CompareModal({
 
   const booking: RedemptionBooking = {
     onViewDeal: startDeal,
-    reportCount: (v) => reportsByOption[reportOptionKey(v)]?.length ?? 0,
+    reportCount: (v) => reportsForOption(reports, v).length,
     openReportsKey,
     onToggleReports: (key) => setOpenReportsKey(k => (k === key ? null : key)),
     renderReports: (v) => (
       <ReportsList
-        reports={reportsByOption[reportOptionKey(v)] ?? []}
+        reports={reportsForOption(reports, v)}
         quote={optionQuote(v, baseQuote)}
         pointsUnit={v.pointsUnit}
         now={now}

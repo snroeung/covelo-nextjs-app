@@ -13,15 +13,15 @@ export interface SubmitReportInput {
 }
 
 /**
- * Shared user reports for one itinerary / room, grouped by booking option.
- * A successful submit lands at the top of that option's list straight from the
+ * Shared user reports for one itinerary / room, newest first.
+ * A successful submit lands at the top of the list straight from the
  * server response, then the list refetches to pick up anyone else's.
  */
 export function useBookingReports(subjectType: ReportSubjectType, subjectKey: string) {
   const queryClient = useQueryClient();
   const queryKey = ['reports.list', subjectType, subjectKey] as const;
 
-  const { data = {}, dataUpdatedAt } = useQuery({
+  const { data = [], dataUpdatedAt } = useQuery({
     queryKey,
     queryFn: () => trpc.reports.list.query({ subjectType, subjectKey }),
     enabled: subjectKey.length > 0,
@@ -31,16 +31,13 @@ export function useBookingReports(subjectType: ReportSubjectType, subjectKey: st
     mutationFn: (input: SubmitReportInput) =>
       trpc.reports.submit.mutate({ subjectType, subjectKey, ...input }),
     onSuccess: (report) => {
-      queryClient.setQueryData<Record<string, BookingReport[]>>(queryKey, (prev = {}) => ({
-        ...prev,
-        [report.optionKey]: [report, ...(prev[report.optionKey] ?? [])],
-      }));
+      queryClient.setQueryData<BookingReport[]>(queryKey, (prev = []) => [report, ...prev]);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
 
   return {
-    reportsByOption: data,
+    reports: data,
     /** Clock for "time ago" labels — avoids an impure Date.now() during render */
     now: dataUpdatedAt || null,
     submit,

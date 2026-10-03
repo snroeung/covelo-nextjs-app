@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { classifyReport, changedFields, summarizeReports, cashDelta, datesDiffer } from '@/lib/reports/classify';
-import { flightSubjectKey, hotelSubjectKey, flightQuoteDates, reportOptionKey } from '@/lib/reports/subject';
+import { flightSubjectKey, hotelSubjectKey, flightQuoteDates, reportOptionKey, reportsForOption } from '@/lib/reports/subject';
 import type { BookingReport, QuoteValues } from '@/lib/reports/types';
 
 const quote: QuoteValues = { cash: 1302, points: 104160, start: '2026-11-03', end: '2026-11-10' };
 
 function report(over: Partial<BookingReport> = {}): BookingReport {
   return {
-    id: 'r1', optionKey: 'chase', reporterName: 'Ana', result: 'matched', quotedCash: 1302,
+    id: 'r1', optionKey: 'portal:chase', optionName: 'Chase Travel', reporterName: 'Ana', result: 'matched', quotedCash: 1302,
     reportedCash: 1302, reportedPoints: 104160, reportedStart: '2026-11-03', reportedEnd: '2026-11-10',
     createdAt: '2026-10-01T00:00:00Z', isMine: false, ...over,
   };
@@ -118,5 +118,24 @@ describe('reportOptionKey', () => {
   it('different programs get different keys', () => {
     expect(reportOptionKey({ kind: 'transfer', sourcePortalId: 'amex', sourceName: 'Flying Blue' }))
       .not.toBe(reportOptionKey({ kind: 'transfer', sourcePortalId: 'amex', sourceName: 'Virgin Atlantic Flying Club' }));
+  });
+});
+
+describe('reportsForOption', () => {
+  const tap1 = report({ id: 't1', optionKey: 'transfer:x', optionName: 'TAP Miles&Go' });
+  const tap2 = report({ id: 't2', optionKey: 'transfer:y', optionName: 'TAP Air Portugal Miles&Go' });
+  const fb = report({ id: 'f1', optionKey: 'transfer:blue-flying', optionName: 'Flying Blue' });
+  const chase = report({ id: 'c1' });
+  const all = [tap1, tap2, fb, chase];
+
+  it('portal rows take only their own portal', () => {
+    expect(reportsForOption(all, { kind: 'portal', sourcePortalId: 'chase', sourceName: 'Chase Travel' })).toEqual([chase]);
+  });
+  it('transfer rows gather every spelling of the same program', () => {
+    const got = reportsForOption(all, { kind: 'transfer', sourcePortalId: 'c1', sourceName: 'TAP Air Portugal Miles&Go' });
+    expect(got.map(r => r.id)).toEqual(['t1', 't2']);
+  });
+  it('a portal named like a program never leaks into a transfer row', () => {
+    expect(reportsForOption(all, { kind: 'transfer', sourcePortalId: 'chase', sourceName: 'Chase Travel' })).toEqual([]);
   });
 });
