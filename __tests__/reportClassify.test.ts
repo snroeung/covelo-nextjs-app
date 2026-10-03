@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { classifyReport, changedFields, summarizeReports, cashDelta, datesDiffer } from '@/lib/reports/classify';
-import { flightSubjectKey, hotelSubjectKey, flightQuoteDates } from '@/lib/reports/subject';
+import { flightSubjectKey, hotelSubjectKey, flightQuoteDates, reportOptionKey } from '@/lib/reports/subject';
 import type { BookingReport, QuoteValues } from '@/lib/reports/types';
 
 const quote: QuoteValues = { cash: 1302, points: 104160, start: '2026-11-03', end: '2026-11-10' };
@@ -102,5 +102,21 @@ describe('subject keys', () => {
   it('hotel key normalizes room-name case and whitespace', () => {
     expect(hotelSubjectKey('acc_1', '  Deluxe   King ', '2026-11-03', '2026-11-05'))
       .toBe(hotelSubjectKey('acc_1', 'deluxe king', '2026-11-03T00:00:00', '2026-11-05'));
+  });
+});
+
+describe('reportOptionKey', () => {
+  it('portal rows key on the portal id', () => {
+    expect(reportOptionKey({ kind: 'portal', sourcePortalId: 'chase', sourceName: 'Chase Travel' })).toBe('portal:chase');
+  });
+  it('transfer rows ignore the routing issuer and program-name spelling', () => {
+    const a = reportOptionKey({ kind: 'transfer', sourcePortalId: 'c1', sourceName: 'British Airways Club' });
+    const b = reportOptionKey({ kind: 'transfer', sourcePortalId: 'chase', sourceName: 'British Airways Executive Club' });
+    expect(a).toBe(b);
+    expect(a.startsWith('transfer:')).toBe(true);
+  });
+  it('different programs get different keys', () => {
+    expect(reportOptionKey({ kind: 'transfer', sourcePortalId: 'amex', sourceName: 'Flying Blue' }))
+      .not.toBe(reportOptionKey({ kind: 'transfer', sourcePortalId: 'amex', sourceName: 'Virgin Atlantic Flying Club' }));
   });
 });

@@ -14,6 +14,7 @@ import { ReportPanel } from '@/components/booking/ReportPanel';
 import { draftFromQuote, type QuoteDraft } from '@/components/booking/QuoteFields';
 import { bookingStyles } from '@/components/booking/bookingStyles';
 import { useBookingReports } from '@/hooks/useBookingReports';
+import { reportOptionKey } from '@/lib/reports/subject';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -120,7 +121,7 @@ export function CompareModal({
 
   function send(view: OptionRowView, entered: QuoteValues | null) {
     submit.mutate(
-      { optionKey: view.key, optionName: view.displayName, quote: optionQuote(view, baseQuote), entered },
+      { optionKey: reportOptionKey(view), optionName: view.displayName, quote: optionQuote(view, baseQuote), entered },
       {
         onSuccess: () => {
           backToCompare();
@@ -133,12 +134,12 @@ export function CompareModal({
 
   const booking: RedemptionBooking = {
     onViewDeal: startDeal,
-    reportCount: (v) => reportsByOption[v.key]?.length ?? 0,
+    reportCount: (v) => reportsByOption[reportOptionKey(v)]?.length ?? 0,
     openReportsKey,
     onToggleReports: (key) => setOpenReportsKey(k => (k === key ? null : key)),
     renderReports: (v) => (
       <ReportsList
-        reports={reportsByOption[v.key] ?? []}
+        reports={reportsByOption[reportOptionKey(v)] ?? []}
         quote={optionQuote(v, baseQuote)}
         pointsUnit={v.pointsUnit}
         now={now}
@@ -222,8 +223,8 @@ export function CompareModal({
               submitting={submit.isPending}
               error={submitError}
               onBack={backToCompare}
-              onContinue={() => { openSite(flow.url); setFlow({ ...flow, step: 'report' }); }}
-              onAdvance={() => setFlow({ ...flow, step: 'report' })}
+              onContinue={() => { openSite(flow.url); submit.reset(); setFlow({ ...flow, step: 'report' }); }}
+              onAdvance={() => { submit.reset(); setFlow({ ...flow, step: 'report' }); }}
               onSubmitDifferent={(entered) => send(flow.view, entered)}
               signInPrompt={signInPrompt}
               isDark={isDark}

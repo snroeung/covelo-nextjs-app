@@ -1,3 +1,5 @@
+import { programTokens } from "@/lib/points/programNames";
+
 /**
  * Stable identity for "the thing being reported on", shared by every traveller
  * who searches the same itinerary or room. Duffel offer ids are per-search and
@@ -38,4 +40,17 @@ export function flightQuoteDates(offer: any): { start: string; end: string | nul
     ? String(slices[slices.length - 1]?.segments?.[0]?.departing_at ?? '').slice(0, 10)
     : null;
   return { start, end };
+}
+
+/**
+ * Which booking option a report belongs to, identical for every traveller.
+ * OptionRowView.key can't be used: a transfer row's key carries its list index
+ * and the issuer it's routed through, both of which depend on the viewer's
+ * wallet. A portal is its id; a transfer partner is its program identity
+ * (brand tokens, so "British Airways Club" and "British Airways Executive
+ * Club" land on one key).
+ */
+export function reportOptionKey(view: { kind: 'portal' | 'transfer'; sourcePortalId: string; sourceName: string }): string {
+  if (view.kind === 'portal') return `portal:${view.sourcePortalId}`;
+  return `transfer:${[...programTokens(view.sourceName)].sort().join('-')}`;
 }
