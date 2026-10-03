@@ -87,8 +87,11 @@ export function CompareModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      // An inner layer (the grouped-alternatives overlay) closes first.
-      if (bodyRef.current?.querySelector('[role="dialog"]')) return;
+      // A visible inner layer (the grouped-alternatives overlay) closes first.
+      // Mid-flow the table is hidden with its overlay still mounted — that one
+      // doesn't count, so Escape closes the popup from the leaving/report steps.
+      const inner = bodyRef.current?.querySelector<HTMLElement>('[role="dialog"]');
+      if (inner && inner.offsetParent !== null) return;
       e.stopImmediatePropagation();
       onCloseRef.current();
     };
