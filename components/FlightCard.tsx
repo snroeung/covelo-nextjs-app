@@ -5,10 +5,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { CollectionBanner } from '@/components/CollectionBanner';
 import { TransferBonusBanner } from '@/components/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
-import { RedemptionTable } from '@/components/RedemptionTable';
 import { AddToTripButton } from '@/components/AddToTripButton';
 import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
-import { BestRedemptionBar } from '@/components/BestRedemptionBar';
+import { CompareModal } from '@/components/booking/CompareModal';
+import { useRankedViews } from '@/hooks/useRankedViews';
+import { flightQuoteDates, flightSubjectKey } from '@/lib/reports/subject';
+import type { OptionRowView } from '@/lib/points/rowView';
 import { buildRouteViews, getAirlineColor, getOfferFlightInfo, getOfferTripDates, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
@@ -157,13 +159,72 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
 }
 
 // ---------------------------------------------------------------------------
+// PriceColumn — FROM cash, the winning redemption, and the Compare trigger
+// ---------------------------------------------------------------------------
+
+interface PriceColumnProps {
+  totalAmount: number;
+  best: OptionRowView | undefined;
+  hasPoints: boolean;
+  onCompare: () => void;
+  isDark: boolean;
+  textPrimary: string;
+  textMuted: string;
+  dividerCls: string;
+}
+
+function PriceColumn({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: PriceColumnProps) {
+  return (
+    <div className={`border-t md:border-t-0 md:border-l px-5 py-4 md:w-60 shrink-0 flex flex-col gap-3 ${dividerCls}`}>
+      <div className="flex items-baseline justify-between md:block">
+        <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>From · cash</p>
+        <p data-testid="from-cash" className={`text-2xl font-extrabold font-mono tabular-nums leading-none md:mt-1 ${textPrimary}`}>
+          {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
+        </p>
+      </div>
+
+      {best ? (
+        <div className={`rounded-lg px-3 py-2.5 ${isDark ? 'bg-gph-dark-navy border border-gph-dark-line' : 'bg-cv-navy-950'}`}>
+          <p className="text-[9px] font-bold font-mono uppercase tracking-widest text-cv-navy-300">Best value</p>
+          <div className="flex items-baseline justify-between gap-2 mt-0.5">
+            <p className="text-sm font-bold text-white leading-tight truncate">{best.displayName}</p>
+            {best.cpp !== null ? (
+              <p data-testid="best-value-cpp" className="text-lg font-extrabold font-mono tabular-nums text-cv-green-500 leading-none shrink-0">
+                {best.cpp}<span className="text-[10px] font-bold ml-0.5">cpp</span>
+              </p>
+            ) : (
+              <p className="text-xs font-bold font-mono text-cv-navy-300 shrink-0">check program</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className={`text-[10px] font-mono ${textMuted}`}>
+          {hasPoints ? 'No portal priced this itinerary.' : 'Select your cards to compare points pricing across portals.'}
+        </p>
+      )}
+
+      {best && (
+        <button
+          type="button"
+          onClick={onCompare}
+          aria-haspopup="dialog"
+          className="min-h-11 px-4 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-sm font-extrabold whitespace-nowrap transition-colors"
+        >
+          Compare →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FlightCard
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function FlightCard({ offer }: { offer: any }) {
   const { isDark } = useTheme();
-  const [expanded, setExpanded] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [routesOpen, setRoutesOpen] = useState(true);
 
   const isRoundTrip = offer.slices.length > 1;
@@ -175,6 +236,7 @@ export function FlightCard({ offer }: { offer: any }) {
 
   const { airlineIata, airlineName: airline, ptsCtx } = getOfferFlightInfo(offer);
   const ptsResult = usePointsCalc(totalAmount, 'flight', ptsCtx);
+  const best = useRankedViews(ptsResult)[0];
 
   const tripDates = getOfferTripDates(offer);
 
@@ -241,71 +303,88 @@ export function FlightCard({ offer }: { offer: any }) {
         scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
       />
 
-      {/* 3. Itinerary block — collapsible once there's more than one route */}
-      <div>
-        {isRoundTrip ? (
-          <button
-            type="button"
-            onClick={() => setRoutesOpen(v => !v)}
-            aria-expanded={routesOpen}
-            className={`w-full min-h-11 flex items-center justify-between gap-3 px-5 py-2 text-left transition-colors ${sectionBg} ${
-              isDark ? 'hover:bg-gph-dark-linesoft' : 'hover:bg-gray-100'
-            }`}
-          >
-            <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-              Round-trip itinerary
-            </span>
-            <span className={`flex items-center gap-2 text-[10px] font-mono ${textMuted}`}>
-              {itineraryMeta(offer)}
-              <Chevron open={routesOpen} />
-            </span>
-          </button>
-        ) : (
-          <div className={`flex items-baseline justify-between gap-3 px-5 py-2 ${sectionBg}`}>
-            <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-              Itinerary
-            </span>
-            <span className={`text-[10px] font-mono ${textMuted}`}>{itineraryMeta(offer)}</span>
-          </div>
-        )}
+      {/* 3. Itinerary (left) + price column (right; stacks below on phones) */}
+      <div className="md:flex">
+        <div className="md:flex-1 min-w-0">
+          {isRoundTrip ? (
+            <button
+              type="button"
+              onClick={() => setRoutesOpen(v => !v)}
+              aria-expanded={routesOpen}
+              className={`w-full min-h-11 flex items-center justify-between gap-3 px-5 py-2 text-left transition-colors ${sectionBg} ${
+                isDark ? 'hover:bg-gph-dark-linesoft' : 'hover:bg-gray-100'
+              }`}
+            >
+              <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
+                Round-trip itinerary
+              </span>
+              <span className={`flex items-center gap-2 text-[10px] font-mono ${textMuted}`}>
+                {itineraryMeta(offer)}
+                <Chevron open={routesOpen} />
+              </span>
+            </button>
+          ) : (
+            <div className={`flex items-baseline justify-between gap-3 px-5 py-2 ${sectionBg}`}>
+              <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
+                Itinerary
+              </span>
+              <span className={`text-[10px] font-mono ${textMuted}`}>{itineraryMeta(offer)}</span>
+            </div>
+          )}
 
-        {(routesOpen || !isRoundTrip) && routes.map((route, i) => (
-          <RouteRow
-            key={`${route.label}-${i}`}
-            route={route}
-            isDark={isDark}
-            textPrimary={textPrimary}
-            textMuted={textMuted}
-            dividerCls={dividerCls}
-          />
-        ))}
+          {(routesOpen || !isRoundTrip) && routes.map((route, i) => (
+            <RouteRow
+              key={`${route.label}-${i}`}
+              route={route}
+              isDark={isDark}
+              textPrimary={textPrimary}
+              textMuted={textMuted}
+              dividerCls={dividerCls}
+            />
+          ))}
+        </div>
+
+        <PriceColumn
+          totalAmount={totalAmount}
+          best={best}
+          hasPoints={!!ptsResult}
+          onCompare={() => setCompareOpen(true)}
+          isDark={isDark}
+          textPrimary={textPrimary}
+          textMuted={textMuted}
+          dividerCls={dividerCls}
+        />
       </div>
 
-      {/* 4. Compare panel + the portal comparison it expands */}
-      {ptsResult ? (
-        <>
-          <BestRedemptionBar
-            result={ptsResult}
-            expanded={expanded}
-            onToggle={() => setExpanded(v => !v)}
-            roundedBottom={!expanded}
-            showMetrics
-            isDark={isDark}
-          />
-          {expanded && (
-            <RedemptionTable
-              result={ptsResult}
-              scopeLabel={tripWord}
-              scopeAdj={scopeAdj}
-              unitNoun="options"
-              showBonusNotice={false}
-            />
-          )}
-        </>
-      ) : (
-        <p className={`border-t px-5 py-3 text-[10px] font-mono rounded-b-xl ${dividerCls} ${sectionBg} ${textMuted}`}>
-          Select your cards to compare points pricing across portals.
-        </p>
+      {compareOpen && ptsResult && (
+        <CompareModal
+          result={ptsResult}
+          subjectType="flight"
+          subjectKey={flightSubjectKey(offer)}
+          baseQuote={{ cash: totalAmount, ...flightQuoteDates(offer) }}
+          label={`Compare booking options — ${airline} ${originCode} to ${destCode}`}
+          header={
+            <>
+              <p className={`text-[9.5px] font-bold font-mono tracking-widest uppercase mb-1 ${textMuted}`}>
+                {tripWord} · Points vs cash
+              </p>
+              <h3 className={`text-lg font-extrabold leading-tight tracking-tight ${textPrimary}`}>
+                {airline} · {originCode} → {destCode}
+              </h3>
+              <p className={`text-sm mt-1 ${textMuted}`}>
+                <span className={`font-bold font-mono ${textPrimary}`}>
+                  {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
+                </span>{' '}cash · {routes.map(r => r.dateLabel).join(' – ')}
+              </p>
+            </>
+          }
+          scopeLabel={tripWord}
+          scopeAdj={scopeAdj}
+          unitNoun="options"
+          showBonusNotice
+          scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
+          onClose={() => setCompareOpen(false)}
+        />
       )}
     </article>
   );

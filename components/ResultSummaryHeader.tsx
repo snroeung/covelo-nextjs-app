@@ -20,8 +20,8 @@ interface Props {
 
 /**
  * Neutral summary strip at the top of a result card: what was searched, and who
- * is flying it. The winning redemption lives in the card's BestRedemptionBar at the
- * bottom, next to the toggle that opens the full comparison.
+ * is flying it. The winning redemption lives in the card's price column, next to
+ * the Compare button that opens the full comparison.
  */
 export function ResultSummaryHeader({
   eyebrow, title, trailing, mark, roundedTop = true, titleTestId, isDark,
