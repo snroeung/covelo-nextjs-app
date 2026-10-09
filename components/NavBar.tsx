@@ -84,14 +84,14 @@ export function NavBar() {
         >
           <button
             onClick={() => { closeSearch(); router.push('/search'); }}
-            className={`${navLinkCls(searchActive)} flex items-center gap-1.5`}
+            className={`${navLinkCls(searchActive || searchOpen)} flex items-center gap-1.5`}
             aria-haspopup="true"
             aria-expanded={searchOpen}
           >
             Search
-            {searchLabel && (
+            {(searchLabel ?? ((pathname === '/search' && !discoverOpen) || searchOpen ? 'Home' : null)) && (
               <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-white text-cv-green-800">
-                {searchLabel}
+                {searchLabel ?? 'Home'}
               </span>
             )}
           </button>
@@ -136,11 +136,16 @@ export function NavBar() {
             <Link
               href="/discover"
               onClick={closeDiscover}
-              className={navLinkCls(pathname.startsWith('/discover') || pathname.startsWith('/offers'))}
+              className={`${navLinkCls(pathname.startsWith('/discover') || pathname.startsWith('/offers') || discoverOpen)} flex items-center gap-1.5`}
               aria-haspopup="true"
               aria-expanded={discoverOpen}
             >
               Discover
+              {((pathname.startsWith('/discover') && !searchOpen) || discoverOpen) && (
+                <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-white text-cv-green-800">
+                  Home
+                </span>
+              )}
             </Link>
 
             {discoverOpen && (
