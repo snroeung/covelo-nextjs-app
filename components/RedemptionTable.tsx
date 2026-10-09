@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PointsResult, PortalId } from '@/lib/points/types';
 import { useRankedViews } from '@/hooks/useRankedViews';
-import { cashEarnLine, splitFeatured, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
+import { cashEarnLine, splitFeatured, ISSUER_BRAND, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { TransferBonus } from '@/lib/types/offers';
 import { ISSUER_LOYALTY_NAME, formatBonusEndDate } from '@/lib/points/transferBonus';
@@ -160,7 +160,7 @@ function ViewDealButton({ view, url, booking, className }: { view: OptionRowView
 
 /** Column widths shared by the header strip and every featured row. */
 const VALUE_COL = 'md:w-36';
-const ACTION_COL = 'md:w-32';
+const ACTION_COL = 'md:w-40';
 
 function ColumnHeaders({ isDark }: { isDark: boolean }) {
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
@@ -215,6 +215,90 @@ function chipTone(card: SourceCardView, owned: boolean, isDark: boolean): string
     : `bg-transparent ${text} ${border} border-dashed`;
 }
 
+/** Cards of one issuer collapse into a single chip once there are two or more. */
+function groupSourceCards(cards: SourceCardView[]): SourceCardView[][] {
+  const groups: SourceCardView[][] = [];
+  for (const card of cards) {
+    const group = groups.find(g => g[0].portalId === card.portalId);
+    if (group) group.push(card);
+    else groups.push([card]);
+  }
+  return groups;
+}
+
+function ChipRate({ card }: { card: SourceCardView }) {
+  if (card.cpp === null) return null;
+  return (
+    <span className="font-mono ml-1 tabular-nums opacity-80">
+      {card.ratioLabel !== '1:1' ? `${card.ratioLabel} · ` : ''}{card.cpp}¢
+    </span>
+  );
+}
+
+function SourceChip({ card, isDark }: { card: SourceCardView; isDark: boolean }) {
+  return (
+    <span
+      data-testid="source-chip"
+      // Ownership is carried by fill vs dashed outline; mirror it in the
+      // DOM so tests assert the state rather than the class string.
+      data-owned={card.owned}
+      // Full ratio text (and, on an issuer chip, its per-card breakdown)
+      // is supplementary — the label, rate and ¢/pt stay on the chip, so
+      // nothing here is hover-only.
+      title={card.ratioDetail}
+      className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${chipTone(card, card.owned, isDark)}`}
+    >
+      {card.label}
+      {/* Shown on unowned chips too — it is what earns them their colour. */}
+      <ChipRate card={card} />
+    </span>
+  );
+}
+
+/** "Chase · 3 cards" — hover or focus lists every eligible card at its own rate. */
+function SourceChipGroup({ cards, isDark }: { cards: SourceCardView[]; isDark: boolean }) {
+  const rated = cards.filter(c => c.cpp !== null);
+  const best = rated.length > 0 ? rated.reduce((a, b) => (b.cpp! > a.cpp! ? b : a)) : cards[0];
+  const rep: SourceCardView = { ...best, hasBonus: cards.some(c => c.hasBonus) };
+  const owned = cards.some(c => c.owned);
+  const lo = rated.length > 0 ? Math.min(...rated.map(c => c.cpp!)) : null;
+  return (
+    <span className="relative group inline-flex">
+      <span
+        tabIndex={0}
+        data-testid="source-chip"
+        data-owned={owned}
+        data-grouped="true"
+        aria-label={`${ISSUER_BRAND[best.portalId]}, ${cards.length} cards: ${cards.map(c => c.label).join(', ')}`}
+        className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold cursor-default ${chipTone(rep, owned, isDark)}`}
+      >
+        {ISSUER_BRAND[best.portalId]} · {cards.length} cards
+        {best.cpp !== null && (
+          <span className="font-mono ml-1 tabular-nums opacity-80">
+            {lo !== null && lo !== best.cpp ? `${lo}–${best.cpp}` : best.cpp}¢
+          </span>
+        )}
+      </span>
+      <span
+        role="tooltip"
+        data-testid="source-chip-popover"
+        className={`hidden group-hover:block group-focus-within:block absolute left-0 top-full pt-1 z-20`}
+      >
+        <span className={`block rounded-lg border shadow-lg p-2 min-w-48 text-[10px] ${
+          isDark ? 'bg-gph-dark-linesoft border-gph-dark-line text-gph-dark-ink' : 'bg-white border-gray-200 text-gray-900'
+        }`}>
+          {cards.map(c => (
+            <span key={c.key} className="flex items-center justify-between gap-3 py-0.5 whitespace-nowrap">
+              <span className="font-semibold">{c.label}</span>
+              <ChipRate card={c} />
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 /**
  * Which card(s) the transfer actually comes out of. Without this the row names
  * an issuer and nothing tells the user whether that issuer is even in their
@@ -242,28 +326,9 @@ function SourceCards({ view, isDark }: { view: OptionRowView; isDark: boolean })
     <div className="mt-1.5">
       {lead && <p className={`text-[10px] font-mono ${mutedCls}`}>{lead}</p>}
       <div className="flex flex-wrap gap-1 mt-1">
-        {view.sourceCards.map(card => (
-          <span
-            key={card.key}
-            data-testid="source-chip"
-            // Ownership is carried by fill vs dashed outline; mirror it in the
-            // DOM so tests assert the state rather than the class string.
-            data-owned={card.owned}
-            // Full ratio text (and, on an issuer chip, its per-card breakdown)
-            // is supplementary — the label, rate and ¢/pt stay on the chip, so
-            // nothing here is hover-only.
-            title={card.ratioDetail}
-            className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${chipTone(card, card.owned, isDark)}`}
-          >
-            {card.label}
-            {/* Shown on unowned chips too — it is what earns them their colour. */}
-            {card.cpp !== null && (
-              <span className="font-mono ml-1 tabular-nums opacity-80">
-                {card.ratioLabel !== '1:1' ? `${card.ratioLabel} · ` : ''}{card.cpp}¢
-              </span>
-            )}
-          </span>
-        ))}
+        {groupSourceCards(view.sourceCards).map(group => group.length === 1
+          ? <SourceChip key={group[0].key} card={group[0]} isDark={isDark} />
+          : <SourceChipGroup key={group[0].portalId} cards={group} isDark={isDark} />)}
       </div>
     </div>
   );
@@ -353,7 +418,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
               view={view}
               url={dealUrl}
               booking={booking}
-              className={`flex items-center justify-center min-h-11 w-full px-4 rounded-lg text-sm font-bold text-center transition-colors ${btnCls}`}
+              className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap transition-colors ${btnCls}`}
             />
           ) : dealUrl ? (
             <a
@@ -362,7 +427,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               aria-label={ctaAriaLabel(view)}
-              className={`flex items-center justify-center min-h-11 w-full px-4 rounded-lg text-sm font-bold text-center transition-colors ${btnCls}`}
+              className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap transition-colors ${btnCls}`}
             >
               {ctaLabel(view.kind)} →
             </a>
@@ -370,7 +435,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
             <>
               <span
                 aria-hidden="true"
-                className={`flex items-center justify-center min-h-11 w-full px-4 rounded-lg text-sm font-bold text-center opacity-50 cursor-not-allowed ${btnCls}`}
+                className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap opacity-50 cursor-not-allowed ${btnCls}`}
               >
                 {ctaLabel(view.kind)} →
               </span>
@@ -410,7 +475,7 @@ function AlternativeRow({
   const dealUrl = resolveDeepLink(view);
 
   const reportsOpen = booking?.openReportsKey === view.key;
-  const altBtnCls = `shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center transition-colors ${
+  const altBtnCls = `shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center whitespace-nowrap transition-colors ${
     isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
   }`;
 
@@ -469,7 +534,7 @@ function AlternativeRow({
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             aria-label={ctaAriaLabel(view)}
-            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center transition-colors ${
+            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center whitespace-nowrap transition-colors ${
               isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
             }`}
           >
@@ -478,7 +543,7 @@ function AlternativeRow({
         ) : (
           <span
             aria-hidden="true"
-            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center opacity-50 cursor-not-allowed ${
+            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center whitespace-nowrap opacity-50 cursor-not-allowed ${
               isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
             }`}
           >

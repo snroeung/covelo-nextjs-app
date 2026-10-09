@@ -1,9 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { BalancePanel } from '@/components/BalancePanel';
-import { CardSelector } from '@/components/CardSelector';
 import { NavBar } from '@/components/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
@@ -79,17 +79,19 @@ export function AppShell({
 
         {/* Sidebar — desktop only */}
         <aside className="hidden md:flex w-64 shrink-0 border-r flex-col overflow-hidden bg-gph-card border-gph-line">
-          {allCardsMode && (
-            <div className={`px-4 py-3 border-b ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
+          {allCardsMode && !user && (
+            <div className={`mx-3 mt-3 px-4 py-3 rounded-xl border ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
               <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-900'}`}>
-                Showing all cards. Select yours for a personalized estimate.
+                Showing all cards.{' '}
+                <Link href="/auth" className="font-semibold">Sign in</Link>{' '}
+                to filter based on your wallet
               </p>
             </div>
           )}
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
             {sidebar}
             <AffiliateAdSpot slot="sidebar" isDark={isDark} />
-            {user ? <BalancePanel /> : <CardSelector />}
+            {user && <BalancePanel />}
           </div>
         </aside>
 
