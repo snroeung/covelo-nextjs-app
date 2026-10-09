@@ -11,23 +11,11 @@ import { CompareModal } from '@/components/booking/CompareModal';
 import { useRankedViews } from '@/hooks/useRankedViews';
 import { flightQuoteDates, flightSubjectKey } from '@/lib/reports/subject';
 import type { OptionRowView } from '@/lib/points/rowView';
-import { buildRouteViews, getAirlineColor, getOfferFlightInfo, getOfferTripDates, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
+import { buildRouteViews, getAirlineColor, getOfferFlightInfo, getOfferTripDates, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="12" height="12" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2.4} aria-hidden="true"
-      className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
 
 /** Origin dot → a dot per connection → arrowhead at the destination. */
 function RouteLine({ isDark, stops }: { isDark: boolean; stops: number }) {
@@ -61,19 +49,21 @@ interface RouteRowProps {
   textPrimary: string;
   textMuted: string;
   dividerCls: string;
+  first: boolean;
 }
 
-function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRowProps) {
+function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, first }: RouteRowProps) {
   const stopCls = route.stops === 0
     ? isDark ? 'text-cv-green-400' : 'text-cv-green-800'
     : textMuted;
 
   return (
-    <div className={`border-t ${dividerCls}`}>
+    <div>
+      {!first && <div className={`mx-5 border-t ${dividerCls}`} />}
       {/* ── DESKTOP: one horizontal row ──────────────────────────────────── */}
       <div
-        className="hidden md:grid items-center px-5 py-4 gap-5"
-        style={{ gridTemplateColumns: '8rem auto 1fr auto' }}
+        className="hidden md:grid items-center py-5 gap-5 px-5"
+        style={{ gridTemplateColumns: '8rem 12rem 1fr 12rem' }}
       >
         {/* 1. Route identity */}
         <div className="min-w-0">
@@ -87,7 +77,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
 
         {/* 2. Departure */}
         <div className="shrink-0">
-          <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+          <p className={`text-4xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
             {route.depTime}
           </p>
           <p className={`text-xs font-mono mt-1.5 ${textMuted}`}>
@@ -108,7 +98,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
 
         {/* 4. Arrival */}
         <div className="shrink-0 text-right">
-          <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+          <p className={`text-4xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
             {route.arrTime}
           </p>
           <p className={`text-xs font-mono mt-1.5 ${textMuted}`}>
@@ -175,43 +165,40 @@ interface PriceColumnProps {
 
 function PriceColumn({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: PriceColumnProps) {
   return (
-    <div className={`border-t md:border-t-0 md:border-l px-5 py-4 md:w-60 shrink-0 flex flex-col gap-3 ${dividerCls}`}>
-      <div className="flex items-baseline justify-between md:block">
-        <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>From · cash</p>
-        <p data-testid="from-cash" className={`text-2xl font-extrabold font-mono tabular-nums leading-none md:mt-1 ${textPrimary}`}>
+    <div className={`rounded-b-xl border-t px-4 md:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-3 ${dividerCls} ${isDark ? 'bg-gph-dark-bg' : 'bg-gray-50'}`}>
+      <div className="flex items-baseline gap-3 shrink-0">
+        <p className={`text-[10px] font-mono uppercase tracking-widest ${textMuted}`}>From</p>
+        <p data-testid="from-cash" className={`text-3xl font-extrabold tabular-nums leading-none ${textPrimary}`}>
           {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
         </p>
       </div>
 
       {best ? (
-        <div className={`rounded-lg px-3 py-2.5 ${isDark ? 'bg-gph-dark-navy border border-gph-dark-line' : 'bg-cv-navy-950'}`}>
-          <p className="text-[9px] font-bold font-mono uppercase tracking-widest text-cv-navy-300">Best value</p>
-          <div className="flex items-baseline justify-between gap-2 mt-0.5">
-            <p className="text-sm font-bold text-white leading-tight truncate">{best.displayName}</p>
-            {best.cpp !== null ? (
-              <p data-testid="best-value-cpp" className="text-lg font-extrabold font-mono tabular-nums text-cv-green-500 leading-none shrink-0">
-                {best.cpp}<span className="text-[10px] font-bold ml-0.5">cpp</span>
-              </p>
-            ) : (
-              <p className="text-xs font-bold font-mono text-cv-navy-300 shrink-0">check program</p>
-            )}
+        <div className={`flex-1 min-w-0 flex items-center gap-3 rounded-xl border px-4 py-2.5 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-100 border-gray-200'}`}>
+          <div className="flex-1 min-w-0">
+            <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>Best value</p>
+            <p className={`text-base font-semibold leading-tight truncate ${textPrimary}`}>{best.displayName}</p>
           </div>
+          {best.cpp !== null ? (
+            <p data-testid="best-value-cpp" className={`text-xl font-extrabold font-mono tabular-nums leading-none shrink-0 ${textPrimary}`}>
+              {best.cpp}<span className={`text-xs font-bold ml-0.5 ${textMuted}`}>cpp</span>
+            </p>
+          ) : (
+            <p className={`text-xs font-bold font-mono shrink-0 ${textMuted}`}>check program</p>
+          )}
+          <button
+            type="button"
+            onClick={onCompare}
+            aria-haspopup="dialog"
+            className="min-h-11 px-5 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-base font-extrabold whitespace-nowrap transition-colors shrink-0"
+          >
+            Compare →
+          </button>
         </div>
       ) : (
-        <p className={`text-[10px] font-mono ${textMuted}`}>
+        <p className={`flex-1 text-[10px] font-mono ${textMuted}`}>
           {hasPoints ? 'No portal priced this itinerary.' : 'Select your cards to compare points pricing across portals.'}
         </p>
-      )}
-
-      {best && (
-        <button
-          type="button"
-          onClick={onCompare}
-          aria-haspopup="dialog"
-          className="min-h-11 px-4 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-sm font-extrabold whitespace-nowrap transition-colors"
-        >
-          Compare →
-        </button>
       )}
     </div>
   );
@@ -225,7 +212,6 @@ function PriceColumn({ totalAmount, best, hasPoints, onCompare, isDark, textPrim
 export function FlightCard({ offer }: { offer: any }) {
   const { isDark } = useTheme();
   const [compareOpen, setCompareOpen] = useState(false);
-  const [routesOpen, setRoutesOpen] = useState(true);
 
   const isRoundTrip = offer.slices.length > 1;
   const totalAmount = parseFloat(offer.total_amount);
@@ -244,7 +230,6 @@ export function FlightCard({ offer }: { offer: any }) {
   const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const textPrimary = isDark ? 'text-gph-dark-ink'    : 'text-gray-900';
   const textMuted   = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
-  const sectionBg   = isDark ? 'bg-gph-dark-bg'       : 'bg-gray-50';
 
   const originCode = firstSeg?.origin?.iata_code ?? '';
   const destCode   = lastSeg?.destination?.iata_code ?? '';
@@ -303,58 +288,32 @@ export function FlightCard({ offer }: { offer: any }) {
         scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
       />
 
-      {/* 3. Itinerary (left) + price column (right; stacks below on phones) */}
-      <div className="md:flex">
-        <div className="md:flex-1 min-w-0">
-          {isRoundTrip ? (
-            <button
-              type="button"
-              onClick={() => setRoutesOpen(v => !v)}
-              aria-expanded={routesOpen}
-              className={`w-full min-h-11 flex items-center justify-between gap-3 px-5 py-2 text-left transition-colors ${sectionBg} ${
-                isDark ? 'hover:bg-gph-dark-linesoft' : 'hover:bg-gray-100'
-              }`}
-            >
-              <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-                Round-trip itinerary
-              </span>
-              <span className={`flex items-center gap-2 text-[10px] font-mono ${textMuted}`}>
-                {itineraryMeta(offer)}
-                <Chevron open={routesOpen} />
-              </span>
-            </button>
-          ) : (
-            <div className={`flex items-baseline justify-between gap-3 px-5 py-2 ${sectionBg}`}>
-              <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-                Itinerary
-              </span>
-              <span className={`text-[10px] font-mono ${textMuted}`}>{itineraryMeta(offer)}</span>
-            </div>
-          )}
-
-          {(routesOpen || !isRoundTrip) && routes.map((route, i) => (
-            <RouteRow
-              key={`${route.label}-${i}`}
-              route={route}
-              isDark={isDark}
-              textPrimary={textPrimary}
-              textMuted={textMuted}
-              dividerCls={dividerCls}
-            />
-          ))}
-        </div>
-
-        <PriceColumn
-          totalAmount={totalAmount}
-          best={best}
-          hasPoints={!!ptsResult}
-          onCompare={() => setCompareOpen(true)}
-          isDark={isDark}
-          textPrimary={textPrimary}
-          textMuted={textMuted}
-          dividerCls={dividerCls}
-        />
+      {/* 3. Itinerary */}
+      <div className="px-4 md:px-5">
+        {routes.map((route, i) => (
+          <RouteRow
+            key={`${route.label}-${i}`}
+            route={route}
+            first={i === 0}
+            isDark={isDark}
+            textPrimary={textPrimary}
+            textMuted={textMuted}
+            dividerCls={dividerCls}
+          />
+        ))}
       </div>
+
+      {/* 4. Price + best redemption bar */}
+      <PriceColumn
+        totalAmount={totalAmount}
+        best={best}
+        hasPoints={!!ptsResult}
+        onCompare={() => setCompareOpen(true)}
+        isDark={isDark}
+        textPrimary={textPrimary}
+        textMuted={textMuted}
+        dividerCls={dividerCls}
+      />
 
       {compareOpen && ptsResult && (
         <CompareModal

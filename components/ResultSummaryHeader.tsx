@@ -26,7 +26,7 @@ interface Props {
 export function ResultSummaryHeader({
   eyebrow, title, trailing, mark, roundedTop = true, titleTestId, isDark,
 }: Props) {
-  const surface = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-200';
+  const surface = isDark ? 'bg-gph-dark-linesoft border-b border-gph-dark-line' : 'bg-white border-b border-gray-200';
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   // gray-500 on gray-100 lands at 4.39:1 — below the AA floor for this 9px eyebrow.
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';

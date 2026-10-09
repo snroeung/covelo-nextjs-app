@@ -286,7 +286,7 @@ test.describe('Flights page — results', () => {
     await expect(modal!).toBeVisible();
   });
 
-  test('the round-trip itinerary labels both routes and collapses them', async ({ page }) => {
+  test('the round-trip itinerary labels both routes', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
     const cards = page.getByTestId('flight-card');
@@ -295,19 +295,8 @@ test.describe('Flights page — results', () => {
 
     // FLIGHT_QUERY is a round trip, so every result has two labelled routes.
     const card = cards.first();
-    const outbound = card.getByText('Outbound', { exact: true }).first();
-    await expect(outbound).toBeVisible();
+    await expect(card.getByText('Outbound', { exact: true }).first()).toBeVisible();
     await expect(card.getByText('Return', { exact: true }).first()).toBeVisible();
-
-    const toggle = card.getByRole('button', { name: /Round-trip itinerary/ });
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-
-    await toggle.click();
-    await expect(outbound).not.toBeVisible();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-
-    await toggle.click();
-    await expect(outbound).toBeVisible();
   });
 });
 
