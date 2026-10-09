@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LocationSearch } from '@/components/LocationSearch';
-import { NavBar } from '@/components/NavBar';
+import { LocationSearch } from '@/components/inputs/LocationSearch';
+import { NavBar } from '@/components/layout/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTrips } from '@/hooks/useTrips';
 import { trpc } from '@/lib/trpc-client';
-import type { SelectedPlace } from '@/components/LocationSearch';
+import type { SelectedPlace } from '@/components/inputs/LocationSearch';
 import type { Trip, TripTravelers } from '@/lib/trips';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

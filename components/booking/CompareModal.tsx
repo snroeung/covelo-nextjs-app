@@ -7,7 +7,7 @@ import { TRPCClientError } from '@trpc/client';
 import type { PointsResult } from '@/lib/points/types';
 import type { OptionRowView } from '@/lib/points/rowView';
 import type { QuoteValues, ReportSubjectType } from '@/lib/reports/types';
-import { RedemptionTable, type RedemptionBooking } from '@/components/RedemptionTable';
+import { RedemptionTable, type RedemptionBooking } from '@/components/booking/RedemptionTable';
 import { ReportsList } from '@/components/booking/ReportsList';
 import { LeavingPanel } from '@/components/booking/LeavingPanel';
 import { ReportPanel } from '@/components/booking/ReportPanel';

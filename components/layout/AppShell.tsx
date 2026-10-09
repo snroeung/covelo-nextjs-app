@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
-import { BalancePanel } from '@/components/BalancePanel';
-import { NavBar } from '@/components/NavBar';
+import { BalancePanel } from '@/components/wallet/BalancePanel';
+import { NavBar } from '@/components/layout/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';

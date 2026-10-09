@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
-import { ProfilePopup } from '@/components/ProfilePopup';
+import { ProfilePopup } from '@/components/layout/ProfilePopup';
 import { isEnabled } from '@/lib/feature-flags';
 
 const flightsEnabled    = isEnabled('ui:flights');

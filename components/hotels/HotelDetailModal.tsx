@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AddToTripButton } from '@/components/AddToTripButton';
-import { HotelBestRedemptionBar } from '@/components/HotelBestRedemptionBar';
+import { AddToTripButton } from '@/components/layout/AddToTripButton';
+import { HotelBestRedemptionBar } from '@/components/hotels/HotelBestRedemptionBar';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';

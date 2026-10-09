@@ -1,7 +1,7 @@
 'use client';
 
-import { DateInput } from '@/components/DateInput';
-import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
+import { DateInput } from '@/components/inputs/DateInput';
+import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { TripType } from '@/lib/searchUrls';
 

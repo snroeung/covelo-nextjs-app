@@ -2,10 +2,10 @@
 
 import { Fragment, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CollectionBanner } from '@/components/CollectionBanner';
-import { TransferBonusBanner } from '@/components/TransferBonusBanner';
+import { CollectionBanner } from '@/components/offers/CollectionBanner';
+import { TransferBonusBanner } from '@/components/offers/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
-import { AddToTripButton } from '@/components/AddToTripButton';
+import { AddToTripButton } from '@/components/layout/AddToTripButton';
 import { CompareModal } from '@/components/booking/CompareModal';
 import { useRankedViews } from '@/hooks/useRankedViews';
 import { flightQuoteDates, flightSubjectKey } from '@/lib/reports/subject';
