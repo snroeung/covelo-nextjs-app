@@ -110,20 +110,20 @@ unless a task explicitly says to migrate them too.
 
 ## Components
 
-### `AppShell` (`components/AppShell.tsx`)
+### `AppShell` (`components/layout/AppShell.tsx`)
 Main layout shell used by all pages. Props:
 - `header` — search form content (rendered as desktop strip / mobile accordion)
 - `children` — results content
 - `hasResults` — auto-collapses mobile search header when true
 
-### `CardSelector` (`components/CardSelector.tsx`)
+### `CardSelector` (`components/wallet/CardSelector.tsx`)
 Sidebar card selector with:
 - Cards grouped by issuer (Chase, Amex, Capital One, Bilt, Citi)
 - Full-width row buttons with ✓ for selected cards
 - "Edit →" opens inline balance editor per currency pool
 - Balance summary (total points + ~dollar value at 1.25¢/pt estimate)
 
-### `HotelCard` (`components/HotelCard.tsx`)
+### `HotelCard` (`components/hotels/HotelCard.tsx`)
 - Desktop: image left (w-44) + info + price | Mobile: image top
 - "★ Best Value" badge overlay when cpp > 1.0
 - Favorite (heart) button — UI only, no persistence
@@ -132,13 +132,37 @@ Sidebar card selector with:
 - Clicking the photo or the name opens `HotelDetailModal`
 
 ### Redemption comparison components
-Three renderings of the same `PointsResult`, chosen by how much room the surface has:
+Renderings of the same `PointsResult`, chosen by how much room the surface has. All of
+them rank through `hooks/useRankedViews.ts` (bonus lookup + rank + re-sort on displayed
+cpp) so a card's "Best value" and the table's top row can never disagree:
 
 | Component | Shape | Used by |
 |---|---|---|
-| `RedemptionTable` (`components/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote | `FlightCard`, `HotelDetailModal` room comparison popup, `SearchBoard` |
-| `BestRedemptionBar` (`components/BestRedemptionBar.tsx`) | Horizontal dark strip closing a result card — winner + "Compare N portals →" toggle | `FlightCard` |
-| `HotelBestRedemptionBar` (`components/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
+| `RedemptionTable` (`components/booking/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote. Optional `booking` prop turns on View deal + per-row user reports | `CompareModal`, `SearchBoard` |
+| `CompareModal` (`components/booking/CompareModal.tsx`) | Popup (bottom sheet on phones) wrapping `RedemptionTable` with the book & report flow | `FlightCard` "Compare →", `HotelDetailModal` room comparison popup |
+| `FlightCard` best-value strip | Full-width footer: FROM cash + grey Best value box (top option, cpp, "Compare →") | `FlightCard` |
+| `HotelBestRedemptionBar` (`components/hotels/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
+
+### Book & report flow (`components/booking/`)
+Inside `CompareModal`, a row's **View deal** starts a two-step flow instead of navigating:
+1. `LeavingPanel` — "You're leaving Covelo…", editable Cash / Points / dates (`QuoteFields`;
+   Departure/Return for flights, Check-in/Check-out for hotels). **Submit result** opens the
+   site in a new tab and advances; an edit shows a change notice whose Submit saves "Different".
+2. `ReportPanel` — "Did you find this result?" Yes (optionally edited) / No → Matched,
+   Different or Not found.
+
+Every submit returns to the table with that option's `ReportsList` open and a thank-you line.
+Rows toggle their reports panel on click; only one is open at a time.
+
+Reports live in Supabase `booking_reports` (migration 024) behind the `api:reports` router:
+- `reports.list` reads the `booking_reports_feed` view — public, exposes `is_mine`, never `user_id`.
+- `reports.submit` is signed-in only (`authedProcedure`), re-classifies server-side
+  (`lib/reports/classify.ts`), throttles (one per option per 10 min, 30/hr), and inserts with the
+  service role — clients hold no INSERT grant.
+- Not cached: user-generated and must appear right after submit.
+- Subject identity is wallet-independent: `flightSubjectKey` / `hotelSubjectKey` in
+  `lib/reports/subject.ts`. A transfer option is matched to its reports with `sameProgram`
+  (`reportsForOption`), never `OptionRowView.key` — that key carries a list index and issuer.
 
 The grouped-alternatives overlay inside `RedemptionTable` is `absolute inset-0` over the
 table's own box — it covers the table exactly rather than hanging off its trigger, so an
@@ -188,7 +212,7 @@ the rate at its own card's ratio.
 - **Card selection**: `contexts/SelectedCardsContext.tsx` — also stores per-portal point balances
 - **Theme**: `contexts/ThemeContext.tsx` — persisted to localStorage as `covelo_theme`, defaults to light
 - **Hotel search**: `app/hotels/page.tsx` → tRPC `stays.search` → Duffel API (cached 1h in Redis)
-- **Places autocomplete**: `components/LocationSearch.tsx` → tRPC `places.autocomplete` + `places.getLatLng`
+- **Places autocomplete**: `components/inputs/LocationSearch.tsx` → tRPC `places.autocomplete` + `places.getLatLng`
 
 ---
 
@@ -247,7 +271,7 @@ onMouseLeave={() => { if (!pinned) setOpen(false); }}
 onClick={() => { if (pinned) { close(); } else { setPinned(true); setOpen(true); } }}
 ```
 
-See `components/NavBar.tsx` — Search dropdown — as the reference implementation.
+See `components/layout/NavBar.tsx` — Search dropdown — as the reference implementation.
 
 ### Modal / Popup Pattern (Non-Negotiable)
 
@@ -615,8 +639,8 @@ zod
 ### Large Files
 *~6,000 tokens/session saved*
 - `app/trip-planner/[id]/page.tsx` (~78 KB) — use `grep -n` or offset reads; avoid full reads
-- `components/HotelDetailModal.tsx` (~52 KB) — targeted grep preferred; full reads are very expensive
-- `app/trip-planner/page.tsx` (~38 KB), `components/RedemptionTable.tsx` (~28 KB), `lib/points/transferPartners.ts` (~22 KB) — grep before reading
+- `components/hotels/HotelDetailModal.tsx` (~52 KB) — targeted grep preferred; full reads are very expensive
+- `app/trip-planner/page.tsx` (~38 KB), `components/booking/RedemptionTable.tsx` (~28 KB), `lib/points/transferPartners.ts` (~22 KB) — grep before reading
 - `node_modules/@duffel/api/dist/Stays/StaysTypes.d.ts` (~23 KB) — read repeatedly across many sessions for `StaysAccommodation`/`StaysRoom`/`StaysPhoto`; grep for the specific interface name (e.g. `grep -n 'StaysRoom\b'`) instead of reading the whole file
 - `e2e/offers/offers-admin.spec.ts` (~17-30 KB) and `e2e/utils/admin-helpers.ts` (~7-14 KB) are hot files edited nearly every session — read the exact section first (`grep -n "test('"` to find line numbers) since ambiguous `Edit` calls on these files frequently fail with "String to replace not found" or "Found N matches"
 

@@ -4,12 +4,12 @@ import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { AppShell, MAIN_SCROLL_ID } from '@/components/AppShell';
-import { FlightCard } from '@/components/FlightCard';
+import { AppShell, MAIN_SCROLL_ID } from '@/components/layout/AppShell';
+import { FlightCard } from '@/components/flights/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
-import { type SelectedPlace } from '@/components/LocationSearch';
-import { Pagination } from '@/components/Pagination';
-import { AirlineGroupCard } from '@/components/AirlineGroupCard';
+import { type SelectedPlace } from '@/components/inputs/LocationSearch';
+import { Pagination } from '@/components/layout/Pagination';
+import { AirlineGroupCard } from '@/components/flights/AirlineGroupCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { usePerPage } from '@/hooks/usePerPage';

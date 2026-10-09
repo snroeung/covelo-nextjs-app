@@ -4,8 +4,8 @@ import { Suspense, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
-import { NavBar } from '@/components/NavBar';
-import { Footer } from '@/components/Footer';
+import { NavBar } from '@/components/layout/NavBar';
+import { Footer } from '@/components/layout/Footer';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
@@ -14,8 +14,8 @@ import { SearchModeToggle, type SearchMode } from '@/components/search/SearchMod
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { SearchBoard, adaptFlightOffer, adaptStay, FALLBACK_FLIGHTS, FALLBACK_STAYS, type BoardCard, type FlightOfferSlice, type StaySearchResultSlice } from '@/components/search/SearchBoard';
-import type { GuestsValue } from '@/components/GuestsDropdown';
-import type { SelectedPlace } from '@/components/LocationSearch';
+import type { GuestsValue } from '@/components/inputs/GuestsDropdown';
+import type { SelectedPlace } from '@/components/inputs/LocationSearch';
 import {
   buildFlightSearchUrl,
   buildHotelSearchUrl,

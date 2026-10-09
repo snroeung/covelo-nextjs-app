@@ -25,8 +25,8 @@ const ChevronIcon = () => (
 
 /**
  * Compact winning-redemption footer for the hotel detail modal's room cards,
- * where there is no room for the full comparison table. List cards use
- * ResultSummaryHeader + RedemptionTable instead.
+ * where there is no room for the full comparison table. Flight cards use a
+ * best-value strip that opens CompareModal instead.
  */
 export function HotelBestRedemptionBar({ result, onCompareClick, compareLabel, primaryCta }: HotelBestRedemptionBarProps) {
   const best = getBestOption(result);

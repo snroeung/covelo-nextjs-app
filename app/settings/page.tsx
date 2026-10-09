@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { NavBar } from '@/components/NavBar';
+import { NavBar } from '@/components/layout/NavBar';
 
 export default function SettingsPage() {
   const { isDark } = useTheme();
