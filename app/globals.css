@@ -25,18 +25,6 @@
   --color-cv-blue-100: #E8F4FD;
   --color-cv-blue-50:  #F4F9FE;
 
-  /* Graphite dark mode palette */
-  --color-gph-dark-bg:        #0a0a0b;
-  --color-gph-dark-card:      #161618;
-  --color-gph-dark-ink:       #f3f3f1;
-  --color-gph-dark-muted:     #8a8a90;
-  --color-gph-dark-line:      #262629;
-  --color-gph-dark-linesoft:  #1c1c1f;
-  --color-gph-dark-action:    #e4e4e1;
-  --color-gph-dark-actionhi:  #f3f3f0;
-  --color-gph-dark-actionsoft:#222226;
-  --color-gph-dark-navy:      #000000;
-
   /* Lime — graphite accent: hero period, compare links, wallet dots, focus rings */
   --color-cv-lime-400: #A3E635;
   --color-cv-lime-500: #84CC16;
@@ -60,6 +48,95 @@
   --color-cv-amber-300: #FAC775;
   --color-cv-amber-200: #FCDFA8;
   --color-cv-amber-50:  #FAEEDA;
+}
+
+/* Discover design tokens — declared as a plain (non-inline) @theme block so
+ * these, unlike the tokens above, are real :root custom properties: usable
+ * both as Tailwind utilities (bg-gph-good, text-issuer-chase, …) *and* as
+ * var(--color-…) inside raw inline styles (e.g. PhotoPlaceholder's per-issuer
+ * background, DiscoverBoardPromo's CSS-triangle vote indicator) — contexts
+ * Tailwind utility classes can't reach because the color is chosen at
+ * runtime from a string, not a static class name. Single source of truth:
+ * component files should reference these, never re-hardcode the hex.
+ *
+ * `gph-dark-*` names are the ORIGINAL, fixed palette — always the dark
+ * value regardless of theme. Most of the app still branches manually
+ * (`isDark ? 'bg-gph-dark-card' : 'bg-gph-card'`), so these stay put.
+ *
+ * The bare `gph-*` names (no "-dark-") are theme-REACTIVE: one class,
+ * value flips via `:root[data-theme="dark"]` below, driven by the
+ * `data-theme` attribute ThemeContext sets on <html>. New code (Discover/
+ * Offers, the shared NavBar/Footer/AppShell chrome) should use these bare
+ * names directly and skip the isDark ternary entirely. */
+:root {
+  --gph-bg:          #f5f5f4;
+  --gph-card:        #ffffff;
+  --gph-ink:         #0c0c0d;
+  --gph-muted:       #5f6066;
+  --gph-line:        #e3e3e1;
+  --gph-linesoft:    #ededeb;
+  --gph-action:      #18181b;
+  --gph-actionhi:    #27272a;
+  --gph-actionsoft:  #e9e9e7;
+  --gph-navy:        #0a0a0a;
+  /* Shell accent green — cv-green-800 vs. cv-green-400, each chosen for
+     >=4.5:1 text contrast against gph-bg/gph-dark-bg respectively. */
+  --gph-accent-green: #2D7A3A;
+}
+
+:root[data-theme="dark"] {
+  --gph-bg:          #0a0a0b;
+  --gph-card:        #161618;
+  --gph-ink:         #f3f3f1;
+  --gph-muted:       #8a8a90;
+  --gph-line:        #262629;
+  --gph-linesoft:    #1c1c1f;
+  --gph-action:      #e4e4e1;
+  --gph-actionhi:    #f3f3f0;
+  --gph-actionsoft:  #222226;
+  --gph-navy:        #000000;
+  --gph-accent-green: #7DC48A;
+}
+
+@theme inline {
+  --color-gph-bg:          var(--gph-bg);
+  --color-gph-card:        var(--gph-card);
+  --color-gph-ink:         var(--gph-ink);
+  --color-gph-muted:       var(--gph-muted);
+  --color-gph-line:        var(--gph-line);
+  --color-gph-linesoft:    var(--gph-linesoft);
+  --color-gph-action:      var(--gph-action);
+  --color-gph-actionhi:    var(--gph-actionhi);
+  --color-gph-actionsoft:  var(--gph-actionsoft);
+  --color-gph-navy:        var(--gph-navy);
+  --color-gph-accent-green: var(--gph-accent-green);
+}
+
+@theme {
+  /* Graphite dark mode palette — fixed, non-reactive (see note above) */
+  --color-gph-dark-bg:        #0a0a0b;
+  --color-gph-dark-card:      #161618;
+  --color-gph-dark-ink:       #f3f3f1;
+  --color-gph-dark-muted:     #8a8a90;
+  --color-gph-dark-line:      #262629;
+  --color-gph-dark-linesoft:  #1c1c1f;
+  --color-gph-dark-action:    #e4e4e1;
+  --color-gph-dark-actionhi:  #f3f3f0;
+  --color-gph-dark-actionsoft:#222226;
+  --color-gph-dark-navy:      #000000;
+
+  /* Theme-invariant accents */
+  --color-gph-good: #0f9d58;
+  --color-gph-gold: #f59e0b;
+  --color-gph-warn: #dc2626;
+
+  /* Issuer brand tones — hero/photo placeholders keyed by a runtime issuer
+     string, so they need real custom properties, not just utility classes */
+  --color-issuer-chase: #1d4ed8;
+  --color-issuer-amex:  #065f46;
+  --color-issuer-c1:    #991b1b;
+  --color-issuer-bilt:  #1e293b;
+  --color-issuer-citi:  #5b21b6;
 }
 
 body {

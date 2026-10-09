@@ -100,7 +100,7 @@ describe('isEnabled() — gating behaviour', () => {
 describe('getEnabledFlags()', () => {
   // ui:trip-planner excluded — temporarily disabled in all envs, see lib/feature-flags.ts
   const ALL_FLAGS: FlagName[] = [
-    'ui:hotels', 'ui:flights', 'ui:search', 'ui:offers', 'ui:settings', 'ui:admin',
+    'ui:hotels', 'ui:flights', 'ui:search', 'ui:discover', 'ui:settings', 'ui:admin',
     'api:stays', 'api:flights', 'api:places', 'api:offers', 'api:portal-data',
     'integration:duffel:flights', 'integration:duffel:stays',
     'integration:hotelbeds:stays', 'integration:google-places:places',

@@ -12,7 +12,7 @@ export default async function AdminPage() {
 
   const role = (user.app_metadata as Record<string, unknown>)?.role;
   if (role !== 'admin') {
-    redirect('/offers');
+    redirect('/discover');
   }
 
   return <OffersAdminShell />;

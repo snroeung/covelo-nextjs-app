@@ -50,23 +50,30 @@ Be straight forward and quick to the point
 | `cv-amber-400` | `#F5A623` | Transfer dot indicator, amber text |
 | `cv-amber-900` | `#6B3500` | Dark amber bg for transfer section |
 
-### Light Mode (default)
-- **Page background**: `bg-gray-100` (`#F3F4F6`)
-- **Surface (cards, sidebar, nav)**: `bg-white`
-- **Border**: `border-gray-200`
-- **Text primary**: `text-gray-900`
-- **Text muted**: `text-gray-500` / `text-gray-400`
-- **Search button**: `bg-gray-900 text-white`
-- **Active nav link**: `bg-gray-900 text-white`
+### Shell theme (NavBar / Footer / AppShell)
 
-### Dark Mode
-- **Page background**: `bg-cv-blue-950`
-- **Surface**: `bg-cv-navy-900`
-- **Border**: `border-cv-blue-800`
-- **Text primary**: `text-white`
-- **Text muted**: `text-cv-blue-400`
-- **CTA button**: `bg-cv-blue-600 text-white`
-- **Active nav link**: `bg-white text-gray-900`
+The shared chrome around every page (nav bar, footer, search-form header, sidebar) uses the
+Discover/Offers graphite (`gph-*`) tokens, with a **green accent** in place of Discover's own
+black/white "action" color. These tokens are CSS-reactive (see Conventions below) — one class
+name resolves to the right color in both themes, no `isDark` ternary needed. Import the
+constant `gphTheme` object from `lib/discover/theme.ts` rather than hardcoding these classes.
+
+| Token | Light value | Dark value | Usage |
+|---|---|---|---|
+| `bg-gph-bg` | `#F5F5F4` | `#0A0A0B` | Page background (`AppShell`) |
+| `bg-gph-card` | `#FFFFFF` | `#161618` | Nav/footer/sidebar surface |
+| `border-gph-line` | `#E3E3E1` | `#262629` | Nav/footer/sidebar border |
+| `text-gph-ink` | `#0C0C0D` | `#F3F3F1` | Primary text (logo, headings) |
+| `text-gph-muted` | `#5F6066` | `#8A8A90` | Secondary text, inactive nav links |
+| `text-gph-accent-green` | `#2D7A3A` (cv-green-800) | `#7DC48A` (cv-green-400) | Green text accent (logo dot), ≥4.5:1 verified against `gph-bg` each side |
+
+Green accent, filled elements (self-contained, same value regardless of theme):
+- **Active nav link / avatar**: `bg-cv-green-800 text-white` (5.3:1 contrast)
+- **Sign in / primary CTA**: `bg-cv-green-800 text-white hover:brightness-110`
+
+Individual page bodies (search forms, hotel/flight cards, admin tables) are **not** part of
+this reskin and keep their existing per-page colors (`gray-*`, `cv-blue-*`, `cv-navy-*`, etc.)
+unless a task explicitly says to migrate them too.
 
 ---
 
@@ -189,7 +196,7 @@ the rate at its own card's ratio.
 
 - Tailwind v4 — no `tailwind.config.js`; theme tokens defined via `@theme inline` in `globals.css`
 - All custom tokens use `cv-` prefix
-- Dark/light theming via `isDark` boolean from `useTheme()` — no CSS `dark:` variant
+- Dark/light theming via `isDark` boolean from `useTheme()` — no CSS `dark:` variant. Exception: the shared `gph-*` graphite tokens (`NavBar`/`Footer`/`AppShell`, Discover/Offers) are CSS-reactive — `ThemeContext` mirrors `isDark` onto `<html data-theme>`, and `app/globals.css` flips the token values via `:root[data-theme="dark"]`. Components import the constant `gphTheme` object from `lib/discover/theme.ts` (no `isDark` argument, no ternary) instead of branching manually.
 - `any` types used intentionally for Duffel API responses (untyped SDK shapes)
 - Max content width: `max-w-3xl` for hotel results
 
