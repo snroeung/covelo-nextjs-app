@@ -41,6 +41,21 @@ export function SelectedCardsProvider({ children }: { children: React.ReactNode 
     } catch {}
   }, []);
 
+  // Signing out must not leave a signed-in user's card list sitting in
+  // localStorage for whoever uses this browser next as an anonymous visitor —
+  // anonymous picks are session-only (see `persist` below), so a value found
+  // here always came from a real account and has to go when that account does.
+  const wasSignedIn = useRef(false);
+  useEffect(() => {
+    if (user) { wasSignedIn.current = true; return; }
+    if (!wasSignedIn.current) return;
+    wasSignedIn.current = false;
+    syncedProfileCards.current = null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedCards([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  }, [user]);
+
   // The signed-in profile owns the wallet; localStorage is the offline copy.
   // This used to live in ProfilePopup and only ran when localStorage was empty,
   // so cards picked during onboarding — or a card removed later — never reached
@@ -48,9 +63,18 @@ export function SelectedCardsProvider({ children }: { children: React.ReactNode 
   // read a wallet the user hadn't had for weeks and told them a card they hold
   // wasn't in it. Re-syncing on every profile change keeps the two honest;
   // keying on the serialized value leaves local toggles alone in between.
+  //
+  // Gated on onboarding_completed, not just `cards` truthiness: `preferred_cards`
+  // defaults to '{}' in Postgres, so a brand-new signup's profile arrives with an
+  // empty (but truthy) array before onboarding ever runs. Without this gate, that
+  // placeholder default would stomp cards the same now-authenticated user just
+  // picked via the sidebar CardSelector before ever visiting /onboarding — a real,
+  // just-written choice getting clobbered by a fetch that only reflects the
+  // moment-of-signup row. Once onboarding_completed flips true, the profile's
+  // list (even an intentionally-emptied one) is a real choice again.
   useEffect(() => {
-    const cards = profile?.preferred_cards;
-    if (!cards) return;
+    if (!profile?.onboarding_completed) return;
+    const cards = profile.preferred_cards ?? [];
     const key = JSON.stringify(cards);
     if (syncedProfileCards.current === key) return;
     syncedProfileCards.current = key;
@@ -68,11 +92,16 @@ export function SelectedCardsProvider({ children }: { children: React.ReactNode 
    * the sidebar stayed in the database, and the profile→local sync above would
    * hand it straight back on the next page load. Stamping `syncedProfileCards`
    * with what we just wrote stops the returning row from bouncing the change.
+   *
+   * Signed out, this only ever touches React state: an anonymous pick is real
+   * for the current tab (pricing should reflect it immediately) but isn't a
+   * "saved preference" — nothing is written to localStorage or a profile, so
+   * it's gone on the next reload. Saved preferences are an account feature.
    */
   function persist(next: CardId[]) {
     setSelectedCards(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
     if (!user) return;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
     syncedProfileCards.current = JSON.stringify(next);
     void updateProfile({ preferred_cards: next }).catch(() => {
       // Offline or RLS refusal: localStorage keeps the change for this session,

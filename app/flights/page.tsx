@@ -2,13 +2,14 @@
 
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { AppShell, MAIN_SCROLL_ID } from '@/components/AppShell';
 import { FlightCard } from '@/components/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { type SelectedPlace } from '@/components/LocationSearch';
 import { Pagination } from '@/components/Pagination';
-import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/FeaturedPagination';
+import { AirlineGroupCard } from '@/components/AirlineGroupCard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { usePerPage } from '@/hooks/usePerPage';
@@ -16,7 +17,7 @@ import { trpc } from '@/lib/trpc-client';
 import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { calcPoints } from '@/lib/points/calcPoints';
-import { getOfferFlightInfo, getOfferTripDates, bestFeaturedPerAirline } from '@/lib/flights/itinerary';
+import { getOfferFlightInfo, getOfferTripDates, groupOffersByAirline, offerPriceRange } from '@/lib/flights/itinerary';
 import { findLiveBonus } from '@/lib/points/transferBonus';
 import { findLiveSpendingBonusForAirline } from '@/lib/points/spendingBonusMatch';
 
@@ -172,7 +173,9 @@ function RefineContent({
                   onClick={() => onToggleStop(stop)}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${excluded ? rowIdleCls : rowOnCls}`}
                 >
-                  <span className={excluded ? 'line-through opacity-40' : ''}>{STOP_LABELS[stop]}</span>
+                  {/* line-through alone (no opacity dimming — that combination with
+                      rowIdleCls's already-muted text fails WCAG AA contrast) */}
+                  <span className={excluded ? 'line-through' : ''}>{STOP_LABELS[stop]}</span>
                   <span className={`text-[10px] font-mono font-bold ${mutedCls}`}>{stopCounts[stop]}</span>
                 </button>
               );
@@ -194,7 +197,7 @@ function RefineContent({
                   onClick={() => onToggleAirline(code)}
                   className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${excluded ? rowIdleCls : rowOnCls}`}
                 >
-                  <span className={excluded ? 'line-through opacity-40' : ''}>{name}</span>
+                  <span className={excluded ? 'line-through' : ''}>{name}</span>
                   <span className={`text-[10px] font-mono font-bold ${mutedCls}`}>{count}</span>
                 </button>
               );
@@ -329,6 +332,7 @@ function EmptyState({ message }: { message: string }) {
 
 function FlightsPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const paramDest     = searchParams.get('destination') ?? '';
   const paramDestCode = searchParams.get('destinationCode') ?? ''; // IATA from /search hub
   const paramOrigin   = searchParams.get('origin') ?? '';          // IATA from /search hub
@@ -427,7 +431,7 @@ function FlightsPageInner() {
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = usePerPage();
-  const [featuredPage, setFeaturedPage] = useState(1);
+  const [drillPage, setDrillPage] = useState(1);
 
   // Reset filters when new results arrive — adjusted during render
   // (React's documented alternative to an effect for this).
@@ -444,12 +448,15 @@ function FlightsPageInner() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawOffers: any[] = useMemo(() => flightSearch.data?.offers ?? [], [flightSearch.data]);
 
-  // Data behind the "Featured flights" section — same three signals the
-  // per-card banners already show (CollectionBanner, TransferBonusBanner),
-  // plus a live spending bonus on the flight's airline. Fetched once here
-  // rather than per-card so filtering the whole result set doesn't require
-  // rendering every FlightCard first; queryKeys match usePointsCalc/
-  // useLiveTransferBonus so the cache is shared, not duplicated.
+  // Bonus/collection eligibility per offer — same three signals the per-card
+  // banners already show (CollectionBanner, TransferBonusBanner), plus a live
+  // spending bonus on the flight's airline. Used to float a bonus-eligible
+  // fare to the front of its airline's group under 'best' sort, so an
+  // airline's inline top card is its bonus fare whenever one exists, not
+  // just its cheapest or fastest. Fetched once here rather than per-card so
+  // filtering the whole result set doesn't require rendering every
+  // FlightCard first; queryKeys match usePointsCalc/useLiveTransferBonus so
+  // the cache is shared, not duplicated.
   const { selectedCards } = useSelectedCards();
   const { data: transferPartners } = useQuery({
     queryKey: ['portalData.transferPartners'],
@@ -553,16 +560,74 @@ function FlightsPageInner() {
     return result;
   }, [rawOffers, sort, excludedStops, excludedAirlines, filterMaxPrice, featuredOfferIds]);
 
-  // Only one offer per airline makes the cut for the Featured strip — an
-  // airline with several qualifying fares (collection match, live bonus)
-  // would otherwise flood the section. The rest fall back into the regular,
-  // paginated list rather than disappearing.
-  const featuredOffers = useMemo(
-    () => bestFeaturedPerAirline(offers.filter((o) => featuredOfferIds.has(o.id))),
-    [offers, featuredOfferIds],
+  // One group per airline: a top pick (the airline's first, i.e. best-ranked,
+  // offer under the active sort — bonus-eligible fares already float first
+  // under 'best' via the featuredOfferIds tie-break above) plus every other
+  // offer from that airline. Replaces the old separate "Featured flights"
+  // strip: every airline now gets exactly one inline top card, bonus-forward
+  // when a bonus applies, instead of only bonus-eligible airlines getting a
+  // deduped highlight slot. The rest fold into that airline's group card
+  // rather than disappearing or flooding the list with repeats.
+  const airlineGroups = useMemo(() => groupOffersByAirline(offers), [offers]);
+
+  // The drill-down view: ?airline=<key> on this same route shows every offer
+  // for one airline (its group's top + rest) instead of the grouped list —
+  // a real, linkable, back-button-safe view without a second fetch or a
+  // second route, since the already-fetched `offers` already has everything
+  // it needs.
+  const drillAirlineKey = searchParams.get('airline');
+  const drillGroup = useMemo(
+    () => (drillAirlineKey ? airlineGroups.find((g) => g.key === drillAirlineKey) ?? null : null),
+    [airlineGroups, drillAirlineKey],
   );
-  const featuredOfferIdSet = useMemo(() => new Set(featuredOffers.map((o) => o.id)), [featuredOffers]);
-  const regularOffers = useMemo(() => offers.filter((o) => !featuredOfferIdSet.has(o.id)), [offers, featuredOfferIdSet]);
+  const drillOffers = useMemo(
+    () => (drillGroup ? [drillGroup.top, ...drillGroup.rest] : []),
+    [drillGroup],
+  );
+
+  function drillHref(key: string): string {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('airline', key);
+    return `/flights?${params.toString()}`;
+  }
+  const allAirlinesHref = (() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('airline');
+    return `/flights?${params.toString()}`;
+  })();
+
+  // The Refine sidebar's airline checkboxes while drilled into one airline:
+  // only that airline reads as selected, regardless of whatever exclude-set
+  // was live on the grouped view before the user clicked in — the drilled
+  // page is scoped to exactly one airline, so the sidebar should say so.
+  // excludedAirlines itself is left untouched here; this is a display-only
+  // override for the Airlines section, swapped back in below alongside a
+  // toggle handler that turns a second selection into a real filter.
+  const drillDisplayExcludedAirlines = useMemo(
+    () => (drillAirlineKey
+      ? new Set(availableAirlines.map((a) => a.code).filter((code) => code !== drillAirlineKey))
+      : excludedAirlines),
+    [drillAirlineKey, availableAirlines, excludedAirlines],
+  );
+
+  // Selecting a second airline while drilled "promotes" back to the grouped
+  // view with both (or more) airlines applied as a real filter — the
+  // drill-down was never a separate filter mode, just a one-airline view of
+  // the same list, so gaining a second selection collapses it back into that
+  // list scoped accordingly. Unselecting the only airline (the drilled one
+  // itself) is equivalent to the "← All airlines" link: back to the grouped
+  // view with no airline filter at all.
+  function toggleDrillAirline(code: string) {
+    if (!drillAirlineKey) return;
+    if (code === drillAirlineKey) {
+      setExcludedAirlines(new Set());
+    } else {
+      const included = new Set([drillAirlineKey, code]);
+      setExcludedAirlines(new Set(availableAirlines.map((a) => a.code).filter((c) => !included.has(c))));
+    }
+    router.push(allAirlinesHref);
+    scrollMainToTop();
+  }
 
   // Reset to page 1 whenever the filtered/sorted list's shape changes — covers
   // filter and sort changes that don't produce a new flightSearch.data identity.
@@ -571,31 +636,44 @@ function FlightsPageInner() {
   if (listKey !== prevListKey) {
     setPrevListKey(listKey);
     setPage(1);
-    setFeaturedPage(1);
   }
 
-  // Featured flights and the regular list page independently.
-  const safePage = clampPage(page, regularOffers.length, perPage);
-  const pageOffers = paginate(regularOffers, safePage, perPage);
-  const { from, to } = pageRange(regularOffers.length, safePage, perPage);
+  // The drill-down list pages independently, and resets whenever the airline
+  // being drilled into changes (including leaving/entering drill-down).
+  const [prevDrillAirlineKey, setPrevDrillAirlineKey] = useState(drillAirlineKey);
+  if (drillAirlineKey !== prevDrillAirlineKey) {
+    setPrevDrillAirlineKey(drillAirlineKey);
+    setDrillPage(1);
+  }
 
-  const safeFeaturedPage = clampPage(featuredPage, featuredOffers.length, FEATURED_PER_PAGE);
-  const featuredPageOffers = paginate(featuredOffers, safeFeaturedPage, FEATURED_PER_PAGE);
+  const safePage = clampPage(page, airlineGroups.length, perPage);
+  const pageGroups = paginate(airlineGroups, safePage, perPage);
+  const { from, to } = pageRange(airlineGroups.length, safePage, perPage);
+
+  const safeDrillPage = clampPage(drillPage, drillOffers.length, perPage);
+  const drillPageOffers = paginate(drillOffers, safeDrillPage, perPage);
+  const { from: drillFrom, to: drillTo } = pageRange(drillOffers.length, safeDrillPage, perPage);
 
   function goToPage(next: number) {
     setPage(next);
     document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
   }
 
-  function goToFeaturedPage(next: number) {
-    setFeaturedPage(next);
+  function goToDrillPage(next: number) {
+    setDrillPage(next);
+    document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
+  }
+
+  function scrollMainToTop() {
     document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0 });
   }
 
   const filterCount =
-    (excludedStops.size    > 0 ? 1 : 0) +
-    (excludedAirlines.size > 0 ? 1 : 0) +
-    (filterMaxPrice !== null   ? 1 : 0);
+    (excludedStops.size > 0 ? 1 : 0) +
+    // Drilled-into-one-airline reads as an active airline filter too, even
+    // when the real excludedAirlines set (pre-drill) happens to be empty.
+    ((drillAirlineKey ? availableAirlines.length > 1 : excludedAirlines.size > 0) ? 1 : 0) +
+    (filterMaxPrice !== null ? 1 : 0);
 
   const todayStr    = new Date().toISOString().split('T')[0];
   const originCode  = originPlace?.iataCode ?? '';
@@ -662,8 +740,8 @@ function FlightsPageInner() {
       return next;
     }),
     availableAirlines,
-    excludedAirlines,
-    onToggleAirline: (code) => setExcludedAirlines(prev => {
+    excludedAirlines: drillDisplayExcludedAirlines,
+    onToggleAirline: drillAirlineKey ? toggleDrillAirline : (code) => setExcludedAirlines(prev => {
       const next = new Set(prev);
       if (next.has(code)) next.delete(code); else next.add(code);
       return next;
@@ -676,6 +754,10 @@ function FlightsPageInner() {
       setExcludedStops(new Set());
       setExcludedAirlines(new Set());
       setFilterMaxPrice(null);
+      if (drillAirlineKey) {
+        router.push(allAirlinesHref);
+        scrollMainToTop();
+      }
     },
     cabinClass,
     onCabinChange: handleCabinChange,
@@ -705,19 +787,39 @@ function FlightsPageInner() {
           {/* Price trend placeholder */}
           <PriceTrendPlaceholder isDark={isDark} />
 
+          {drillAirlineKey && (
+            <Link
+              href={allAirlinesHref}
+              onClick={scrollMainToTop}
+              className={`inline-flex items-center gap-1.5 min-h-11 px-1 -mx-1 text-sm font-semibold transition-colors ${
+                isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              ← All airlines
+            </Link>
+          )}
+
           {/* Results header: count + sort tabs + Refine */}
           <div className={`flex items-end justify-between pb-3 border-b-2 gap-3 ${borderAccent}`}>
             <div className="min-w-0">
               <h2 className={`text-2xl font-extrabold tracking-tight leading-none ${headingCls}`}>
-                {offers.length !== rawOffers.length
-                  ? `${offers.length} of ${rawOffers.length}`
-                  : rawOffers.length}{' '}
-                flight{rawOffers.length !== 1 ? 's' : ''}
+                {drillAirlineKey ? (
+                  <>All {drillOffers.length} flight{drillOffers.length !== 1 ? 's' : ''} from {drillGroup?.airlineName ?? drillAirlineKey}</>
+                ) : (
+                  <>
+                    {offers.length !== rawOffers.length
+                      ? `${offers.length} of ${rawOffers.length}`
+                      : rawOffers.length}{' '}
+                    flight{rawOffers.length !== 1 ? 's' : ''}
+                  </>
+                )}
                 {' · '}{committed?.origin} → {committed?.destination}
               </h2>
               <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-1.5 ${subTextCls}`}>
                 {startDate} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'} · {CABIN_LABELS[cabinClass]}
-                {offers.length > 0 && ` · Showing ${from}–${to}`}
+                {drillAirlineKey
+                  ? drillOffers.length > 0 && ` · Showing ${drillFrom}–${drillTo} of ${drillOffers.length} flights`
+                  : offers.length > 0 && ` · Showing ${from}–${to} of ${airlineGroups.length} airlines`}
               </p>
             </div>
 
@@ -744,58 +846,83 @@ function FlightsPageInner() {
             </div>
           </div>
 
-          {featuredOffers.length > 0 && (
-            <div data-testid="featured-flights-section" className={`rounded-2xl border p-3 md:p-4 ${isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-cv-blue-50 border-cv-blue-100'}`}>
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pb-3">
-                <h2 className={`text-[10px] font-bold font-mono tracking-widest uppercase ${isDark ? 'text-white' : 'text-cv-navy-900'}`}>
-                  ★ Featured flights
-                </h2>
-              </div>
-              <div className="space-y-4">
-                {featuredPageOffers.map((offer) => (
-                  <FlightCard key={offer.id} offer={offer} />
+          {/* Flight results — one drilled-into airline's full list, or the grouped "top pick per airline" list */}
+          {drillAirlineKey ? (
+            !drillGroup ? (
+              <EmptyState message="No flights from this airline match your current filters." />
+            ) : (
+              <>
+                {drillPageOffers.map((offer, i) => (
+                  <Fragment key={offer.id}>
+                    <FlightCard offer={offer} />
+                    {i === 1 && drillPageOffers.length >= 3 && (
+                      <AffiliateAdSpot
+                        slot="flights_inline"
+                        variant="inline_banner"
+                        isDark={isDark}
+                        context={{ route: [originCode, arrivalCode].filter(Boolean) }}
+                      />
+                    )}
+                  </Fragment>
                 ))}
-              </div>
-              <FeaturedPagination
-                page={safeFeaturedPage}
-                totalItems={featuredOffers.length}
-                onPageChange={goToFeaturedPage}
-                isDark={isDark}
-                itemLabel="flight"
-                idPrefix="flights"
-              />
-            </div>
-          )}
 
-          {/* Flight results */}
-          {offers.length === 0 ? (
+                <Pagination
+                  page={safeDrillPage}
+                  perPage={perPage}
+                  totalItems={drillOffers.length}
+                  onPageChange={goToDrillPage}
+                  onPerPageChange={setPerPage}
+                  isDark={isDark}
+                  itemLabel="flight"
+                  idPrefix="flights-drill"
+                />
+              </>
+            )
+          ) : offers.length === 0 ? (
             <EmptyState message="No flights match your filters. Try adjusting Refine." />
           ) : (
-            pageOffers.map((offer, i) => (
-              <Fragment key={offer.id}>
-                <FlightCard offer={offer} />
-                {i === 1 && pageOffers.length >= 3 && (
-                  <AffiliateAdSpot
-                    slot="flights_inline"
-                    variant="inline_banner"
-                    isDark={isDark}
-                    context={{ route: [originCode, arrivalCode].filter(Boolean) }}
-                  />
-                )}
-              </Fragment>
-            ))
-          )}
+            <>
+              {pageGroups.map((group, i) => {
+                const rest = offerPriceRange(group.rest);
+                return (
+                  <Fragment key={group.key}>
+                    <FlightCard offer={group.top} />
+                    {group.rest.length > 0 && (
+                      <AirlineGroupCard
+                        isDark={isDark}
+                        airlineName={group.airlineName}
+                        airlineIata={group.airlineIata}
+                        count={group.rest.length}
+                        minPrice={rest.min}
+                        maxPrice={rest.max}
+                        href={drillHref(group.key)}
+                        onNavigate={scrollMainToTop}
+                      />
+                    )}
+                    {i === 1 && pageGroups.length >= 3 && (
+                      <AffiliateAdSpot
+                        slot="flights_inline"
+                        variant="inline_banner"
+                        isDark={isDark}
+                        context={{ route: [originCode, arrivalCode].filter(Boolean) }}
+                      />
+                    )}
+                  </Fragment>
+                );
+              })}
 
-          <Pagination
-            page={safePage}
-            perPage={perPage}
-            totalItems={regularOffers.length}
-            onPageChange={goToPage}
-            onPerPageChange={setPerPage}
-            isDark={isDark}
-            itemLabel="flight"
-            idPrefix="flights"
-          />
+              <Pagination
+                page={safePage}
+                perPage={perPage}
+                totalItems={airlineGroups.length}
+                onPageChange={goToPage}
+                onPerPageChange={setPerPage}
+                isDark={isDark}
+                itemLabel="airline"
+                idPrefix="flights"
+              />
+            </>
+          )}
         </div>
 
       ) : flightSearch.isSuccess ? (

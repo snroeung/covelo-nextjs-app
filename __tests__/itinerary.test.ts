@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
-  bestFeaturedPerAirline,
   buildRouteView,
   buildRouteViews,
   formatDayDate,
   formatDuration,
+  getAirlineColor,
   getOfferFlightInfo,
+  groupOffersByAirline,
+  offerPriceRange,
   isoToMinutes,
   itineraryMeta,
   stopLabel,
@@ -250,18 +252,28 @@ describe('getOfferFlightInfo', () => {
   });
 });
 
-function featuredOffer(id: string, ownerIata: string | null, ownerName: string) {
-  return { id, owner: ownerIata ? { iata_code: ownerIata, name: ownerName } : null, slices: [OUTBOUND] };
+function featuredOffer(id: string, ownerIata: string | null, ownerName: string, amount?: string) {
+  return {
+    id,
+    owner: ownerIata ? { iata_code: ownerIata, name: ownerName } : null,
+    slices: [OUTBOUND],
+    total_amount: amount ?? '100.00',
+  };
 }
 
-describe('bestFeaturedPerAirline', () => {
-  it('keeps only the first (best-ranked) offer per airline', () => {
+describe('groupOffersByAirline', () => {
+  it('makes the first (best-ranked) offer per airline the "top", folding the rest into "rest"', () => {
     const offers = [
       featuredOffer('af-1', 'AF', 'Air France'),
       featuredOffer('af-2', 'AF', 'Air France'),
       featuredOffer('dl-1', 'DL', 'Delta'),
     ];
-    expect(bestFeaturedPerAirline(offers).map((o) => o.id)).toEqual(['af-1', 'dl-1']);
+    const groups = groupOffersByAirline(offers);
+    expect(groups.map((g) => g.key)).toEqual(['AF', 'DL']);
+    expect(groups[0].top.id).toBe('af-1');
+    expect(groups[0].rest.map((o: { id: string }) => o.id)).toEqual(['af-2']);
+    expect(groups[1].top.id).toBe('dl-1');
+    expect(groups[1].rest).toEqual([]);
   });
 
   it('preserves input order and drops nothing when every airline is unique', () => {
@@ -270,7 +282,9 @@ describe('bestFeaturedPerAirline', () => {
       featuredOffer('af-1', 'AF', 'Air France'),
       featuredOffer('ba-1', 'BA', 'British Airways'),
     ];
-    expect(bestFeaturedPerAirline(offers).map((o) => o.id)).toEqual(['dl-1', 'af-1', 'ba-1']);
+    const groups = groupOffersByAirline(offers);
+    expect(groups.map((g) => g.top.id)).toEqual(['dl-1', 'af-1', 'ba-1']);
+    expect(groups.every((g) => g.rest.length === 0)).toBe(true);
   });
 
   it('falls back to airline name for grouping when iata is missing, matching getOfferFlightInfo', () => {
@@ -278,12 +292,46 @@ describe('bestFeaturedPerAirline', () => {
       id: 'noowner-1',
       owner: null,
       slices: [{ duration: 'PT7H52M', segments: [seg({ marketing_carrier: { iata_code: 'AF', name: 'Air France' } })] }],
+      total_amount: '100.00',
     };
     const offers = [featuredOffer('af-1', 'AF', 'Air France'), noOwnerSameCarrier];
-    expect(bestFeaturedPerAirline(offers).map((o) => o.id)).toEqual(['af-1']);
+    const groups = groupOffersByAirline(offers);
+    expect(groups.map((g) => g.key)).toEqual(['AF']);
+    expect(groups[0].rest.map((o: { id: string }) => o.id)).toEqual(['noowner-1']);
   });
 
   it('returns an empty array for an empty input', () => {
-    expect(bestFeaturedPerAirline([])).toEqual([]);
+    expect(groupOffersByAirline([])).toEqual([]);
+  });
+});
+
+describe('offerPriceRange', () => {
+  it('finds the min and max total_amount across offers', () => {
+    const offers = [
+      featuredOffer('a', 'AF', 'Air France', '412.50'),
+      featuredOffer('b', 'AF', 'Air France', '890.00'),
+      featuredOffer('c', 'AF', 'Air France', '550.00'),
+    ];
+    expect(offerPriceRange(offers)).toEqual({ min: 412.5, max: 890 });
+  });
+
+  it('returns {min:0,max:0} for an empty list', () => {
+    expect(offerPriceRange([])).toEqual({ min: 0, max: 0 });
+  });
+
+  it('ignores offers with an unparseable total_amount', () => {
+    const offers = [featuredOffer('a', 'AF', 'Air France', 'not-a-number'), featuredOffer('b', 'AF', 'Air France', '200')];
+    expect(offerPriceRange(offers)).toEqual({ min: 200, max: 200 });
+  });
+});
+
+describe('getAirlineColor', () => {
+  it('returns a mapped brand colour for a known carrier', () => {
+    expect(getAirlineColor('DL')).toBe('#003c7d');
+  });
+
+  it('falls back to a neutral grey for an unmapped or missing carrier', () => {
+    expect(getAirlineColor('ZZ')).toBe('#374151');
+    expect(getAirlineColor(null)).toBe('#374151');
   });
 });

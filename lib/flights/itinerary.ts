@@ -191,22 +191,61 @@ export function getOfferTripDates(offer: any): string[] {
   return dates.filter((d): d is string => !!d);
 }
 
+const AIRLINE_COLORS: Record<string, string> = {
+  AA: '#c0212b', DL: '#003c7d', UA: '#172649', B6: '#0075ff',
+  WN: '#ff4500', AS: '#0074c8', NK: '#ffd300', F9: '#007a3d',
+  HA: '#7b1fa2', QR: '#5c0716', EK: '#c8102e', LH: '#05164d',
+  BA: '#075aaa', AC: '#c0202d', AF: '#002157', KL: '#00a1de',
+  SQ: '#0032a0', CX: '#006564', JL: '#e11931', NH: '#003087',
+};
+
+/** Brand colour for an airline badge — a neutral grey for anything unmapped. */
+export function getAirlineColor(iata: string | null): string {
+  return (iata && AIRLINE_COLORS[iata]) ?? '#374151';
+}
+
+export interface AirlineGroup<T> {
+  /** airlineIata, falling back to airlineName — same identity rule as getOfferFlightInfo callers use elsewhere. */
+  key: string;
+  airlineIata: string | null;
+  airlineName: string;
+  /** First (best-ranked) offer for this airline under the caller's ordering. */
+  top: T;
+  /** Every other offer for this airline, in the same relative order as the input. */
+  rest: T[];
+}
+
 /**
- * One offer per airline. The featured section highlights an airline's best
- * fare, not every fare that happens to qualify (collection match, live
- * transfer bonus, live spending bonus) — an airline with three qualifying
- * offers should show once. Callers pass offers pre-sorted by the active
- * ranking, so "first occurrence per airline" is "best under that ranking".
+ * Splits an already-sorted offer list into one group per airline: a "top"
+ * offer (the first occurrence — "best under the caller's ranking", same
+ * reasoning the old bestFeaturedPerAirline dedup used) plus every other offer
+ * from that airline as "rest". Powers the flights list's per-airline
+ * treatment — one card shown inline, the remainder rolled into a group card
+ * linking to a full per-airline list. Groups are returned in the order their
+ * airline's top offer first appears.
  */
-export function bestFeaturedPerAirline<T>(offers: T[]): T[] {
-  const seen = new Set<string>();
-  const result: T[] = [];
+export function groupOffersByAirline<T>(offers: T[]): AirlineGroup<T>[] {
+  const order: string[] = [];
+  const groups = new Map<string, AirlineGroup<T>>();
   for (const offer of offers) {
     const { airlineIata, airlineName } = getOfferFlightInfo(offer);
     const key = airlineIata ?? airlineName;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(offer);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.rest.push(offer);
+    } else {
+      groups.set(key, { key, airlineIata, airlineName, top: offer, rest: [] });
+      order.push(key);
+    }
   }
-  return result;
+  return order.map((key) => groups.get(key)!);
+}
+
+/** Cheapest/most expensive total_amount across a list of offers. {min:0,max:0} for an empty list. */
+export function offerPriceRange(offers: any[]): { min: number; max: number } {
+  const amounts = offers
+    .map((o) => parseFloat(o.total_amount))
+    .filter((n) => Number.isFinite(n));
+  if (amounts.length === 0) return { min: 0, max: 0 };
+  return { min: Math.min(...amounts), max: Math.max(...amounts) };
 }

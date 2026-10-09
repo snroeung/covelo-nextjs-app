@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {
-  createSpendingBonus,
   createTransferBonus,
   createTransferPartner,
   createTravelCollection,
@@ -120,7 +119,11 @@ test.describe('Flights page — results', () => {
     // Exactly one of the two carries the "Best choice" highlight — whichever
     // actually beats the other, portal or transfer — never both, never neither.
     await expect(card.getByText('Best choice')).toHaveCount(1);
-    await expect(card.getByRole('button', { name: /^View .+ deal$/ }).first()).toBeVisible();
+    const viewDealLink = card.getByRole('link', { name: /^(Book on|Visit) .+$/ }).first();
+    await expect(viewDealLink).toBeVisible();
+    await expect(viewDealLink).toHaveAttribute('target', '_blank');
+    await expect(viewDealLink).toHaveAttribute('href', /^https:\/\//);
+    await expect(viewDealLink).toHaveAttribute('rel', /noopener/);
 
     await card.getByRole('button', { name: '↑ Hide' }).click();
     await expect(card.getByText('Best choice')).not.toBeVisible();
@@ -185,7 +188,9 @@ test.describe('Flights page — results', () => {
     const popover = card.getByRole('dialog');
     await expect(popover).toBeVisible();
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    await expect(popover.getByRole('button', { name: /^View .+ deal$/ }).first()).toBeVisible();
+    const popoverDealLink = popover.getByRole('link', { name: /^(Book on|Visit) .+$/ }).first();
+    await expect(popoverDealLink).toBeVisible();
+    await expect(popoverDealLink).toHaveAttribute('href', /^https:\/\//);
 
     // The popover covers the points grid exactly — it must not spill onto the
     // next result card or leave the grid half-visible behind it.
@@ -469,172 +474,180 @@ test.describe('Flights page — banners', () => {
   });
 });
 
-test.describe('Flights page — featured section', () => {
-  test.describe.configure({ mode: 'serial' });
-  const MERCHANT_NAME = `${TEST_PREFIX} Featured Section Spending Bonus`;
-  const COLLECTION_NAME = `${TEST_PREFIX} Featured Section Collection Test`;
-  let spendingBonusCreated = false;
-  // Real airline names read off live sandbox results — populated by the
-  // pagination test below, deactivated alongside MERCHANT_NAME in afterAll.
-  const dynamicMerchantsCreated: string[] = [];
-
-  test.afterAll(async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
-    const page = await ctx.newPage();
-    if (spendingBonusCreated) await setOfferActive(page, MERCHANT_NAME, false).catch(() => {});
-    for (const merchant of dynamicMerchantsCreated) {
-      await setOfferActive(page, merchant, false).catch(() => {});
-    }
-    await setTravelCollectionActive(page, COLLECTION_NAME, false).catch(() => {});
-    await ctx.close();
-  });
-
-  test('a flight with a live spending bonus on its airline lands in the Featured flights section', async ({ page }) => {
+test.describe('Flights page — airline grouping', () => {
+  test('shows exactly one top-level card per airline', async ({ page }) => {
     await gotoFlightsWithResults(page);
     const cards = page.getByTestId('flight-card');
     const total = await cards.count();
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    // Spending bonuses match by merchant name against the airline — read the
-    // real operating airline's name off the first card rather than guessing
-    // one that may not actually appear in this (randomized) result set.
-    const nameEl = cards.first().getByTestId('airline-name').first();
-    const airlineName = (await nameEl.textContent())?.trim() || null;
-    test.skip(!airlineName, 'Could not read an airline name from the first result');
-
-    await createSpendingBonus(page, {
-      issuer: 'chase',
-      merchant: airlineName!,
-      multiplier: 5,
-      bonusType: 'points_multiplier',
-      endDate: daysFromNow(30),
-      description: 'E2E featured-section spending bonus match.',
-    });
-    spendingBonusCreated = true;
-
-    // Spending-bonus matching is computed client-side from a fresh
-    // offers.listSpendingBonuses query (like the TransferBonusBanner test
-    // above) — no server-side cache to bust, a plain re-search picks it up.
-    await gotoFlightsWithResults(page);
-    const featuredSection = page.getByTestId('featured-flights-section');
-    const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasFeatured, `No flight in this result set carries the airline "${airlineName}" the bonus was tied to`);
-
-    await expect(featuredSection.getByText(airlineName!).first()).toBeVisible();
-    // Best-per-airline dedup: exactly one card for this airline lives in the
-    // Featured section, even if the sandbox happened to return several
-    // qualifying offers on it — any extras fall back into the regular
-    // (paginated) list rather than flooding Featured with every fare.
-    const escapedName = airlineName!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const nameRe = new RegExp(escapedName);
-    const insideFeatured = await featuredSection.getByTestId('flight-card').filter({ hasText: nameRe }).count();
-    expect(insideFeatured).toBe(1);
-
-    // Nothing gets silently dropped — any additional offer on this airline
-    // must still be rendered, just outside Featured.
-    const allWithAirline = await page.getByTestId('flight-card').filter({ hasText: nameRe }).count();
-    expect(allWithAirline).toBeGreaterThanOrEqual(insideFeatured);
-  });
-
-  test('a flight with a live travel collection match lands in the Featured flights section', async ({ page }) => {
-    await gotoFlightsWithResults(page);
-    const cards = page.getByTestId('flight-card');
-    const total = await cards.count();
-    test.skip(total === 0, 'No flights returned by Duffel for this query');
-
-    const badge = cards.first().getByTestId('airline-badge').first();
-    const iataCode = (await badge.textContent())?.trim() || null;
-    test.skip(!iataCode || iataCode === '?', 'Could not read an operating-carrier IATA code from the first result');
-
-    await createTravelCollection(page, {
-      type: 'flight',
-      issuer: 'Chase',
-      collectionName: COLLECTION_NAME,
-      airlineIataCode: iataCode!,
-      perkSummary: 'E2E featured-section collection match.',
-      limitedTime: true,
-    });
-
-    // Collection matches are baked into the server-cached search response
-    // (see server/routers/flights.ts) — a fresh, uncached query is required,
-    // same reasoning as the CollectionBanner test above.
-    const freshOffset = 24 + (Date.now() % 1000);
-    await page.goto(`/flights?${FLIGHT_QUERY.replace(DEPART_DATE, daysFromNow(freshOffset)).replace(RETURN_DATE, daysFromNow(freshOffset + 7))}`);
-    await expect(
-      page.getByRole('main').getByText(/flights? · PHL → SFO|No flights found for this route and date|Flight search failed/),
-    ).toBeVisible({ timeout: 30_000 });
-
-    const escapedIata = iataCode!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const iataRe = new RegExp(`\\b${escapedIata}\\b`);
-    const featuredSection = page.getByTestId('featured-flights-section');
-    const hasFeatured = await featuredSection.getByTestId('flight-card').filter({ hasText: iataRe }).first()
-      .waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasFeatured, `The fresh search did not redraw a ${iataCode} flight — sandbox carrier data is randomized per request`);
-
-    await expect(featuredSection.getByText(COLLECTION_NAME)).toBeVisible();
-  });
-
-  test('Featured flights section paginates 2 at a time once 3+ airlines qualify', async ({ page }) => {
-    await gotoFlightsWithResults(page);
-    const cards = page.getByTestId('flight-card');
-    const total = await cards.count();
-    test.skip(total === 0, 'No flights returned by Duffel for this query');
-
-    // Spending bonuses match by merchant/airline name, so tying one bonus to
-    // each of 3 distinct airlines actually present in this result set gives
-    // 3 independently-featured airlines without depending on any single
-    // sandbox carrier being drawn.
-    const names = new Set<string>();
-    const count = await cards.count();
-    for (let i = 0; i < count && names.size < 3; i++) {
+    const names: string[] = [];
+    for (let i = 0; i < total; i++) {
       const name = (await cards.nth(i).getByTestId('airline-name').first().textContent())?.trim();
-      if (name) names.add(name);
+      if (name) names.push(name);
     }
-    test.skip(names.size < 3, 'Fewer than 3 distinct airlines in this result set');
+    // Every visible top-level flight-card belongs to a distinct airline — no
+    // airline shows twice at the top level, whatever the sandbox returned.
+    expect(new Set(names).size).toBe(names.length);
 
-    for (const name of names) {
-      await createSpendingBonus(page, {
-        issuer: 'chase',
-        merchant: name,
-        multiplier: 5,
-        bonusType: 'points_multiplier',
-        endDate: daysFromNow(30),
-        description: 'E2E featured-pagination bonus.',
-      });
-      dynamicMerchantsCreated.push(name);
-    }
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
 
-    // Spending-bonus matching is computed client-side — a plain re-search
-    // picks up the fresh offers.listSpendingBonuses data, same as the first
-    // test in this block.
+  test('an airline with more than one qualifying offer gets a group card for the rest', async ({ page }) => {
     await gotoFlightsWithResults(page);
-    const featuredSection = page.getByTestId('featured-flights-section');
-    const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasFeatured, 'The fresh search did not redraw any of the 3 targeted airlines');
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    const pager = featuredSection.getByTestId('flights-featured-pagination');
-    const hasPager = await pager.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
-    test.skip(!hasPager, 'Fewer than 3 distinct featured airlines survived the fresh, randomized search');
+    const groupCard = page.getByTestId('airline-group-card').first();
+    const hasGroup = await groupCard.isVisible().catch(() => false);
+    test.skip(!hasGroup, 'No airline in this (randomized) result set has more than one qualifying offer');
 
-    // Fixed at 2 per page — the Featured strip's own pager, separate from
-    // the regular results' configurable Pagination control.
-    await expect(featuredSection.getByTestId('flight-card')).toHaveCount(2);
-    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeDisabled();
-    await expect(pager.getByRole('button', { name: 'Next featured page' })).toBeEnabled();
+    const groupText = await groupCard.innerText();
+    const match = groupText.match(/\+(\d+) more from (.+)/);
+    expect(match).not.toBeNull();
+    const extraCount = Number(match![1]);
+    const airlineName = match![2].trim();
 
-    const firstPageFirstCard = await featuredSection.getByTestId('flight-card').first().innerText();
-    await pager.getByRole('button', { name: 'Next featured page' }).click();
-    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeEnabled();
-    const secondPageFirstCard = await featuredSection.getByTestId('flight-card').first().innerText();
-    expect(secondPageFirstCard).not.toBe(firstPageFirstCard);
+    // Clicking the group card drills into a real, linkable page listing
+    // every offer for that airline (its top pick + the folded-in rest).
+    await groupCard.click();
 
-    // The regular results list below keeps its own independent, unaffected
-    // pager — moving the Featured page never resets or touches it.
-    const regularPager = page.getByRole('navigation', { name: /^flight results pagination$/i });
-    const hasRegularPager = await regularPager.isVisible().catch(() => false);
-    if (hasRegularPager) {
-      await expect(regularPager.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    const backLink = page.getByRole('link', { name: /All airlines/ });
+    await expect(backLink).toBeVisible();
+    const escapedName = airlineName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await expect(page.getByRole('main').getByText(new RegExp(`from ${escapedName}`))).toBeVisible();
+
+    const drillCards = page.getByTestId('flight-card');
+    await expect(async () => {
+      expect(await drillCards.count()).toBe(extraCount + 1);
+    }).toPass();
+
+    // A client-side navigation (this is a soft nav via the group card's
+    // Link, not a full page load) can momentarily race the document title —
+    // let it settle before scanning, or axe intermittently flags a blank
+    // <title> that's gone a moment later.
+    await expect.poll(() => page.title()).toBeTruthy();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+
+    // The back link returns to the grouped view — a real navigation (URL
+    // param), not a dead end.
+    await backLink.click();
+    await expect(page.getByTestId('airline-group-card').first()).toBeVisible();
+    await expect(backLink).not.toBeVisible();
+  });
+});
+
+test.describe('Flights page — drill-down airline filter', () => {
+  // Opens a group card and returns the sidebar's Airlines section, expanded
+  // (the "Show N more" collapse hides anything past the top 3 by count, and
+  // the drilled airline isn't guaranteed to be among them).
+  async function openDrillDownWithSidebar(page: Page) {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    if (total === 0) return null;
+
+    const groupCard = page.getByTestId('airline-group-card').first();
+    const hasGroup = await groupCard.isVisible().catch(() => false);
+    if (!hasGroup) return null;
+
+    const match = (await groupCard.innerText()).match(/\+\d+ more from (.+)/);
+    const airlineName = match![1].trim();
+    await groupCard.click();
+    await expect(page.getByRole('link', { name: /All airlines/ })).toBeVisible();
+
+    const sidebar = page.locator('aside');
+    const showMore = sidebar.getByRole('button', { name: /^Show \d+ more$/ });
+    if (await showMore.isVisible().catch(() => false)) await showMore.click();
+
+    return { airlineName, sidebar };
+  }
+
+  // The row buttons live in the <div> immediately after the exact-text
+  // "Airlines" label — scoping through that sibling (rather than a fuzzy
+  // "contains Airlines" text filter) keeps this from also matching the
+  // Stops/Cabin sections, which share the same sidebar and DOM shape.
+  function airlineRowsContainer(sidebar: ReturnType<Page['locator']>) {
+    return sidebar.getByText('Airlines', { exact: true }).locator('xpath=following-sibling::div[1]');
+  }
+
+  function airlineRow(sidebar: ReturnType<Page['locator']>, name: string) {
+    return airlineRowsContainer(sidebar).locator('button', { hasText: name });
+  }
+
+  test('landing on the drill-down page checks only that airline in the sidebar filter', async ({ page }) => {
+    const ctx = await openDrillDownWithSidebar(page);
+    test.skip(ctx === null, 'No flights, or no airline with a group card, in this result set');
+    const { airlineName, sidebar } = ctx!;
+
+    // The drilled airline reads as selected (its name isn't struck through)...
+    const drilledLabel = airlineRow(sidebar, airlineName).locator('span').first();
+    await expect(drilledLabel).not.toHaveClass(/line-through/);
+
+    // ...and every other airline row in view reads as excluded, regardless of
+    // whatever exclude-set was live on the grouped view before drilling in.
+    const otherRows = airlineRowsContainer(sidebar).locator('button').filter({ hasNotText: airlineName });
+    const otherCount = await otherRows.count();
+    test.skip(otherCount === 0, 'Only one airline in this result set — nothing else to assert excluded');
+    for (let i = 0; i < otherCount; i++) {
+      await expect(otherRows.nth(i).locator('span').first()).toHaveClass(/line-through/);
     }
+  });
+
+  test('checking a second airline promotes back to the grouped view with both applied as a filter', async ({ page }) => {
+    const ctx = await openDrillDownWithSidebar(page);
+    test.skip(ctx === null, 'No flights, or no airline with a group card, in this result set');
+    const { airlineName, sidebar } = ctx!;
+
+    const otherRow = airlineRowsContainer(sidebar).locator('button').filter({ hasNotText: airlineName }).first();
+    const hasOther = await otherRow.isVisible().catch(() => false);
+    test.skip(!hasOther, 'Only one airline in this result set — nothing to add to the selection');
+    const otherName = (await otherRow.innerText()).split('\n')[0].trim();
+
+    await otherRow.click();
+
+    // Promoted: the ?airline= drill param is gone, we're back on the grouped
+    // list, and it's now filtered to exactly the two selected airlines.
+    await expect(page).not.toHaveURL(/[?&]airline=/);
+    await expect(page.getByRole('link', { name: /All airlines/ })).not.toBeVisible();
+
+    const escapedA = airlineName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedB = otherName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cards = page.getByTestId('flight-card');
+    await expect(async () => {
+      const names: string[] = [];
+      const n = await cards.count();
+      for (let i = 0; i < n; i++) {
+        const name = (await cards.nth(i).getByTestId('airline-name').first().textContent())?.trim();
+        if (name) names.push(name);
+      }
+      expect(names.every((n2) => new RegExp(`^${escapedA}$|^${escapedB}$`).test(n2))).toBe(true);
+      expect(names).toEqual(expect.arrayContaining([airlineName, otherName]));
+    }).toPass();
+
+    // Same soft-navigation title race as the group-card drilldown test above.
+    await expect.poll(() => page.title()).toBeTruthy();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('unchecking the only selected airline returns to the unfiltered grouped view', async ({ page }) => {
+    const ctx = await openDrillDownWithSidebar(page);
+    test.skip(ctx === null, 'No flights, or no airline with a group card, in this result set');
+    const { airlineName, sidebar } = ctx!;
+
+    await airlineRow(sidebar, airlineName).click();
+
+    await expect(page).not.toHaveURL(/[?&]airline=/);
+    await expect(page.getByRole('link', { name: /All airlines/ })).not.toBeVisible();
+    await expect(page.getByTestId('flight-card').first()).toBeVisible();
+    // No airline filter survives the reset — "Clear all" only renders while
+    // some filter (stops, airlines or price) is still active, and this flow
+    // never touched stops or price.
+    await expect(sidebar.getByRole('button', { name: 'Clear all' })).not.toBeVisible();
   });
 });
 
