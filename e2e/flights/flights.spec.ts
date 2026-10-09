@@ -286,17 +286,20 @@ test.describe('Flights page — results', () => {
     await expect(modal!).toBeVisible();
   });
 
-  test('the round-trip itinerary labels both routes', async ({ page }) => {
+  test('the round-trip itinerary labels both routes, always expanded', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
     const cards = page.getByTestId('flight-card');
     const total = await cards.count();
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    // FLIGHT_QUERY is a round trip, so every result has two labelled routes.
+    // FLIGHT_QUERY is a round trip, so every result has two labelled routes,
+    // both shown — the card has no itinerary collapse toggle.
     const card = cards.first();
     await expect(card.getByText('Outbound', { exact: true }).first()).toBeVisible();
     await expect(card.getByText('Return', { exact: true }).first()).toBeVisible();
+    await expect(card.getByText(/round-trip · /i).filter({ visible: true }).first()).toBeVisible();
+    await expect(card.getByRole('button', { name: /Round-trip itinerary/ })).toHaveCount(0);
   });
 });
 

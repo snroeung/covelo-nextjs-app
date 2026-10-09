@@ -133,7 +133,7 @@ cpp) so a card's "Best value" and the table's top row can never disagree:
 |---|---|---|
 | `RedemptionTable` (`components/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote. Optional `booking` prop turns on View deal + per-row user reports | `CompareModal`, `SearchBoard` |
 | `CompareModal` (`components/booking/CompareModal.tsx`) | Popup (bottom sheet on phones) wrapping `RedemptionTable` with the book & report flow | `FlightCard` "Compare →", `HotelDetailModal` room comparison popup |
-| `FlightCard` price column | FROM cash + Best value box (top option + cpp) + "Compare →" | `FlightCard` |
+| `FlightCard` best-value strip | Full-width footer: FROM cash + grey Best value box (top option, cpp, "Compare →") | `FlightCard` |
 | `HotelBestRedemptionBar` (`components/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
 
 ### Book & report flow (`components/booking/`)

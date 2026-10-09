@@ -6,7 +6,6 @@ import { CollectionBanner } from '@/components/CollectionBanner';
 import { TransferBonusBanner } from '@/components/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { AddToTripButton } from '@/components/AddToTripButton';
-import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
 import { CompareModal } from '@/components/booking/CompareModal';
 import { useRankedViews } from '@/hooks/useRankedViews';
 import { flightQuoteDates, flightSubjectKey } from '@/lib/reports/subject';
@@ -49,21 +48,21 @@ interface RouteRowProps {
   textPrimary: string;
   textMuted: string;
   dividerCls: string;
-  first: boolean;
+  /** Inset divider above every row but the first, so the header flows straight into OUTBOUND */
+  showDivider: boolean;
 }
 
-function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, first }: RouteRowProps) {
+function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, showDivider }: RouteRowProps) {
   const stopCls = route.stops === 0
     ? isDark ? 'text-cv-green-400' : 'text-cv-green-800'
     : textMuted;
 
   return (
-    <div>
-      {!first && <div className={`mx-5 border-t ${dividerCls}`} />}
+    <div className={`mx-5 ${showDivider ? `border-t ${dividerCls}` : ''}`}>
       {/* ── DESKTOP: one horizontal row ──────────────────────────────────── */}
       <div
-        className="hidden md:grid items-center py-5 gap-5 px-5"
-        style={{ gridTemplateColumns: '8rem 12rem 1fr 12rem' }}
+        className="hidden md:grid items-center py-4 gap-5"
+        style={{ gridTemplateColumns: '8rem auto 1fr auto' }}
       >
         {/* 1. Route identity */}
         <div className="min-w-0">
@@ -109,7 +108,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, first }: 
       </div>
 
       {/* ── MOBILE: label → departure → metadata → arrival ────────────────── */}
-      <div className="md:hidden px-4 py-3.5">
+      <div className="md:hidden py-3.5">
         <div className="mb-2.5 min-w-0">
           <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textPrimary}`}>
             {route.label} · {route.dateLabel}
@@ -149,10 +148,10 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, first }: 
 }
 
 // ---------------------------------------------------------------------------
-// PriceColumn — FROM cash, the winning redemption, and the Compare trigger
+// BestValueStrip — FROM cash, the winning redemption, and the Compare trigger
 // ---------------------------------------------------------------------------
 
-interface PriceColumnProps {
+interface BestValueStripProps {
   totalAmount: number;
   best: OptionRowView | undefined;
   hasPoints: boolean;
@@ -163,43 +162,48 @@ interface PriceColumnProps {
   dividerCls: string;
 }
 
-function PriceColumn({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: PriceColumnProps) {
+function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: BestValueStripProps) {
+  const boxCls = isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200';
   return (
-    <div className={`rounded-b-xl border-t px-4 md:px-5 py-4 flex flex-wrap items-center gap-x-4 gap-y-3 ${dividerCls} ${isDark ? 'bg-gph-dark-bg' : 'bg-gray-50'}`}>
-      <div className="flex items-baseline gap-3 shrink-0">
-        <p className={`text-[10px] font-mono uppercase tracking-widest ${textMuted}`}>From</p>
-        <p data-testid="from-cash" className={`text-3xl font-extrabold tabular-nums leading-none ${textPrimary}`}>
+    <div className={`border-t px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5 ${dividerCls}`}>
+      <p className="flex items-baseline gap-2 shrink-0">
+        <span className={`text-xs font-mono uppercase ${textMuted}`}>From</span>
+        <span data-testid="from-cash" className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
           {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-        </p>
-      </div>
+        </span>
+      </p>
 
-      {best ? (
-        <div className={`flex-1 min-w-0 flex items-center gap-3 rounded-xl border px-4 py-2.5 ${isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-100 border-gray-200'}`}>
-          <div className="flex-1 min-w-0">
-            <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>Best value</p>
-            <p className={`text-base font-semibold leading-tight truncate ${textPrimary}`}>{best.displayName}</p>
-          </div>
-          {best.cpp !== null ? (
-            <p data-testid="best-value-cpp" className={`text-xl font-extrabold font-mono tabular-nums leading-none shrink-0 ${textPrimary}`}>
-              {best.cpp}<span className={`text-xs font-bold ml-0.5 ${textMuted}`}>cpp</span>
-            </p>
-          ) : (
-            <p className={`text-xs font-bold font-mono shrink-0 ${textMuted}`}>check program</p>
-          )}
-          <button
-            type="button"
-            onClick={onCompare}
-            aria-haspopup="dialog"
-            className="min-h-11 px-5 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-base font-extrabold whitespace-nowrap transition-colors shrink-0"
-          >
-            Compare →
-          </button>
-        </div>
-      ) : (
-        <p className={`flex-1 text-[10px] font-mono ${textMuted}`}>
-          {hasPoints ? 'No portal priced this itinerary.' : 'Select your cards to compare points pricing across portals.'}
-        </p>
-      )}
+      <div className={`flex-1 min-w-0 rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3 ${boxCls}`}>
+        {best ? (
+          <>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
+                Best value
+              </p>
+              <p className={`text-base font-semibold leading-tight truncate mt-0.5 ${textPrimary}`}>{best.displayName}</p>
+            </div>
+            {best.cpp !== null ? (
+              <p data-testid="best-value-cpp" className={`text-xl font-extrabold font-mono tabular-nums leading-none shrink-0 ${textPrimary}`}>
+                {best.cpp}<span className={`text-xs font-bold ml-0.5 ${textMuted}`}>cpp</span>
+              </p>
+            ) : (
+              <p className={`text-xs font-bold font-mono shrink-0 ${textMuted}`}>check program</p>
+            )}
+            <button
+              type="button"
+              onClick={onCompare}
+              aria-haspopup="dialog"
+              className="w-full sm:w-auto min-h-11 px-5 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-sm font-extrabold whitespace-nowrap transition-colors"
+            >
+              Compare →
+            </button>
+          </>
+        ) : (
+          <p className={`text-xs font-mono ${textMuted}`}>
+            {hasPoints ? 'No portal priced this itinerary.' : 'Select your cards to compare points pricing across portals.'}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -237,6 +241,8 @@ export function FlightCard({ offer }: { offer: any }) {
   const routes = buildRouteViews(offer);
   const tripWord = isRoundTrip ? 'Round trip' : 'One way';
   const scopeAdj = isRoundTrip ? 'round-trip' : 'one-way';
+  const tripMeta = `${scopeAdj} · ${totalTripDuration(offer.slices)}`;
+  const tripMetaCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
 
   const collection = offer.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
 
@@ -261,15 +267,9 @@ export function FlightCard({ offer }: { offer: any }) {
         />
       )}
 
-      {/* 1. Search summary — airline identity left, winning redemption right */}
-      <ResultSummaryHeader
-        isDark={isDark}
-        roundedTop={!collection}
-        eyebrow={`${tripWord.toUpperCase()} · ${totalTripDuration(offer.slices).toUpperCase()}`}
-        title={airline}
-        titleTestId="airline-name"
-        trailing={addToTrip}
-        mark={
+      {/* 1. Header — airline identity left, trip shape right */}
+      <div className="px-5 pt-5 pb-2 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <div
             data-testid="airline-badge"
             className="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-extrabold font-mono shrink-0 select-none"
@@ -277,8 +277,23 @@ export function FlightCard({ offer }: { offer: any }) {
           >
             {airlineIata ?? '?'}
           </div>
-        }
-      />
+          <div className="min-w-0">
+            <p data-testid="airline-name" className={`text-xl font-bold leading-tight truncate ${textPrimary}`}>
+              {airline}
+            </p>
+            {/* Phones: trip shape sits under the name so the name never truncates */}
+            <p className={`sm:hidden text-[10px] font-bold font-mono uppercase tracking-widest mt-0.5 ${tripMetaCls}`}>
+              {tripMeta}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <p className={`hidden sm:block text-xs font-bold font-mono uppercase tracking-widest ${tripMetaCls}`}>
+            {tripMeta}
+          </p>
+          {addToTrip}
+        </div>
+      </div>
 
       {/* 2. Transfer-bonus notice */}
       <TransferBonusBanner
@@ -289,22 +304,22 @@ export function FlightCard({ offer }: { offer: any }) {
       />
 
       {/* 3. Itinerary */}
-      <div className="px-4 md:px-5">
+      <div>
         {routes.map((route, i) => (
           <RouteRow
             key={`${route.label}-${i}`}
             route={route}
-            first={i === 0}
             isDark={isDark}
             textPrimary={textPrimary}
             textMuted={textMuted}
             dividerCls={dividerCls}
+            showDivider={i > 0}
           />
         ))}
       </div>
 
-      {/* 4. Price + best redemption bar */}
-      <PriceColumn
+      {/* 4. FROM cash + best value + Compare */}
+      <BestValueStrip
         totalAmount={totalAmount}
         best={best}
         hasPoints={!!ptsResult}
@@ -322,21 +337,6 @@ export function FlightCard({ offer }: { offer: any }) {
           subjectKey={flightSubjectKey(offer)}
           baseQuote={{ cash: totalAmount, ...flightQuoteDates(offer) }}
           label={`Compare booking options — ${airline} ${originCode} to ${destCode}`}
-          header={
-            <>
-              <p className={`text-[9.5px] font-bold font-mono tracking-widest uppercase mb-1 ${textMuted}`}>
-                {tripWord} · Points vs cash
-              </p>
-              <h3 className={`text-lg font-extrabold leading-tight tracking-tight ${textPrimary}`}>
-                {airline} · {originCode} → {destCode}
-              </h3>
-              <p className={`text-sm mt-1 ${textMuted}`}>
-                <span className={`font-bold font-mono ${textPrimary}`}>
-                  {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-                </span>{' '}cash · {routes.map(r => r.dateLabel).join(' – ')}
-              </p>
-            </>
-          }
           scopeLabel={tripWord}
           scopeAdj={scopeAdj}
           unitNoun="options"

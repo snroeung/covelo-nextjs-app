@@ -28,8 +28,8 @@ export interface CompareModalProps {
   subjectKey: string;
   /** Searched cash total and dates — each option's quote inherits these */
   baseQuote: Omit<QuoteValues, 'points'>;
-  /** Title block shown beside the close button — stays put across steps */
-  header: ReactNode;
+  /** Title block shown beside the close button — stays put across steps. Omit for a bare close bar. */
+  header?: ReactNode;
   /** Accessible name for the dialog */
   label: string;
   scopeLabel: string;
