@@ -1,5 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
+import { classifyReport } from '../../lib/reports/classify';
+import type { BookingReport, QuoteValues } from '../../lib/reports/types';
 
 // All test records use this prefix so cleanup can target them safely
 export const TEST_PREFIX = '[TEST]';
@@ -774,9 +776,62 @@ export async function openFlightCompare(page: Page, card: Locator): Promise<Loca
 }
 
 /**
- * Stubs window.open so "Submit result" doesn't spawn a real partner-site tab
- * during a test — the flow only needs the step to advance.
+ * Stubs window.open so "View deal" doesn't spawn a real partner-site tab during
+ * a test. Each call's URL is recorded — read them back with `openedUrls`.
  */
 export async function stubWindowOpen(page: Page) {
-  await page.evaluate(() => { window.open = () => null; });
+  await page.evaluate(() => {
+    const w = window as unknown as { __opened: string[] };
+    w.__opened = [];
+    window.open = (url?: string | URL) => { w.__opened.push(String(url)); return null; };
+  });
+}
+
+/** URLs passed to the stubbed window.open, in call order */
+export async function openedUrls(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as unknown as { __opened?: string[] }).__opened ?? []);
+}
+
+/**
+ * Stateful stand-in for the `reports` tRPC router (list + submit) so booking-report
+ * specs never write to Supabase and don't trip the per-option cooldown. Submits are
+ * classified with the real `classifyReport`, filed as the current user, and returned
+ * by later `reports.list` calls. Handles httpBatchLink's comma-joined batches.
+ * `seedOnSubmit` adds other travellers' reports alongside a submit — the
+ * post-submit refetch is the only list refresh inside the 5-min staleTime.
+ */
+export async function mockReportsRouter(
+  page: Page,
+  seedOnSubmit?: (submitted: BookingReport) => BookingReport[],
+): Promise<BookingReport[]> {
+  const stored: BookingReport[] = [];
+  await page.route('**/api/trpc/reports.*', async (route) => {
+    const url = new URL(route.request().url());
+    const procs = decodeURIComponent(url.pathname.replace('/api/trpc/', '')).split(',');
+    const body = route.request().postDataJSON() as
+      Record<string, { optionKey: string; optionName: string; quote: QuoteValues; entered: QuoteValues | null }> | null;
+    const out = procs.map((proc, i) => {
+      if (proc !== 'reports.submit') return { result: { data: stored } };
+      const input = body![String(i)];
+      const report: BookingReport = {
+        id: `e2e-${stored.length}`,
+        optionKey: input.optionKey,
+        optionName: input.optionName,
+        reporterName: 'E2E Tester',
+        result: classifyReport(input.quote, input.entered),
+        quotedCash: input.quote.cash,
+        reportedCash: input.entered?.cash ?? null,
+        reportedPoints: input.entered?.points ?? null,
+        reportedStart: input.entered?.start ?? null,
+        reportedEnd: input.entered?.end ?? null,
+        createdAt: new Date().toISOString(),
+        isMine: true,
+      };
+      stored.unshift(report);
+      if (seedOnSubmit) stored.push(...seedOnSubmit(report));
+      return { result: { data: report } };
+    });
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify(out) });
+  });
+  return stored;
 }

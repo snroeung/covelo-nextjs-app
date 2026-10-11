@@ -1,7 +1,7 @@
 'use client';
 
-import type { BookingReport, QuoteValues, ReportResult } from '@/lib/reports/types';
-import { cashDelta, datesDiffer, summarizeReports } from '@/lib/reports/classify';
+import type { BookingReport, QuoteValues, ReportResult, ReportSubjectType } from '@/lib/reports/types';
+import { cashDelta, datesDiffer, reportPerDay, summarizeReports } from '@/lib/reports/classify';
 import { bookingStyles, fmtRange, fmtUsd, timeAgo } from '@/components/booking/bookingStyles';
 
 const RESULT_LABEL: Record<ReportResult, string> = {
@@ -20,9 +20,12 @@ function ResultBadge({ result, isDark }: { result: ReportResult; isDark: boolean
   );
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 function Delta({ delta, isDark }: { delta: number | null; isDark: boolean }) {
   const st = bookingStyles(isDark);
-  if (delta === null || delta === 0) return null;
+  // ±1¢ is per-day rounding, not a price change.
+  if (delta === null || Math.abs(delta) <= 0.01) return null;
   return (
     <span className={`ml-1 text-[10px] font-bold ${delta < 0 ? st.good : st.warn}`}>
       {delta < 0 ? '↓' : '↑'}{fmtUsd(Math.abs(delta))}
@@ -36,10 +39,11 @@ function Delta({ delta, isDark }: { delta: number | null; isDark: boolean }) {
  * where five columns don't fit.
  */
 export function ReportsList({
-  reports, quote, pointsUnit, now, isDark,
+  reports, quote, subjectType, pointsUnit, now, isDark,
 }: {
   reports: BookingReport[];
   quote: QuoteValues;
+  subjectType: ReportSubjectType;
   pointsUnit: string;
   now: number | null;
   isDark: boolean;
@@ -54,16 +58,23 @@ export function ReportsList({
     );
   }
 
-  const s = summarizeReports(reports);
+  const s = summarizeReports(reports, quote);
+  // Prices compare per day — per night for stays — so different trip lengths line up.
+  const per = subjectType === 'hotel' ? '/night' : '/day';
   const youRow = isDark ? 'bg-gph-dark-linesoft' : 'bg-cv-navy-50';
 
   const cells = (r: BookingReport) => {
-    const delta = cashDelta(r, quote.cash);
+    const delta = cashDelta(r, quote);
+    const daily = reportPerDay(r, quote);
     const datesOff = datesDiffer(r, quote);
     return {
       cash: r.reportedCash === null
         ? <span className={st.muted}>—</span>
-        : <>{fmtUsd(r.reportedCash)}<Delta delta={delta} isDark={isDark} /></>,
+        : <>
+            {fmtUsd(Math.round(daily! * 100) / 100)}<span className={st.muted}>{per}</span>
+            <Delta delta={delta} isDark={isDark} />
+            <span className={`block text-[10px] ${st.muted}`}>{fmtUsd(r.reportedCash)} total</span>
+          </>,
       points: r.reportedPoints === null
         ? <span className={st.muted}>—</span>
         : <>{r.reportedPoints.toLocaleString()} {pointsUnit}</>,
@@ -91,7 +102,7 @@ export function ReportsList({
         {' · '}
         <span className={s.matched > 0 ? `font-semibold ${st.good}` : ''}>{s.matched} of {s.total} matched our quote</span>
         {s.lo !== null && s.hi !== null && (
-          <> · seen {s.lo === s.hi ? fmtUsd(s.lo) : `${fmtUsd(s.lo)}–${fmtUsd(s.hi)}`}</>
+          <> · seen {s.lo === s.hi ? fmtUsd(round2(s.lo)) : `${fmtUsd(round2(s.lo))}–${fmtUsd(round2(s.hi))}`}{per}</>
         )}
       </p>
 

@@ -15,6 +15,8 @@ import { LocationSearch, type SelectedPlace } from '@/components/inputs/Location
 import type { GuestsValue } from '@/components/inputs/GuestsDropdown';
 import type { Trip, TripTravelers } from '@/lib/trips';
 import { trpc } from '@/lib/trpc-client';
+import { useToday } from '@/hooks/useToday';
+import { laterDate } from '@/lib/dates';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -204,6 +206,7 @@ export default function TripDetailPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
+  const today = useToday();
   const [editTravelers, setEditTravelers] = useState<GuestsValue>({ adults: 1, children: 0, pets: 0 });
   const titleInputRef = useRef<HTMLInputElement>(null);
   const datesRef = useRef<HTMLDivElement>(null);
@@ -555,7 +558,7 @@ export default function TripDetailPage() {
                             <input
                               type="date"
                               value={lbl === 'Start' ? editStart : editEnd}
-                              min={lbl === 'End' && editStart ? editStart : undefined}
+                              min={lbl === 'End' ? laterDate(editStart, today) : today}
                               onChange={(e) => {
                                 if (lbl === 'Start') { setEditStart(e.target.value); if (editEnd && editEnd < e.target.value) setEditEnd(''); }
                                 else setEditEnd(e.target.value);

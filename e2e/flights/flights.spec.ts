@@ -4,9 +4,11 @@ import {
   createTransferBonus,
   createTransferPartner,
   createTravelCollection,
+  mockReportsRouter,
   openFlightCompare,
   setOfferActive,
   stubWindowOpen,
+  openedUrls,
   setTransferPartnerActive,
   setTravelCollectionActive,
   today,
@@ -129,7 +131,16 @@ test.describe('Flights page — results', () => {
     await expect(modal!).not.toBeVisible();
   });
 
-  test('View deal walks leaving → report and files the result under that option', async ({ page }) => {
+  test('View deal → Submit result files the quote as-is under that option', async ({ page }) => {
+    // Other travellers' reports on the same option: one for today, one for a
+    // date that's gone. Dates are the runner's local calendar, like the app's.
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    await mockReportsRouter(page, (mine) => [
+      { ...mine, id: 'seed-past', isMine: false, reporterName: 'Past Tester', reportedStart: iso(yesterday), reportedEnd: null },
+      { ...mine, id: 'seed-today', isMine: false, reporterName: 'Today Tester', reportedStart: iso(new Date()), reportedEnd: null,
+        createdAt: new Date(Date.now() - 86_400_000).toISOString() },
+    ]);
     await gotoFlightsWithResults(page);
 
     const cards = page.getByTestId('flight-card');
@@ -140,6 +151,8 @@ test.describe('Flights page — results', () => {
     await stubWindowOpen(page);
 
     await modal!.getByRole('button', { name: /^View deal on .+$/ }).first().click();
+    // The partner site opens on View deal, not on submit.
+    expect(await openedUrls(page)).toEqual([expect.stringMatching(/^https:\/\//)]);
 
     // Step 1 — leaving Covelo, editable quote with change notice + reset
     const leaving = modal!.getByTestId('leaving-panel');
@@ -147,34 +160,27 @@ test.describe('Flights page — results', () => {
     await expect(leaving.getByRole('heading', { name: /You.re leaving Covelo to go to/ })).toBeVisible();
     await expect(leaving.getByLabel('Departure')).toBeVisible();
     await expect(leaving.getByLabel('Return')).toBeVisible();
+    // Travel dates can't be in the past — the pickers floor at today (local).
+    const todayIso = await page.evaluate(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
+    await expect(leaving.getByLabel('Departure')).toHaveAttribute('min', todayIso);
+    await expect(page.getByLabel('Depart', { exact: true }).first()).toHaveAttribute('min', todayIso);
     await expect(leaving.getByRole('link', { name: 'Open link in new tab ↗' })).toHaveAttribute('href', /^https:\/\//);
 
+    // Editing a field shows no warning banner.
     const cash = leaving.getByLabel('Cash price');
     const quoted = await cash.inputValue();
     await cash.fill(String(Number(quoted) + 25));
-    await expect(leaving.getByTestId('change-notice')).toBeVisible();
-    await leaving.getByRole('button', { name: 'Reset' }).click();
-    await expect(leaving.getByTestId('change-notice')).toHaveCount(0);
-    await expect(cash).toHaveValue(quoted);
+    await expect(leaving.getByText(/You changed the/)).toHaveCount(0);
+    await cash.fill(quoted);
 
     const leavingAxe = await new AxeBuilder({ page }).include('[data-testid="compare-modal"]').analyze();
     expect(leavingAxe.violations).toEqual([]);
 
-    // Step 2 — did you find it?
+    // Unchanged quote → Submit result files it as Matched in one step.
     await leaving.getByRole('button', { name: 'Submit result' }).click();
-    const report = modal!.getByTestId('report-panel');
-    await expect(report).toBeVisible();
-    const submit = report.getByRole('button', { name: /^Submit/ });
-    await expect(submit).toBeDisabled();
-    await report.getByRole('radio', { name: 'Yes, I found it' }).click();
-    await expect(submit).toHaveText('Submit');
-    await submit.click();
-
-    // A rerun inside the 10-minute cooldown is refused server-side — that's the
-    // throttle working, not a regression in the flow.
-    const throttled = await report.getByRole('alert').filter({ hasText: /recently|limit/ })
-      .waitFor({ timeout: 3_000 }).then(() => true).catch(() => false);
-    test.skip(throttled, 'This account already reported this option within the cooldown');
 
     await expect(modal!.getByTestId('report-confirmation')).toContainText(/Thanks — your result was added to .+'s reports\./);
     const list = modal!.getByTestId('reports-list').filter({ visible: true }).first();
@@ -182,6 +188,18 @@ test.describe('Flights page — results', () => {
     const mine = list.getByTestId('report-row').filter({ hasText: 'YOU' }).first();
     await expect(mine).toBeVisible();
     await expect(mine).toContainText('Matched');
+    // Prices compare per day; the total sits underneath.
+    await expect(mine).toContainText('/day');
+    await expect(mine).toContainText('total');
+    // Submitting files the report only — no second tab.
+    expect(await openedUrls(page)).toHaveLength(1);
+
+    // Today first, then the searched departure; the past-dated report is hidden.
+    const rows = list.getByTestId('report-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Today Tester');
+    await expect(rows.nth(1)).toContainText('YOU');
+    await expect(list).not.toContainText('Past Tester');
   });
 
   test('only one user-reports panel is open at a time', async ({ page }) => {

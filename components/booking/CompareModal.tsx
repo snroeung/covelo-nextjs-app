@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import { TRPCClientError } from '@trpc/client';
 import type { PointsResult } from '@/lib/points/types';
 import type { OptionRowView } from '@/lib/points/rowView';
@@ -10,17 +9,18 @@ import type { QuoteValues, ReportSubjectType } from '@/lib/reports/types';
 import { RedemptionTable, type RedemptionBooking } from '@/components/booking/RedemptionTable';
 import { ReportsList } from '@/components/booking/ReportsList';
 import { LeavingPanel } from '@/components/booking/LeavingPanel';
-import { ReportPanel } from '@/components/booking/ReportPanel';
 import { draftFromQuote, type QuoteDraft } from '@/components/booking/QuoteFields';
 import { bookingStyles } from '@/components/booking/bookingStyles';
 import { useBookingReports } from '@/hooks/useBookingReports';
 import { reportOptionKey, reportsForOption } from '@/lib/reports/subject';
+import { upcomingReports } from '@/lib/reports/classify';
+import { localIsoDate } from '@/lib/dates';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 
 type Flow =
   | { step: 'compare' }
-  | { step: 'leaving' | 'report'; view: OptionRowView; url: string };
+  | { step: 'leaving'; view: OptionRowView; url: string };
 
 export interface CompareModalProps {
   result: PointsResult;
@@ -29,7 +29,7 @@ export interface CompareModalProps {
   /** Searched cash total and dates — each option's quote inherits these */
   baseQuote: Omit<QuoteValues, 'points'>;
   /** Title block shown beside the close button — stays put across steps. Omit for a bare close bar. */
-  header?: ReactNode;
+  header?: ReactNode | ((selectedCash: number | null) => ReactNode);
   /** Accessible name for the dialog */
   label: string;
   scopeLabel: string;
@@ -42,7 +42,7 @@ export interface CompareModalProps {
 
 /** A transfer row is award-only, so its cash quote is the searched price it's valued against. */
 function optionQuote(view: OptionRowView, base: Omit<QuoteValues, 'points'>): QuoteValues {
-  return { ...base, cash: view.cashUsd ?? base.cash, points: view.points };
+  return { ...base, cash: Math.round((view.cashUsd ?? base.cash) * 100) / 100, points: view.points };
 }
 
 function errorMessage(err: unknown): string {
@@ -53,7 +53,7 @@ function errorMessage(err: unknown): string {
 /**
  * Portal comparison popup with the book & report flow built in.
  *
- * compare → (View deal) → leaving → (Submit result: opens the site) → report
+ * compare → (View deal: opens the site in a new tab) → leaving → (Submit result: files the report) → compare
  * Any submit returns to compare with that option's reports open and a thank-you
  * line. The table stays mounted (hidden) during the flow so its grouped-
  * alternatives overlay is still open when the user comes back to it.
@@ -73,7 +73,6 @@ export function CompareModal({
 
   const [flow, setFlow] = useState<Flow>({ step: 'compare' });
   const [draft, setDraft] = useState<QuoteDraft | null>(null);
-  const [found, setFound] = useState<boolean | null>(null);
   const [openReportsKey, setOpenReportsKey] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
 
@@ -89,7 +88,7 @@ export function CompareModal({
       if (e.key !== 'Escape') return;
       // A visible inner layer (the grouped-alternatives overlay) closes first.
       // Mid-flow the table is hidden with its overlay still mounted — that one
-      // doesn't count, so Escape closes the popup from the leaving/report steps.
+      // doesn't count, so Escape closes the popup from the leaving step.
       const inner = bodyRef.current?.querySelector<HTMLElement>('[role="dialog"]');
       if (inner && inner.offsetParent !== null) return;
       e.stopImmediatePropagation();
@@ -110,15 +109,15 @@ export function CompareModal({
   function backToCompare() {
     setFlow({ step: 'compare' });
     setDraft(null);
-    setFound(null);
     submit.reset();
   }
 
   function startDeal(view: OptionRowView, url: string) {
     setConfirmation(null);
     setDraft(draftFromQuote(optionQuote(view, baseQuote)));
-    setFound(null);
     submit.reset();
+    // Open on the click itself — a user gesture, so popup blockers allow it.
+    openSite(url);
     setFlow({ step: 'leaving', view, url });
   }
 
@@ -139,15 +138,21 @@ export function CompareModal({
     );
   }
 
+  // Only bookings from today on, soonest first — count and list stay in step.
+  const today = now === null ? null : localIsoDate(now);
+  const optionReports = (v: OptionRowView) =>
+    upcomingReports(reportsForOption(reports, v), optionQuote(v, baseQuote), today);
+
   const booking: RedemptionBooking = {
     onViewDeal: startDeal,
-    reportCount: (v) => reportsForOption(reports, v).length,
+    reportCount: (v) => optionReports(v).length,
     openReportsKey,
     onToggleReports: (key) => setOpenReportsKey(k => (k === key ? null : key)),
     renderReports: (v) => (
       <ReportsList
-        reports={reportsForOption(reports, v)}
+        reports={optionReports(v)}
         quote={optionQuote(v, baseQuote)}
+        subjectType={subjectType}
         pointsUnit={v.pointsUnit}
         now={now}
         isDark={isDark}
@@ -155,11 +160,6 @@ export function CompareModal({
     ),
   };
 
-  const signInPrompt = (
-    <Link href="/auth" className={`inline-flex items-center min-h-11 text-sm font-bold ${st.link}`}>
-      Sign in to share your result →
-    </Link>
-  );
   const submitError = submit.isError ? errorMessage(submit.error) : null;
 
   return createPortal(
@@ -177,7 +177,11 @@ export function CompareModal({
       >
         {/* Sticky close bar */}
         <div className={`px-5 md:px-6 pt-4 pb-3 border-b shrink-0 flex justify-between items-start gap-4 ${st.border}`}>
-          <div className="min-w-0">{header}</div>
+          <div className="min-w-0">
+            {typeof header === 'function'
+              ? header(flow.step === 'compare' ? null : optionQuote(flow.view, baseQuote).cash)
+              : header}
+          </div>
           <button
             ref={closeRef}
             type="button"
@@ -226,38 +230,15 @@ export function CompareModal({
               onDraftChange={setDraft}
               subjectType={subjectType}
               pointsUnit={flow.view.pointsUnit}
-              canSubmit={!!user}
               submitting={submit.isPending}
               error={submitError}
               onBack={backToCompare}
-              onContinue={() => { openSite(flow.url); submit.reset(); setFlow({ ...flow, step: 'report' }); }}
-              onAdvance={() => { submit.reset(); setFlow({ ...flow, step: 'report' }); }}
-              onSubmitDifferent={(entered) => send(flow.view, entered)}
-              signInPrompt={signInPrompt}
+              canSubmit={!!user}
+              onSubmit={(entered) => send(flow.view, entered)}
               isDark={isDark}
             />
           )}
 
-          {flow.step === 'report' && draft && (
-            <ReportPanel
-              optionName={flow.view.displayName}
-              url={flow.url}
-              quote={optionQuote(flow.view, baseQuote)}
-              draft={draft}
-              onDraftChange={setDraft}
-              found={found}
-              onFoundChange={setFound}
-              subjectType={subjectType}
-              pointsUnit={flow.view.pointsUnit}
-              canSubmit={!!user}
-              submitting={submit.isPending}
-              error={submitError}
-              onSkip={backToCompare}
-              onSubmit={(entered) => send(flow.view, entered)}
-              signInPrompt={signInPrompt}
-              isDark={isDark}
-            />
-          )}
         </div>
       </div>
     </div>,

@@ -11,23 +11,11 @@ import type { PointsResult } from '@/lib/points/types';
 import { CompareModal } from '@/components/booking/CompareModal';
 import { hotelSubjectKey } from '@/lib/reports/subject';
 import { trpc } from '@/lib/trpc-client';
-import { getBestOption } from '@/lib/points/rankOptions';
-import { PORTAL_TRAVEL_URLS, resolvePartnerUrl } from '@/lib/points/partnerLinks';
 
 function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.round(
     (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24),
   );
-}
-
-/** Where "Reserve" goes — the issuer's travel page for the best portal, the partner's own site for the best transfer. */
-function resolveBestDealUrl(result: PointsResult | null): string | undefined {
-  const best = getBestOption(result);
-  if (!best) return undefined;
-  const url = best.kind === 'portal'
-    ? PORTAL_TRAVEL_URLS[best.group.portalId]
-    : resolvePartnerUrl(best.transfer.partnerProgram);
-  return url ?? undefined;
 }
 
 function ratingLabel(score: number): string | null {
@@ -78,7 +66,6 @@ function RoomComparePopup({
   onClose: () => void;
 }) {
   const price    = pointsResult.priceUsd;
-  const perNight = nights > 0 && price > 0 ? price / nights : price;
   const beds     = bedLabel(room.beds);
   const roomName = (room.name ?? 'Room') as string;
 
@@ -93,7 +80,10 @@ function RoomComparePopup({
       subjectKey={hotelSubjectKey(hotelId, roomName, checkIn, checkOut)}
       baseQuote={{ cash: price, start: checkIn.slice(0, 10), end: checkOut.slice(0, 10) }}
       label={`Compare booking options — ${roomName}`}
-      header={
+      header={(selectedCash) => {
+        const cash = selectedCash ?? price;
+        const perNightCash = nights > 0 && cash > 0 ? cash / nights : cash;
+        return (
         <>
           <p className={`text-[9.5px] font-bold font-mono tracking-widest uppercase mb-1 ${textMuted}`}>
             Points vs Cash · {pointsResult.portalGroups.length} Portals
@@ -103,11 +93,12 @@ function RoomComparePopup({
           </h3>
           <p className={`text-sm mt-1 ${textMuted}`}>
             {beds && <>{beds} · </>}
-            <span className={`font-bold font-mono ${textPrimary}`}>{fmt(price)}</span>
-            {' '}cash · {fmt(perNight)}/night · {nights} nights
+            <span className={`font-bold font-mono ${textPrimary}`}>{fmt(cash)}</span>
+            {' '}cash · {fmt(perNightCash)}/night · {nights} nights
           </p>
         </>
-      }
+        );
+      }}
       scopeLabel={`${nights} night${nights !== 1 ? 's' : ''}`}
       scopeAdj="stay"
       scopeNote={`applies to all ${nights} night${nights !== 1 ? 's' : ''}`}
@@ -376,7 +367,6 @@ function RoomCard({
         {/* Best portal panel */}
         <HotelBestRedemptionBar
           result={pointsResult}
-          primaryCta={{ label: 'Reserve →', href: resolveBestDealUrl(pointsResult) }}
           compareLabel={`Compare ${pointsResult?.portalGroups.length ?? 0} portals`}
           onCompareClick={() => setShowPopup(true)}
         />

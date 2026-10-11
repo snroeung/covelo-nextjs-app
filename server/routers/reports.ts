@@ -18,8 +18,11 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(
 );
 
 /** One report per user per option per window, and a per-user hourly cap — keeps one account from flooding a subject. */
-const REPORT_COOLDOWN_MS = 10 * 60 * 1000;
-const REPORTS_PER_HOUR = 30;
+const HOUR_MS = 60 * 60 * 1000;
+const REPORT_COOLDOWN_MS = 24 * HOUR_MS;
+const REPORTS_PER_HOUR = 5;
+/** Most rows one user can have inside the cooldown window, given the hourly cap */
+const MAX_ROWS_IN_COOLDOWN = REPORTS_PER_HOUR * (REPORT_COOLDOWN_MS / HOUR_MS);
 
 const quoteSchema = z.object({
   cash: z.number().nonnegative().max(1_000_000),
@@ -107,29 +110,34 @@ export const reportsRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<BookingReport> => {
       const { supabase, user } = ctx;
+      const now = Date.now();
+      // Travel dates must be today or later. The server can't see the
+      // traveller's timezone, so allow a day of slack behind UTC.
+      const earliest = new Date(now - 24 * HOUR_MS).toISOString().slice(0, 10);
+      if (input.entered && input.entered.start < earliest) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Dates must be today or later." });
+      }
       const result = classifyReport(input.quote, input.entered);
 
-      const now = Date.now();
       const { data: recent, error: recentError } = await supabase
         .from("booking_reports_feed")
         .select("subject_key, option_key, created_at")
         .eq("is_mine", true)
-        .gte("created_at", new Date(now - 60 * 60 * 1000).toISOString())
+        .gte("created_at", new Date(now - REPORT_COOLDOWN_MS).toISOString())
         .order("created_at", { ascending: false })
-        .limit(REPORTS_PER_HOUR);
+        .limit(MAX_ROWS_IN_COOLDOWN);
       if (recentError) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: recentError.message });
       const recentRows = (recent ?? []) as { subject_key: string; option_key: string; created_at: string }[];
       const dupe = recentRows.some(r =>
-        r.subject_key === input.subjectKey &&
-        r.option_key === input.optionKey &&
-        now - new Date(r.created_at).getTime() < REPORT_COOLDOWN_MS,
+        r.subject_key === input.subjectKey && r.option_key === input.optionKey,
       );
+      const lastHour = recentRows.filter(r => now - new Date(r.created_at).getTime() < HOUR_MS);
       // Best-effort: two parallel submits can both pass this read. Good enough
       // to stop casual repeats; not a security boundary.
       if (dupe) {
-        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You've already reported this option recently." });
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "You've already reported this option — you can report it again in 24 hours." });
       }
-      if (recentRows.length >= REPORTS_PER_HOUR) {
+      if (lastHour.length >= REPORTS_PER_HOUR) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Report limit reached — try again in an hour." });
       }
 

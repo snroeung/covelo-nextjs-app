@@ -52,7 +52,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 });
 
 const caller = () => appRouter.createCaller({});
-const quote = { cash: 1302, points: 104160, start: '2026-11-03', end: null };
+const quote = { cash: 1302, points: 104160, start: '2099-11-03', end: null };
 const submitInput = {
   subjectType: 'flight' as const, subjectKey: 'JFK-LHR', optionKey: 'chase', optionName: 'Chase Travel',
   quote,
@@ -121,6 +121,13 @@ describe('reports.submit', () => {
     }));
   });
 
+  it('rejects reported dates in the past', async () => {
+    setup('u-me', [{ data: [], error: null }]);
+    await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '2020-01-01', end: null } }))
+      .rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/today or later/) });
+    expect(getSupabaseAdmin).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed and impossible dates', async () => {
     setup('u-me', []);
     await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '11/03/2026' } }))
@@ -129,7 +136,7 @@ describe('reports.submit', () => {
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, start: '2026-02-30' } }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });
-    await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, end: '2026-11-01' } }))
+    await expect(caller().reports.submit({ ...submitInput, entered: { ...quote, end: '2099-11-01' } }))
       .rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
@@ -143,10 +150,34 @@ describe('reports.submit', () => {
     expect(getSupabaseAdmin).not.toHaveBeenCalled();
   });
 
-  it('TOO_MANY_REQUESTS past the hourly cap', async () => {
-    const rows = Array.from({ length: 30 }, (_, i) => ({ subject_key: `s${i}`, option_key: 'amex', created_at: new Date(Date.now() - 40 * 60_000).toISOString() }));
+  it('TOO_MANY_REQUESTS on a repeat report for the same option 23 hours later', async () => {
+    const { builders } = setup('u-me', [
+      { data: [{ subject_key: 'JFK-LHR', option_key: 'chase', created_at: new Date(Date.now() - 23 * 3600_000).toISOString() }], error: null },
+    ]);
+    await expect(caller().reports.submit({ ...submitInput, entered: quote }))
+      .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: expect.stringMatching(/24 hours/) });
+    // The read covers the full 24h window.
+    const since = Date.parse(vi.mocked(builders[0].gte as (c: string, v: string) => unknown).mock.calls[0][1]);
+    expect(Date.now() - since).toBeGreaterThanOrEqual(24 * 3600_000 - 1000);
+  });
+
+  it('TOO_MANY_REQUESTS past the hourly cap of 5', async () => {
+    const rows = Array.from({ length: 5 }, (_, i) => ({ subject_key: `s${i}`, option_key: 'amex', created_at: new Date(Date.now() - 40 * 60_000).toISOString() }));
     setup('u-me', [{ data: rows, error: null }]);
     await expect(caller().reports.submit({ ...submitInput, entered: quote }))
-      .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+      .rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: expect.stringMatching(/an hour/) });
+  });
+
+  it('allows a 5th report in the hour, and older reports don\'t count toward the cap', async () => {
+    const rows = [
+      ...Array.from({ length: 4 }, (_, i) => ({ subject_key: `s${i}`, option_key: 'amex', created_at: new Date(Date.now() - 40 * 60_000).toISOString() })),
+      ...Array.from({ length: 6 }, (_, i) => ({ subject_key: `old${i}`, option_key: 'amex', created_at: new Date(Date.now() - 3 * 3600_000).toISOString() })),
+    ];
+    setup('u-me', [
+      { data: rows, error: null },
+      { data: { display_name: 'Me' }, error: null },
+      { data: row({ is_mine: true }), error: null },
+    ]);
+    await expect(caller().reports.submit({ ...submitInput, entered: quote })).resolves.toBeDefined();
   });
 });

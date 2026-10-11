@@ -141,15 +141,16 @@ cpp) so a card's "Best value" and the table's top row can never disagree:
 | `RedemptionTable` (`components/booking/RedemptionTable.tsx`) | Full ranked table — two featured rows, the rest behind a grouped-alternatives overlay, valuation footnote. Optional `booking` prop turns on View deal + per-row user reports | `CompareModal`, `SearchBoard` |
 | `CompareModal` (`components/booking/CompareModal.tsx`) | Popup (bottom sheet on phones) wrapping `RedemptionTable` with the book & report flow | `FlightCard` "Compare →", `HotelDetailModal` room comparison popup |
 | `FlightCard` best-value strip | Full-width footer: FROM cash + grey Best value box (top option, cpp, "Compare →") | `FlightCard` |
-| `HotelBestRedemptionBar` (`components/hotels/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + CTA | `HotelDetailModal` room cards |
+| `HotelBestRedemptionBar` (`components/hotels/HotelBestRedemptionBar.tsx`) | Compact vertical winner panel + Compare button | `HotelDetailModal` room cards |
 
 ### Book & report flow (`components/booking/`)
-Inside `CompareModal`, a row's **View deal** starts a two-step flow instead of navigating:
-1. `LeavingPanel` — "You're leaving Covelo…", editable Cash / Points / dates (`QuoteFields`;
-   Departure/Return for flights, Check-in/Check-out for hotels). **Submit result** opens the
-   site in a new tab and advances; an edit shows a change notice whose Submit saves "Different".
-2. `ReportPanel` — "Did you find this result?" Yes (optionally edited) / No → Matched,
-   Different or Not found.
+Inside `CompareModal`, a row's **View deal** opens `LeavingPanel` instead of navigating —
+"You're leaving Covelo…", editable Cash / Points / dates (`QuoteFields`; Departure/Return for
+flights, Check-in/Check-out for hotels) and an "I couldn't find this result" checkbox
+(`NotFoundCheck`). **Submit result** opens the site in a new tab and files the whole form in one
+go: same per-day cash and points as the quote → Matched (on any dates — total ÷ days, one-way = 1),
+otherwise → Different, checkbox → Not found. The reports list shows prices per day (per night for stays). It is members-only —
+signed out, the button is `aria-disabled` with a hover/focus tooltip explaining why.
 
 Every submit returns to the table with that option's `ReportsList` open and a thank-you line.
 Rows toggle their reports panel on click; only one is open at a time.
@@ -157,7 +158,7 @@ Rows toggle their reports panel on click; only one is open at a time.
 Reports live in Supabase `booking_reports` (migration 024) behind the `api:reports` router:
 - `reports.list` reads the `booking_reports_feed` view — public, exposes `is_mine`, never `user_id`.
 - `reports.submit` is signed-in only (`authedProcedure`), re-classifies server-side
-  (`lib/reports/classify.ts`), throttles (one per option per 10 min, 30/hr), and inserts with the
+  (`lib/reports/classify.ts`), throttles (one per option per 24 h, 5/hr), and inserts with the
   service role — clients hold no INSERT grant.
 - Not cached: user-generated and must appear right after submit.
 - Subject identity is wallet-independent: `flightSubjectKey` / `hotelSubjectKey` in
