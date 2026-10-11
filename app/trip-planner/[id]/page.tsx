@@ -5,16 +5,18 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
-import { NavBar } from '@/components/NavBar';
+import { NavBar } from '@/components/layout/NavBar';
 import { useTrips } from '@/hooks/useTrips';
 import { useBookmarks } from '@/hooks/useBookmarks';
-import { FlightCard } from '@/components/FlightCard';
-import { HotelCard } from '@/components/HotelCard';
-import { GeoMap, type GeoPin } from '@/components/GeoMap';
-import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
-import type { GuestsValue } from '@/components/GuestsDropdown';
+import { FlightCard } from '@/components/flights/FlightCard';
+import { HotelCard } from '@/components/hotels/HotelCard';
+import { GeoMap, type GeoPin } from '@/components/hotels/GeoMap';
+import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
+import type { GuestsValue } from '@/components/inputs/GuestsDropdown';
 import type { Trip, TripTravelers } from '@/lib/trips';
 import { trpc } from '@/lib/trpc-client';
+import { useToday } from '@/hooks/useToday';
+import { laterDate } from '@/lib/dates';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -204,6 +206,7 @@ export default function TripDetailPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editStart, setEditStart] = useState('');
   const [editEnd, setEditEnd] = useState('');
+  const today = useToday();
   const [editTravelers, setEditTravelers] = useState<GuestsValue>({ adults: 1, children: 0, pets: 0 });
   const titleInputRef = useRef<HTMLInputElement>(null);
   const datesRef = useRef<HTMLDivElement>(null);
@@ -555,7 +558,7 @@ export default function TripDetailPage() {
                             <input
                               type="date"
                               value={lbl === 'Start' ? editStart : editEnd}
-                              min={lbl === 'End' && editStart ? editStart : undefined}
+                              min={lbl === 'End' ? laterDate(editStart, today) : today}
                               onChange={(e) => {
                                 if (lbl === 'Start') { setEditStart(e.target.value); if (editEnd && editEnd < e.target.value) setEditEnd(''); }
                                 else setEditEnd(e.target.value);

@@ -63,3 +63,25 @@ export function adminProcedure(flag: FlagName) {
     return next();
   });
 }
+
+/**
+ * Signed-in-only procedure. Verifies the caller's Supabase session and hands
+ * the user and the session-scoped client to the resolver via ctx, so RLS
+ * policies keyed on auth.uid() apply to its writes.
+ */
+export function authedProcedure(flag: FlagName) {
+  return t.procedure.use(async ({ next }) => {
+    if (!isEnabled(flag)) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Feature "${flag}" is not available in this environment.`,
+      });
+    }
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
+    }
+    return next({ ctx: { user, supabase } });
+  });
+}

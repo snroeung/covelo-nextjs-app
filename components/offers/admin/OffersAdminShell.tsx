@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { NavBar } from '@/components/NavBar';
+import { NavBar } from '@/components/layout/NavBar';
 import { AdminOffersTable, offerStatus } from '@/components/offers/admin/AdminOffersTable';
 import { AdminAdsTable, adStatus } from '@/components/offers/admin/AdminAdsTable';
 import { AdminAdEditor } from '@/components/offers/admin/AdminAdEditor';

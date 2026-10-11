@@ -8,7 +8,6 @@ interface HotelBestRedemptionBarProps {
   result: PointsResult | null;
   onCompareClick: () => void;
   compareLabel: string;
-  primaryCta?: { label: string; href?: string };
 }
 
 const UpArrowIcon = () => (
@@ -25,10 +24,10 @@ const ChevronIcon = () => (
 
 /**
  * Compact winning-redemption footer for the hotel detail modal's room cards,
- * where there is no room for the full comparison table. List cards use
- * ResultSummaryHeader + RedemptionTable instead.
+ * where there is no room for the full comparison table. Flight cards use a
+ * best-value strip that opens CompareModal instead.
  */
-export function HotelBestRedemptionBar({ result, onCompareClick, compareLabel, primaryCta }: HotelBestRedemptionBarProps) {
+export function HotelBestRedemptionBar({ result, onCompareClick, compareLabel }: HotelBestRedemptionBarProps) {
   const best = getBestOption(result);
   if (!best) return null;
 
@@ -72,33 +71,9 @@ export function HotelBestRedemptionBar({ result, onCompareClick, compareLabel, p
           <span className="text-xs text-cv-navy-300 italic">check program for pricing</span>
         )}
       </div>
-      {primaryCta && (
-        primaryCta.href ? (
-          <a
-            href={primaryCta.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center w-full bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 font-extrabold text-xs min-h-11 rounded-lg transition-colors"
-          >
-            {primaryCta.label}
-          </a>
-        ) : (
-          <>
-            <span
-              aria-hidden="true"
-              className="flex items-center justify-center w-full bg-cv-lime-500 text-cv-navy-950 font-extrabold text-xs min-h-11 rounded-lg opacity-50 cursor-not-allowed"
-            >
-              {primaryCta.label}
-            </span>
-            <p className="text-[9px] text-cv-navy-300 mt-1 text-center">
-              Not linked yet — visit {name} directly to book
-            </p>
-          </>
-        )
-      )}
       <button
         onClick={onCompareClick}
-        className="w-full mt-1.5 bg-transparent text-white border border-white/20 hover:border-white/40 font-bold text-xs min-h-11 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+        className="w-full bg-transparent text-white border border-white/20 hover:border-white/40 font-bold text-xs min-h-11 rounded-lg transition-colors flex items-center justify-center gap-1.5"
       >
         {compareLabel}
         <ChevronIcon />

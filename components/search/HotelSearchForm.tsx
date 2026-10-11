@@ -1,8 +1,8 @@
 'use client';
 
-import { DateInput } from '@/components/DateInput';
-import { GuestsDropdown, type GuestsValue } from '@/components/GuestsDropdown';
-import { LocationSearch, type SelectedPlace } from '@/components/LocationSearch';
+import { DateInput } from '@/components/inputs/DateInput';
+import { GuestsDropdown, type GuestsValue } from '@/components/inputs/GuestsDropdown';
+import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
 
 // Controlled hotel search form. Consumer owns state + provides `onSearch`.

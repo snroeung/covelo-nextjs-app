@@ -2,30 +2,19 @@
 
 import { Fragment, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { CollectionBanner } from '@/components/CollectionBanner';
-import { TransferBonusBanner } from '@/components/TransferBonusBanner';
+import { CollectionBanner } from '@/components/offers/CollectionBanner';
+import { TransferBonusBanner } from '@/components/offers/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
-import { RedemptionTable } from '@/components/RedemptionTable';
-import { AddToTripButton } from '@/components/AddToTripButton';
-import { ResultSummaryHeader } from '@/components/ResultSummaryHeader';
-import { BestRedemptionBar } from '@/components/BestRedemptionBar';
-import { buildRouteViews, getAirlineColor, getOfferFlightInfo, getOfferTripDates, itineraryMeta, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
+import { AddToTripButton } from '@/components/layout/AddToTripButton';
+import { CompareModal } from '@/components/booking/CompareModal';
+import { useRankedViews } from '@/hooks/useRankedViews';
+import { flightQuoteDates, flightSubjectKey } from '@/lib/reports/subject';
+import type { OptionRowView } from '@/lib/points/rowView';
+import { buildRouteViews, getAirlineColor, getOfferFlightInfo, getOfferTripDates, totalTripDuration, type RouteView } from '@/lib/flights/itinerary';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="12" height="12" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth={2.4} aria-hidden="true"
-      className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-    </svg>
-  );
-}
 
 /** Origin dot → a dot per connection → arrowhead at the destination. */
 function RouteLine({ isDark, stops }: { isDark: boolean; stops: number }) {
@@ -59,18 +48,20 @@ interface RouteRowProps {
   textPrimary: string;
   textMuted: string;
   dividerCls: string;
+  /** Inset divider above every row but the first, so the header flows straight into OUTBOUND */
+  showDivider: boolean;
 }
 
-function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRowProps) {
+function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, showDivider }: RouteRowProps) {
   const stopCls = route.stops === 0
     ? isDark ? 'text-cv-green-400' : 'text-cv-green-800'
     : textMuted;
 
   return (
-    <div className={`border-t ${dividerCls}`}>
+    <div className={`mx-5 ${showDivider ? `border-t ${dividerCls}` : ''}`}>
       {/* ── DESKTOP: one horizontal row ──────────────────────────────────── */}
       <div
-        className="hidden md:grid items-center px-5 py-4 gap-5"
+        className="hidden md:grid items-center py-4 gap-5"
         style={{ gridTemplateColumns: '8rem auto 1fr auto' }}
       >
         {/* 1. Route identity */}
@@ -85,7 +76,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
 
         {/* 2. Departure */}
         <div className="shrink-0">
-          <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+          <p className={`text-4xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
             {route.depTime}
           </p>
           <p className={`text-xs font-mono mt-1.5 ${textMuted}`}>
@@ -106,7 +97,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
 
         {/* 4. Arrival */}
         <div className="shrink-0 text-right">
-          <p className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+          <p className={`text-4xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
             {route.arrTime}
           </p>
           <p className={`text-xs font-mono mt-1.5 ${textMuted}`}>
@@ -117,7 +108,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
       </div>
 
       {/* ── MOBILE: label → departure → metadata → arrival ────────────────── */}
-      <div className="md:hidden px-4 py-3.5">
+      <div className="md:hidden py-3.5">
         <div className="mb-2.5 min-w-0">
           <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textPrimary}`}>
             {route.label} · {route.dateLabel}
@@ -157,14 +148,74 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls }: RouteRo
 }
 
 // ---------------------------------------------------------------------------
+// BestValueStrip — FROM cash, the winning redemption, and the Compare trigger
+// ---------------------------------------------------------------------------
+
+interface BestValueStripProps {
+  totalAmount: number;
+  best: OptionRowView | undefined;
+  hasPoints: boolean;
+  onCompare: () => void;
+  isDark: boolean;
+  textPrimary: string;
+  textMuted: string;
+  dividerCls: string;
+}
+
+function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: BestValueStripProps) {
+  const boxCls = isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200';
+  return (
+    <div className={`border-t px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5 ${dividerCls}`}>
+      <p className="flex items-baseline gap-2 shrink-0">
+        <span className={`text-xs font-mono uppercase ${textMuted}`}>From</span>
+        <span data-testid="from-cash" className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+          {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
+        </span>
+      </p>
+
+      <div className={`flex-1 min-w-0 rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3 ${boxCls}`}>
+        {best ? (
+          <>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
+                Best value
+              </p>
+              <p className={`text-base font-semibold leading-tight truncate mt-0.5 ${textPrimary}`}>{best.displayName}</p>
+            </div>
+            {best.cpp !== null ? (
+              <p data-testid="best-value-cpp" className={`text-xl font-extrabold font-mono tabular-nums leading-none shrink-0 ${textPrimary}`}>
+                {best.cpp}<span className={`text-xs font-bold ml-0.5 ${textMuted}`}>cpp</span>
+              </p>
+            ) : (
+              <p className={`text-xs font-bold font-mono shrink-0 ${textMuted}`}>check program</p>
+            )}
+            <button
+              type="button"
+              onClick={onCompare}
+              aria-haspopup="dialog"
+              className="w-full sm:w-auto min-h-11 px-5 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-sm font-extrabold whitespace-nowrap transition-colors"
+            >
+              Compare →
+            </button>
+          </>
+        ) : (
+          <p className={`text-xs font-mono ${textMuted}`}>
+            {hasPoints ? 'No portal priced this itinerary.' : 'Select your cards to compare points pricing across portals.'}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // FlightCard
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function FlightCard({ offer }: { offer: any }) {
   const { isDark } = useTheme();
-  const [expanded, setExpanded] = useState(false);
-  const [routesOpen, setRoutesOpen] = useState(true);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const isRoundTrip = offer.slices.length > 1;
   const totalAmount = parseFloat(offer.total_amount);
@@ -175,6 +226,7 @@ export function FlightCard({ offer }: { offer: any }) {
 
   const { airlineIata, airlineName: airline, ptsCtx } = getOfferFlightInfo(offer);
   const ptsResult = usePointsCalc(totalAmount, 'flight', ptsCtx);
+  const best = useRankedViews(ptsResult)[0];
 
   const tripDates = getOfferTripDates(offer);
 
@@ -182,7 +234,6 @@ export function FlightCard({ offer }: { offer: any }) {
   const dividerCls  = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const textPrimary = isDark ? 'text-gph-dark-ink'    : 'text-gray-900';
   const textMuted   = isDark ? 'text-gph-dark-muted'  : 'text-gray-500';
-  const sectionBg   = isDark ? 'bg-gph-dark-bg'       : 'bg-gray-50';
 
   const originCode = firstSeg?.origin?.iata_code ?? '';
   const destCode   = lastSeg?.destination?.iata_code ?? '';
@@ -190,6 +241,8 @@ export function FlightCard({ offer }: { offer: any }) {
   const routes = buildRouteViews(offer);
   const tripWord = isRoundTrip ? 'Round trip' : 'One way';
   const scopeAdj = isRoundTrip ? 'round-trip' : 'one-way';
+  const tripMeta = `${scopeAdj} · ${totalTripDuration(offer.slices)}`;
+  const tripMetaCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
 
   const collection = offer.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
 
@@ -214,15 +267,9 @@ export function FlightCard({ offer }: { offer: any }) {
         />
       )}
 
-      {/* 1. Search summary — airline identity left, winning redemption right */}
-      <ResultSummaryHeader
-        isDark={isDark}
-        roundedTop={!collection}
-        eyebrow={`${tripWord.toUpperCase()} · ${totalTripDuration(offer.slices).toUpperCase()}`}
-        title={airline}
-        titleTestId="airline-name"
-        trailing={addToTrip}
-        mark={
+      {/* 1. Header — airline identity left, trip shape right */}
+      <div className="px-5 pt-5 pb-2 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <div
             data-testid="airline-badge"
             className="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-extrabold font-mono shrink-0 select-none"
@@ -230,8 +277,23 @@ export function FlightCard({ offer }: { offer: any }) {
           >
             {airlineIata ?? '?'}
           </div>
-        }
-      />
+          <div className="min-w-0">
+            <p data-testid="airline-name" className={`text-xl font-bold leading-tight truncate ${textPrimary}`}>
+              {airline}
+            </p>
+            {/* Phones: trip shape sits under the name so the name never truncates */}
+            <p className={`sm:hidden text-[10px] font-bold font-mono uppercase tracking-widest mt-0.5 ${tripMetaCls}`}>
+              {tripMeta}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <p className={`hidden sm:block text-xs font-bold font-mono uppercase tracking-widest ${tripMetaCls}`}>
+            {tripMeta}
+          </p>
+          {addToTrip}
+        </div>
+      </div>
 
       {/* 2. Transfer-bonus notice */}
       <TransferBonusBanner
@@ -241,35 +303,9 @@ export function FlightCard({ offer }: { offer: any }) {
         scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
       />
 
-      {/* 3. Itinerary block — collapsible once there's more than one route */}
+      {/* 3. Itinerary */}
       <div>
-        {isRoundTrip ? (
-          <button
-            type="button"
-            onClick={() => setRoutesOpen(v => !v)}
-            aria-expanded={routesOpen}
-            className={`w-full min-h-11 flex items-center justify-between gap-3 px-5 py-2 text-left transition-colors ${sectionBg} ${
-              isDark ? 'hover:bg-gph-dark-linesoft' : 'hover:bg-gray-100'
-            }`}
-          >
-            <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-              Round-trip itinerary
-            </span>
-            <span className={`flex items-center gap-2 text-[10px] font-mono ${textMuted}`}>
-              {itineraryMeta(offer)}
-              <Chevron open={routesOpen} />
-            </span>
-          </button>
-        ) : (
-          <div className={`flex items-baseline justify-between gap-3 px-5 py-2 ${sectionBg}`}>
-            <span className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textMuted}`}>
-              Itinerary
-            </span>
-            <span className={`text-[10px] font-mono ${textMuted}`}>{itineraryMeta(offer)}</span>
-          </div>
-        )}
-
-        {(routesOpen || !isRoundTrip) && routes.map((route, i) => (
+        {routes.map((route, i) => (
           <RouteRow
             key={`${route.label}-${i}`}
             route={route}
@@ -277,35 +313,37 @@ export function FlightCard({ offer }: { offer: any }) {
             textPrimary={textPrimary}
             textMuted={textMuted}
             dividerCls={dividerCls}
+            showDivider={i > 0}
           />
         ))}
       </div>
 
-      {/* 4. Compare panel + the portal comparison it expands */}
-      {ptsResult ? (
-        <>
-          <BestRedemptionBar
-            result={ptsResult}
-            expanded={expanded}
-            onToggle={() => setExpanded(v => !v)}
-            roundedBottom={!expanded}
-            showMetrics
-            isDark={isDark}
-          />
-          {expanded && (
-            <RedemptionTable
-              result={ptsResult}
-              scopeLabel={tripWord}
-              scopeAdj={scopeAdj}
-              unitNoun="options"
-              showBonusNotice={false}
-            />
-          )}
-        </>
-      ) : (
-        <p className={`border-t px-5 py-3 text-[10px] font-mono rounded-b-xl ${dividerCls} ${sectionBg} ${textMuted}`}>
-          Select your cards to compare points pricing across portals.
-        </p>
+      {/* 4. FROM cash + best value + Compare */}
+      <BestValueStrip
+        totalAmount={totalAmount}
+        best={best}
+        hasPoints={!!ptsResult}
+        onCompare={() => setCompareOpen(true)}
+        isDark={isDark}
+        textPrimary={textPrimary}
+        textMuted={textMuted}
+        dividerCls={dividerCls}
+      />
+
+      {compareOpen && ptsResult && (
+        <CompareModal
+          result={ptsResult}
+          subjectType="flight"
+          subjectKey={flightSubjectKey(offer)}
+          baseQuote={{ cash: totalAmount, ...flightQuoteDates(offer) }}
+          label={`Compare booking options — ${airline} ${originCode} to ${destCode}`}
+          scopeLabel={tripWord}
+          scopeAdj={scopeAdj}
+          unitNoun="options"
+          showBonusNotice
+          scopeNote={`applies to the complete ${scopeAdj.replace('-', ' ')}`}
+          onClose={() => setCompareOpen(false)}
+        />
       )}
     </article>
   );

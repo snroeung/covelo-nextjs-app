@@ -15,6 +15,7 @@ export type FlagName =
   | "api:places"
   | "api:offers"
   | "api:portal-data"
+  | "api:reports"
   // External integrations — scoped per API surface
   | "integration:duffel:flights"
   | "integration:duffel:stays"
@@ -61,6 +62,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "ui:admin":                          { enabledIn: ["local", "beta", "production"], description: "/admin page" },
   "api:offers":                        { enabledIn: ["local", "beta", "production"], description: "offers tRPC router" },
   "api:portal-data":                   { enabledIn: ["local", "beta", "production"], description: "portalData tRPC router" },
+  "api:reports":                       { enabledIn: ["local", "beta", "production"], description: "booking reports tRPC router" },
   "integration:redis:portal-data":     { enabledIn: ["local", "beta", "production"], description: "Redis caching — portalData router" },
 } as const;
 

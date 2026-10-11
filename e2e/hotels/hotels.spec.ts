@@ -4,8 +4,11 @@ import {
   createTransferBonus,
   createTravelCollection,
   discoverTransferPartnerProgram,
+  mockReportsRouter,
+  openedUrls,
   setOfferActive,
   setTravelCollectionActive,
+  stubWindowOpen,
   today,
   daysFromNow,
   TEST_PREFIX,
@@ -176,11 +179,64 @@ test.describe('Hotels page — results', () => {
 
     await expect(page.getByRole('button', { name: 'Close comparison' })).toBeVisible({ timeout: 10_000 });
 
+    // View deal → leaving step speaks in stay dates, then back to the table.
+    const modal = page.getByTestId('compare-modal');
+    await stubWindowOpen(page);
+    await modal.getByRole('button', { name: /^View deal on .+$/ }).first().click();
+    const leaving = modal.getByTestId('leaving-panel');
+    await expect(leaving).toBeVisible();
+    await expect(leaving.getByLabel('Check-in')).toBeVisible();
+    await expect(leaving.getByLabel('Check-out')).toBeVisible();
+    await expect(leaving.getByLabel('Departure')).toHaveCount(0);
+    // Cash price is a clean amount — never raw float noise like 1350.768000000000.
+    await expect(leaving.getByLabel('Cash price')).toHaveValue(/^\d+(\.\d{1,2})?$/);
+    // Header cash follows the selected option, not the room's starting price.
+    const selectedCash = Number(await leaving.getByLabel('Cash price').inputValue());
+    await expect(modal).toContainText(Math.round(selectedCash).toLocaleString('en-US'));
+    // The "couldn't find" checkbox is there before any edit.
+    await expect(leaving.getByLabel(/couldn.t find this result/)).toBeVisible();
+    // Editing shows no warning banner; the checkbox stays put.
+    await leaving.getByLabel('Cash price').fill(String(selectedCash + 1));
+    await expect(leaving.getByText(/You changed the/)).toHaveCount(0);
+    await leaving.getByTestId('not-found-check').getByLabel(/couldn.t find this result/).check();
+    await leaving.getByRole('button', { name: '← Back to comparison' }).click();
+    await expect(modal.getByTestId('redemption-table')).toBeVisible();
+
+    // Escape closes only the comparison — the hotel modal stays open behind it.
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Close comparison' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
   });
 
-  test('Reserve link on the best redemption bar opens the booking portal', async ({ page }) => {
+  test('a "couldn\u2019t find it" report from the leaving step shows up in the option\u2019s user reports', async ({ page }) => {
+    await mockReportsRouter(page);
+
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned by Duffel for this query');
+
+    await cards.first().locator('h3').click();
+    const hasRooms = await page.getByText('Choose your room').isVisible({ timeout: 15_000 }).catch(() => false);
+    test.skip(!hasRooms, 'No priced room types returned for this hotel');
+
+    await page.getByRole('button', { name: /^Compare \d+ portals$/ }).first().click();
+    const modal = page.getByTestId('compare-modal');
+    await stubWindowOpen(page);
+    await modal.getByRole('button', { name: /^View deal on .+$/ }).first().click();
+    const leaving = modal.getByTestId('leaving-panel');
+
+    // No edits — ticking the box alone is enough to submit.
+    await leaving.getByLabel(/couldn.t find this result/).check();
+    await leaving.getByRole('button', { name: 'Submit result' }).click();
+
+    // Back on the table with that option's reports open and the new report listed.
+    const list = modal.getByTestId('reports-list');
+    await expect(list).toBeVisible({ timeout: 10_000 });
+    await expect(list).toContainText('Not found');
+    await expect(list).toContainText('E2E Tester');
+  });
+
+  test('best redemption bar has no Reserve link — Compare is its only action', async ({ page }) => {
     await gotoHotelsWithResults(page);
 
     const cards = page.getByTestId('hotel-card');
@@ -194,14 +250,49 @@ test.describe('Hotels page — results', () => {
     const hasRooms = await roomsHeading.isVisible({ timeout: 15_000 }).catch(() => false);
     test.skip(!hasRooms, 'No priced room types returned for this hotel');
 
-    // Every seed transfer partner and every issuer portal resolves a deep
-    // link (lib/points/partnerLinks.ts) — the fallback "Not linked yet"
-    // disclaimer has no live trigger, so the CTA is always a real link here.
-    const reserveLink = page.getByRole('link', { name: 'Reserve →' }).first();
-    await expect(reserveLink).toBeVisible({ timeout: 15_000 });
-    await expect(reserveLink).toHaveAttribute('target', '_blank');
-    await expect(reserveLink).toHaveAttribute('href', /^https:\/\//);
-    await expect(reserveLink).toHaveAttribute('rel', /noopener/);
+    await expect(page.getByRole('button', { name: /^Compare \d+ portals$/ }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('link', { name: 'Reserve →' })).toHaveCount(0);
+  });
+});
+
+test.describe('Hotels page — signed out', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('Submit result is members-only and explains why on hover', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned by Duffel for this query');
+
+    await cards.first().locator('h3').click();
+    const hasRooms = await page.getByText('Choose your room').isVisible({ timeout: 15_000 }).catch(() => false);
+    test.skip(!hasRooms, 'No priced room types returned for this hotel');
+
+    await page.getByRole('button', { name: /^Compare \d+ portals$/ }).first().click();
+    const modal = page.getByTestId('compare-modal');
+    await stubWindowOpen(page);
+    await modal.getByRole('button', { name: /^View deal on .+$/ }).first().click();
+    const leaving = modal.getByTestId('leaving-panel');
+
+    // The form is still fillable, but no sign-in link — the button itself carries the reason.
+    await expect(leaving.getByLabel(/couldn.t find this result/)).toBeVisible();
+    await expect(leaving.getByRole('link', { name: /Sign in/ })).toHaveCount(0);
+
+    const submit = leaving.getByRole('button', { name: /Submit result/ });
+    await expect(submit).toHaveAttribute('aria-disabled', 'true');
+    const why = leaving.getByRole('tooltip');
+    await expect(why).toHaveCSS('opacity', '0');
+    await submit.hover();
+    await expect(why).toHaveCSS('opacity', '1');
+    await expect(why).toContainText('Members only');
+    await expect(submit).toHaveAccessibleDescription(/Members only/);
+
+    // Clicking does nothing — no extra tab beyond View deal's, still on the leaving step.
+    await submit.click({ force: true });
+    expect(await openedUrls(page)).toHaveLength(1);
+    await expect(leaving).toBeVisible();
+
+    const axe = await new AxeBuilder({ page }).include('[data-testid="leaving-panel"]').analyze();
+    expect(axe.violations).toEqual([]);
   });
 });
 

@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useToday } from '@/hooks/useToday';
+import { laterDate } from '@/lib/dates';
 
 export function DateInput({
   label,
@@ -15,16 +17,8 @@ export function DateInput({
   min?: string;
 }) {
   const { isDark } = useTheme();
-  const [today, setToday] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    // Deliberately not a lazy useState initializer: SSR can't know "today"
-    // in the client's timezone, so the first client render must match the
-    // SSR'd `undefined` exactly to avoid a hydration mismatch on the
-    // input's `min` attribute. Syncing one tick later is the tradeoff.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setToday(new Date().toISOString().split('T')[0]);
-  }, []);
+  // Never before today, whatever floor the caller passes (e.g. check-in).
+  const today = useToday();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const boxCls = isDark
@@ -46,7 +40,7 @@ export function DateInput({
         type="date"
         aria-label={label}
         value={value}
-        min={min ?? today}
+        min={laterDate(min, today)}
         onChange={(e) => onChange(e.target.value)}
         className={`text-sm font-semibold mt-1.5 bg-transparent outline-none cursor-pointer w-full ${valueCls}`}
       />

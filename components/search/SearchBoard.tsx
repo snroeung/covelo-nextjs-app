@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { calcPoints } from '@/lib/points/calcPoints';
-import { RedemptionTable } from '@/components/RedemptionTable';
+import { RedemptionTable } from '@/components/booking/RedemptionTable';
 import type { FlightContext, PortalId } from '@/lib/points/types';
 
 // Subset of a Duffel flight offer actually read by adaptFlightOffer. The

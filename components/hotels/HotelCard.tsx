@@ -1,8 +1,8 @@
 'use client';
 
 import { useTheme } from '@/contexts/ThemeContext';
-import { CollectionBanner } from '@/components/CollectionBanner';
-import { TransferBonusBanner } from '@/components/TransferBonusBanner';
+import { CollectionBanner } from '@/components/offers/CollectionBanner';
+import { TransferBonusBanner } from '@/components/offers/TransferBonusBanner';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { useLiveTransferBonus } from '@/lib/points/transferBonus';
 

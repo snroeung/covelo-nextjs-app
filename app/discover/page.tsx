@@ -2,8 +2,8 @@
 
 import { Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { NavBar } from '@/components/NavBar';
-import { Footer } from '@/components/Footer';
+import { NavBar } from '@/components/layout/NavBar';
+import { Footer } from '@/components/layout/Footer';
 import { DiscoverMasthead } from '@/components/discover/DiscoverMasthead';
 import { DiscoverLead } from '@/components/discover/DiscoverLead';
 import { DiscoverSecondary } from '@/components/discover/DiscoverSecondary';

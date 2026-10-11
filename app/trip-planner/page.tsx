@@ -4,14 +4,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LocationSearch } from '@/components/LocationSearch';
-import { NavBar } from '@/components/NavBar';
+import { LocationSearch } from '@/components/inputs/LocationSearch';
+import { NavBar } from '@/components/layout/NavBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTrips } from '@/hooks/useTrips';
 import { trpc } from '@/lib/trpc-client';
-import type { SelectedPlace } from '@/components/LocationSearch';
+import type { SelectedPlace } from '@/components/inputs/LocationSearch';
 import type { Trip, TripTravelers } from '@/lib/trips';
+import { useToday } from '@/hooks/useToday';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -379,7 +380,7 @@ function TripCreateForm({
   onSave: () => void; onBack: () => void;
   isDark: boolean;
 }) {
-  const today   = new Date().toISOString().split('T')[0];
+  const today   = useToday();
   const cardBg  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const divider = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const inputCls = isDark

@@ -4,7 +4,11 @@ import {
   createTransferBonus,
   createTransferPartner,
   createTravelCollection,
+  mockReportsRouter,
+  openFlightCompare,
   setOfferActive,
+  stubWindowOpen,
+  openedUrls,
   setTransferPartnerActive,
   setTravelCollectionActive,
   today,
@@ -101,7 +105,7 @@ test.describe('Flights page — results', () => {
     }).toPass();
   });
 
-  test('Compare expands a best portal and a transfer partner, then collapses', async ({ page }) => {
+  test('Compare opens a popup with a best portal and a transfer partner, then closes', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
     const cards = page.getByTestId('flight-card');
@@ -109,24 +113,118 @@ test.describe('Flights page — results', () => {
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
     const card = cards.first();
-    const compareButton = card.getByRole('button', { name: /^Compare \d+ portals?/ });
-    const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasCompare, 'No points data for this offer — no cards selected, or no portal priced it');
+    await expect(card.getByTestId('from-cash')).toBeVisible();
+    const modal = await openFlightCompare(page, card);
+    test.skip(!modal, 'No points data for this offer — no cards selected, or no portal priced it');
 
-    await compareButton.click();
     // The two default-visible rows are the best direct-book portal and the best
     // transfer partner; every other option lives in the grouped popover.
     // Exactly one of the two carries the "Best choice" highlight — whichever
     // actually beats the other, portal or transfer — never both, never neither.
-    await expect(card.getByText('Best choice')).toHaveCount(1);
-    const viewDealLink = card.getByRole('link', { name: /^(Book on|Visit) .+$/ }).first();
-    await expect(viewDealLink).toBeVisible();
-    await expect(viewDealLink).toHaveAttribute('target', '_blank');
-    await expect(viewDealLink).toHaveAttribute('href', /^https:\/\//);
-    await expect(viewDealLink).toHaveAttribute('rel', /noopener/);
+    await expect(modal!.getByText('Best choice')).toHaveCount(1);
+    await expect(modal!.getByRole('button', { name: /^View deal on .+$/ }).first()).toBeVisible();
 
-    await card.getByRole('button', { name: '↑ Hide' }).click();
-    await expect(card.getByText('Best choice')).not.toBeVisible();
+    const results = await new AxeBuilder({ page }).include('[data-testid="compare-modal"]').analyze();
+    expect(results.violations).toEqual([]);
+
+    await modal!.getByRole('button', { name: 'Close comparison' }).click();
+    await expect(modal!).not.toBeVisible();
+  });
+
+  test('View deal → Submit result files the quote as-is under that option', async ({ page }) => {
+    // Other travellers' reports on the same option: one for today, one for a
+    // date that's gone. Dates are the runner's local calendar, like the app's.
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    await mockReportsRouter(page, (mine) => [
+      { ...mine, id: 'seed-past', isMine: false, reporterName: 'Past Tester', reportedStart: iso(yesterday), reportedEnd: null },
+      { ...mine, id: 'seed-today', isMine: false, reporterName: 'Today Tester', reportedStart: iso(new Date()), reportedEnd: null,
+        createdAt: new Date(Date.now() - 86_400_000).toISOString() },
+    ]);
+    await gotoFlightsWithResults(page);
+
+    const cards = page.getByTestId('flight-card');
+    test.skip(await cards.count() === 0, 'No flights returned by Duffel for this query');
+
+    const modal = await openFlightCompare(page, cards.first());
+    test.skip(!modal, 'No points data for this offer');
+    await stubWindowOpen(page);
+
+    await modal!.getByRole('button', { name: /^View deal on .+$/ }).first().click();
+    // The partner site opens on View deal, not on submit.
+    expect(await openedUrls(page)).toEqual([expect.stringMatching(/^https:\/\//)]);
+
+    // Step 1 — leaving Covelo, editable quote with change notice + reset
+    const leaving = modal!.getByTestId('leaving-panel');
+    await expect(leaving).toBeVisible();
+    await expect(leaving.getByRole('heading', { name: /You.re leaving Covelo to go to/ })).toBeVisible();
+    await expect(leaving.getByLabel('Departure')).toBeVisible();
+    await expect(leaving.getByLabel('Return')).toBeVisible();
+    // Travel dates can't be in the past — the pickers floor at today (local).
+    const todayIso = await page.evaluate(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
+    await expect(leaving.getByLabel('Departure')).toHaveAttribute('min', todayIso);
+    await expect(page.getByLabel('Depart', { exact: true }).first()).toHaveAttribute('min', todayIso);
+    await expect(leaving.getByRole('link', { name: 'Open link in new tab ↗' })).toHaveAttribute('href', /^https:\/\//);
+
+    // Editing a field shows no warning banner.
+    const cash = leaving.getByLabel('Cash price');
+    const quoted = await cash.inputValue();
+    await cash.fill(String(Number(quoted) + 25));
+    await expect(leaving.getByText(/You changed the/)).toHaveCount(0);
+    await cash.fill(quoted);
+
+    const leavingAxe = await new AxeBuilder({ page }).include('[data-testid="compare-modal"]').analyze();
+    expect(leavingAxe.violations).toEqual([]);
+
+    // Unchanged quote → Submit result files it as Matched in one step.
+    await leaving.getByRole('button', { name: 'Submit result' }).click();
+
+    await expect(modal!.getByTestId('report-confirmation')).toContainText(/Thanks — your result was added to .+'s reports\./);
+    const list = modal!.getByTestId('reports-list').filter({ visible: true }).first();
+    await expect(list).toBeVisible();
+    const mine = list.getByTestId('report-row').filter({ hasText: 'YOU' }).first();
+    await expect(mine).toBeVisible();
+    await expect(mine).toContainText('Matched');
+    // Prices compare per day; the total sits underneath.
+    await expect(mine).toContainText('/day');
+    await expect(mine).toContainText('total');
+    // Submitting files the report only — no second tab.
+    expect(await openedUrls(page)).toHaveLength(1);
+
+    // Today first, then the searched departure; the past-dated report is hidden.
+    const rows = list.getByTestId('report-row');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText('Today Tester');
+    await expect(rows.nth(1)).toContainText('YOU');
+    await expect(list).not.toContainText('Past Tester');
+  });
+
+  test('only one user-reports panel is open at a time', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+
+    const cards = page.getByTestId('flight-card');
+    test.skip(await cards.count() === 0, 'No flights returned by Duffel for this query');
+
+    const modal = await openFlightCompare(page, cards.first());
+    test.skip(!modal, 'No points data for this offer');
+
+    const toggles = modal!.getByTestId('reports-toggle');
+    test.skip(await toggles.count() < 2, 'Fewer than two featured rows');
+
+    await toggles.nth(0).click();
+    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'true');
+    await expect(modal!.getByTestId('reports-list')).toHaveCount(1);
+
+    await toggles.nth(1).click();
+    await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'true');
+    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'false');
+    await expect(modal!.getByTestId('reports-list')).toHaveCount(1);
+
+    await toggles.nth(1).click();
+    await expect(modal!.getByTestId('reports-list')).toHaveCount(0);
   });
 
   test('a transfer row always says which card the points come out of', async ({ page }) => {
@@ -136,16 +234,13 @@ test.describe('Flights page — results', () => {
     const total = await cards.count();
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    const card = cards.first();
-    const compareButton = card.getByRole('button', { name: /^Compare \d+ portals?/ });
-    const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasCompare, 'No points data for this offer');
-    await compareButton.click();
+    const modal = await openFlightCompare(page, cards.first());
+    test.skip(!modal, 'No points data for this offer');
 
     // Only a transfer row renders source-card chips — a more reliable presence
     // check than the row's badge text, which now reads "Best choice" instead of
     // "Transfer partner" whenever the transfer row is the winning option.
-    const grid = card.getByTestId('redemption-table');
+    const grid = modal!.getByTestId('redemption-table');
     const chips = grid.getByTestId('source-chip');
     const hasTransfer = await chips.first().isVisible().catch(() => false);
     test.skip(!hasTransfer, 'No transfer partner priced this itinerary');
@@ -172,29 +267,24 @@ test.describe('Flights page — results', () => {
     const total = await cards.count();
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    const card = cards.first();
-    const compareButton = card.getByRole('button', { name: /^Compare \d+ portals?/ });
-    const hasCompare = await compareButton.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasCompare, 'No points data for this offer');
-    await compareButton.click();
+    const modal = await openFlightCompare(page, cards.first());
+    test.skip(!modal, 'No points data for this offer');
 
-    const trigger = card.getByRole('button', { name: /^See \d+ (round-trip|one-way) options?$/ });
+    const trigger = modal!.getByRole('button', { name: /^See \d+ (round-trip|one-way) options?$/ });
     const hasAlternatives = await trigger.isVisible().catch(() => false);
     test.skip(!hasAlternatives, 'This offer has no options beyond the two featured rows');
 
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 
     await trigger.click();
-    const popover = card.getByRole('dialog');
+    const popover = modal!.getByRole('dialog', { name: /^Other .+ options$/ });
     await expect(popover).toBeVisible();
     await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    const popoverDealLink = popover.getByRole('link', { name: /^(Book on|Visit) .+$/ }).first();
-    await expect(popoverDealLink).toBeVisible();
-    await expect(popoverDealLink).toHaveAttribute('href', /^https:\/\//);
+    await expect(popover.getByRole('button', { name: /^View deal on .+$/ }).first()).toBeVisible();
 
     // The popover covers the points grid exactly — it must not spill onto the
     // next result card or leave the grid half-visible behind it.
-    const gridBox = await card.getByTestId('redemption-table').boundingBox();
+    const gridBox = await modal!.getByTestId('redemption-table').boundingBox();
     const popoverBox = await popover.boundingBox();
     expect(gridBox).not.toBeNull();
     expect(popoverBox).not.toBeNull();
@@ -202,7 +292,8 @@ test.describe('Flights page — results', () => {
       expect(Math.abs(popoverBox![side] - gridBox![side])).toBeLessThanOrEqual(1);
     }
 
-    // Close button, then Escape — both dismiss it.
+    // Close button, then Escape — both dismiss it. Escape closes only the
+    // innermost layer: the compare popup stays open behind it.
     await popover.getByRole('button', { name: 'Close options' }).click();
     await expect(popover).not.toBeVisible();
 
@@ -210,30 +301,23 @@ test.describe('Flights page — results', () => {
     await expect(popover).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(popover).not.toBeVisible();
+    await expect(modal!).toBeVisible();
   });
 
-  test('the round-trip itinerary labels both routes and collapses them', async ({ page }) => {
+  test('the round-trip itinerary labels both routes, always expanded', async ({ page }) => {
     await gotoFlightsWithResults(page);
 
     const cards = page.getByTestId('flight-card');
     const total = await cards.count();
     test.skip(total === 0, 'No flights returned by Duffel for this query');
 
-    // FLIGHT_QUERY is a round trip, so every result has two labelled routes.
+    // FLIGHT_QUERY is a round trip, so every result has two labelled routes,
+    // both shown — the card has no itinerary collapse toggle.
     const card = cards.first();
-    const outbound = card.getByText('Outbound', { exact: true }).first();
-    await expect(outbound).toBeVisible();
+    await expect(card.getByText('Outbound', { exact: true }).first()).toBeVisible();
     await expect(card.getByText('Return', { exact: true }).first()).toBeVisible();
-
-    const toggle = card.getByRole('button', { name: /Round-trip itinerary/ });
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-
-    await toggle.click();
-    await expect(outbound).not.toBeVisible();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-
-    await toggle.click();
-    await expect(outbound).toBeVisible();
+    await expect(card.getByText(/round-trip · /i).filter({ visible: true }).first()).toBeVisible();
+    await expect(card.getByRole('button', { name: /Round-trip itinerary/ })).toHaveCount(0);
   });
 });
 
@@ -664,12 +748,11 @@ test.describe('Flights page — Best value reflects live transfer bonus', () => 
     await ctx.close();
   });
 
-  // Regression for BestRedemptionBar computing "Best value" from the raw,
-  // pre-bonus transferCpp instead of the bonus-adjusted rate RedemptionTable
-  // already shows (e.g. a live Chase → British Airways transfer bonus). Both
-  // components render the same winning option, so their cpp figures must
-  // agree once BestRedemptionBar folds the bonus in too.
-  test('BestRedemptionBar "Best value" cpp matches the bonus-adjusted featured row', async ({ page }) => {
+  // Regression for the card's "Best value" computing from the raw, pre-bonus
+  // transferCpp instead of the bonus-adjusted rate RedemptionTable shows (e.g.
+  // a live Chase → British Airways transfer bonus). Both render the same
+  // winning option (useRankedViews), so their cpp figures must agree.
+  test('card "Best value" cpp matches the bonus-adjusted featured row', async ({ page }) => {
     await gotoFlightsWithResults(page);
     const cards = page.getByTestId('flight-card');
     const total = await cards.count();
@@ -717,14 +800,15 @@ test.describe('Flights page — Best value reflects live transfer bonus', () => 
 
     // Confirm this specific bonus is actually what's driving the winning
     // row before comparing numbers — otherwise a coincidental match would
-    // prove nothing. (Both the bonus banner text and the "Best transfer"
-    // metric name the partner, hence .first().)
+    // prove nothing. (Both the bonus banner text and the "Best value" box
+    // name the partner, hence .first().)
     await expect(refreshedCard.getByText(PARTNER_PROGRAM).first()).toBeVisible({ timeout: 15_000 });
 
     const barCppText = await refreshedCard.getByTestId('best-value-cpp').innerText();
 
-    await refreshedCard.getByRole('button', { name: /Compare \d+ portals?/ }).click();
-    const featuredCppText = await refreshedCard.getByTestId('best-choice-cpp').innerText();
+    const modal = await openFlightCompare(page, refreshedCard);
+    expect(modal).not.toBeNull();
+    const featuredCppText = await modal!.getByTestId('best-choice-cpp').innerText();
 
     // Both render as e.g. "1.69cpp" / "1.69¢" — compare the leading numeric
     // portion only.

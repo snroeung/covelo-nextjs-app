@@ -1,14 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { PointsResult, PortalId, TransferResult } from '@/lib/points/types';
-import { rankOptions } from '@/lib/points/rankOptions';
-import { buildRowView, cashEarnLine, splitFeatured, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { PointsResult, PortalId } from '@/lib/points/types';
+import { useRankedViews } from '@/hooks/useRankedViews';
+import { cashEarnLine, splitFeatured, ISSUER_BRAND, type OptionRowView, type SourceCardView } from '@/lib/points/rowView';
 import { useTheme } from '@/contexts/ThemeContext';
-import { trpc } from '@/lib/trpc-client';
 import type { TransferBonus } from '@/lib/types/offers';
-import { ISSUER_LOYALTY_NAME, formatBonusEndDate, findBonusForEligibleCards } from '@/lib/points/transferBonus';
+import { ISSUER_LOYALTY_NAME, formatBonusEndDate } from '@/lib/points/transferBonus';
 import { PORTAL_TRAVEL_URLS, resolvePartnerUrl } from '@/lib/points/partnerLinks';
 
 // ---------------------------------------------------------------------------
@@ -110,13 +108,59 @@ function BonusBadge({ bonus, isDark }: { bonus: TransferBonus; isDark: boolean }
   );
 }
 
+/**
+ * Opt-in book & report flow. When set, each row's CTA becomes "View deal"
+ * (handed back to the caller instead of navigating) and each row gets a
+ * user-reports panel; only one panel is open at a time, owned by the caller.
+ */
+export interface RedemptionBooking {
+  onViewDeal: (view: OptionRowView, url: string) => void;
+  reportCount: (view: OptionRowView) => number;
+  openReportsKey: string | null;
+  onToggleReports: (key: string) => void;
+  renderReports: (view: OptionRowView) => ReactNode;
+}
+
+function ReportsToggle({ view, booking, isDark }: { view: OptionRowView; booking: RedemptionBooking; isDark: boolean }) {
+  const open = booking.openReportsKey === view.key;
+  const n = booking.reportCount(view);
+  return (
+    <button
+      type="button"
+      data-testid="reports-toggle"
+      aria-expanded={open}
+      onClick={(e) => { e.stopPropagation(); booking.onToggleReports(view.key); }}
+      className={`min-h-11 inline-flex items-center gap-1.5 text-[11px] font-bold font-mono ${
+        isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-900'
+      }`}
+    >
+      {open ? 'Hide' : 'See'} {n} user report{n !== 1 ? 's' : ''}
+      <ChevronIcon open={open} />
+    </button>
+  );
+}
+
+/** Row CTA in booking mode — a button that starts the leaving / report flow. */
+function ViewDealButton({ view, url, booking, className }: { view: OptionRowView; url: string; booking: RedemptionBooking; className: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); booking.onViewDeal(view, url); }}
+      aria-label={`View deal on ${view.sourceName}`}
+      className={className}
+    >
+      View deal →
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // FeaturedRow — one of the two default-visible ranked options
 // ---------------------------------------------------------------------------
 
 /** Column widths shared by the header strip and every featured row. */
 const VALUE_COL = 'md:w-36';
-const ACTION_COL = 'md:w-32';
+const ACTION_COL = 'md:w-40';
 
 function ColumnHeaders({ isDark }: { isDark: boolean }) {
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
@@ -171,6 +215,90 @@ function chipTone(card: SourceCardView, owned: boolean, isDark: boolean): string
     : `bg-transparent ${text} ${border} border-dashed`;
 }
 
+/** Cards of one issuer collapse into a single chip once there are two or more. */
+function groupSourceCards(cards: SourceCardView[]): SourceCardView[][] {
+  const groups: SourceCardView[][] = [];
+  for (const card of cards) {
+    const group = groups.find(g => g[0].portalId === card.portalId);
+    if (group) group.push(card);
+    else groups.push([card]);
+  }
+  return groups;
+}
+
+function ChipRate({ card }: { card: SourceCardView }) {
+  if (card.cpp === null) return null;
+  return (
+    <span className="font-mono ml-1 tabular-nums opacity-80">
+      {card.ratioLabel !== '1:1' ? `${card.ratioLabel} · ` : ''}{card.cpp}¢
+    </span>
+  );
+}
+
+function SourceChip({ card, isDark }: { card: SourceCardView; isDark: boolean }) {
+  return (
+    <span
+      data-testid="source-chip"
+      // Ownership is carried by fill vs dashed outline; mirror it in the
+      // DOM so tests assert the state rather than the class string.
+      data-owned={card.owned}
+      // Full ratio text (and, on an issuer chip, its per-card breakdown)
+      // is supplementary — the label, rate and ¢/pt stay on the chip, so
+      // nothing here is hover-only.
+      title={card.ratioDetail}
+      className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${chipTone(card, card.owned, isDark)}`}
+    >
+      {card.label}
+      {/* Shown on unowned chips too — it is what earns them their colour. */}
+      <ChipRate card={card} />
+    </span>
+  );
+}
+
+/** "Chase · 3 cards" — hover or focus lists every eligible card at its own rate. */
+function SourceChipGroup({ cards, isDark }: { cards: SourceCardView[]; isDark: boolean }) {
+  const rated = cards.filter(c => c.cpp !== null);
+  const best = rated.length > 0 ? rated.reduce((a, b) => (b.cpp! > a.cpp! ? b : a)) : cards[0];
+  const rep: SourceCardView = { ...best, hasBonus: cards.some(c => c.hasBonus) };
+  const owned = cards.some(c => c.owned);
+  const lo = rated.length > 0 ? Math.min(...rated.map(c => c.cpp!)) : null;
+  return (
+    <span className="relative group inline-flex">
+      <span
+        tabIndex={0}
+        data-testid="source-chip"
+        data-owned={owned}
+        data-grouped="true"
+        aria-label={`${ISSUER_BRAND[best.portalId]}, ${cards.length} cards: ${cards.map(c => c.label).join(', ')}`}
+        className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold cursor-default ${chipTone(rep, owned, isDark)}`}
+      >
+        {ISSUER_BRAND[best.portalId]} · {cards.length} cards
+        {best.cpp !== null && (
+          <span className="font-mono ml-1 tabular-nums opacity-80">
+            {lo !== null && lo !== best.cpp ? `${lo}–${best.cpp}` : best.cpp}¢
+          </span>
+        )}
+      </span>
+      <span
+        role="tooltip"
+        data-testid="source-chip-popover"
+        className={`hidden group-hover:block group-focus-within:block absolute left-0 top-full pt-1 z-20`}
+      >
+        <span className={`block rounded-lg border shadow-lg p-2 min-w-48 text-[10px] ${
+          isDark ? 'bg-gph-dark-linesoft border-gph-dark-line text-gph-dark-ink' : 'bg-white border-gray-200 text-gray-900'
+        }`}>
+          {cards.map(c => (
+            <span key={c.key} className="flex items-center justify-between gap-3 py-0.5 whitespace-nowrap">
+              <span className="font-semibold">{c.label}</span>
+              <ChipRate card={c} />
+            </span>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 /**
  * Which card(s) the transfer actually comes out of. Without this the row names
  * an issuer and nothing tells the user whether that issuer is even in their
@@ -198,34 +326,15 @@ function SourceCards({ view, isDark }: { view: OptionRowView; isDark: boolean })
     <div className="mt-1.5">
       {lead && <p className={`text-[10px] font-mono ${mutedCls}`}>{lead}</p>}
       <div className="flex flex-wrap gap-1 mt-1">
-        {view.sourceCards.map(card => (
-          <span
-            key={card.key}
-            data-testid="source-chip"
-            // Ownership is carried by fill vs dashed outline; mirror it in the
-            // DOM so tests assert the state rather than the class string.
-            data-owned={card.owned}
-            // Full ratio text (and, on an issuer chip, its per-card breakdown)
-            // is supplementary — the label, rate and ¢/pt stay on the chip, so
-            // nothing here is hover-only.
-            title={card.ratioDetail}
-            className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${chipTone(card, card.owned, isDark)}`}
-          >
-            {card.label}
-            {/* Shown on unowned chips too — it is what earns them their colour. */}
-            {card.cpp !== null && (
-              <span className="font-mono ml-1 tabular-nums opacity-80">
-                {card.ratioLabel !== '1:1' ? `${card.ratioLabel} · ` : ''}{card.cpp}¢
-              </span>
-            )}
-          </span>
-        ))}
+        {groupSourceCards(view.sourceCards).map(group => group.length === 1
+          ? <SourceChip key={group[0].key} card={group[0]} isDark={isDark} />
+          : <SourceChipGroup key={group[0].portalId} cards={group} isDark={isDark} />)}
       </div>
     </div>
   );
 }
 
-function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean }) {
+function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: boolean; booking?: RedemptionBooking }) {
   const tier = view.cpp !== null ? cppTier(view.cpp) : null;
   const earnLine = cashEarnLine(view);
   const dealUrl = resolveDeepLink(view);
@@ -246,9 +355,14 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
       ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg'
       : 'bg-cv-navy-950 hover:bg-cv-navy-900 text-white';
 
+  const reportsOpen = booking?.openReportsKey === view.key;
+
   return (
     <div className={`border-b ${borderCls} ${surface}`}>
-      <div className="px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5">
+      <div
+        className={`px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5 ${booking ? 'cursor-pointer' : ''}`}
+        onClick={booking ? () => booking.onToggleReports(view.key) : undefined}
+      >
 
         {/* Booking source + context */}
         <div className="min-w-0 md:flex-1">
@@ -270,6 +384,7 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
               {earnLine}
             </p>
           )}
+          {booking && <ReportsToggle view={view} booking={booking} isDark={isDark} />}
         </div>
 
         {/* Value + redemption requirement */}
@@ -298,14 +413,21 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
 
         {/* Action */}
         <div className={`${ACTION_COL} shrink-0`}>
-          {dealUrl ? (
+          {dealUrl && booking ? (
+            <ViewDealButton
+              view={view}
+              url={dealUrl}
+              booking={booking}
+              className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap transition-colors ${btnCls}`}
+            />
+          ) : dealUrl ? (
             <a
               href={dealUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               aria-label={ctaAriaLabel(view)}
-              className={`flex items-center justify-center min-h-11 w-full px-4 rounded-lg text-sm font-bold text-center transition-colors ${btnCls}`}
+              className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap transition-colors ${btnCls}`}
             >
               {ctaLabel(view.kind)} →
             </a>
@@ -313,7 +435,7 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
             <>
               <span
                 aria-hidden="true"
-                className={`flex items-center justify-center min-h-11 w-full px-4 rounded-lg text-sm font-bold text-center opacity-50 cursor-not-allowed ${btnCls}`}
+                className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap opacity-50 cursor-not-allowed ${btnCls}`}
               >
                 {ctaLabel(view.kind)} →
               </span>
@@ -324,6 +446,9 @@ function FeaturedRow({ view, isDark }: { view: OptionRowView; isDark: boolean })
           )}
         </div>
       </div>
+      {booking && reportsOpen && (
+        <div className="px-5 pb-4">{booking.renderReports(view)}</div>
+      )}
     </div>
   );
 }
@@ -336,10 +461,12 @@ function AlternativeRow({
   view,
   scopeLabel,
   isDark,
+  booking,
 }: {
   view: OptionRowView;
   scopeLabel: string;
   isDark: boolean;
+  booking?: RedemptionBooking;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
@@ -347,69 +474,85 @@ function AlternativeRow({
   const earnLine = cashEarnLine(view);
   const dealUrl = resolveDeepLink(view);
 
+  const reportsOpen = booking?.openReportsKey === view.key;
+  const altBtnCls = `shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center whitespace-nowrap transition-colors ${
+    isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
+  }`;
+
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 border-b last:border-b-0 ${borderCls}`}>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: markColor(view) }} aria-hidden="true" />
-          <span className={`text-xs font-bold truncate ${inkCls}`}>{view.displayName}</span>
-          {view.cpp !== null && (
-            <span className={`text-xs font-extrabold font-mono tabular-nums ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
-              {view.cpp} cpp
-            </span>
-          )}
-          {view.bonus && <BonusBadge bonus={view.bonus} isDark={isDark} />}
-        </div>
-        <p className={`text-[10px] font-mono mt-1 ${mutedCls}`}>
-          {scopeLabel} ·{' '}
-          {view.points !== null ? `${view.points.toLocaleString()} ${view.pointsUnit}` : 'award rate varies'}
-          {view.cashUsd !== null ? ` · or ${fmtUsd(view.cashUsd)} cash` : ' · direct award'}
-        </p>
-        {/* Too tight for chips — one line saying whose card it comes out of. */}
-        {view.kind === 'transfer' && view.sourceCards.length > 0 && (() => {
-          const owned = view.sourceCards.filter(c => c.owned);
-          return (
-            <p className={`text-[10px] font-mono mt-0.5 ${
-              owned.length > 0 ? mutedCls : isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'
-            }`}>
-              {owned.length === 0
-                ? `Not in your wallet — needs ${view.sourceCards.map(c => c.label).join(' or ')}`
-                : owned.length > 1
-                  ? 'Transfer from any of these cards'
-                  : `Transfer from ${owned[0].label}`}
-            </p>
-          );
-        })()}
-        {earnLine && <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{earnLine}</p>}
-        {!dealUrl && (
-          <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>
-            Not linked yet — visit {view.sourceName} directly to book
+    <div className={`border-b last:border-b-0 ${borderCls}`}>
+      <div
+        className={`flex items-center gap-3 px-4 py-3 ${booking ? 'cursor-pointer' : ''}`}
+        onClick={booking ? () => booking.onToggleReports(view.key) : undefined}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: markColor(view) }} aria-hidden="true" />
+            <span className={`text-xs font-bold truncate ${inkCls}`}>{view.displayName}</span>
+            {view.cpp !== null && (
+              <span className={`text-xs font-extrabold font-mono tabular-nums ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
+                {view.cpp} cpp
+              </span>
+            )}
+            {view.bonus && <BonusBadge bonus={view.bonus} isDark={isDark} />}
+          </div>
+          <p className={`text-[10px] font-mono mt-1 ${mutedCls}`}>
+            {scopeLabel} ·{' '}
+            {view.points !== null ? `${view.points.toLocaleString()} ${view.pointsUnit}` : 'award rate varies'}
+            {view.cashUsd !== null ? ` · or ${fmtUsd(view.cashUsd)} cash` : ' · direct award'}
           </p>
+          {/* Too tight for chips — one line saying whose card it comes out of. */}
+          {view.kind === 'transfer' && view.sourceCards.length > 0 && (() => {
+            const owned = view.sourceCards.filter(c => c.owned);
+            return (
+              <p className={`text-[10px] font-mono mt-0.5 ${
+                owned.length > 0 ? mutedCls : isDark ? 'text-cv-amber-300' : 'text-cv-amber-700'
+              }`}>
+                {owned.length === 0
+                  ? `Not in your wallet — needs ${view.sourceCards.map(c => c.label).join(' or ')}`
+                  : owned.length > 1
+                    ? 'Transfer from any of these cards'
+                    : `Transfer from ${owned[0].label}`}
+              </p>
+            );
+          })()}
+          {earnLine && <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>{earnLine}</p>}
+          {!dealUrl && (
+            <p className={`text-[10px] font-mono mt-0.5 ${mutedCls}`}>
+              Not linked yet — visit {view.sourceName} directly to book
+            </p>
+          )}
+          {booking && <ReportsToggle view={view} booking={booking} isDark={isDark} />}
+        </div>
+
+        {dealUrl && booking ? (
+          <ViewDealButton view={view} url={dealUrl} booking={booking} className={altBtnCls} />
+        ) : dealUrl ? (
+          <a
+            href={dealUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={ctaAriaLabel(view)}
+            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center whitespace-nowrap transition-colors ${
+              isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
+            }`}
+          >
+            {ctaLabel(view.kind)} →
+          </a>
+        ) : (
+          <span
+            aria-hidden="true"
+            className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center whitespace-nowrap opacity-50 cursor-not-allowed ${
+              isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
+            }`}
+          >
+            {ctaLabel(view.kind)} →
+          </span>
         )}
       </div>
-
-      {dealUrl ? (
-        <a
-          href={dealUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          aria-label={ctaAriaLabel(view)}
-          className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center transition-colors ${
-            isDark ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg' : 'bg-gray-900 hover:bg-gray-700 text-white'
-          }`}
-        >
-          {ctaLabel(view.kind)} →
-        </a>
-      ) : (
-        <span
-          aria-hidden="true"
-          className={`shrink-0 flex items-center justify-center min-h-11 px-3 rounded-lg text-[11px] font-extrabold text-center opacity-50 cursor-not-allowed ${
-            isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white'
-          }`}
-        >
-          {ctaLabel(view.kind)} →
-        </span>
+      {booking && reportsOpen && (
+        <div className="px-4 pb-3">{booking.renderReports(view)}</div>
       )}
     </div>
   );
@@ -487,6 +630,7 @@ function AlternativesOverlay({
   unitNoun,
   onClose,
   isDark,
+  booking,
 }: {
   views: OptionRowView[];
   scopeLabel: string;
@@ -494,6 +638,7 @@ function AlternativesOverlay({
   unitNoun: string;
   onClose: () => void;
   isDark: boolean;
+  booking?: RedemptionBooking;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
@@ -529,7 +674,7 @@ function AlternativesOverlay({
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {views.map(v => (
-          <AlternativeRow key={v.key} view={v} scopeLabel={scopeLabel} isDark={isDark} />
+          <AlternativeRow key={v.key} view={v} scopeLabel={scopeLabel} isDark={isDark} booking={booking} />
         ))}
       </div>
 
@@ -566,6 +711,7 @@ export function RedemptionTable({
   unitNoun = 'options',
   scopeNote = 'applies to the complete booking',
   showBonusNotice = true,
+  booking,
 }: {
   result: PointsResult;
   /** Prefixes every redemption line — 'Round trip', 'One way', '3 nights' */
@@ -578,6 +724,8 @@ export function RedemptionTable({
   scopeNote?: string;
   /** Off when the surrounding card already renders a TransferBonusBanner */
   showBonusNotice?: boolean;
+  /** Turns on the View deal → report flow and per-row user reports */
+  booking?: RedemptionBooking;
 }) {
   const { isDark } = useTheme();
   const [altOpen, setAltOpen] = useState(false);
@@ -586,10 +734,17 @@ export function RedemptionTable({
   useEffect(() => {
     if (!altOpen) return;
     function onPointerDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setAltOpen(false);
+      const root = rootRef.current;
+      // A hidden table (CompareModal mid-flow) keeps its overlay for the return trip.
+      if (!root || root.offsetParent === null) return;
+      if (!root.contains(e.target as Node)) setAltOpen(false);
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setAltOpen(false);
+      if (e.key !== 'Escape') return;
+      setAltOpen(false);
+      // Innermost layer wins — don't let the same keypress reach a
+      // window-level modal handler (e.g. HotelDetailModal) and close that too.
+      e.stopPropagation();
     }
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
@@ -599,34 +754,9 @@ export function RedemptionTable({
     };
   }, [altOpen]);
 
-  // This key is shared with the offers page, so the cached value must stay the
-  // bare array — wrapping it in an envelope here hands that page an object it
-  // then tries to spread. `dataUpdatedAt` already carries the fetch time, so the
-  // date-window check below gets its clock without calling the impure Date.now()
-  // during render (react-hooks/purity forbids that even inside useMemo).
-  const { data: transferBonuses = [], dataUpdatedAt } = useQuery({
-    queryKey: ['offers.transferBonuses'],
-    queryFn:  () => trpc.offers.listTransferBonuses.query(),
-  });
-  const now = dataUpdatedAt || null;
-  // Matched against the cards the user holds, not the row's default issuer: a
-  // promo on a card they don't own must not badge the row or move its numbers.
-  // Date-window guard: admin sessions bypass the public RLS end_date filter,
-  // so re-check here to only badge bonuses currently live on the offers page.
-  const bonusFor = (t: TransferResult) =>
-    now === null ? undefined : findBonusForEligibleCards(t, transferBonuses, now);
-
   // Unified ¢/pt-ranked list — direct-book portals and transfer partners
-  // compete on the same axis; a transfer partner can lead the list. Bonuses are
-  // folded into cpp inside buildRowView, so ranking happens on the raw rate and
-  // the displayed rate can differ — re-sort on the displayed value so the card
-  // never shows a lower cpp above a higher one.
-  const views = rankOptions(result)
-    .map(row => {
-      const match = row.kind === 'transfer' ? bonusFor(row.transfer) : undefined;
-      return buildRowView(row, result, match?.bonus, match?.portalId);
-    })
-    .sort((a, b) => (b.cpp ?? -Infinity) - (a.cpp ?? -Infinity));
+  // compete on the same axis; a transfer partner can lead the list.
+  const views = useRankedViews(result);
 
   const { featured, alternatives } = splitFeatured(views);
   const liveBonus = views.find(v => v.bonus)?.bonus;
@@ -644,7 +774,7 @@ export function RedemptionTable({
       <ColumnHeaders isDark={isDark} />
 
       {featured.map(view => (
-        <FeaturedRow key={view.key} view={view} isDark={isDark} />
+        <FeaturedRow key={view.key} view={view} isDark={isDark} booking={booking} />
       ))}
 
       {alternatives.length > 0 && (
@@ -674,6 +804,7 @@ export function RedemptionTable({
           unitNoun={unitNoun}
           onClose={() => setAltOpen(false)}
           isDark={isDark}
+          booking={booking}
         />
       )}
     </div>

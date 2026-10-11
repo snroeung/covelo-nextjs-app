@@ -2,8 +2,8 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { NavBar } from '@/components/NavBar';
-import { Footer } from '@/components/Footer';
+import { NavBar } from '@/components/layout/NavBar';
+import { Footer } from '@/components/layout/Footer';
 import { OfferRow } from '@/components/discover/OfferRow';
 import { DiscoverOfferModal } from '@/components/discover/DiscoverOfferModal';
 import { FilterDropdown, type FilterDropdownOption } from '@/components/discover/FilterDropdown';

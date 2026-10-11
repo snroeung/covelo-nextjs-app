@@ -4,6 +4,7 @@ import { staysRouter } from "@/server/routers/stays";
 import { placesRouter } from "@/server/routers/places";
 import { offersRouter } from "@/server/routers/offers";
 import { portalDataRouter } from "@/server/routers/portalData";
+import { reportsRouter } from "@/server/routers/reports";
 
 export const appRouter = router({
   flights: flightsRouter,
@@ -11,6 +12,7 @@ export const appRouter = router({
   places: placesRouter,
   offers: offersRouter,
   portalData: portalDataRouter,
+  reports: reportsRouter,
 });
 
 export type AppRouter = typeof appRouter;
