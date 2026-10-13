@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { flaggedProcedure, router } from '@/server/trpc';
 import { isEnabled } from '@/lib/feature-flags';
-import { getPlaceAutocomplete, getAirportsForQuery, getPlaceLatLng, getNearestAirport, getPlacePhoto } from '@/lib/places';
+import { getPlaceAutocomplete, getAirportsForQuery, getPlaceLatLng, getNearestAirport, getPlacePhoto, getHotelGoogleReviews } from '@/lib/places';
 
 export const placesRouter = router({
   /**
@@ -79,4 +79,19 @@ export const placesRouter = router({
       if (!ref) return null;
       return `/api/place-photo?ref=${encodeURIComponent(ref)}`;
     }),
+
+  /**
+   * Live Google rating + reviews for a hotel (Places API (New)). Billed per call
+   * and never cached server-side (Google terms) — the client fetches it only when
+   * the reviews section scrolls into view. Null when the flag is off or no match.
+   */
+  hotelReviews: flaggedProcedure("api:places")
+    .input(z.object({
+      accommodationId: z.string().min(1),
+      name: z.string().min(1),
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+    }))
+    .query(({ input: { accommodationId, name, lat, lng } }) =>
+      getHotelGoogleReviews(accommodationId, name, lat, lng)),
 });

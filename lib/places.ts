@@ -287,3 +287,197 @@ export async function getPlaceLatLng(
 
   return result;
 }
+
+// ── Hotel reviews — Google Places API (New) ─────────────────────────────────
+// Reviews are Google-only; Duffel's unattributed review data is not used.
+// Google's terms allow storing the place ID indefinitely but forbid caching
+// any other place content, so only the ID goes to Redis — reviews, rating and
+// count are fetched live on every call.
+
+const PLACES_V1 = 'https://places.googleapis.com/v1';
+/** Cached in place of an ID when a hotel has no trustworthy Google match. */
+const NO_MATCH = 'none';
+/** A Google place further than this from Duffel's coordinates is a different hotel. */
+const MAX_MATCH_METERS = 500;
+/** Every field here bills at Place Details Enterprise + Atmosphere — the extras add no cost. */
+const REVIEW_FIELDS = 'id,displayName,location,rating,userRatingCount,reviews,reviewSummary,googleMapsUri,googleMapsLinks,movedPlaceId';
+
+export interface GoogleReview {
+  author: string;
+  authorUri: string | null;
+  authorPhotoUri: string | null;
+  /** 1–5 stars */
+  rating: number;
+  text: string;
+  relativeTime: string;
+  visitDate: { year: number; month: number } | null;
+  reviewUri: string | null;
+  flagUri: string | null;
+}
+
+export interface GoogleHotelReviews {
+  /** 1.0–5.0 */
+  rating: number | null;
+  ratingCount: number | null;
+  mapsUri: string | null;
+  reviewsUri: string | null;
+  summary: { text: string; disclosure: string; flagUri: string | null } | null;
+  reviews: GoogleReview[];
+}
+
+function metersBetween(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(bLat - aLat);
+  const dLng = rad(bLng - aLng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+}
+
+/** `undefined` = cache miss; `null` = cached "no match". */
+async function readHotelPlaceId(key: string): Promise<string | null | undefined> {
+  if (!isEnabled('integration:redis:places')) return undefined;
+  try {
+    const cached = await redis.get<string>(key);
+    if (cached === null || cached === undefined) return undefined;
+    return cached === NO_MATCH ? null : cached;
+  } catch (err) {
+    console.warn('[places] Redis read failed, falling through to Places API:', err);
+    return undefined;
+  }
+}
+
+async function writeHotelPlaceId(key: string, placeId: string | null): Promise<void> {
+  if (!isEnabled('integration:redis:places')) return;
+  try {
+    await redis.set(key, placeId ?? NO_MATCH, { ex: CACHE.hotelGooglePlaceId.ttl });
+  } catch (err) {
+    console.warn('[places] Redis write failed:', err);
+  }
+}
+
+/** Text Search (New) with an IDs-only field mask — the free, uncapped SKU. */
+async function searchHotelPlaceId(name: string, lat: number, lng: number): Promise<string | null> {
+  const res = await fetch(`${PLACES_V1}/places:searchText`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': GMAPS_KEY!,
+      'X-Goog-FieldMask': 'places.id,places.movedPlaceId',
+    },
+    body: JSON.stringify({
+      textQuery: name,
+      includedType: 'lodging',
+      strictTypeFiltering: true,
+      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 300 } },
+      pageSize: 1,
+      languageCode: 'en',
+    }),
+  });
+  if (!res.ok) throw new Error(`Places text search failed: ${res.status}`);
+  const data = await res.json() as { places?: Array<{ id: string; movedPlaceId?: string }> };
+  const top = data.places?.[0];
+  return top ? (top.movedPlaceId ?? top.id) : null;
+}
+
+/**
+ * Google place ID for a Duffel hotel, matched by name near its coordinates.
+ * Cached for a year (Google's recommended refresh window); a miss is cached
+ * as "none" so a hotel Google doesn't know isn't searched on every open.
+ */
+export async function findHotelGooglePlaceId(
+  accommodationId: string,
+  name: string,
+  lat: number,
+  lng: number,
+): Promise<string | null> {
+  const key = cacheKeys.hotelGooglePlaceId(accommodationId);
+  const cached = await readHotelPlaceId(key);
+  if (cached !== undefined) return cached;
+
+  const placeId = await searchHotelPlaceId(name, lat, lng);
+  await writeHotelPlaceId(key, placeId);
+  return placeId;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchPlaceReviews(placeId: string): Promise<any | 'not_found'> {
+  const url = new URL(`${PLACES_V1}/places/${encodeURIComponent(placeId)}`);
+  url.searchParams.set('languageCode', 'en');
+  const res = await fetch(url.toString(), {
+    headers: { 'X-Goog-Api-Key': GMAPS_KEY!, 'X-Goog-FieldMask': REVIEW_FIELDS },
+  });
+  if (res.status === 404) return 'not_found';
+  if (!res.ok) throw new Error(`Place details failed: ${res.status}`);
+  return res.json();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeReviews(raw: any): GoogleHotelReviews {
+  const summary = raw.reviewSummary?.text?.text
+    ? {
+        text: raw.reviewSummary.text.text as string,
+        disclosure: (raw.reviewSummary.disclosureText?.text ?? 'Summarized with Gemini') as string,
+        flagUri: (raw.reviewSummary.flagContentUri ?? null) as string | null,
+      }
+    : null;
+  return {
+    rating: raw.rating ?? null,
+    ratingCount: raw.userRatingCount ?? null,
+    mapsUri: raw.googleMapsUri ?? null,
+    reviewsUri: raw.googleMapsLinks?.reviewsUri ?? raw.reviewSummary?.reviewsUri ?? null,
+    summary,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reviews: ((raw.reviews ?? []) as any[]).map((r) => ({
+      author: r.authorAttribution?.displayName ?? 'Google user',
+      authorUri: r.authorAttribution?.uri ?? null,
+      authorPhotoUri: r.authorAttribution?.photoUri ?? null,
+      rating: r.rating ?? 0,
+      text: r.text?.text ?? r.originalText?.text ?? '',
+      relativeTime: r.relativePublishTimeDescription ?? '',
+      visitDate: r.visitDate?.year && r.visitDate?.month ? { year: r.visitDate.year, month: r.visitDate.month } : null,
+      reviewUri: r.googleMapsUri ?? null,
+      flagUri: r.flagContentUri ?? null,
+    })),
+  };
+}
+
+/**
+ * Live Google rating, review summary and up to 5 reviews for a Duffel hotel.
+ * Billed per call (Place Details Enterprise + Atmosphere) and never cached —
+ * call it only when the reviews are about to be seen. Returns null when the
+ * flag is off or no Google place within 500 m matches.
+ */
+export async function getHotelGoogleReviews(
+  accommodationId: string,
+  name: string,
+  lat: number,
+  lng: number,
+): Promise<GoogleHotelReviews | null> {
+  if (!isEnabled('integration:google-places:reviews')) return null;
+  if (!GMAPS_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set');
+  const key = cacheKeys.hotelGooglePlaceId(accommodationId);
+
+  let placeId = await findHotelGooglePlaceId(accommodationId, name, lat, lng);
+  if (!placeId) return null;
+
+  let raw = await fetchPlaceReviews(placeId);
+  if (raw === 'not_found') {
+    // Obsolete ID (closed, moved or merged) — search once more for the current one.
+    placeId = await searchHotelPlaceId(name, lat, lng);
+    raw = placeId ? await fetchPlaceReviews(placeId) : 'not_found';
+    if (raw === 'not_found') {
+      await writeHotelPlaceId(key, null);
+      return null;
+    }
+    await writeHotelPlaceId(key, placeId);
+  }
+
+  const loc = raw.location as { latitude: number; longitude: number } | undefined;
+  if (!loc || metersBetween(lat, lng, loc.latitude, loc.longitude) > MAX_MATCH_METERS) {
+    await writeHotelPlaceId(key, null);
+    return null;
+  }
+  if (raw.movedPlaceId) await writeHotelPlaceId(key, raw.movedPlaceId as string);
+
+  return normalizeReviews(raw);
+}

@@ -129,7 +129,22 @@ Sidebar card selector with:
 - Favorite (heart) button — UI only, no persistence
 - Cash price only — **no redemption comparison.** Hotel pricing is per room type,
   so the comparison belongs to the room cards in `HotelDetailModal`, not the result card
+- **No review score** — reviews appear only in `HotelDetailModal` (see Hotel reviews below)
 - Clicking the photo or the name opens `HotelDetailModal`
+
+### Hotel reviews (`components/hotels/GoogleReviews.tsx`)
+Reviews come **only from Google Places (New)** — Duffel's `review_score` / `review_count` /
+`accommodation.reviews` are unattributed and not used anywhere. Flow: `places.hotelReviews`
+→ `getHotelGoogleReviews` in `lib/places.ts`: free IDs-only Text Search (`lodging`, 300 m bias)
+→ billed Place Details (Enterprise + Atmosphere, ~$25/1k). Rules:
+- **Only the place ID is cached** (`cacheKeys.hotelGooglePlaceId`, 1 yr; `"none"` = no match).
+  Google's terms forbid caching reviews/rating/count — never put them in Redis.
+- **Fetch on scroll into view only**; the modal header reads the same query with `enabled: false`.
+- A match >500 m from Duffel's coordinates is treated as a different hotel (cached `"none"`).
+- Attribution is mandatory: author name/avatar/profile link, the official Google Maps logo
+  (`assets/attribution/`, unmodified, 16–19px tall — not a styled "Google Maps" text), links to
+  `reviewsUri`/review `googleMapsUri`, visit date, and "Summarized with Gemini" on the summary.
+- Kill switch: `integration:google-places:reviews`.
 
 ### Redemption comparison components
 Renderings of the same `PointsResult`, chosen by how much room the surface has. All of

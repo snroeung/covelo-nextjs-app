@@ -11,14 +11,6 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / msPerDay);
 }
 
-function ratingLabel(score: number): string | null {
-  if (score >= 9.0) return 'Exceptional';
-  if (score >= 8.5) return 'Excellent';
-  if (score >= 7.5) return 'Very Good';
-  if (score >= 6.5) return 'Good';
-  return null;
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; defaultCollapsed?: boolean; onOpenDetail?: (sr: any) => void }) {
   const { isDark } = useTheme();
@@ -33,8 +25,6 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
 
   const name        = acc.name ?? 'Hotel';
   const stars       = acc.rating as number | null;
-  const reviewScore = acc.review_score as number | null;
-  const reviewCount = acc.review_count as number | null;
   const lineOne     = acc.location?.address?.line_one ?? '';
   const city        = acc.location?.address?.city_name ?? '';
   const country     = acc.location?.address?.country_code ?? '';
@@ -44,7 +34,6 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
   const amenities   = (acc.amenities ?? []).slice(0, 6) as any[];
   const firstPhoto  = (acc.photos?.[0]?.url ?? null) as string | null;
 
-  const scoreLabel = reviewScore !== null && reviewScore !== undefined ? ratingLabel(reviewScore) : null;
   const nightLabel = `${nights} night${nights !== 1 ? 's' : ''}`;
 
   const cardBg      = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
@@ -120,7 +109,7 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
               <p className={`text-xs mt-0.5 ${textMuted}`}>{fmtMoney(perNight)}/night</p>
             </div>
 
-            {/* Stars + review count */}
+            {/* Hotel class stars */}
             <div className="flex items-center gap-2 mb-1.5">
               {stars !== null && stars !== undefined && (
                 <div className="flex gap-0.5" role="img" aria-label={`${stars} star hotel`}>
@@ -128,11 +117,6 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
                     <span key={i} aria-hidden="true" className={`text-xs ${i < stars ? 'text-cv-amber-400' : isDark ? 'text-gph-dark-line' : 'text-gray-200'}`}>★</span>
                   ))}
                 </div>
-              )}
-              {reviewCount !== null && reviewCount !== undefined && (
-                <span className={`text-[10px] font-bold font-mono tracking-widest uppercase ${textMuted}`}>
-                  {reviewCount.toLocaleString()} reviews
-                </span>
               )}
             </div>
 
@@ -146,21 +130,8 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
 
             {location && (
               <p className={`text-sm mb-2.5 truncate ${textMuted}`}>
-                {location} · {nightLabel}
+                {location}
               </p>
-            )}
-
-            {/* Review score + label */}
-            {reviewScore !== null && reviewScore !== undefined && (
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold font-mono ${textPrimary}`}>
-                  {reviewScore.toFixed(1)}
-                  <span className={`font-normal ${textMuted}`}>/10</span>
-                </span>
-                {scoreLabel && (
-                  <span className={`text-sm font-bold ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>{scoreLabel}</span>
-                )}
-              </div>
             )}
 
             {/* Amenity pills */}

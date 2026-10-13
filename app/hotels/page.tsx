@@ -170,17 +170,6 @@ interface HotelPinData {
   address: string;
   priceLabel: string;
   stars: number | null;
-  reviewScore: number | null;
-  reviewCount: number | null;
-  scoreLabel: string | null;
-}
-
-function ratingLabel(score: number): string | null {
-  if (score >= 9.0) return 'Exceptional';
-  if (score >= 8.5) return 'Excellent';
-  if (score >= 7.5) return 'Very Good';
-  if (score >= 6.5) return 'Good';
-  return null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,7 +185,6 @@ function accommodationsToPins(accommodations: any[]): GeoPin[] {
       const country = acc.location?.address?.country_code ?? '';
       const streetPart = lineOne && !acc.name?.toLowerCase().includes(lineOne.toLowerCase()) ? lineOne : '';
       const address = [streetPart, city, country].filter(Boolean).join(', ');
-      const reviewScore = (acc.review_score ?? null) as number | null;
 
       const data: HotelPinData = {
         name: acc.name ?? 'Hotel',
@@ -204,9 +192,6 @@ function accommodationsToPins(accommodations: any[]): GeoPin[] {
         address,
         priceLabel: totalAmount.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }),
         stars: (acc.rating ?? null) as number | null,
-        reviewScore,
-        reviewCount: (acc.review_count ?? null) as number | null,
-        scoreLabel: reviewScore !== null && reviewScore !== undefined ? ratingLabel(reviewScore) : null,
       };
 
       return {
@@ -387,7 +372,6 @@ function HotelsPageInner() {
 
   const textPrimary = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const textMuted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
-  const scoreCls = isDark ? 'text-cv-green-500' : 'text-cv-green-800';
   const starOnCls = 'text-cv-amber-400';
   const starOffCls = isDark ? 'text-gph-dark-line' : 'text-gray-200';
   const viewBtnCls = isDark
@@ -429,20 +413,11 @@ function HotelsPageInner() {
         </div>
 
         <div className="p-3">
-          {(data.stars !== null || data.reviewCount !== null) && (
-            <div className="flex items-center gap-1.5 mb-1">
-              {data.stars !== null && (
-                <div className="flex gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <span key={i} className={`text-[10px] ${i < data.stars! ? starOnCls : starOffCls}`}>★</span>
-                  ))}
-                </div>
-              )}
-              {data.reviewCount !== null && (
-                <span className={`text-[9px] font-bold font-mono tracking-wide uppercase ${textMuted}`}>
-                  {data.reviewCount.toLocaleString()} reviews
-                </span>
-              )}
+          {data.stars !== null && (
+            <div className="flex gap-0.5 mb-1">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span key={i} className={`text-[10px] ${i < data.stars! ? starOnCls : starOffCls}`}>★</span>
+              ))}
             </div>
           )}
 
@@ -454,18 +429,6 @@ function HotelsPageInner() {
             <p className={`text-[11px] leading-snug line-clamp-1 mb-1.5 ${textMuted}`}>
               {data.address}
             </p>
-          )}
-
-          {data.reviewScore !== null && (
-            <div className="flex items-center gap-1.5 mb-2">
-              <span className={`text-xs font-bold font-mono ${textPrimary}`}>
-                {data.reviewScore.toFixed(1)}
-                <span className={`font-normal ${textMuted}`}>/10</span>
-              </span>
-              {data.scoreLabel && (
-                <span className={`text-xs font-bold ${scoreCls}`}>{data.scoreLabel}</span>
-              )}
-            </div>
           )}
 
           <p className={`text-[10px] font-bold font-mono tracking-widest uppercase ${textMuted}`}>

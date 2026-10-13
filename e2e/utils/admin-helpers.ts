@@ -835,3 +835,42 @@ export async function mockReportsRouter(
   });
   return stored;
 }
+
+/**
+ * Stubs the `places.hotelReviews` tRPC query (Google Places reviews) so hotel
+ * specs never make billed Google calls. Returns a live counter of how many
+ * times the client asked — the section must fetch only once scrolled into view.
+ */
+export async function mockGoogleReviews(page: Page, payload: unknown): Promise<{ calls: number }> {
+  const counter = { calls: 0 };
+  await page.route('**/api/trpc/places.hotelReviews?*', async (route) => {
+    counter.calls += 1;
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify([{ result: { data: payload } }]) });
+  });
+  return counter;
+}
+
+export const GOOGLE_REVIEWS_FIXTURE = {
+  rating: 4.4,
+  ratingCount: 1873,
+  mapsUri: 'https://maps.google.com/?cid=123',
+  reviewsUri: 'https://www.google.com/maps/place/?q=place_id:gid#reviews',
+  summary: {
+    text: 'Guests highlight the central location and friendly staff.',
+    disclosure: 'Summarized with Gemini',
+    flagUri: 'https://www.google.com/local/review/rap/report?summary',
+  },
+  reviews: [
+    {
+      author: 'Jordan Lee',
+      authorUri: 'https://www.google.com/maps/contrib/111',
+      authorPhotoUri: null,
+      rating: 5,
+      text: 'Great stay, spotless room.',
+      relativeTime: '3 weeks ago',
+      visitDate: { year: 2026, month: 8 },
+      reviewUri: 'https://www.google.com/maps/reviews/111',
+      flagUri: 'https://www.google.com/local/review/rap/report?111',
+    },
+  ],
+};
