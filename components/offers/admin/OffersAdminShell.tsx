@@ -188,7 +188,7 @@ export function OffersAdminShell() {
               <span className={`text-[10px] font-mono font-bold tracking-widest ${muted}`}>· OFFERS MANAGEMENT</span>
             </div>
             <h1 className={`text-3xl font-bold tracking-tight ${ink}`}>
-              Offers<span className={muted}>.</span>
+              Offers
             </h1>
             <p className={`text-sm mt-1 ${muted}`}>
               {(offersData?.transferBonuses.length ?? 0) + (offersData?.spendingBonuses.length ?? 0)} total ·{' '}

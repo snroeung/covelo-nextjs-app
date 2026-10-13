@@ -22,9 +22,9 @@ const PAL = {
 // ─── Ledger rows ──────────────────────────────────────────────────────────────
 
 const LEDGER = [
-  { n: '01', label: 'Every portal, searched at once.',          metric: '40+',  unit: 'PORTALS',   highlight: false },
+  { n: '01', label: 'Every portal, shown all at once.',          metric: '40+',  unit: 'PORTALS',   highlight: false },
   { n: '02', label: 'True cents-per-point on every row.',       metric: '¢/pt', unit: 'EVERY ROW', highlight: false },
-  { n: '03', label: 'Save unlimited trips & itineraries.',      metric: '∞',    unit: 'TRIPS',     highlight: true  },
+  { n: '03', label: 'Save the latest transfer and spending bonuses.',      metric: '∞',    unit: 'OFFERS',     highlight: true  },
 ];
 
 // ─── Google G mark ────────────────────────────────────────────────────────────
@@ -99,18 +99,6 @@ export default function StartPage() {
   return (
     <div style={{ minHeight: '100vh', background: t.bg, color: t.ink, fontFamily: 'var(--font-geist-sans), Inter, system-ui, sans-serif' }}>
 
-      {/* ── Ribbon ─────────────────────────────────────────────────────── */}
-      <div style={{
-        background: t.navy, color: isDark ? t.muted : '#cfcfcc',
-        fontSize: 10.5, padding: '5px 28px',
-        display: 'flex', justifyContent: 'space-between',
-        fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
-        letterSpacing: '0.06em',
-      }}>
-        <span>COVELO · POINTS ENGINE + TRAVEL PLANNER</span>
-        <span>WAITLIST OPEN · BETA</span>
-      </div>
-
       {/* ── Two-column body ────────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.85fr', minHeight: 'calc(100vh - 29px)' }}>
 
@@ -133,12 +121,11 @@ export default function StartPage() {
             }}>
               Travel,<br />by the<br />
               <span style={{ fontStyle: 'italic', fontWeight: 700 }}>cent</span>
-              <span style={{ color: t.sky }}>.</span>
             </h1>
 
             {/* Tagline */}
             <p style={{ marginTop: 28, fontSize: 16, color: t.muted, lineHeight: 1.55, maxWidth: 460 }}>
-              Covelo searches every points program at once — Chase, Amex, Capital One, Bilt — and ranks them by true cents-per-point value.
+              Covelo estimates cents-per-point value for the major points programs, such as Capital One, American Express, and Chase.
             </p>
           </div>
 
@@ -152,7 +139,7 @@ export default function StartPage() {
                 WHAT YOU GET ON DAY ONE
               </span>
               <span style={{ fontSize: 10.5, fontFamily: 'var(--font-geist-mono)', color: t.muted, fontWeight: 700, letterSpacing: '0.08em' }}>
-                FREE TIER · NO CARD
+                FREE TIER
               </span>
             </div>
 
@@ -204,7 +191,7 @@ export default function StartPage() {
                   WELCOME BACK
                 </p>
                 <h2 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 6px', color: t.ink, lineHeight: 1 }}>
-                  {profile?.display_name || user.email?.split('@')[0]}<span style={{ color: t.sky }}>.</span>
+                  {profile?.display_name || user.email?.split('@')[0]}
                 </h2>
                 <p style={{ fontSize: 14, color: t.muted, margin: 0 }}>{user.email}</p>
               </div>
@@ -278,10 +265,10 @@ export default function StartPage() {
             /* ── Sign-up form ── */
             <>
               <h2 style={{ fontSize: 44, lineHeight: 0.95, fontWeight: 800, letterSpacing: '-0.035em', margin: '0 0 8px' }}>
-                Make it yours<span style={{ color: t.sky }}>.</span>
+                Make it yours
               </h2>
               <p style={{ fontSize: 14, color: t.muted, lineHeight: 1.55, margin: '0 0 28px', maxWidth: 380 }}>
-                Create an account to save your trips, sync your cards, and get personalized recommendations. Giving it a try? No problem — continue as a guest.
+                Create an account to save your trips, sync your cards, and get personalized recommendations. Giving it a try? No problem, continue as a guest.
               </p>
 
               {/* Google sign-in */}

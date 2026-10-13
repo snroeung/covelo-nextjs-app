@@ -93,7 +93,7 @@ function SectionHead({
         <h2 className={`text-[28px] leading-none font-black tracking-tight ${
           isDark ? 'text-gph-dark-ink' : 'text-gray-900'
         }`}>
-          {title}<span className="text-lime-500">.</span>
+          {title}
         </h2>
       </div>
       {right}
@@ -510,7 +510,7 @@ export default function TripDetailPage() {
               className="group flex items-start gap-2 cursor-pointer mb-4"
             >
               <h1 className={`text-4xl md:text-5xl font-black tracking-tight leading-none ${ink}`}>
-                {trip.title}<span className="text-lime-500">.</span>
+                {trip.title}
               </h1>
               <span className={`mt-3 opacity-0 group-hover:opacity-60 transition-opacity ${muted}`}>
                 <PencilIcon />
@@ -703,7 +703,7 @@ export default function TripDetailPage() {
         >
           <div className="flex items-center justify-between mb-6">
             <h2 className={`text-xl font-black tracking-tight ${ink}`}>
-              Itinerary<span className="text-lime-500">.</span>
+              Itinerary
             </h2>
           </div>
 

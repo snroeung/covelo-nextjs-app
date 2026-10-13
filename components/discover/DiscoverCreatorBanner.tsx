@@ -31,7 +31,7 @@ export function DiscoverCreatorBanner({ isDark }: Props) {
           </span>
         </div>
         <h2 className="text-[28px] md:text-[38px] leading-[1.05] font-extrabold tracking-tight" style={{ textWrap: 'pretty' }}>
-          Bring your audience to covelo<span className="text-gph-gold">.</span>
+          Bring your audience to covelo
         </h2>
         <p className="mt-3.5 text-sm md:text-[14.5px] leading-relaxed text-white/70 max-w-[520px]">
           Creators will be able to publish short-form video, trip reports, and award-booking

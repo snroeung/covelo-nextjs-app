@@ -11,6 +11,7 @@ Be straight forward and quick to the point
 - **Mono font**: Geist Mono — used for tabular numbers (points, prices)
 - **Scale**: standard Tailwind `text-*` scale; display headings use `text-xl`–`text-2xl font-bold`
 - **Labels**: `text-[10px] font-semibold uppercase tracking-widest` — used for field labels throughout
+- **Trailing period**: reserved for the `covelo.` wordmark only (`NavBar`, `Footer`, home hero) — `covelo<span className="text-gph-accent-green">.</span>`. Never add a decorative trailing period to page headings or other text ("Discover", "All offers", "The board", "Bring your audience to covelo")
 
 ### Color Tokens (`app/globals.css`)
 
