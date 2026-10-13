@@ -51,7 +51,6 @@ export function SelectedCardsProvider({ children }: { children: React.ReactNode 
     if (!wasSignedIn.current) return;
     wasSignedIn.current = false;
     syncedProfileCards.current = null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedCards([]);
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
   }, [user]);
@@ -79,7 +78,6 @@ export function SelectedCardsProvider({ children }: { children: React.ReactNode 
     if (syncedProfileCards.current === key) return;
     syncedProfileCards.current = key;
     const known = cards.filter(id => KNOWN_CARD_IDS.has(id)) as CardId[];
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedCards(known);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(known)); } catch {}
   }, [profile]);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -51,7 +51,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
 
   const debouncedInput = useDebounce(input, 300);
 
-  const { data: suggestions = [] } = useQuery({
+  const { data } = useQuery({
     queryKey: ['places.autocomplete', debouncedInput, sessionToken, forAirport],
     queryFn: () => trpc.places.autocomplete.query({
       input: debouncedInput,
@@ -61,6 +61,8 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
     enabled: debouncedInput.trim().length >= 2,
     staleTime: 1000 * 60 * 10,
   });
+  // Stable fallback so the render-time sync below doesn't see a new [] every render.
+  const suggestions = useMemo(() => data ?? [], [data]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -79,12 +81,14 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
     ? suggestions.filter((s) => /\([A-Z]{3}\)/.test(s.description))
     : suggestions;
 
-  useEffect(() => {
-    // Don't reopen if the input still matches the committed (selected) value —
-    // even after the debounced query fires and returns new suggestions.
-    if (input === committedInput) return;
-    setOpen(visibleSuggestions.length > 0 && input.trim().length >= 2);
-  }, [visibleSuggestions, input, committedInput]);
+  // Re-evaluate the dropdown when suggestions or input change (adjusting state during
+  // render, not in an effect). Don't reopen if the input still matches the committed
+  // (selected) value — even after the debounced query fires and returns new suggestions.
+  const [openSync, setOpenSync] = useState({ suggestions, input, committedInput });
+  if (openSync.suggestions !== suggestions || openSync.input !== input || openSync.committedInput !== committedInput) {
+    setOpenSync({ suggestions, input, committedInput });
+    if (input !== committedInput) setOpen(visibleSuggestions.length > 0 && input.trim().length >= 2);
+  }
 
   async function handleSelect(placeId: string, description: string) {
     setCommittedInput(description);

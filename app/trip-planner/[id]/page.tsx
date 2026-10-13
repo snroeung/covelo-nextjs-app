@@ -77,6 +77,13 @@ function getActivityTagCls(name: string, isDark: boolean): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+const PencilIcon = () => (
+  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-3 1 1-3a4 4 0 01.828-1.414z" />
+  </svg>
+);
+
 function SectionHead({
   label, title, right, isDark,
 }: { label: string; title: string; right?: React.ReactNode; isDark: boolean }) {
@@ -93,7 +100,7 @@ function SectionHead({
         <h2 className={`text-[28px] leading-none font-black tracking-tight ${
           isDark ? 'text-gph-dark-ink' : 'text-gray-900'
         }`}>
-          {title}<span className="text-lime-500">.</span>
+          {title}
         </h2>
       </div>
       {right}
@@ -282,22 +289,6 @@ export default function TripDetailPage() {
     return () => document.removeEventListener('click', onOutside);
   }, [openMenuId]);
 
-  useEffect(() => {
-    if (editField !== 'dates' && editField !== 'travelers' && editField !== 'destination') return;
-    function onDown(e: MouseEvent) {
-      if (editField === 'dates') {
-        if (datesRef.current && !datesRef.current.contains(e.target as Node)) saveDates();
-      } else if (editField === 'travelers') {
-        if (travelersRef.current && !travelersRef.current.contains(e.target as Node)) saveTravelers();
-      } else if (editField === 'destination') {
-        if (destinationRef.current && !destinationRef.current.contains(e.target as Node)) setEditField(null);
-      }
-    }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editField, editStart, editEnd, editTravelers]);
-
   function openTitle() {
     if (!trip) return;
     setEditTitle(trip.title); setEditField('title');
@@ -333,6 +324,22 @@ export default function TripDetailPage() {
     });
     setEditField(null);
   }
+
+  useEffect(() => {
+    if (editField !== 'dates' && editField !== 'travelers' && editField !== 'destination') return;
+    function onDown(e: MouseEvent) {
+      if (editField === 'dates') {
+        if (datesRef.current && !datesRef.current.contains(e.target as Node)) saveDates();
+      } else if (editField === 'travelers') {
+        if (travelersRef.current && !travelersRef.current.contains(e.target as Node)) saveTravelers();
+      } else if (editField === 'destination') {
+        if (destinationRef.current && !destinationRef.current.contains(e.target as Node)) setEditField(null);
+      }
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editField, editStart, editEnd, editTravelers]);
 
   // Style tokens
   const pageBg  = isDark ? 'bg-gph-dark-bg'      : 'bg-gray-100';
@@ -460,13 +467,6 @@ export default function TripDetailPage() {
     notes:     notesRef,
   };
 
-  const PencilIcon = () => (
-    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round"
-        d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a4 4 0 01-1.414.828l-3 1 1-3a4 4 0 01.828-1.414z" />
-    </svg>
-  );
-
   return (
     <div className={`min-h-screen font-sans ${pageBg}`}>
       <NavBar />
@@ -510,7 +510,7 @@ export default function TripDetailPage() {
               className="group flex items-start gap-2 cursor-pointer mb-4"
             >
               <h1 className={`text-4xl md:text-5xl font-black tracking-tight leading-none ${ink}`}>
-                {trip.title}<span className="text-lime-500">.</span>
+                {trip.title}
               </h1>
               <span className={`mt-3 opacity-0 group-hover:opacity-60 transition-opacity ${muted}`}>
                 <PencilIcon />
@@ -703,7 +703,7 @@ export default function TripDetailPage() {
         >
           <div className="flex items-center justify-between mb-6">
             <h2 className={`text-xl font-black tracking-tight ${ink}`}>
-              Itinerary<span className="text-lime-500">.</span>
+              Itinerary
             </h2>
           </div>
 

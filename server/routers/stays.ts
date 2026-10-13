@@ -48,7 +48,6 @@ function hbCacheKey(
 interface AccommodationStaticDetails {
   description: string | null;
   check_in_information: { check_in_after_time: string; check_out_before_time: string } | null;
-  reviews: Array<{ created_at: string; reviewer_name: string; score: number; text: string }>;
   roomPhotosByName: Record<string, Array<{ url: string }>>;
 }
 
@@ -75,9 +74,8 @@ export const staysRouter = router({
       ]);
 
       // Run only the API calls we still need
-      const [detailsOutcome, reviewsOutcome, ratesOutcome] = await Promise.allSettled([
+      const [detailsOutcome, ratesOutcome] = await Promise.allSettled([
         cachedStatic ? Promise.resolve(null) : duffel.stays.accommodation.get(input.accommodationId),
-        cachedStatic ? Promise.resolve(null) : duffel.stays.accommodation.reviews(input.accommodationId),
         cachedRooms  ? Promise.resolve(null) : duffel.stays.searchResults.fetchAllRates(input.searchResultId),
       ]);
 
@@ -100,10 +98,6 @@ export const staysRouter = router({
             detailsOutcome.status === "fulfilled" && detailsOutcome.value
               ? detailsOutcome.value.data.check_in_information
               : null,
-          reviews:
-            reviewsOutcome.status === "fulfilled" && reviewsOutcome.value
-              ? reviewsOutcome.value.data.reviews.slice(0, 6)
-              : [],
           roomPhotosByName,
         };
         await cacheSet(staticKey, staticDetails, CACHE.stayDetails.ttl);

@@ -4,6 +4,8 @@ import {
   createTransferBonus,
   createTravelCollection,
   discoverTransferPartnerProgram,
+  GOOGLE_REVIEWS_FIXTURE,
+  mockGoogleReviews,
   mockReportsRouter,
   openedUrls,
   setOfferActive,
@@ -252,6 +254,91 @@ test.describe('Hotels page — results', () => {
 
     await expect(page.getByRole('button', { name: /^Compare \d+ portals$/ }).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('link', { name: 'Reserve →' })).toHaveCount(0);
+  });
+});
+
+test.describe('Hotels page — reviews (Google Places only)', () => {
+  test('result cards carry no review score — reviews live in the detail modal', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned by Duffel for this query');
+
+    await expect(cards.first()).not.toContainText(/\/10|\breviews\b|Exceptional|Excellent|Very Good/i);
+  });
+
+  test('Google reviews load only on scroll, with Google attribution and links', async ({ page }) => {
+    const google = await mockGoogleReviews(page, GOOGLE_REVIEWS_FIXTURE);
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned by Duffel for this query');
+
+    await cards.first().locator('h3').click();
+    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 10_000 });
+    const section = page.getByTestId('google-reviews');
+    test.skip((await section.count()) === 0, 'Hotel has no coordinates to match on Google');
+
+    // Billed call waits for the section to be seen.
+    await page.waitForTimeout(500);
+    expect(google.calls).toBe(0);
+    await section.scrollIntoViewIfNeeded();
+    await expect(section.getByTestId('google-review')).toHaveCount(1);
+    expect(google.calls).toBe(1);
+
+    const logo = section.getByRole('img', { name: 'Google Maps' });
+    await expect(logo).toBeVisible();
+    await expect(logo).toHaveAttribute('src', /google-maps-logo-dark-gray/);
+    expect((await logo.boundingBox())!.height).toBe(18);
+    await expect(section).toContainText('1,873 Google reviews');
+    await expect(section).toContainText('Summarized with Gemini');
+    await expect(section).toContainText('Visited Aug 2026');
+    await expect(section.getByRole('link', { name: 'Jordan Lee' })).toHaveAttribute('href', 'https://www.google.com/maps/contrib/111');
+    const seeAll = section.getByRole('link', { name: 'See all on Google Maps ↗' });
+    await expect(seeAll).toHaveAttribute('href', /^https:\/\//);
+    await expect(seeAll).toHaveAttribute('target', '_blank');
+
+    // Header picks up the same data without a second call; no Duffel review content anywhere.
+    await expect(page.getByTestId('google-rating-header')).toContainText('4.4');
+    expect(google.calls).toBe(1);
+    await expect(page.getByText('Verified Stay')).toHaveCount(0);
+    await expect(page.getByText(/verified reviews/i)).toHaveCount(0);
+
+    const axe = await new AxeBuilder({ page }).include('[data-testid="google-reviews"]').analyze();
+    expect(axe.violations).toEqual([]);
+  });
+
+  test('Google reviews section passes axe in dark mode', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('covelo_theme', 'dark'));
+    await mockGoogleReviews(page, GOOGLE_REVIEWS_FIXTURE);
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned by Duffel for this query');
+
+    await cards.first().locator('h3').click();
+    const section = page.getByTestId('google-reviews');
+    test.skip((await section.count()) === 0, 'Hotel has no coordinates to match on Google');
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    await section.scrollIntoViewIfNeeded();
+    await expect(section.getByTestId('google-review')).toHaveCount(1);
+    await expect(section.getByRole('img', { name: 'Google Maps' })).toHaveAttribute('src', /google-maps-logo-white/);
+    const axe = await new AxeBuilder({ page }).include('[data-testid="google-reviews"]').analyze();
+    expect(axe.violations).toEqual([]);
+  });
+
+  test('no Google match hides the reviews section', async ({ page }) => {
+    const google = await mockGoogleReviews(page, null);
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned by Duffel for this query');
+
+    await cards.first().locator('h3').click();
+    const section = page.getByTestId('google-reviews');
+    test.skip((await section.count()) === 0, 'Hotel has no coordinates to match on Google');
+
+    await section.scrollIntoViewIfNeeded();
+    await expect.poll(() => google.calls).toBe(1);
+    await expect(section).toHaveCount(0);
+    await expect(page.getByTestId('google-rating-header')).toHaveCount(0);
   });
 });
 

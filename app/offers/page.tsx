@@ -64,7 +64,7 @@ function OffersPageInner() {
         <div className="max-w-3xl mx-auto mt-6 mb-8 rounded-xl border bg-gph-card border-gph-line">
           <div className="px-4 md:px-7 py-5 flex flex-col gap-5 border-b border-gph-line">
             <h1 className="text-3xl md:text-4xl font-extrabold leading-none tracking-tight text-gph-ink">
-              All offers<span className="text-gph-action">.</span>
+              All offers
             </h1>
 
             <div className="flex flex-wrap gap-2">

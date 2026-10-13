@@ -15,7 +15,7 @@ vi.mock('@/lib/feature-flags', () => ({
 
 import { redis } from '@/lib/redis';
 import { isEnabled } from '@/lib/feature-flags';
-import { getAirportsForQuery } from '@/lib/places';
+import { getAirportsForQuery, getHotelGoogleReviews } from '@/lib/places';
 
 const AUTOCOMPLETE_URL = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
 const DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json';
@@ -153,5 +153,198 @@ describe('getAirportsForQuery', () => {
 
     expect(result).toEqual([]);
     expect(googleCalled).toBe(false);
+  });
+});
+
+// ── Google hotel reviews (Places API (New)) ──────────────────────────────────
+
+const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+const PLACE_URL = 'https://places.googleapis.com/v1/places/:id';
+const HOTEL = { id: 'duffel_acc_1', name: 'The Logan Philadelphia', lat: 39.9566, lng: -75.1700 };
+const GID_KEY = 'place:hotel-gid:duffel_acc_1';
+
+function placeBody(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'gid_logan',
+    displayName: { text: 'The Logan Philadelphia' },
+    location: { latitude: 39.9567, longitude: -75.1702 },
+    rating: 4.5,
+    userRatingCount: 2310,
+    googleMapsUri: 'https://maps.google.com/?cid=1',
+    googleMapsLinks: { reviewsUri: 'https://www.google.com/maps/place//data=reviews' },
+    reviewSummary: {
+      text: { text: 'Guests praise the location.' },
+      disclosureText: { text: 'Summarized with Gemini' },
+      flagContentUri: 'https://www.google.com/local/review/rap/report?summary',
+      reviewsUri: 'https://www.google.com/maps/place//data=reviews',
+    },
+    reviews: [{
+      rating: 5,
+      text: { text: 'Lovely stay.' },
+      relativePublishTimeDescription: '2 weeks ago',
+      authorAttribution: { displayName: 'Ana P', uri: 'https://www.google.com/maps/contrib/1', photoUri: 'https://lh3.googleusercontent.com/a/1' },
+      googleMapsUri: 'https://www.google.com/maps/reviews/1',
+      flagContentUri: 'https://www.google.com/local/review/rap/report?1',
+      visitDate: { year: 2026, month: 3 },
+    }],
+    ...overrides,
+  };
+}
+
+describe('getHotelGoogleReviews', () => {
+  let searchCalls: Array<{ fieldMask: string | null; body: Record<string, unknown> }>;
+  let detailCalls: string[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue('OK');
+    searchCalls = [];
+    detailCalls = [];
+  });
+
+  function mockGoogle(opts: { searchId?: string | null; details?: (id: string) => Response } = {}) {
+    const searchId = opts.searchId === undefined ? 'gid_logan' : opts.searchId;
+    server.use(
+      http.post(SEARCH_URL, async ({ request }) => {
+        searchCalls.push({ fieldMask: request.headers.get('X-Goog-FieldMask'), body: await request.json() as Record<string, unknown> });
+        return HttpResponse.json(searchId ? { places: [{ id: searchId }] } : {});
+      }),
+      http.get(PLACE_URL, ({ params }) => {
+        const id = params.id as string;
+        detailCalls.push(id);
+        return opts.details ? opts.details(id) : HttpResponse.json(placeBody({ id }));
+      }),
+    );
+  }
+
+  it('finds the place with an IDs-only, lodging-only text search near the hotel', async () => {
+    mockGoogle();
+    await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(searchCalls).toHaveLength(1);
+    expect(searchCalls[0].fieldMask).toBe('places.id,places.movedPlaceId');
+    expect(searchCalls[0].body).toMatchObject({
+      textQuery: HOTEL.name,
+      includedType: 'lodging',
+      strictTypeFiltering: true,
+      pageSize: 1,
+      locationBias: { circle: { center: { latitude: HOTEL.lat, longitude: HOTEL.lng } } },
+    });
+  });
+
+  it('normalizes rating, links, Gemini summary and author-attributed reviews', async () => {
+    mockGoogle();
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(result).toEqual({
+      rating: 4.5,
+      ratingCount: 2310,
+      mapsUri: 'https://maps.google.com/?cid=1',
+      reviewsUri: 'https://www.google.com/maps/place//data=reviews',
+      summary: {
+        text: 'Guests praise the location.',
+        disclosure: 'Summarized with Gemini',
+        flagUri: 'https://www.google.com/local/review/rap/report?summary',
+      },
+      reviews: [{
+        author: 'Ana P',
+        authorUri: 'https://www.google.com/maps/contrib/1',
+        authorPhotoUri: 'https://lh3.googleusercontent.com/a/1',
+        rating: 5,
+        text: 'Lovely stay.',
+        relativeTime: '2 weeks ago',
+        visitDate: { year: 2026, month: 3 },
+        reviewUri: 'https://www.google.com/maps/reviews/1',
+        flagUri: 'https://www.google.com/local/review/rap/report?1',
+      }],
+    });
+  });
+
+  it('maps a missing reviewSummary to null', async () => {
+    mockGoogle({ details: (id) => HttpResponse.json(placeBody({ id, reviewSummary: undefined })) });
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+    expect(result?.summary).toBeNull();
+  });
+
+  it('caches only the place ID — never review content', async () => {
+    mockGoogle();
+    await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    expect(redis.set).toHaveBeenCalledWith(GID_KEY, 'gid_logan', { ex: 60 * 60 * 24 * 365 });
+  });
+
+  it('skips the search when the place ID is cached', async () => {
+    (redis.get as Mock).mockResolvedValue('gid_cached');
+    mockGoogle();
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(searchCalls).toHaveLength(0);
+    expect(detailCalls).toEqual(['gid_cached']);
+    expect(result?.rating).toBe(4.5);
+  });
+
+  it('a cached "none" marker short-circuits with no Google calls', async () => {
+    (redis.get as Mock).mockResolvedValue('none');
+    mockGoogle();
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(result).toBeNull();
+    expect(searchCalls).toHaveLength(0);
+    expect(detailCalls).toHaveLength(0);
+  });
+
+  it('no search match caches "none" and skips the paid details call', async () => {
+    mockGoogle({ searchId: null });
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(result).toBeNull();
+    expect(detailCalls).toHaveLength(0);
+    expect(redis.set).toHaveBeenCalledWith(GID_KEY, 'none', expect.anything());
+  });
+
+  it('a match more than 500 m away is a different hotel — null, cached as "none"', async () => {
+    mockGoogle({ details: (id) => HttpResponse.json(placeBody({ id, location: { latitude: 39.97, longitude: -75.17 } })) });
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(result).toBeNull();
+    expect(redis.set).toHaveBeenLastCalledWith(GID_KEY, 'none', expect.anything());
+  });
+
+  it('an obsolete cached ID (NOT_FOUND) re-runs the search once and caches the new ID', async () => {
+    (redis.get as Mock).mockResolvedValue('gid_stale');
+    mockGoogle({
+      searchId: 'gid_fresh',
+      details: (id) => id === 'gid_stale'
+        ? HttpResponse.json({ error: { status: 'NOT_FOUND' } }, { status: 404 })
+        : HttpResponse.json(placeBody({ id })),
+    });
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(detailCalls).toEqual(['gid_stale', 'gid_fresh']);
+    expect(searchCalls).toHaveLength(1);
+    expect(redis.set).toHaveBeenCalledWith(GID_KEY, 'gid_fresh', expect.anything());
+    expect(result?.rating).toBe(4.5);
+  });
+
+  it('a movedPlaceId replaces the cached ID', async () => {
+    (redis.get as Mock).mockResolvedValue('gid_old');
+    mockGoogle({ details: (id) => HttpResponse.json(placeBody({ id, movedPlaceId: 'gid_new' })) });
+    await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(redis.set).toHaveBeenCalledWith(GID_KEY, 'gid_new', expect.anything());
+  });
+
+  it('flag off returns null without calling Google or Redis', async () => {
+    (isEnabled as Mock).mockImplementation((flag: string) => flag !== 'integration:google-places:reviews');
+    mockGoogle();
+    const result = await getHotelGoogleReviews(HOTEL.id, HOTEL.name, HOTEL.lat, HOTEL.lng);
+
+    expect(result).toBeNull();
+    expect(searchCalls).toHaveLength(0);
+    expect(detailCalls).toHaveLength(0);
+    expect(redis.get).not.toHaveBeenCalled();
   });
 });

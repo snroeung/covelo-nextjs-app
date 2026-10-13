@@ -76,10 +76,16 @@ function OnboardingForm() {
     if (loading) return;
     if (!user) { router.replace('/auth'); return; }
     if (profile?.onboarding_completed) { router.replace('/flights'); return; }
+  }, [loading, user, profile, router]);
+
+  // Prefill name fields from the profile (adjusting state during render, not in an effect).
+  const [prefilledFrom, setPrefilledFrom] = useState(profile);
+  if (profile !== prefilledFrom) {
+    setPrefilledFrom(profile);
     if (profile?.display_name) setDisplayName(profile.display_name);
     if (profile?.username) setUsername(profile.username);
     else if (profile?.display_name) setUsername(profile.display_name.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20));
-  }, [loading, user, profile, router]);
+  }
 
   const pageBg      = isDark ? 'bg-gph-dark-bg'      : 'bg-gray-50';
   const cardBg      = isDark ? 'bg-gph-dark-card'     : 'bg-white';

@@ -5,6 +5,7 @@ export const TTL = {
   ONE_DAY:         60 * 60 * 24,
   SEVEN_DAYS:      60 * 60 * 24 * 7,
   THIRTY_DAYS:     60 * 60 * 24 * 30,
+  ONE_YEAR:        60 * 60 * 24 * 365,
 } as const;
 
 // Typed key builders — take structured params, return the cache key string
@@ -27,6 +28,9 @@ export const cacheKeys = {
     `place:photo:ref:${name}:${address}`,
   countryAirports:  (iso2: string) =>
     `place:country-airports:${iso2}`,
+  // Google place ID only — the one Places value Google allows storing indefinitely
+  hotelGooglePlaceId: (accommodationId: string) =>
+    `place:hotel-gid:${accommodationId}`,
   transferBonuses:  () =>
     `offers:transfer-bonuses`,
   spendingBonuses:  () =>
@@ -50,6 +54,8 @@ export const CACHE = {
   placeLatLng:      { ttl: TTL.THIRTY_DAYS },
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
   countryAirports:  { ttl: TTL.ONE_DAY },
+  // Doubles as Google's recommended 12-month place ID refresh
+  hotelGooglePlaceId: { ttl: TTL.ONE_YEAR },
   transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
   spendingBonuses:  { ttl: TTL.FIFTEEN_MINUTES },
   transferPartners: { ttl: TTL.ONE_DAY },

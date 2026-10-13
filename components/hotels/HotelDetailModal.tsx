@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AddToTripButton } from '@/components/layout/AddToTripButton';
 import { HotelBestRedemptionBar } from '@/components/hotels/HotelBestRedemptionBar';
 import { useQuery } from '@tanstack/react-query';
+import { GoogleReviews, googleReviewsQuery } from '@/components/hotels/GoogleReviews';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { calcPoints } from '@/lib/points/calcPoints';
@@ -16,14 +17,6 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.round(
     (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24),
   );
-}
-
-function ratingLabel(score: number): string | null {
-  if (score >= 9.0) return 'Exceptional';
-  if (score >= 8.5) return 'Excellent';
-  if (score >= 7.5) return 'Very Good';
-  if (score >= 6.5) return 'Good';
-  return null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -409,8 +402,6 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
 
   const name        = (acc.name ?? 'Hotel') as string;
   const stars       = acc.rating as number | null;
-  const reviewScore = acc.review_score as number | null;
-  const reviewCount = acc.review_count as number | null;
   const coords      = acc.location?.geographic_coordinates as { latitude: number; longitude: number } | null;
   const lineOne     = (acc.location?.address?.line_one ?? '') as string;
   const city        = (acc.location?.address?.city_name ?? '') as string;
@@ -419,7 +410,6 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
   const location    = [streetPart, city, country].filter(Boolean).join(', ');
   const photos      = (acc.photos ?? []) as { url: string }[];
   const amenities   = (acc.amenities ?? []) as { type: string; description: string }[];
-  const scoreLabel  = reviewScore !== null ? ratingLabel(reviewScore) : null;
   const firstPhoto  = photos[0]?.url ?? null;
 
   const searchResultId = searchResult.id as string;
@@ -431,6 +421,15 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
     }),
     enabled: !!acc.id && !!searchResultId,
     staleTime: 15 * 60 * 1000,
+  });
+
+  const reviewsTarget = coords && acc.id
+    ? { accommodationId: acc.id as string, name, lat: coords.latitude, lng: coords.longitude }
+    : null;
+  // Reads whatever GoogleReviews already fetched — never fires its own (billed) call.
+  const { data: googleRating } = useQuery({
+    ...googleReviewsQuery(reviewsTarget ?? { accommodationId: '', name: '', lat: 0, lng: 0 }),
+    enabled: false,
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -458,7 +457,6 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
   const textPrimary = isDark ? 'text-gph-dark-ink'     : 'text-gray-900';
   const textMuted   = isDark ? 'text-gph-dark-muted'   : 'text-gray-500';
   const sectionLbl  = `text-[9.5px] font-bold font-mono tracking-widest uppercase mb-3 ${textMuted}`;
-  const pageBg      = isDark ? 'bg-gph-dark-bg'        : 'bg-gray-50';
   const iconColor   = isDark ? '#4A9ED6'               : '#1F6FBF';
   const amenityBg   = isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-100';
   const skeletonCls = isDark ? 'bg-gph-dark-linesoft'  : 'bg-gray-200';
@@ -579,11 +577,6 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                     ))}
                   </div>
                 )}
-                {reviewCount !== null && reviewCount !== undefined && (
-                  <span className={`text-[10px] font-bold font-mono tracking-widest uppercase ${textMuted}`}>
-                    {reviewCount.toLocaleString()} reviews
-                  </span>
-                )}
               </div>
               <h2 className={`text-2xl font-extrabold leading-tight tracking-tight mb-1 ${textPrimary}`}>{name}</h2>
               {location && (
@@ -592,17 +585,15 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                   </svg>
-                  {location} · {nights} night{nights !== 1 ? 's' : ''}
+                  {location}
                 </p>
               )}
-              {reviewScore !== null && reviewScore !== undefined && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-extrabold font-mono px-2 py-1 rounded-md text-white bg-cv-navy-950">
-                    {reviewScore.toFixed(1)}
-                  </span>
-                  {scoreLabel && <span className="text-sm font-bold text-cv-green-500">{scoreLabel}</span>}
-                  {reviewCount && <span className={`text-sm ${textMuted}`}>· {reviewCount.toLocaleString()} verified reviews</span>}
-                </div>
+              {googleRating?.rating != null && (
+                <p data-testid="google-rating-header" className={`flex items-center gap-1.5 text-sm ${textMuted}`}>
+                  <span className="text-cv-amber-400" aria-hidden="true">★</span>
+                  <span className={`font-extrabold font-mono ${textPrimary}`}>{googleRating.rating.toFixed(1)}</span>
+                  {googleRating.ratingCount != null && <span>· {googleRating.ratingCount.toLocaleString()} Google reviews</span>}
+                </p>
               )}
             </div>
             <div className="text-right shrink-0">
@@ -611,7 +602,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
                 {totalAmount.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}
               </p>
               <p className={`text-sm mt-1 ${textMuted}`}>
-                {perNight.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}/night
+                {perNight.toLocaleString('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })}/night  ·  {nights} night{nights !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -729,82 +720,8 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
             </div>
           )}
 
-          {/* ── Reviews ── */}
-          {(detailsLoading || (details?.reviews && details.reviews.length > 0)) && (
-            <div className={`px-6 md:px-8 py-6 border-t ${borderCls} ${pageBg}`}>
-              <div className="flex items-end justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  {reviewScore !== null && reviewScore !== undefined && (
-                    <div>
-                      <div className={`text-4xl font-extrabold font-mono tracking-tight leading-none ${textPrimary}`}>
-                        {reviewScore.toFixed(1)}
-                      </div>
-                      {scoreLabel && <div className="text-xs font-bold text-cv-green-500 mt-1">{scoreLabel}</div>}
-                      {reviewCount && (
-                        <div className={`text-[10px] font-bold font-mono tracking-widest mt-0.5 ${textMuted}`}>
-                          {reviewCount.toLocaleString()} REVIEWS
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <p className={`text-[10px] font-bold font-mono tracking-widest uppercase flex items-center gap-1.5 ${textMuted}`}>
-                  SCROLL
-                  <svg width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} fill="none">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
-                  </svg>
-                </p>
-              </div>
-              <div className="flex gap-3.5 overflow-x-auto pb-2" style={{ scrollSnapType: 'x mandatory' }}>
-                {detailsLoading
-                  ? Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className={`shrink-0 w-72 rounded-xl p-4 border ${cardBg} ${borderCls}`} style={{ scrollSnapAlign: 'start' }}>
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className={`w-8 h-8 rounded-full ${skeletonCls}`} />
-                          <div className="flex-1 space-y-1.5">
-                            <div className={`h-3 rounded w-24 ${skeletonCls}`} />
-                            <div className={`h-2.5 rounded w-16 ${skeletonCls}`} />
-                          </div>
-                        </div>
-                        <div className={`h-2.5 rounded mb-2 ${skeletonCls}`} />
-                        <div className={`h-2.5 rounded mb-2 w-5/6 ${skeletonCls}`} />
-                        <div className={`h-2.5 rounded w-4/6 ${skeletonCls}`} />
-                      </div>
-                    ))
-                  : details?.reviews.map((r, i) => {
-                      const initials = r.reviewer_name.split(' ').map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
-                      const dateStr = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                      return (
-                        <div key={i} className={`shrink-0 w-72 rounded-xl p-4 border flex flex-col ${cardBg} ${borderCls}`} style={{ scrollSnapAlign: 'start' }}>
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold text-white shrink-0"
-                                style={{ background: 'linear-gradient(135deg, #1B3A5C, #1F6FBF)' }}>
-                                {initials}
-                              </div>
-                              <div>
-                                <div className={`text-sm font-bold leading-none ${textPrimary}`}>{r.reviewer_name}</div>
-                                <div className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>{dateStr}</div>
-                              </div>
-                            </div>
-                            <span className="text-xs font-extrabold font-mono px-2 py-1 rounded text-white bg-cv-navy-950">
-                              {r.score.toFixed(1)}
-                            </span>
-                          </div>
-                          <p className={`text-sm leading-relaxed flex-1 max-h-30 overflow-y-auto ${textMuted}`}>{r.text}</p>
-                          <div className="flex items-center gap-1.5 mt-3 text-[10px] font-bold font-mono tracking-widest uppercase text-cv-green-500">
-                            <svg width="11" height="11" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} fill="none">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Verified Stay
-                          </div>
-                        </div>
-                      );
-                    })
-                }
-              </div>
-            </div>
-          )}
+          {/* ── Reviews (Google Places only) ── */}
+          {reviewsTarget && <GoogleReviews target={reviewsTarget} isDark={isDark} />}
 
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,7 +10,7 @@ export default function SettingsPage() {
   const { isDark } = useTheme();
   const { user, profile, updateProfile } = useAuth();
 
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [nameSaving, setNameSaving]   = useState(false);
   const [nameSuccess, setNameSuccess] = useState(false);
   const [nameError, setNameError]     = useState<string | null>(null);
@@ -21,9 +21,12 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState(false);
   const [pwError, setPwError]     = useState<string | null>(null);
 
-  useEffect(() => {
+  // Re-seed the name field whenever the profile changes (adjusting state during render, not in an effect).
+  const [syncedProfile, setSyncedProfile] = useState(profile);
+  if (profile !== syncedProfile) {
+    setSyncedProfile(profile);
     setDisplayName(profile?.display_name ?? '');
-  }, [profile]);
+  }
 
   const pageBg      = isDark ? 'bg-gph-dark-bg'       : 'bg-gray-50';
   const cardBg      = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';

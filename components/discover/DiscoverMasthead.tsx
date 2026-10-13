@@ -26,7 +26,7 @@ export function DiscoverMasthead({ isDark, offerCount }: Props) {
           </span>
         </div>
         <h1 className="text-4xl md:text-5xl font-extrabold leading-none tracking-tight text-gph-ink">
-          Discover<span className="text-gph-action">.</span>
+          Discover
         </h1>
       </div>
       <div className="flex items-center gap-2">

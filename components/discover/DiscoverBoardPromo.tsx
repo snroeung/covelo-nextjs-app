@@ -50,7 +50,7 @@ export function DiscoverBoardPromo({ isDark }: Props) {
           COMMUNITY · 4,812 MEMBERS · 38 POSTS TODAY
         </div>
         <h2 className="text-[28px] md:text-[34px] leading-[1.05] font-extrabold tracking-tight text-gph-ink">
-          The board<span className="text-gph-action">.</span>
+          The board
         </h2>
         <p className="mt-3 text-[14.5px] leading-relaxed max-w-[440px] text-gph-muted" style={{ textWrap: 'pretty' }}>
           Members post the deals they find and the tricks that got them booked. Every offer is

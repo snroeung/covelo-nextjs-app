@@ -164,7 +164,6 @@ function SearchHome() {
             </div>
             <h1 className={`mt-3 text-4xl md:text-5xl font-bold tracking-tight ${ink}`}>
               {isFlights ? 'Find your flight' : 'Find your stay'}
-              <span className="text-cv-lime-500">.</span>
             </h1>
             <p className={`mt-3 max-w-xl text-sm md:text-base ${muted}`}>
               Search cash and points side by side across every travel portal — ranked by true

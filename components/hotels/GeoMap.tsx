@@ -134,9 +134,12 @@ export function GeoMap({
     openPinIdRef.current = openPin?.id ?? null;
   }, [openPin]);
 
-  useEffect(() => {
+  // Opening a different pin restores the card (adjusting state during render, not in an effect).
+  const [minimizedForPinId, setMinimizedForPinId] = useState(openPin?.id);
+  if (openPin?.id !== minimizedForPinId) {
+    setMinimizedForPinId(openPin?.id);
     setIsMinimized(false);
-  }, [openPin?.id]);
+  }
 
   useEffect(() => {
     function onPointerMove(e: PointerEvent) {
@@ -307,8 +310,10 @@ export function GeoMap({
   const onPinsChangeRef = useRef(onPinsChange);
   const initialPinsRef = useRef(initialPins);
 
-  onPinsChangeRef.current = onPinsChange;
-  initialPinsRef.current = initialPins;
+  useEffect(() => {
+    onPinsChangeRef.current = onPinsChange;
+    initialPinsRef.current = initialPins;
+  });
 
   const [interactivePins, setInteractivePins] = useState<InternalPin[]>([]);
   const [activePinId, setActivePinId] = useState<string | null>(null);
@@ -379,6 +384,8 @@ export function GeoMap({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function spawnPin(map: any, mapboxgl: any, pLng: number, pLat: number, label: string, pinId?: string, openCard = false): InternalPin {
+    // Imperative restyle of Mapbox marker DOM nodes — not React state.
+    // eslint-disable-next-line react-hooks/immutability
     for (const p of pinsRef.current) p.markerEl.style.cssText = IDLE_PIN_CSS;
 
     const el = document.createElement('div');

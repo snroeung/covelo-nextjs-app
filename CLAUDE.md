@@ -11,6 +11,7 @@ Be straight forward and quick to the point
 - **Mono font**: Geist Mono — used for tabular numbers (points, prices)
 - **Scale**: standard Tailwind `text-*` scale; display headings use `text-xl`–`text-2xl font-bold`
 - **Labels**: `text-[10px] font-semibold uppercase tracking-widest` — used for field labels throughout
+- **Trailing period**: reserved for the `covelo.` wordmark only (`NavBar`, `Footer`, home hero) — `covelo<span className="text-gph-accent-green">.</span>`. Never add a decorative trailing period to page headings or other text ("Discover", "All offers", "The board", "Bring your audience to covelo")
 
 ### Color Tokens (`app/globals.css`)
 
@@ -129,7 +130,22 @@ Sidebar card selector with:
 - Favorite (heart) button — UI only, no persistence
 - Cash price only — **no redemption comparison.** Hotel pricing is per room type,
   so the comparison belongs to the room cards in `HotelDetailModal`, not the result card
+- **No review score** — reviews appear only in `HotelDetailModal` (see Hotel reviews below)
 - Clicking the photo or the name opens `HotelDetailModal`
+
+### Hotel reviews (`components/hotels/GoogleReviews.tsx`)
+Reviews come **only from Google Places (New)** — Duffel's `review_score` / `review_count` /
+`accommodation.reviews` are unattributed and not used anywhere. Flow: `places.hotelReviews`
+→ `getHotelGoogleReviews` in `lib/places.ts`: free IDs-only Text Search (`lodging`, 300 m bias)
+→ billed Place Details (Enterprise + Atmosphere, ~$25/1k). Rules:
+- **Only the place ID is cached** (`cacheKeys.hotelGooglePlaceId`, 1 yr; `"none"` = no match).
+  Google's terms forbid caching reviews/rating/count — never put them in Redis.
+- **Fetch on scroll into view only**; the modal header reads the same query with `enabled: false`.
+- A match >500 m from Duffel's coordinates is treated as a different hotel (cached `"none"`).
+- Attribution is mandatory: author name/avatar/profile link, the official Google Maps logo
+  (`assets/attribution/`, unmodified, 16–19px tall — not a styled "Google Maps" text), links to
+  `reviewsUri`/review `googleMapsUri`, visit date, and "Summarized with Gemini" on the summary.
+- Kill switch: `integration:google-places:reviews`.
 
 ### Redemption comparison components
 Renderings of the same `PointsResult`, chosen by how much room the surface has. All of
