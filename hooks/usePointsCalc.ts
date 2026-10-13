@@ -32,6 +32,8 @@ export function usePointsCalc(
     queryFn:  () => trpc.portalData.listPointsValuations.query(),
   });
 
+  const portalPricesKey = JSON.stringify(portalPrices);
+
   return useMemo(() => {
     if (priceUsd <= 0) return null;
     try {
@@ -46,6 +48,5 @@ export function usePointsCalc(
   }, [priceUsd, bookingType, selectedCards,
     flightCtx?.airlineIata, flightCtx?.originIata, flightCtx?.destIata,
     flightCtx?.routeType, flightCtx?.cabin, hotelChain, transferPartners, pointsValuations,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    JSON.stringify(portalPrices)]);
+    portalPricesKey]);
 }
