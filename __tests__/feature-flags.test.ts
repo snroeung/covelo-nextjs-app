@@ -135,3 +135,31 @@ describe('getEnabledFlags()', () => {
   });
 
 });
+
+// ---------------------------------------------------------------------------
+// The Board — local-only until Phase 8 rollout
+// ---------------------------------------------------------------------------
+
+describe('board flags', () => {
+  it('ui:board and api:board are enabled locally only', () => {
+    withEnv('local', () => {
+      expect(isEnabled('ui:board')).toBe(true);
+      expect(isEnabled('api:board')).toBe(true);
+    });
+    for (const env of ['beta', 'production'] as const) {
+      withEnv(env, () => {
+        expect(isEnabled('ui:board')).toBe(false);
+        expect(isEnabled('api:board')).toBe(false);
+      });
+    }
+  });
+
+  it('board moderation + topic cache integrations are on everywhere', () => {
+    for (const env of ['local', 'beta', 'production'] as const) {
+      withEnv(env, () => {
+        expect(isEnabled('integration:anthropic:moderation')).toBe(true);
+        expect(isEnabled('integration:redis:board')).toBe(true);
+      });
+    }
+  });
+});
