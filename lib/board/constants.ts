@@ -64,6 +64,8 @@ export const MOD_REASONS = [
   "spam",
   "duplicate",
   "restricted_author",
+  // `watch` standing with no classifier verdict — watched authors get no fast-path allow
+  "watch_unscanned",
   "reports",
 ] as const;
 export type ModReason = (typeof MOD_REASONS)[number];
