@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BOARD_LIMITS, BOARD_PER_POST_LIMITS, checkRateLimit, checkCooldown, checkRejectLock, checkPostTopics,
-  checkPerTarget, effectiveLimits, formatWait, isNewAccount, remaining, type LimitContext,
+  checkPerTarget, checkRateLimitFor, effectiveLimits, formatWait, isNewAccount, remaining, type LimitContext,
 } from '@/lib/board/limits';
 
 const NOW = new Date('2026-10-13T12:00:00Z');
@@ -100,6 +100,23 @@ describe('admin + banned', () => {
 
   it('forbids banned users regardless of counts', () => {
     expect(checkRateLimit('comment', [], ctx({ standing: 'banned' }))).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('checkRateLimitFor', () => {
+  it('blocks when existing + count would pass the daily cap', () => {
+    // topicCreate: 6/day. 4 used: creating 2 more fits, 3 does not.
+    expect(checkRateLimitFor('topicCreate', times(4, 1), 2, ctx()).ok).toBe(true);
+    expect(checkRateLimitFor('topicCreate', times(4, 1), 3, ctx()).ok).toBe(false);
+  });
+
+  it('is a no-op for zero', () => {
+    expect(checkRateLimitFor('topicCreate', times(99, 1), 0, ctx()).ok).toBe(true);
+  });
+
+  it('matches checkRateLimit for a single event', () => {
+    expect(checkRateLimitFor('post', times(10, 120), 1, ctx()).ok).toBe(false);
+    expect(checkRateLimitFor('post', times(9, 120), 1, ctx()).ok).toBe(true);
   });
 });
 

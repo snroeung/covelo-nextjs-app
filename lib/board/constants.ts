@@ -97,22 +97,15 @@ export const MOD_THRESHOLDS = {
   classifyTimeoutMs: 2500,
 } as const;
 
-/** Removals in the last 30 days that move an author's standing (plan §8.5). */
-export const STANDING_THRESHOLDS = {
-  watch: 2,
-  restricted: 4,
-  windowDays: 30,
-} as const;
-
-/** Topic name and lifecycle rules (plan §12). */
+/**
+ * Topic name rules and chip caps (plan §12). Topic lifecycle numbers (2 authors
+ * to activate, 60 days to go dormant) and author-standing thresholds (2 / 4
+ * removals in 30 days) live only in SQL — migration 026 — so they can't drift.
+ */
 export const TOPIC_RULES = {
   minLength: 2,
   maxLength: 28,
   maxWords: 4,
-  /** Distinct authors before a provisional topic becomes an active chip */
-  activateAuthors: 2,
-  /** Days with no visible posts before an active topic goes dormant */
-  dormantDays: 60,
   /** Feed chip row cap before "More topics" */
   chipCap: 12,
   /** Active (non-common) topics shown in the composer chip row */

@@ -35,8 +35,14 @@ export function compareForFeed(a: RankablePost, b: RankablePost, sort: BoardSort
   return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
 }
 
-const cursorSchema = z.object({ s: z.enum(["hot", "new", "top"]), k: z.number().finite(), id: z.guid() });
+// `t` pins "now": hot scores decay as time passes, so a cursor must rank the
+// next page against the same instant as the first or posts repeat / vanish.
+const cursorSchema = z.object({ s: z.enum(["hot", "new", "top"]), k: z.number().finite(), id: z.guid(), t: z.number().finite() });
 export type FeedCursor = z.infer<typeof cursorSchema>;
+
+export function makeCursor(post: RankablePost, sort: BoardSort, now: Date): FeedCursor {
+  return { s: sort, k: sortKey(post, sort, now), id: post.id, t: now.getTime() };
+}
 
 // Cursor JSON is ASCII-only (uuid, numbers, sort name), so btoa/atob are safe —
 // and unlike Buffer they work in the browser too.
@@ -55,8 +61,8 @@ export function decodeCursor(raw: string | null | undefined, sort: BoardSort): F
   }
 }
 
-/** True when `post` comes strictly after the cursor position. */
-export function isAfterCursor(post: RankablePost, cursor: FeedCursor, now: Date = new Date()): boolean {
-  const k = sortKey(post, cursor.s, now);
+/** True when `post` comes strictly after the cursor position, ranked at the cursor's own instant. */
+export function isAfterCursor(post: RankablePost, cursor: FeedCursor): boolean {
+  const k = sortKey(post, cursor.s, new Date(cursor.t));
   return k < cursor.k || (k === cursor.k && post.id < cursor.id);
 }

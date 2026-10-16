@@ -9,7 +9,8 @@ import type {
 } from "./schemas";
 import { normalizeProgramName, sameProgram } from "@/lib/points/programNames";
 import { ISSUER_CARDS, type CardId, type PortalId } from "@/lib/points/types";
-import { boardPostColumns, spendingBonusToBoardOffer, transferBonusToBoardOffer } from "./genPost";
+import { boardPostColumns } from "./genPost";
+import { spendingBonusToBoardOffer, transferBonusToBoardOffer } from "@/lib/board/offerView";
 
 // Defends against hallucinated/mismatched ids before they hit the DB —
 // e.g. the model returning an Amex card id for a Chase-issuer record.

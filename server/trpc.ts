@@ -4,12 +4,15 @@ import type { FlagName } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 
 const t = initTRPC.create({
-  errorFormatter({ shape }) {
+  errorFormatter({ shape, error }) {
+    // Rate-limit errors carry when the caller may retry as `cause.retryAt` (ISO string)
+    const retryAt = (error.cause as { retryAt?: unknown } | undefined)?.retryAt;
     return {
       ...shape,
       data: {
         ...shape.data,
         stack: undefined,
+        ...(typeof retryAt === "string" ? { retryAt } : {}),
       },
     };
   },
@@ -38,6 +41,30 @@ export function flaggedProcedure(flag: FlagName) {
   });
 }
 
+/** True when the Supabase user carries app_metadata.role === "admin" (service-role-set, so unspoofable). */
+export function isAdminUser(user: { app_metadata?: unknown } | null | undefined): boolean {
+  return (user?.app_metadata as Record<string, unknown> | undefined)?.role === "admin";
+}
+
+/**
+ * Public procedure that still knows who is asking: ctx.viewer is
+ * { id, isAdmin }, with id null when signed out. For reads whose visibility
+ * depends on the viewer (the board feed).
+ */
+export function viewerProcedure(flag: FlagName) {
+  return t.procedure.use(async ({ next }) => {
+    if (!isEnabled(flag)) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Feature "${flag}" is not available in this environment.`,
+      });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user) } } });
+  });
+}
+
 /**
  * Admin-only procedure. Verifies the caller's Supabase JWT and checks
  * app_metadata.role === "admin". app_metadata can only be set via the
@@ -56,8 +83,7 @@ export function adminProcedure(flag: FlagName) {
     if (error || !user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }
-    const role = (user.app_metadata as Record<string, unknown>)?.role;
-    if (role !== "admin") {
+    if (!isAdminUser(user)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
     }
     return next();
@@ -82,6 +108,7 @@ export function authedProcedure(flag: FlagName) {
     if (error || !user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }
-    return next({ ctx: { user, supabase } });
+    const isAdmin = isAdminUser(user);
+    return next({ ctx: { user, supabase, isAdmin, viewer: { id: user.id, isAdmin } } });
   });
 }

@@ -1,14 +1,13 @@
 // Stage 5 (plan §8.2). Pure decision: every earlier stage's output plus the
 // author's standing → allow / hold / reject. Thresholds live in
-// MOD_THRESHOLDS; the matrix is pinned by __tests__/board-decide.test.ts.
+// MOD_THRESHOLDS; the matrix is pinned by __tests__/board/decide.test.ts.
 
 import { MOD_THRESHOLDS, type ModFlag, type ModReason } from "@/lib/board/constants";
+import type { Standing } from "@/lib/board/limits";
 import type { BlocklistResult } from "./blocklist";
 import type { LinkScan } from "./links";
 import type { LexiconResult } from "./lexicon";
 import type { ClassifierVerdict } from "./classify";
-
-export type AuthorStanding = "normal" | "watch" | "restricted" | "banned";
 
 export interface ModerationSignals {
   blocklist: BlocklistResult;
@@ -16,7 +15,7 @@ export interface ModerationSignals {
   lexicon: Pick<LexiconResult, "score">;
   /** null when the classifier was skipped, disabled, timed out or failed */
   classifier: ClassifierVerdict | null;
-  standing: AuthorStanding;
+  standing: Standing;
   /** Highest title similarity to the author's own posts in the last 24 h (posts only) */
   duplicateSimilarity?: number;
   /** Topics the author chose — for the topic_mismatch flag */
@@ -36,6 +35,11 @@ export const MOD_MESSAGES = {
   held: "Held for review — only you can see this until an admin approves it.",
   heldOffTopic: "Held for review — this doesn't look travel or points related.",
 } as const;
+
+/** What the author reads on a held post/comment, given why it was held. */
+export function heldMessage(reasons: readonly string[]): string {
+  return reasons.length > 0 && reasons.every((r) => r === "off_topic") ? MOD_MESSAGES.heldOffTopic : MOD_MESSAGES.held;
+}
 
 export function decideModeration(s: ModerationSignals): ModerationDecision {
   const c = s.classifier;
@@ -71,8 +75,7 @@ export function decideModeration(s: ModerationSignals): ModerationDecision {
   }
 
   if (reasons.length > 0) {
-    const onlyOffTopic = reasons.every((r) => r === "off_topic");
-    return { action: "hold", modStatus: "held", reasons, flags, message: onlyOffTopic ? MOD_MESSAGES.heldOffTopic : MOD_MESSAGES.held };
+    return { action: "hold", modStatus: "held", reasons, flags, message: heldMessage(reasons) };
   }
 
   return { action: "allow", modStatus: c ? "clean" : "unscanned", reasons: [], flags };

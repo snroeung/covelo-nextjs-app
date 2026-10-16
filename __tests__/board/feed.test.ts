@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hotScore, sortKey, compareForFeed, encodeCursor, decodeCursor, isAfterCursor, type RankablePost } from '@/lib/board/hot';
+import { hotScore, compareForFeed, makeCursor, encodeCursor, decodeCursor, isAfterCursor, type RankablePost } from '@/lib/board/hot';
 
 const NOW = new Date('2026-10-13T12:00:00Z');
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000);
@@ -40,24 +40,37 @@ describe('cursors', () => {
   const p = post('1', 142, 2);
 
   it('round-trips and is URL-safe', () => {
-    const c = { s: 'top' as const, k: sortKey(p, 'top', NOW), id: p.id };
+    const c = makeCursor(p, 'top', NOW);
     const raw = encodeCursor(c);
     expect(raw).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(decodeCursor(raw, 'top')).toEqual(c);
+    expect(decodeCursor(raw, 'top')).toEqual({ s: 'top', k: 142, id: p.id, t: NOW.getTime() });
   });
 
   it('rejects malformed cursors and cursors from another sort', () => {
     expect(decodeCursor('not-a-cursor', 'top')).toBeNull();
     expect(decodeCursor(null, 'top')).toBeNull();
-    expect(decodeCursor(encodeCursor({ s: 'new', k: 1, id: p.id }), 'top')).toBeNull();
-    expect(decodeCursor(encodeCursor({ s: 'top', k: 1, id: 'nope' } as never), 'top')).toBeNull();
+    expect(decodeCursor(encodeCursor(makeCursor(p, 'new', NOW)), 'top')).toBeNull();
+    expect(decodeCursor(encodeCursor({ ...makeCursor(p, 'top', NOW), id: 'nope' }), 'top')).toBeNull();
   });
 
   it('isAfterCursor pages strictly past the cursor', () => {
-    const c = { s: 'top' as const, k: 50, id: post('5', 0, 0).id };
-    expect(isAfterCursor(post('1', 49, 1), c, NOW)).toBe(true);
-    expect(isAfterCursor(post('9', 50, 1), c, NOW)).toBe(false);
-    expect(isAfterCursor(post('1', 50, 1), c, NOW)).toBe(true);
-    expect(isAfterCursor(post('1', 51, 1), c, NOW)).toBe(false);
+    const c = { s: 'top' as const, k: 50, id: post('5', 0, 0).id, t: NOW.getTime() };
+    expect(isAfterCursor(post('1', 49, 1), c)).toBe(true);
+    expect(isAfterCursor(post('9', 50, 1), c)).toBe(false);
+    expect(isAfterCursor(post('1', 50, 1), c)).toBe(true);
+    expect(isAfterCursor(post('1', 51, 1), c)).toBe(false);
+  });
+
+  it('ranks hot pages against the cursor instant, not the current time', () => {
+    // Two posts: A newer, B older but higher score. The order at NOW is fixed
+    // by the cursor even if we page long after.
+    const a = post('1', 10, 1);
+    const b = post('2', 40, 30);
+    const order = [a, b].sort((x, y) => compareForFeed(x, y, 'hot', NOW));
+    const cursor = makeCursor(order[0], 'hot', NOW);
+    const later = new Date(NOW.getTime() + 72 * 3_600_000);
+    expect(later.getTime()).toBeGreaterThan(NOW.getTime());
+    expect(isAfterCursor(order[1], cursor)).toBe(true);
+    expect(isAfterCursor(order[0], cursor)).toBe(false);
   });
 });

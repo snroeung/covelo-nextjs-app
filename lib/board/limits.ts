@@ -177,6 +177,16 @@ export function checkRateLimit(action: BoardLimitAction, timestamps: readonly Da
   };
 }
 
+/**
+ * Like checkRateLimit, for an action about to happen `count` times at once
+ * (a post that creates 3 topics): blocks when existing + count would pass a cap.
+ */
+export function checkRateLimitFor(action: BoardLimitAction, timestamps: readonly Date[], count: number, ctx: LimitContext): LimitResult {
+  if (count <= 0) return OK;
+  const virtual = Array.from({ length: count - 1 }, () => ctx.now);
+  return checkRateLimit(action, [...timestamps, ...virtual], ctx);
+}
+
 /** Minimum gap since the user's previous post/comment. */
 export function checkCooldown(kind: "post" | "comment", lastAt: Date | null, ctx: Pick<LimitContext, "isAdmin" | "now">): LimitResult {
   if (ctx.isAdmin || !lastAt) return OK;
