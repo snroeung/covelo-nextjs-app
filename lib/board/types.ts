@@ -40,6 +40,12 @@ export interface ModDetail {
   flags: ModFlag[];
   scores: Record<string, unknown> | null;
   removedReason: string | null;
+  /** Open (unresolved) member reports against this item */
+  reportCount: number;
+  /** Distinct reasons members gave */
+  reportReasons: string[];
+  /** Posts only, set by the Mod view's Reported filter: open reports on this post's comments */
+  reportedComments?: number;
 }
 
 export interface BoardPost {

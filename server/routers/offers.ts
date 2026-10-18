@@ -5,6 +5,8 @@ import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { assertBoardPostReady, syncSystemPost, type OfferTable } from "@/lib/board/server/systemPost";
 import type {
   TransferBonus,
   SpendingBonus,
@@ -20,6 +22,81 @@ async function cacheGet<T>(key: string): Promise<T | null> {
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   if (!isEnabled("integration:redis:offers")) return;
   await redis.set(key, value, { ex: ttl }).catch(() => {});
+}
+
+// ─── Board post fields (plan §6) ─────────────────────────────────────────────
+// The editor's "Post to board" section. Title and body are stored as written —
+// the portal-sync cron fills them in, an admin may edit them.
+
+const boardTextFields = {
+  board_topic:      z.string().nullable().optional(),
+  board_post_title: z.string().nullable().optional(),
+  board_post_body:  z.string().nullable().optional(),
+};
+const boardFieldsForCreate = { post_to_board: z.boolean().default(false), ...boardTextFields };
+const boardFieldsForUpdate = { post_to_board: z.boolean().optional(), ...boardTextFields };
+
+export const createTransferBonusInput = z.object({
+  issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
+  transfer_partner: z.string().min(1),
+  bonus_pct:        z.number().positive().nullable().optional(),
+  min_transfer_points: z.number().positive().nullable().optional(),
+  start_date:       z.string().min(1),
+  description:      z.string().nullable().optional(),
+  tags:             z.array(z.string()).default([]),
+  end_date:         z.string().min(1),
+  is_targeted:      z.boolean().default(false),
+  for_status_transfer: z.boolean().default(false),
+  card_ids:         z.array(z.string()).default([]),
+  source_url:       z.string().nullable().optional(),
+  country:          z.string().min(1).default('US'),
+  active:           z.boolean().default(true),
+  ...boardFieldsForCreate,
+});
+
+export const createSpendingBonusInput = z.object({
+  issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
+  merchant_name:    z.string().min(1),
+  bonus_multiplier: z.number().positive(),
+  bonus_type:       z.enum(['points_multiplier', 'cash_back_pct', 'dollar_amount']),
+  spending_minimum: z.number().positive().nullable().optional(),
+  minimum_nights:   z.number().int().positive().nullable().optional(),
+  description:      z.string().nullable().optional(),
+  tags:             z.array(z.string()).default([]),
+  card_ids:         z.array(z.string()),
+  start_date:       z.string().min(1),
+  end_date:         z.string().min(1),
+  is_targeted:      z.boolean().default(false),
+  source_url:       z.string().nullable().optional(),
+  country:          z.string().min(1).default('US'),
+  active:           z.boolean().default(true),
+  ...boardFieldsForCreate,
+});
+
+/**
+ * Keep the covelo board post in step with a saved offer. Runs after the offer
+ * is stored; it is skipped when the offer is not on the board and the request
+ * did not touch the toggle (nothing to create or hide).
+ */
+async function syncBoardPost(
+  table: OfferTable,
+  row: { id: string; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
+  adminUserId: string,
+  touchedToggle: boolean,
+): Promise<void> {
+  if (row.post_to_board !== true && !touchedToggle) return;
+  try {
+    await syncSystemPost(getSupabaseAdmin(), table, row.id, {
+      post_to_board: row.post_to_board === true,
+      board_topic: row.board_topic ?? null,
+      board_post_title: row.board_post_title ?? null,
+      board_post_body: row.board_post_body ?? null,
+    }, adminUserId);
+  } catch (err) {
+    // The offer itself is saved; say so, so the admin only has to fix the board fields
+    const message = err instanceof Error ? err.message : "board post sync failed";
+    throw new TRPCError({ code: err instanceof TRPCError ? err.code : "INTERNAL_SERVER_ERROR", message: `Offer saved, but not posted to the board: ${message}` });
+  }
 }
 
 export const offersRouter = router({
@@ -141,9 +218,12 @@ export const offersRouter = router({
         source_url:       z.string().nullable().optional(),
         country:          z.string().min(1).optional(),
         active:           z.boolean().optional(),
+        ...boardFieldsForUpdate,
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...fields } = input;
+        // An explicit "post it" needs its title + topic in the same request, so a bad toggle never half-saves
+        if (input.post_to_board === true) assertBoardPostReady({ board_post_title: input.board_post_title ?? null, board_topic: input.board_topic ?? null });
         const supabase = await createClient();
         const { data, error } = await supabase
           .from("transfer_bonuses")
@@ -154,6 +234,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
+        await syncBoardPost("transfer_bonuses", data, ctx.user.id, input.post_to_board !== undefined);
         return data as TransferBonus;
       }),
 
@@ -175,9 +256,11 @@ export const offersRouter = router({
         source_url:       z.string().nullable().optional(),
         country:          z.string().min(1).optional(),
         active:           z.boolean().optional(),
+        ...boardFieldsForUpdate,
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...fields } = input;
+        if (input.post_to_board === true) assertBoardPostReady({ board_post_title: input.board_post_title ?? null, board_topic: input.board_topic ?? null });
         const supabase = await createClient();
         const { data, error } = await supabase
           .from("spending_bonuses")
@@ -188,6 +271,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
+        await syncBoardPost("spending_bonuses", data, ctx.user.id, input.post_to_board !== undefined);
         return data as SpendingBonus;
       }),
 
@@ -211,23 +295,9 @@ export const offersRouter = router({
       }),
 
     createTransferBonus: adminProcedure("api:offers")
-      .input(z.object({
-        issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
-        transfer_partner: z.string().min(1),
-        bonus_pct:        z.number().positive().nullable().optional(),
-        min_transfer_points: z.number().positive().nullable().optional(),
-        start_date:       z.string().min(1),
-        description:      z.string().nullable().optional(),
-        tags:             z.array(z.string()).default([]),
-        end_date:         z.string().min(1),
-        is_targeted:      z.boolean().default(false),
-        for_status_transfer: z.boolean().default(false),
-        card_ids:         z.array(z.string()).default([]),
-        source_url:       z.string().nullable().optional(),
-        country:          z.string().min(1).default('US'),
-        active:           z.boolean().default(true),
-      }))
-      .mutation(async ({ input }) => {
+      .input(createTransferBonusInput)
+      .mutation(async ({ input, ctx }) => {
+        if (input.post_to_board) assertBoardPostReady({ board_post_title: input.board_post_title ?? null, board_topic: input.board_topic ?? null });
         const supabase = await createClient();
         const { data, error } = await supabase
           .from("transfer_bonuses")
@@ -237,28 +307,14 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
+        await syncBoardPost("transfer_bonuses", data, ctx.user.id, false);
         return data as TransferBonus;
       }),
 
     createSpendingBonus: adminProcedure("api:offers")
-      .input(z.object({
-        issuer:           z.enum(['chase', 'amex', 'c1', 'bilt', 'citi']),
-        merchant_name:    z.string().min(1),
-        bonus_multiplier: z.number().positive(),
-        bonus_type:       z.enum(['points_multiplier', 'cash_back_pct', 'dollar_amount']),
-        spending_minimum: z.number().positive().nullable().optional(),
-        minimum_nights:   z.number().int().positive().nullable().optional(),
-        description:      z.string().nullable().optional(),
-        tags:             z.array(z.string()).default([]),
-        card_ids:         z.array(z.string()),
-        start_date:       z.string().min(1),
-        end_date:         z.string().min(1),
-        is_targeted:      z.boolean().default(false),
-        source_url:       z.string().nullable().optional(),
-        country:          z.string().min(1).default('US'),
-        active:           z.boolean().default(true),
-      }))
-      .mutation(async ({ input }) => {
+      .input(createSpendingBonusInput)
+      .mutation(async ({ input, ctx }) => {
+        if (input.post_to_board) assertBoardPostReady({ board_post_title: input.board_post_title ?? null, board_topic: input.board_topic ?? null });
         const supabase = await createClient();
         const { data, error } = await supabase
           .from("spending_bonuses")
@@ -268,6 +324,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
+        await syncBoardPost("spending_bonuses", data, ctx.user.id, false);
         return data as SpendingBonus;
       }),
 

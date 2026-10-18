@@ -2,9 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { router, viewerProcedure, authedProcedure } from "@/server/trpc";
+import { boardAdminRouter } from "@/server/routers/boardAdmin";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { redis } from "@/lib/redis";
-import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import {
   BOARD_OFFER_TYPES, BOARD_REPORT_REASONS, BOARD_TEXT_LIMITS, MOD_THRESHOLDS,
@@ -23,6 +22,7 @@ import type { BoardComment, BoardPost, BoardTopic, TopicStatus, Viewer, VoteValu
 import { canSeeComment, canSeePost } from "@/lib/board/visibility";
 import { loadActor, loadDisplayName, type UserEvents } from "@/lib/board/server/actor";
 import { logModEvent } from "@/lib/board/server/audit";
+import { bustTopicsCache, cacheGet, cacheSet } from "@/lib/board/server/cache";
 import { must, throwIfBlocked } from "@/lib/board/server/errors";
 import { countFeed, fetchPost, queryFeed, type FeedRow } from "@/lib/board/server/feed";
 import { COMMENT_COLUMNS, buildCommentTree, hydratePosts, loadThread, type CommentRow } from "@/lib/board/server/hydrate";
@@ -92,22 +92,6 @@ const notFound = (what = "Post") => new TRPCError({ code: "NOT_FOUND", message: 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-async function cacheGet<T>(key: string): Promise<T | null> {
-  if (!isEnabled("integration:redis:board")) return null;
-  return redis.get<T>(key).catch(() => null);
-}
-
-async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
-  if (!isEnabled("integration:redis:board")) return;
-  await redis.set(key, value, { ex: ttl }).catch(() => {});
-}
-
-/** Topic lifecycle can change on any post; keep the shared chip list honest. */
-async function bustTopicsCache(): Promise<void> {
-  if (!isEnabled("integration:redis:board")) return;
-  await redis.del(cacheKeys.boardTopics()).catch(() => {});
-}
-
 const times = (xs: ReadonlyArray<{ createdAt: Date }>) => xs.map((x) => x.createdAt);
 
 async function visiblePost(admin: SupabaseClient, postId: string, viewer: Viewer): Promise<FeedRow> {
@@ -145,6 +129,8 @@ function postStamps(posts: UserEvents["posts"]) {
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const boardRouter = router({
+  admin: boardAdminRouter,
+
   posts: router({
     /** The feed. Chip counts ride along on page one. */
     list: viewerProcedure("api:board")

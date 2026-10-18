@@ -5,7 +5,7 @@ import {
 
 const row = (local: string, remote: string): MigrationRow => ({ local, remote, time: local || remote });
 
-describe('parseMigrationList', () => {
+describe('parseMigrationList — JSON (agent environments and --output-format json)', () => {
   it('finds the JSON line among CLI progress output', () => {
     const out = [
       'Initialising login role...',
@@ -16,9 +16,56 @@ describe('parseMigrationList', () => {
     expect(parseMigrationList(out)).toEqual([row('001', '001'), row('002', '')]);
   });
 
-  it('throws a clear error when there is no migration list', () => {
-    expect(() => parseMigrationList('Connecting…\nError: not logged in')).toThrow(/migration list JSON/);
+  it('rejects a JSON object with the wrong shape', () => {
     expect(() => parseMigrationList('{"migrations":"nope"}')).toThrow(/Unexpected migration list shape/);
+  });
+});
+
+describe('parseMigrationList — the table a normal terminal gets', () => {
+  // Verbatim from `supabase migration list --linked` outside an agent environment —
+  // note a missing side is a backticked space, not an empty cell
+  const TABLE = [
+    '',
+    '  ',
+    '   Local | Remote | Time (UTC) ',
+    '  -------|--------|------------',
+    '   `001` | `001`  | `001`      ',
+    '   `028` | `028`  | `028`      ',
+    '   `029` | ` `    | `029`      ',
+    '   ` `   | `031`  | `031`      ',
+    '',
+  ].join('\n');
+
+  it('reads synced, pending (local-only) and remote-only rows', () => {
+    expect(parseMigrationList(TABLE)).toEqual([row('001', '001'), row('028', '028'), row('029', ''), row('', '031')]);
+  });
+
+  it('works end to end with the helpers', () => {
+    const rows = parseMigrationList(TABLE);
+    expect(pendingMigrations(rows)).toEqual(['029']);
+    expect(remoteOnlyMigrations(rows)).toEqual(['031']);
+  });
+
+  it('skips the header, the rule and blank lines, and CLI chatter around the table', () => {
+    const out = `Initialising login role...\nConnecting to remote database...\n${TABLE}\nA new version is available`;
+    expect(parseMigrationList(out)).toHaveLength(4);
+  });
+
+  it('prefers JSON when both appear', () => {
+    const out = `${TABLE}\n{"migrations":[{"local":"009","remote":"009","time":"009"}]}`;
+    expect(parseMigrationList(out)).toEqual([row('009', '009')]);
+  });
+});
+
+describe('parseMigrationList — when it cannot read the output', () => {
+  it('shows what the CLI actually printed, so the next report is actionable', () => {
+    expect(() => parseMigrationList('Error: you are not logged in\nRun supabase login')).toThrow(/first 600 characters[\s\S]*not logged in/);
+    expect(() => parseMigrationList('')).toThrow(/Could not read the migration list/);
+  });
+
+  it('truncates a long dump', () => {
+    const err = (() => { try { parseMigrationList('x'.repeat(5000)); } catch (e) { return e as Error; } })()!;
+    expect(err.message.length).toBeLessThan(800);
   });
 });
 

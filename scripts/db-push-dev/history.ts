@@ -7,16 +7,47 @@ export interface MigrationRow {
   time: string;
 }
 
-/**
- * The CLI prints progress lines around one JSON object
- * ({"migrations":[{local, remote, time}, …]}). Pull that object out.
- */
-export function parseMigrationList(stdout: string): MigrationRow[] {
-  const line = stdout.split("\n").find((l) => l.trimStart().startsWith("{") && l.includes('"migrations"'));
-  if (!line) throw new Error("Could not find the migration list JSON in the Supabase CLI output.");
+/** The JSON form: one {"migrations":[{local, remote, time}, …]} object among progress lines. */
+function parseJson(output: string): MigrationRow[] | null {
+  const line = output.split("\n").find((l) => l.trimStart().startsWith("{") && l.includes('"migrations"'));
+  if (!line) return null;
   const parsed = JSON.parse(line) as { migrations?: MigrationRow[] };
   if (!Array.isArray(parsed.migrations)) throw new Error("Unexpected migration list shape from the Supabase CLI.");
   return parsed.migrations;
+}
+
+/**
+ * The human form a normal terminal gets:
+ *
+ *    Local | Remote | Time (UTC)
+ *   -------|--------|------------
+ *    `001` | `001`  | `001`
+ *    `029` | ` `    | `029`    (a missing remote is a backticked space)
+ */
+function parseTable(output: string): MigrationRow[] {
+  const rows: MigrationRow[] = [];
+  for (const line of output.split("\n")) {
+    if (!line.includes("|") || /^[\s|-]+$/.test(line)) continue; // not a row, or the ----|---- rule
+    // Backticks first, then trim: an empty cell is rendered as `` ` ` `` (a backticked space)
+    const cells = line.split("|").map((c) => c.replace(/`/g, "").trim());
+    if (cells.length < 3 || cells[0].toLowerCase() === "local") continue; // the header
+    rows.push({ local: cells[0], remote: cells[1], time: cells[2] });
+  }
+  return rows;
+}
+
+/**
+ * Read `supabase migration list --linked`. The CLI answers in JSON when it
+ * thinks an AI agent is calling it and in a table otherwise, whatever
+ * --output-format says on an older version — so accept both. When neither
+ * parses, the error carries what the CLI actually printed.
+ */
+export function parseMigrationList(output: string): MigrationRow[] {
+  const rows = parseJson(output) ?? parseTable(output);
+  if (rows.length === 0) {
+    throw new Error(`Could not read the migration list from the Supabase CLI output:\n--- output (first 600 characters) ---\n${output.slice(0, 600)}`);
+  }
+  return rows;
 }
 
 /** Local files the remote history has not recorded yet — what `db push` would apply. */

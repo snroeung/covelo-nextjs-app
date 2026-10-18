@@ -218,3 +218,34 @@ export async function previewTopic(
     suggestions,
   };
 }
+
+/**
+ * Make `topicId` a post's primary topic. The old primary is dropped
+ * (`replace`, an admin fixing a miscategorised post) or kept as an ordinary
+ * secondary topic (`demote`, a re-sync that only changes the lead topic).
+ */
+export async function setPrimaryTopic(
+  admin: SupabaseClient,
+  postId: string,
+  topicId: string,
+  mode: "replace" | "demote" = "replace",
+): Promise<void> {
+  const current = await admin.from("board_post_topics").select("topic_id").eq("post_id", postId).eq("is_primary", true).maybeSingle();
+  const oldId = (must(current, "primary topic") as unknown as { topic_id: string } | null)?.topic_id;
+  if (oldId === topicId) return;
+
+  // The one-primary index forbids two at once: release the old one first
+  if (oldId) {
+    must(
+      (mode === "replace"
+        ? await admin.from("board_post_topics").delete().eq("post_id", postId).eq("topic_id", oldId)
+        : await admin.from("board_post_topics").update({ is_primary: false }).eq("post_id", postId).eq("topic_id", oldId)) as never,
+      "primary topic release",
+    );
+  }
+  must(
+    await admin.from("board_post_topics").upsert({ post_id: postId, topic_id: topicId, is_primary: true }, { onConflict: "post_id,topic_id" }) as never,
+    "primary topic set",
+  );
+  must(await admin.from("board_posts").update({ topic_id: topicId }).eq("id", postId) as never, "post topic");
+}

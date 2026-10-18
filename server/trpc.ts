@@ -68,7 +68,8 @@ export function viewerProcedure(flag: FlagName) {
 /**
  * Admin-only procedure. Verifies the caller's Supabase JWT and checks
  * app_metadata.role === "admin". app_metadata can only be set via the
- * service role key, so it cannot be spoofed by regular users.
+ * service role key, so it cannot be spoofed by regular users. ctx carries the
+ * admin (user, session client, viewer) for resolvers that record who acted.
  */
 export function adminProcedure(flag: FlagName) {
   return t.procedure.use(async ({ next }) => {
@@ -86,7 +87,7 @@ export function adminProcedure(flag: FlagName) {
     if (!isAdminUser(user)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
     }
-    return next();
+    return next({ ctx: { user, supabase, isAdmin: true as const, viewer: { id: user.id, isAdmin: true } } });
   });
 }
 

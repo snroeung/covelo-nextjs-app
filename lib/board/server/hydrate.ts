@@ -40,11 +40,34 @@ function noticeFor(
   return null;
 }
 
+/** Open reports against one item. */
+export interface ReportTally {
+  count: number;
+  reasons: string[];
+}
+const NO_REPORTS: ReportTally = { count: 0, reasons: [] };
+
+/** target id → open reports, for one page of posts or comments. Admin views only. */
+export async function loadReportTallies(admin: SupabaseClient, kind: "post" | "comment", ids: readonly string[]): Promise<Map<string, ReportTally>> {
+  const tallies = new Map<string, ReportTally>();
+  if (ids.length === 0) return tallies;
+  const res = await admin.from("board_reports").select("target_id, reason").eq("target_kind", kind).in("target_id", ids as string[]).is("resolved_at", null);
+  for (const r of must(res, "reports") as unknown as Array<{ target_id: string; reason: string }>) {
+    const t = tallies.get(r.target_id) ?? { count: 0, reasons: [] };
+    t.count++;
+    if (!t.reasons.includes(r.reason)) t.reasons.push(r.reason);
+    tallies.set(r.target_id, t);
+  }
+  return tallies;
+}
+
 function modDetail(
   status: ModStatus, reasons: string[], flags: string[], scores: Record<string, unknown> | null, removedReason: string | null,
-  viewer: Viewer,
+  viewer: Viewer, reports: ReportTally = NO_REPORTS,
 ): ModDetail | null {
-  return viewer.isAdmin ? { status, reasons: reasons as ModReason[], flags: flags as ModFlag[], scores, removedReason } : null;
+  return viewer.isAdmin
+    ? { status, reasons: reasons as ModReason[], flags: flags as ModFlag[], scores, removedReason, reportCount: reports.count, reportReasons: reports.reasons }
+    : null;
 }
 
 export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow[], viewer: Viewer): Promise<BoardPost[]> {
@@ -56,7 +79,7 @@ export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow
   const verifierIds = unique(rows.map((r) => r.verified_by));
   const topicIds = unique(rows.flatMap((r) => r.topic_ids ?? []));
 
-  const [topics, votes, saves, transfers, spendings, members, verifiers] = await Promise.all([
+  const [topics, votes, saves, transfers, spendings, members, verifiers, reportTallies] = await Promise.all([
     topicIds.length ? admin.from("board_topics").select("id, name, key").in("id", topicIds) : none,
     viewer.id ? admin.from("board_votes").select("post_id, value").eq("user_id", viewer.id).in("post_id", ids) : none,
     viewer.id ? admin.from("board_saves").select("post_id").eq("user_id", viewer.id).in("post_id", ids) : none,
@@ -68,6 +91,7 @@ export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow
       : none,
     memberIds.length ? admin.from("board_member_offers").select("*").in("id", memberIds) : none,
     verifierIds.length ? admin.from("profiles").select("id, display_name").in("id", verifierIds) : none,
+    viewer.isAdmin ? loadReportTallies(admin, "post", ids) : Promise.resolve(new Map<string, ReportTally>()),
   ]);
 
   const topicById = new Map((must(topics, "topics") as unknown as Array<BoardTopicRef>).map((t) => [t.id, t]));
@@ -106,7 +130,7 @@ export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow
         ? { by: r.verified_by ? initials(verifierName.get(r.verified_by) ?? "Admin") : "CV", at: r.verified_at }
         : null,
       notice: noticeFor({ status: r.mod_status, reasons: r.mod_reasons, removedReason: r.removed_reason }, r.review, r.reject_reason, mine || viewer.isAdmin),
-      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, viewer),
+      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, viewer, reportTallies.get(r.id)),
     };
   });
 }
@@ -134,7 +158,11 @@ export const COMMENT_COLUMNS =
 /** Pure: rows → a nested thread, applying visibility. Newest-first by default; the client re-sorts. */
 export function buildCommentTree(
   rows: readonly CommentRow[],
-  ctx: { viewer: Viewer; postAuthorId: string | null; names: ReadonlyMap<string, string>; votes: ReadonlyMap<string, VoteValue> },
+  ctx: {
+    viewer: Viewer; postAuthorId: string | null; names: ReadonlyMap<string, string>; votes: ReadonlyMap<string, VoteValue>;
+    /** Admin views: open reports per comment */
+    reports?: ReadonlyMap<string, ReportTally>;
+  },
 ): BoardComment[] {
   const children = new Map<string | null, CommentRow[]>();
   for (const r of rows) {
@@ -164,7 +192,7 @@ export function buildCommentTree(
       score: placeholder ? 0 : r.score,
       myVote: ctx.votes.get(r.id) ?? 0,
       notice: noticeFor({ status: r.mod_status, reasons: r.mod_reasons, removedReason: r.removed_reason }, null, null, mine || ctx.viewer.isAdmin),
-      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, ctx.viewer),
+      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, ctx.viewer, ctx.reports?.get(r.id)),
       replies,
     };
   };
@@ -183,13 +211,14 @@ export async function loadThread(
   if (rows.length === 0) return [];
 
   const authorIds = unique(rows.map((r) => r.author_id));
-  const [profiles, votes] = await Promise.all([
+  const [profiles, votes, reports] = await Promise.all([
     admin.from("profiles").select("id, display_name").in("id", authorIds),
     viewer.id ? admin.from("board_votes").select("comment_id, value").eq("user_id", viewer.id).in("comment_id", rows.map((r) => r.id)) : none,
+    viewer.isAdmin ? loadReportTallies(admin, "comment", rows.map((r) => r.id)) : Promise.resolve(new Map<string, ReportTally>()),
   ]);
   const names = new Map(
     (must(profiles, "profiles") as unknown as Array<{ id: string; display_name: string | null }>).map((p) => [p.id, p.display_name?.trim() || "Traveler"]),
   );
   const voteMap = new Map((must(votes, "votes") as unknown as Array<{ comment_id: string; value: VoteValue }>).map((v) => [v.comment_id, v.value]));
-  return buildCommentTree(rows, { viewer, postAuthorId, names, votes: voteMap });
+  return buildCommentTree(rows, { viewer, postAuthorId, names, votes: voteMap, reports });
 }

@@ -5,6 +5,9 @@ import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { approveBoardItem, rejectBoardItem } from "@/lib/board/server/review";
+import { FEED_COLUMNS } from "@/lib/board/server/feed";
 import type { PortalId } from "@/lib/points/types";
 import type { TransferPartnerConfig, PointsValuationConfig } from "@/lib/points/transferPartners";
 import { sameProgram } from "@/lib/points/programNames";
@@ -16,6 +19,8 @@ import type {
   PendingReviewRow,
   PendingReviewTable,
 } from "@/lib/types/portalData";
+import { isBoardPendingTable } from "@/lib/types/portalData";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:portal-data")) return null;
@@ -44,6 +49,7 @@ function groupTransferPartners(rows: TransferPartnerRow[]): Record<PortalId, Tra
   return grouped;
 }
 
+/** The catalog tables whose rows wait for review by `status` / `source`. */
 const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
   "transfer_partners",
   "travel_collections",
@@ -51,6 +57,61 @@ const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
   "spending_bonuses",
   "points_valuations",
 ];
+
+const BOARD_QUEUE_LIMIT = 200;
+
+/**
+ * The board's share of the queue: offer posts to verify, and held posts and
+ * comments. Read with the admin's own session — migration 031 lets exactly an
+ * admin JWT select these tables — so the board gets no special access path.
+ * Reported-but-public content is not here; it lives in the board page's
+ * Mod view ("Reported"), since it has no state for the queue to resolve.
+ */
+async function boardPendingRows(supabase: SupabaseClient): Promise<PendingReviewRow[]> {
+  const [posts, comments] = await Promise.all([
+    supabase
+      .from("board_posts_feed")
+      .select(FEED_COLUMNS)
+      .is("deleted_at", null)
+      // held (any kind) — or an offer waiting for verification that is still public
+      .or("mod_status.eq.held,and(kind.eq.offer,review.eq.pending,mod_status.in.(clean,unscanned))")
+      .order("created_at", { ascending: false })
+      .limit(BOARD_QUEUE_LIMIT),
+    supabase
+      .from("board_comments")
+      .select("*")
+      .is("deleted_at", null)
+      .eq("mod_status", "held")
+      .order("created_at", { ascending: false })
+      .limit(BOARD_QUEUE_LIMIT),
+  ]);
+  if (posts.error) console.warn("[portalData.listAll] board posts:", posts.error.message);
+  if (comments.error) console.warn("[portalData.listAll] board comments:", comments.error.message);
+
+  const commentRows = comments.error ? [] : ((comments.data ?? []) as unknown as Array<Record<string, unknown>>);
+  const authorIds = [...new Set(commentRows.map((c) => c.author_id as string))];
+  const names = new Map<string, string>();
+  if (authorIds.length > 0) {
+    const { data } = await supabase.from("profiles").select("id, display_name").in("id", authorIds);
+    for (const p of (data ?? []) as Array<{ id: string; display_name: string | null }>) names.set(p.id, p.display_name?.trim() || "Traveler");
+  }
+
+  const rows: PendingReviewRow[] = [];
+  for (const row of posts.error ? [] : ((posts.data ?? []) as unknown as Array<Record<string, unknown>>)) {
+    rows.push({ table: "board_posts", row: { ...row, queue_reason: row.mod_status === "held" ? "held" : "offer_review" } });
+  }
+  for (const row of commentRows) {
+    rows.push({ table: "board_comments", row: { ...row, author_name: names.get(row.author_id as string) ?? "Traveler", queue_reason: "held" } });
+  }
+  return rows;
+}
+
+/** Board rows need the board API on; off, the queue is exactly what it was. */
+function assertBoardEnabled(): void {
+  if (!isEnabled("api:board")) {
+    throw new TRPCError({ code: "NOT_FOUND", message: 'Feature "api:board" is not available in this environment.' });
+  }
+}
 
 async function invalidatePortalDataCache(): Promise<void> {
   await redis.del(cacheKeys.transferPartners()).catch(() => {});
@@ -182,6 +243,7 @@ export const portalDataRouter = router({
             }
           }
         });
+        if (isEnabled("api:board")) rows.push(...(await boardPendingRows(supabase)));
         return rows;
       }),
 
@@ -200,12 +262,19 @@ export const portalDataRouter = router({
 
     approve: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations", "board_posts", "board_comments"]),
         id:    z.string().uuid(),
         runId: z.string().uuid().optional(),
         edits: z.record(z.string(), z.string()).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Board rows: verify an offer post, or release held content. Their own actions, not a status flip.
+        if (isBoardPendingTable(input.table)) {
+          assertBoardEnabled();
+          await approveBoardItem(getSupabaseAdmin(), ctx.user.id, input.table, input.id);
+          return { id: input.id };
+        }
+
         const supabase = await createClient();
         const { data: original, error: fetchError } = await supabase
           .from(input.table)
@@ -274,10 +343,18 @@ export const portalDataRouter = router({
 
     reject: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations", "board_posts", "board_comments"]),
         id:    z.string().uuid(),
+        /** Board rows only: shown to the member. Offer posts take a rejection reason, held content a removal reason. */
+        reason: z.string().max(100).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (isBoardPendingTable(input.table)) {
+          assertBoardEnabled();
+          await rejectBoardItem(getSupabaseAdmin(), ctx.user.id, input.table, input.id, input.reason);
+          return;
+        }
+
         const supabase = await createClient();
         const { error } = await supabase
           .from(input.table)

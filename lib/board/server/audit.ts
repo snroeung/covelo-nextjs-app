@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type ModEventAction =
   | "auto_allow" | "auto_hold" | "auto_reject" | "rescan" | "take_down" | "restore" | "approve_held"
   | "set_topic" | "lock_comments" | "unlock_comments" | "set_standing" | "rate_lock" | "topic_rename"
-  | "topic_merge" | "topic_hide" | "topic_promote" | "term_add" | "term_remove" | "reports_hold" | "post_edit";
+  | "topic_merge" | "topic_hide" | "topic_promote" | "term_add" | "term_remove" | "reports_hold" | "post_edit" | "dismiss_reports";
 
 export interface ModEvent {
   targetKind: "post" | "comment" | "topic" | "user" | "term";

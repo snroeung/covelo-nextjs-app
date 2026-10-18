@@ -1,6 +1,6 @@
 import type { PortalId } from "@/lib/points/types";
 
-export type SyncSource = 'admin' | 'cron';
+export type SyncSource = 'admin' | 'cron' | 'member';
 export type SyncStatus = 'admin' | 'pending' | 'approved' | 'rejected';
 
 export interface TransferPartnerRow {
@@ -78,9 +78,34 @@ export type PendingReviewTable =
   | 'travel_collections'
   | 'transfer_bonuses'
   | 'spending_bonuses'
-  | 'points_valuations';
+  | 'points_valuations'
+  | 'board_posts'
+  | 'board_comments';
+
+/** The board rows in the queue — offer posts to verify, and held posts / comments. */
+export type BoardPendingTable = 'board_posts' | 'board_comments';
+
+export const BOARD_PENDING_TABLES: readonly BoardPendingTable[] = ['board_posts', 'board_comments'];
+
+export function isBoardPendingTable(table: string): table is BoardPendingTable {
+  return table === 'board_posts' || table === 'board_comments';
+}
+
+/**
+ * Why a board row is in the queue. Board rows carry no `status` column — the
+ * queue's pending filter is on the catalog tables' `status` — so this says
+ * what the admin is being asked to decide:
+ *   offer_review  an offer post waiting to be verified (Approve = verify)
+ *   held          content the filters or member reports held (Approve = release)
+ */
+export type BoardQueueReason = 'offer_review' | 'held';
 
 export interface PendingReviewRow {
   table: PendingReviewTable;
+  /**
+   * Catalog tables: the raw row. Board tables: the row (board_posts_feed for
+   * posts, so `author_name` is there) plus `queue_reason`, and `author_name`
+   * on comments.
+   */
   row: Record<string, unknown>;
 }

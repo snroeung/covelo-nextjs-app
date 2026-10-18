@@ -25,6 +25,8 @@ export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_bonuses:  'Transfer bonus',
   spending_bonuses:  'Spending bonus',
   points_valuations: 'Points valuation',
+  board_posts:       'Board post',
+  board_comments:    'Board comment',
 };
 
 type TableFilter = 'all' | PendingTableName;
@@ -57,6 +59,10 @@ export function rowTitle(item: PendingReviewRow): string {
       return `${r.issuer} · ${r.merchant_name}`;
     case 'points_valuations':
       return String(r.program);
+    case 'board_posts':
+      return String(r.title ?? '');
+    case 'board_comments':
+      return String(r.body ?? '').slice(0, 120);
   }
 }
 
@@ -77,6 +83,9 @@ export function rowDetail(item: PendingReviewRow): string {
           : `${r.bonus_multiplier}× points`;
     case 'points_valuations':
       return `${r.cpp}¢/pt · ${r.source_month}`;
+    case 'board_posts':
+    case 'board_comments':
+      return `${r.author_name ?? 'Member'} · ${r.queue_reason === 'held' ? 'held for review' : 'offer to verify'}`;
   }
 }
 

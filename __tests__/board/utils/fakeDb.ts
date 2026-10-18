@@ -61,9 +61,13 @@ export function makeDb(handlers: Record<string, Handler> = {}, rpcs: Record<stri
     return builder;
   };
 
+  // An rpc handler returns its rows, or `{ error: { code, message } }` to fail
   const rpc = (name: string, args: Record<string, unknown> = {}) => {
     rpcLog.push({ name, args });
-    return { then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: rpcs[name]?.(args) ?? null, error: null }).then(ok) };
+    const out = rpcs[name]?.(args);
+    const failed = out && typeof out === 'object' && !Array.isArray(out) && 'error' in out;
+    const result = failed ? { data: null, error: (out as { error: unknown }).error } : { data: out ?? null, error: null };
+    return { then: (ok: (v: unknown) => unknown) => Promise.resolve(result).then(ok) };
   };
 
   return {

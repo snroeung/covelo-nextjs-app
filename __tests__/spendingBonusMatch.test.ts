@@ -26,6 +26,7 @@ function makeBonus(overrides: Partial<SpendingBonus> = {}): SpendingBonus {
     country: 'US',
     submitted_by: null,
     upvotes: 0,
+    post_to_board: false, board_topic: null, board_post_title: null, board_post_body: null,
     active: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rowTitle } from '@/components/offers/admin/PendingReviewTable';
+import { rowTitle, rowDetail } from '@/components/offers/admin/PendingReviewTable';
 import type { PendingReviewRow } from '@/lib/types/portalData';
 
 describe('rowTitle', () => {
@@ -47,5 +47,21 @@ describe('rowTitle', () => {
       row: { issuer: 'chase', collection_name: 'Points Boost', property_name: null },
     };
     expect(rowTitle(item)).toBe('chase · Points Boost');
+  });
+});
+
+describe('board rows', () => {
+  it('titles an offer post with its title and says what the admin is being asked', () => {
+    const item: PendingReviewRow = { table: 'board_posts', row: { id: 'p1', title: 'Bilt → Hyatt 30%', author_name: 'milesnerd', queue_reason: 'offer_review' } };
+    expect(rowTitle(item)).toBe('Bilt → Hyatt 30%');
+    expect(rowDetail(item)).toBe('milesnerd · offer to verify');
+  });
+
+  it('describes held content, posts and comments alike', () => {
+    const post: PendingReviewRow = { table: 'board_posts', row: { id: 'p1', title: 'Held tip', author_name: 'pointsplease', queue_reason: 'held' } };
+    const comment: PendingReviewRow = { table: 'board_comments', row: { id: 'c1', body: 'a'.repeat(300), author_name: 'biltbear', queue_reason: 'held' } };
+    expect(rowDetail(post)).toBe('pointsplease · held for review');
+    expect(rowTitle(comment)).toHaveLength(120);
+    expect(rowDetail(comment)).toBe('biltbear · held for review');
   });
 });

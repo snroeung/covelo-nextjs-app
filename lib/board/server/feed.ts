@@ -62,6 +62,13 @@ export interface FeedParams {
   sort: BoardSort;
   cursor?: string | null;
   limit?: number;
+  /**
+   * Moderator view (admin.modFeed): list posts in exactly these moderation
+   * states, bypassing the member visibility rules. Never set from member code.
+   */
+  modStatuses?: ModStatus[];
+  /** Restrict to these post ids (the Mod view's Reported filter) */
+  ids?: string[];
 }
 
 export interface FeedPage {
@@ -97,6 +104,7 @@ function applyFilters<T>(query: T, p: FeedParams): T {
   // "Verified only" is about offers; it is ignored when browsing tips
   if (p.verifiedOnly && p.type !== "tip") q = q.eq("kind", "offer").eq("review", "approved");
   if (p.topicIds && p.topicIds.length > 0) q = q.overlaps("topic_ids", p.topicIds);
+  if (p.ids) q = q.in("id", p.ids);
   const text = p.q?.trim().slice(0, MAX_QUERY_CHARS);
   if (text) q = q.textSearch("search_tsv", text, { type: "websearch", config: "english" });
   return q as unknown as T;
@@ -113,7 +121,10 @@ export async function queryFeed(
   // A cursor pins the ranking instant; page one pins it now
   const asOf = cursor ? new Date(cursor.t) : now;
 
-  const base = () => applyVisibility(applyFilters(admin.from("board_posts_feed").select(FEED_COLUMNS), params), viewer);
+  const base = () => {
+    const filtered = applyFilters(admin.from("board_posts_feed").select(FEED_COLUMNS), params);
+    return params.modStatuses ? (filtered as unknown as Q).in("mod_status", params.modStatuses) as unknown as typeof filtered : applyVisibility(filtered, viewer);
+  };
   const newest = () => base().order("created_at", { ascending: false }).limit(FEED_WINDOW);
   const top = () => base().order("score", { ascending: false }).order("created_at", { ascending: false }).limit(FEED_WINDOW);
 

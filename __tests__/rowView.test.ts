@@ -97,6 +97,7 @@ function makeBonus(overrides: Partial<TransferBonus> = {}): TransferBonus {
     country: 'US',
     submitted_by: null,
     upvotes: 0,
+    post_to_board: false, board_topic: null, board_post_title: null, board_post_body: null,
     active: true,
     created_at: '2026-08-01',
     updated_at: '2026-08-01',

@@ -36,9 +36,14 @@ function linkedRef(): string | null {
 }
 
 function listMigrations(): MigrationRow[] {
-  const res = cli(["migration", "list", "--linked"], { capture: true });
+  // Ask for JSON outright: left to itself the CLI answers in a table unless it believes an AI agent is calling
+  const res = cli(["migration", "list", "--linked", "--output-format", "json"], { capture: true });
   if (res.status !== 0) fail(`supabase migration list failed:\n${res.stderr || res.stdout}`);
-  return parseMigrationList(res.stdout);
+  try {
+    return parseMigrationList(`${res.stdout}\n${res.stderr}`);
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  }
 }
 
 /** "027_board_vote_edit.sql — <first comment line>" for a pending version. */
