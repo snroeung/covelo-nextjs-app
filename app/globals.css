@@ -82,6 +82,14 @@
   /* Shell accent green — cv-green-800 vs. cv-green-400, each chosen for
      >=4.5:1 text contrast against gph-bg/gph-dark-bg respectively. */
   --gph-accent-green: #2D7A3A;
+  /* Status colors (the board: verified / awaiting-review / destructive). Each
+     soft/fg pair is >=4.5:1 in its own theme. */
+  --gph-ok:          #0b7a44;
+  --gph-ok-soft:     #dcf3e3;
+  --gph-pending:     #8a5300;
+  --gph-pending-soft:#fdf3dc;
+  --gph-danger:      #b91c1c;
+  --gph-danger-soft: #fee2e2;
 }
 
 :root[data-theme="dark"] {
@@ -96,6 +104,12 @@
   --gph-actionsoft:  #222226;
   --gph-navy:        #000000;
   --gph-accent-green: #7DC48A;
+  --gph-ok:          #4ade80;
+  --gph-ok-soft:     rgba(15, 157, 88, 0.16);
+  --gph-pending:     #f5b544;
+  --gph-pending-soft:rgba(245, 158, 11, 0.12);
+  --gph-danger:      #f87171;
+  --gph-danger-soft: rgba(127, 29, 29, 0.4);
 }
 
 @theme inline {
@@ -110,6 +124,12 @@
   --color-gph-actionsoft:  var(--gph-actionsoft);
   --color-gph-navy:        var(--gph-navy);
   --color-gph-accent-green: var(--gph-accent-green);
+  --color-gph-ok:           var(--gph-ok);
+  --color-gph-ok-soft:      var(--gph-ok-soft);
+  --color-gph-pending:      var(--gph-pending);
+  --color-gph-pending-soft: var(--gph-pending-soft);
+  --color-gph-danger:       var(--gph-danger);
+  --color-gph-danger-soft:  var(--gph-danger-soft);
 }
 
 @theme {
@@ -194,3 +214,7 @@ body {
 .poi-popup .mapboxgl-popup-tip {
   display: none;
 }
+
+/* Horizontal chip rows (the board's topic filter): scrolls without a visible bar */
+.cv-scroll { scrollbar-width: none; }
+.cv-scroll::-webkit-scrollbar { display: none; }

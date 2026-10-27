@@ -422,6 +422,19 @@ export const boardRouter = router({
       .mutation(async ({ input, ctx }): Promise<{ saved: boolean }> => {
         const admin = getSupabaseAdmin();
         const row = await visiblePost(admin, input.postId, ctx.viewer);
+        const now = new Date();
+        const [actor, toggles] = await Promise.all([
+          loadActor(admin, ctx.user, ctx.isAdmin, [], now),
+          admin
+            .from("board_save_toggles")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", ctx.user.id)
+            .eq("post_id", row.id)
+            .gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
+        ]);
+        must({ data: null, error: toggles.error }, "save toggles");
+        throwIfBlocked(checkPerTarget("saveTogglesPerPost", toggles.count ?? 0, actor.ctx));
+        must(await admin.from("board_save_toggles").insert({ user_id: ctx.user.id, post_id: row.id }) as never, "save toggle");
         if (input.saved) {
           must(await admin.from("board_saves").upsert({ user_id: ctx.user.id, post_id: row.id }, { onConflict: "user_id,post_id", ignoreDuplicates: true }) as never, "save");
         } else {

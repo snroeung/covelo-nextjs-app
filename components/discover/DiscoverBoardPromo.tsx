@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 // Static, illustrative content — there is no live community-board backend in
 // this app yet (the board it links to isn't built either, per scope). Mirrors
 // what CommunityBoard.tsx already showed, minus the blur/fade/"launching"
@@ -66,7 +68,7 @@ export function DiscoverBoardPromo({ isDark }: Props) {
           ))}
         </div>
         <div className="flex items-center gap-2.5 mt-7">
-          <a
+          <Link
             href="/discover/board"
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[13px] font-bold min-h-11 ${solidCls}`}
           >
@@ -74,7 +76,7 @@ export function DiscoverBoardPromo({ isDark }: Props) {
             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
               <path d="M2 6h8M6.5 2.5L10 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </a>
+          </Link>
           <button type="button" className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-md text-xs font-bold min-h-11 ${ghostCls}`}>
             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
               <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

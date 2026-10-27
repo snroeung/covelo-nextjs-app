@@ -660,6 +660,17 @@ describe('posts.save', () => {
     await caller().board.posts.save({ postId: P1, saved: false });
     expect(db.of('board_saves', 'delete')).toHaveLength(1);
   });
+
+  it('logs each toggle and blocks the 21st in 24 h', async () => {
+    const db = mockDb({ board_posts_feed: () => ({ data: feedRow() }), board_save_toggles: (q) => (q.action === 'select' ? { count: 19 } : undefined) });
+    await caller().board.posts.save({ postId: P1, saved: true });
+    expect(db.of('board_save_toggles', 'insert')[0].payload).toEqual({ user_id: ME, post_id: P1 });
+
+    const capped = mockDb({ board_posts_feed: () => ({ data: feedRow() }), board_save_toggles: (q) => (q.action === 'select' ? { count: 20 } : undefined) });
+    await expect(caller().board.posts.save({ postId: P1, saved: true })).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+    expect(capped.of('board_saves', 'upsert')).toHaveLength(0);
+    expect(capped.of('board_save_toggles', 'insert')).toHaveLength(0);
+  });
 });
 
 // ─── comments ────────────────────────────────────────────────────────────────
