@@ -51,6 +51,22 @@ Be straight forward and quick to the point
 | `cv-amber-400` | `#F5A623` | Transfer dot indicator, amber text |
 | `cv-amber-900` | `#6B3500` | Dark amber bg for transfer section |
 
+### Buttons (`components/ui/button.ts`)
+
+One module owns every button. `btn(variant, size, extra)` returns a class string — works on `<button>`, `<a>`, `<Link>`. Colors are the theme-reactive `gph-*` tokens, so **never `isDark`-branch a button and never hand-roll button colors**. Layout-only classes (`w-full`, `ml-auto`, `shrink-0`) go in `extra`.
+
+| Variant | Use |
+|---|---|
+| `primary` | Default neutral CTA (board, Discover, admin save, auth) |
+| `accent` | Green CTA — Sign in, avatar, best-choice "View deal", onboarding. One per view |
+| `value` | Points-value CTA — Compare, View details, Add to trip (ink in light, lime in dark) |
+| `secondary` | Bordered alternative action (Back, Google sign-in, Edit) |
+| `danger` | Destructive / sign out |
+| `quiet` | Icon + label action under a post or comment |
+| `link` | Inline text button |
+
+Sizes: `md` (`min-h-11`), `lg` (`min-h-12`, full-width on mobile), `icon` (44×44). There is no size under 44px. Disabled styles cover both `disabled` and `aria-disabled`. Chips, tabs, segmented toggles and pagination page numbers are **not** buttons in this system and keep their own selected-state styles. `FIELD`/`LABEL` live in `components/ui/field.ts`.
+
 ### Shell theme (NavBar / Footer / AppShell)
 
 The shared chrome around every page (nav bar, footer, search-form header, sidebar) uses the
@@ -70,7 +86,7 @@ constant `gphTheme` object from `lib/discover/theme.ts` rather than hardcoding t
 
 Green accent, filled elements (self-contained, same value regardless of theme):
 - **Active nav link / avatar**: `bg-cv-green-800 text-white` (5.3:1 contrast)
-- **Sign in / primary CTA**: `bg-cv-green-800 text-white hover:brightness-110`
+- **Sign in / primary CTA**: `btn('accent')` from `components/ui/button.ts`
 
 Individual page bodies (search forms, hotel/flight cards, admin tables) are **not** part of
 this reskin and keep their existing per-page colors (`gray-*`, `cv-blue-*`, `cv-navy-*`, etc.)

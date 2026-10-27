@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavBar } from '@/components/layout/NavBar';
@@ -199,9 +200,7 @@ export function OffersAdminShell() {
             {tab === 'offers' && (
               <button
                 onClick={() => setEditingOffer({ mode: 'new' })}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -212,9 +211,7 @@ export function OffersAdminShell() {
             {tab === 'ads' && (
               <button
                 onClick={() => setEditingAd(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -225,9 +222,7 @@ export function OffersAdminShell() {
             {tab === 'partners' && (
               <button
                 onClick={() => setEditingPartner(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -238,9 +233,7 @@ export function OffersAdminShell() {
             {tab === 'collections' && (
               <button
                 onClick={() => setEditingCollection(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -251,9 +244,7 @@ export function OffersAdminShell() {
             {tab === 'valuations' && (
               <button
                 onClick={() => setEditingValuation(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>

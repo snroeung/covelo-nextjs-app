@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { PointsResult, PortalId } from '@/lib/points/types';
 import { useRankedViews } from '@/hooks/useRankedViews';
@@ -349,11 +350,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
     ? isDark ? 'bg-green-950/25' : 'bg-cv-green-50'
     : isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-50';
 
-  const btnCls = view.isBestChoice
-    ? 'bg-cv-green-800 hover:bg-cv-green-700 text-white'
-    : isDark
-      ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg'
-      : 'bg-cv-navy-950 hover:bg-cv-navy-900 text-white';
+  const btnCls = btn(view.isBestChoice ? 'accent' : 'primary', 'md', 'w-full px-3! text-sm! text-center whitespace-nowrap');
 
   const reportsOpen = booking?.openReportsKey === view.key;
 
@@ -418,7 +415,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
               view={view}
               url={dealUrl}
               booking={booking}
-              className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap transition-colors ${btnCls}`}
+              className={btnCls}
             />
           ) : dealUrl ? (
             <a
@@ -427,7 +424,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               aria-label={ctaAriaLabel(view)}
-              className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap transition-colors ${btnCls}`}
+              className={btnCls}
             >
               {ctaLabel(view.kind)} →
             </a>
@@ -435,7 +432,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
             <>
               <span
                 aria-hidden="true"
-                className={`flex items-center justify-center min-h-11 w-full px-3 rounded-lg text-sm font-bold text-center whitespace-nowrap opacity-50 cursor-not-allowed ${btnCls}`}
+                className={`${btnCls} opacity-50 cursor-not-allowed`}
               >
                 {ctaLabel(view.kind)} →
               </span>

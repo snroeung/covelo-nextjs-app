@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { btn } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePopup } from '@/components/layout/ProfilePopup';
@@ -196,7 +197,7 @@ export function NavBar() {
             <button
               ref={avatarRef}
               onClick={() => setPopupOpen((v) => !v)}
-              className="w-9 h-9 rounded-full bg-cv-green-800 flex items-center justify-center text-white text-xs font-bold select-none hover:bg-cv-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-cv-green-500 focus:ring-offset-2"
+              className={btn('accent', 'icon', 'rounded-full! text-xs select-none')}
               aria-label="Open profile"
               aria-expanded={popupOpen}
             >
@@ -212,7 +213,7 @@ export function NavBar() {
         ) : (
           <button
             onClick={() => router.push('/auth')}
-            className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors bg-cv-green-800 text-white hover:brightness-110"
+            className={btn('accent', 'md', 'text-sm!')}
           >
             Sign in
           </button>

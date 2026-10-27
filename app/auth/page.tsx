@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
+import { btn } from '@/components/ui/button';
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -44,9 +45,6 @@ function AuthForm() {
   const inputCls    = isDark
     ? 'bg-gph-dark-bg border-gph-dark-line text-white placeholder-gph-dark-muted focus:border-blue-500'
     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900';
-  const btnCls      = isDark
-    ? 'bg-blue-600 hover:bg-blue-500 text-white'
-    : 'bg-gray-900 hover:bg-gray-700 text-white';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -183,7 +181,7 @@ function AuthForm() {
               type="button"
               onClick={handleResetPassword}
               disabled={loading}
-              className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${btnCls}`}
+              className={btn('primary', 'md', 'w-full text-sm!')}
             >
               {loading ? 'Sending…' : 'Send reset link'}
             </button>
@@ -224,7 +222,7 @@ function AuthForm() {
           <div className={`pt-5 border-t ${border}`}>
             <button
               onClick={() => { setView('form'); setMode('signin'); }}
-              className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${btnCls}`}
+              className={btn('primary', 'md', 'w-full text-sm!')}
             >
               Back to sign in
             </button>
@@ -257,7 +255,7 @@ function AuthForm() {
           <div className={`pt-5 border-t ${border}`}>
             <button
               onClick={() => { setView('form'); setMode('signin'); }}
-              className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${btnCls}`}
+              className={btn('primary', 'md', 'w-full text-sm!')}
             >
               Back to sign in
             </button>
@@ -293,7 +291,7 @@ function AuthForm() {
           <div className={`pt-5 border-t ${border}`}>
             <button
               onClick={() => { setView('form'); setMode('signin'); setPassword(''); }}
-              className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${btnCls}`}
+              className={btn('primary', 'md', 'w-full text-sm!')}
             >
               Back to sign in
             </button>
@@ -335,11 +333,7 @@ function AuthForm() {
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className={`w-full flex items-center justify-center gap-2.5 py-2.5 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50 ${
-              isDark
-                ? 'border-gph-dark-line text-white hover:bg-gph-dark-bg'
-                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
+            className={btn('secondary', 'md', 'w-full gap-2.5 text-sm!')}
           >
             <svg viewBox="0 0 48 48" width="16" height="16" aria-hidden="true">
               <path fill="#4285F4" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.7-6 8-11.3 8a12 12 0 1 1 0-24c3 0 5.8 1.1 7.9 3l5.7-5.7A20 20 0 1 0 24 44c11 0 20-8.9 20-20 0-1.2-.1-2.3-.4-3.5z"/>
@@ -428,7 +422,7 @@ function AuthForm() {
           <button
             type="submit"
             disabled={loading}
-            className={`mt-1 w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${btnCls}`}
+            className={btn('primary', 'md', 'mt-1 w-full text-sm!')}
           >
             {loading
               ? (mode === 'signup' ? 'Creating account…' : 'Signing in…')
@@ -446,11 +440,7 @@ function AuthForm() {
                 type="button"
                 onClick={handleMagicLink}
                 disabled={loading}
-                className={`w-full py-2.5 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50 ${
-                  isDark
-                    ? 'border-gph-dark-line text-white hover:bg-gph-dark-bg'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                }`}
+                className={btn('secondary', 'md', 'w-full text-sm!')}
               >
                 Send a one-time link
               </button>

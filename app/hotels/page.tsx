@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -374,9 +375,6 @@ function HotelsPageInner() {
   const textMuted = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
   const starOnCls = 'text-cv-amber-400';
   const starOffCls = isDark ? 'text-gph-dark-line' : 'text-gray-200';
-  const viewBtnCls = isDark
-    ? 'bg-cv-lime-500 text-gph-dark-card hover:bg-cv-lime-400'
-    : 'bg-gray-900 text-white hover:bg-gray-800';
   const photoFallbackCls = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100';
 
   function renderHotelPinCard(pin: GeoPin): { expanded: React.ReactNode; tuck: React.ReactNode } {
@@ -444,7 +442,7 @@ function HotelsPageInner() {
               const sr = accommodations.find((a) => a.id === pin.id);
               if (sr) setDetailResult(sr);
             }}
-            className={`w-full min-h-11 rounded-lg text-xs font-bold ${viewBtnCls}`}
+            className={btn('value', 'md', 'w-full text-xs!')}
           >
             View details
           </button>

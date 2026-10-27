@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -883,9 +884,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
             <button
               disabled={isPending || !allValid}
               onClick={handlePublish}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 ${
-                isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-              }`}
+              className={btn('primary', 'md', 'text-sm!')}
             >
               {isPending
                 ? (isEditing ? 'Saving…' : 'Publishing…')

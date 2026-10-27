@@ -1,6 +1,7 @@
 'use client';
 
 import { useTheme } from '@/contexts/ThemeContext';
+import { btn } from '@/components/ui/button';
 
 function SunIcon() {
   return (
@@ -31,11 +32,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       <button
         onClick={toggleTheme}
         aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${
-          isDark
-            ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
-            : 'border-gray-200 text-gray-500 hover:bg-gray-100'
-        }`}
+        className={btn('secondary', 'icon')}
       >
         {isDark ? <MoonIcon /> : <SunIcon />}
       </button>

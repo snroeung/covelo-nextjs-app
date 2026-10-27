@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -353,9 +354,6 @@ export default function TripDetailPage() {
   const panelBg = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
   const dividerCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const iconBoxCls = isDark ? 'bg-gph-dark-linesoft' : 'bg-gray-100';
-  const addBtnCls = isDark
-    ? 'bg-cv-lime-500 text-gph-dark-card hover:bg-cv-lime-400'
-    : 'bg-gray-900 text-white hover:bg-gray-800';
 
   function renderTripPinCard(pin: GeoPin): { expanded: React.ReactNode; tuck: React.ReactNode } {
     const coords = `${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}`;
@@ -418,7 +416,7 @@ export default function TripDetailPage() {
                 }).catch(() => {});
               }
             }}
-            className={`w-full min-h-11 rounded-lg text-xs font-bold ${addBtnCls}`}
+            className={btn('value', 'md', 'w-full text-xs!')}
           >
             Add to trip
           </button>

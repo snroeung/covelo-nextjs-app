@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -95,9 +96,6 @@ function OnboardingForm() {
   const inputCls    = isDark
     ? 'bg-gph-dark-bg border-gph-dark-line text-white placeholder-gph-dark-muted focus:border-blue-500'
     : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900';
-  const btnPrimary  = isDark
-    ? 'bg-blue-600 hover:bg-blue-500 text-white'
-    : 'bg-gray-900 hover:bg-gray-700 text-white';
 
   const validSelectedCount = ONBOARDING_CARDS.filter(c => selectedCards.includes(c.id)).length;
 
@@ -275,7 +273,7 @@ function OnboardingForm() {
               type="button"
               onClick={() => setStep('username')}
               disabled={validSelectedCount === 0}
-              className={`w-full max-w-xs py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${btnPrimary}`}
+              className={btn('accent', 'md', 'w-full max-w-xs text-sm!')}
             >
               {validSelectedCount > 0 ? `Continue with ${validSelectedCount} card${validSelectedCount > 1 ? 's' : ''}` : 'Select a card to continue'}
             </button>
@@ -343,7 +341,7 @@ function OnboardingForm() {
               type="button"
               onClick={handleFinish}
               disabled={saving}
-              className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${btnPrimary}`}
+              className={btn('accent', 'md', 'w-full text-sm!')}
             >
               {saving ? 'Saving…' : 'Finish setup'}
             </button>
