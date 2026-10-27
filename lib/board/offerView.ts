@@ -167,6 +167,8 @@ export interface MemberOfferRow {
   conditions: string | null;
   ends_label: string | null;
   source_url: string | null;
+  /** Structured fields (migration 033); null on offers created before it */
+  details?: { description?: string | null } | null;
 }
 
 export function memberOffer(row: MemberOfferRow): BoardOffer {
@@ -175,6 +177,6 @@ export function memberOffer(row: MemberOfferRow): BoardOffer {
     type: row.type, value: row.value, title: row.name,
     from: row.from_program, to: row.to_program,
     detail: row.conditions, ends: row.ends_label, endsIn: null,
-    terms: null, url: row.source_url,
+    terms: row.details?.description?.trim() || null, url: row.source_url,
   };
 }

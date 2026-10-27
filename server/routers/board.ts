@@ -6,7 +6,7 @@ import { boardAdminRouter } from "@/server/routers/boardAdmin";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import {
-  BOARD_OFFER_TYPES, BOARD_REPORT_REASONS, BOARD_TEXT_LIMITS, MOD_THRESHOLDS,
+  BOARD_REPORT_REASONS, BOARD_TEXT_LIMITS, MOD_THRESHOLDS,
 } from "@/lib/board/constants";
 import {
   BOARD_COOLDOWNS, checkCooldown, checkPerTarget, checkPostTopics, checkRateLimit, checkRateLimitFor, checkRejectLock,
@@ -27,6 +27,7 @@ import { must, throwIfBlocked } from "@/lib/board/server/errors";
 import { countFeed, fetchPost, queryFeed, type FeedRow } from "@/lib/board/server/feed";
 import { COMMENT_COLUMNS, buildCommentTree, hydratePosts, loadThread, type CommentRow } from "@/lib/board/server/hydrate";
 import { loadBlockedTerms, moderateSubmission } from "@/lib/board/server/moderate";
+import { deriveMemberOfferColumns, memberOfferDetails, type MemberOfferDetails } from "@/lib/board/memberOffer";
 import {
   createTopics, deleteTopics, loadTopicIndex, planTopics, previewTopic, topicFamily, type TopicPreview,
 } from "@/lib/board/server/topics";
@@ -44,27 +45,11 @@ import {
 
 const id = z.guid();
 const text = (max: number) => z.string().trim().min(1).max(max);
-const optionalText = (max: number) => z.string().trim().max(max).optional();
 
 const topicInput = z.union([z.object({ id }), z.object({ name: text(60) })]);
 
-const sourceLink = z
-  .string()
-  .trim()
-  .max(2000)
-  .refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), "Source link must start with http:// or https://")
-  .optional();
 
-const newOfferInput = z.object({
-  type: z.enum(BOARD_OFFER_TYPES),
-  value: text(24),
-  name: text(120),
-  from: text(80),
-  to: optionalText(80),
-  conditions: optionalText(300),
-  ends: optionalText(40),
-  url: sourceLink,
-});
+const newOfferInput = memberOfferDetails;
 
 const createPostInput = z
   .object({
@@ -225,13 +210,19 @@ export const boardRouter = router({
         }
 
         const chosenTopics = plan.ordered.map((i) => (i.type === "existing" ? i.topic.name : i.name));
+        const offerCols = input.newOffer ? deriveMemberOfferColumns(input.newOffer) : undefined;
+        // The free-text description is member-written, so moderation scans it with the conditions
+        const modOffer = offerCols && {
+          ...offerCols,
+          conditions: [offerCols.conditions, input.newOffer?.description].filter(Boolean).join(" · ") || undefined,
+        };
         const outcome = await moderateSubmission(
           admin,
           {
             kind: input.kind,
             title: input.title,
             body: input.body,
-            offer: input.newOffer && { ...input.newOffer, url: input.newOffer.url || undefined },
+            offer: modOffer,
             chosenTopics,
             newTopics: plan.toCreate.map((t) => t.name),
             availableTopics: index.topics.filter((t) => t.status !== "hidden").map((t) => t.name),
@@ -269,7 +260,7 @@ export const boardRouter = router({
           if (input.newOffer) {
             const inserted = await admin
               .from("board_member_offers")
-              .insert(toMemberOfferRow(input.newOffer))
+              .insert(toMemberOfferRow(input.newOffer!))
               .select("id")
               .single();
             memberOfferId = (must(inserted, "offer create") as unknown as { id: string }).id;
@@ -281,7 +272,7 @@ export const boardRouter = router({
           const searchExtra = [
             authorName,
             ...resolved.map((r) => r.topic.name),
-            input.newOffer?.name, input.newOffer?.from, input.newOffer?.to,
+            offerCols?.name, offerCols?.from, offerCols?.to,
           ].filter(Boolean).join(" ");
 
           const insertedPost = await admin
@@ -721,11 +712,12 @@ async function castVote(
   return value;
 }
 
-/** board_member_offers insert row for a member-created offer. */
-function toMemberOfferRow(o: z.infer<typeof newOfferInput>) {
+/** board_member_offers insert row for a member-created offer: the derived flat columns plus the structured details. */
+function toMemberOfferRow(d: MemberOfferDetails) {
+  const o = deriveMemberOfferColumns(d);
   return {
-    type: o.type, value: o.value, name: o.name, from_program: o.from, to_program: o.to || null,
-    conditions: o.conditions || null, ends_label: o.ends || null, source_url: o.url || null,
+    type: o.type, value: o.value, name: o.name, from_program: o.from, to_program: o.to ?? null,
+    conditions: o.conditions ?? null, ends_label: o.ends ?? null, source_url: o.url ?? null, details: d,
   };
 }
 

@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 // review", "Couldn't save your vote"). Announced politely to screen readers.
 
 interface ToastValue {
-  show: (message: string, opts?: { tone?: 'default' | 'error'; href?: { label: string; url: string } }) => void;
+  show: (message: string, opts?: { tone?: 'default' | 'error'; href?: { label: string; url: string }; action?: { label: string; onClick: () => void } }) => void;
 }
 
 const ToastContext = createContext<ToastValue | null>(null);
@@ -16,6 +16,7 @@ interface Toast {
   message: string;
   tone: 'default' | 'error';
   href?: { label: string; url: string };
+  action?: { label: string; onClick: () => void };
 }
 
 export function BoardToastProvider({ children }: { children: React.ReactNode }) {
@@ -25,8 +26,8 @@ export function BoardToastProvider({ children }: { children: React.ReactNode }) 
 
   const show = useCallback<ToastValue['show']>((message, opts) => {
     if (timer.current) clearTimeout(timer.current);
-    setToast({ id: ++seq.current, message, tone: opts?.tone ?? 'default', href: opts?.href });
-    timer.current = setTimeout(() => setToast(null), opts?.href ? 6000 : 3500);
+    setToast({ id: ++seq.current, message, tone: opts?.tone ?? 'default', href: opts?.href, action: opts?.action });
+    timer.current = setTimeout(() => setToast(null), opts?.href || opts?.action ? 6000 : 3500);
   }, []);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -45,6 +46,15 @@ export function BoardToastProvider({ children }: { children: React.ReactNode }) 
             }`}
           >
             <span>{toast.message}</span>
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => { toast.action?.onClick(); setToast(null); }}
+                className="underline underline-offset-2 min-h-11 inline-flex items-center font-bold"
+              >
+                {toast.action.label}
+              </button>
+            )}
             {toast.href && (
               <a href={toast.href.url} className="underline underline-offset-2 min-h-11 inline-flex items-center">
                 {toast.href.label}

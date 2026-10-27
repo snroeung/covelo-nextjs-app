@@ -8,21 +8,8 @@ import { trpc } from '@/lib/trpc-client';
 import { CARD_NAMES, ISSUER_CARDS, type CardId, type PortalId } from '@/lib/points/types';
 import { PARTNER_IMAGES } from '@/lib/partnerImages';
 import type { Issuer, TransferBonus, SpendingBonus } from '@/lib/types/offers';
-
-const OFFER_TAGS = [
-  'Statement credit',
-  'Free night',
-  'Sign on bonus',
-  'Points bonus',
-  'Transfer bonus',
-  'Cash back',
-  'Hotel credit',
-  'Flight credit',
-  'Dining credit',
-  'Travel credit',
-  'Annual benefit',
-  'Limited time',
-];
+import { OFFER_TAGS } from '@/lib/board/memberOffer';
+import { issuersForPartner, partnerLabel, partnersForIssuer, soleIssuer } from '@/lib/points/partnerOptions';
 
 type OfferType = 'transfer' | 'spending';
 
@@ -164,9 +151,8 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
   });
 
   // Transfer partner options filtered by issuer — DB-approved partners only
-  const partnerOptions = transfer.issuer
-    ? (transferPartners?.[ISSUER_TO_PORTAL[transfer.issuer as Issuer]] ?? [])
-    : [];
+  const partnerOptions = partnersForIssuer(transferPartners, (transfer.issuer ? ISSUER_TO_PORTAL[transfer.issuer as Issuer] : '') as PortalId | '');
+  const issuerChoices = issuersForPartner(transferPartners, transfer.transfer_partner, ISSUERS);
 
   // Card checkboxes filtered by issuer
   const transferCardOptions = transfer.issuer
@@ -329,8 +315,17 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     setSpending((prev) => ({ ...prev, [key]: value }));
   }
 
+  // Issuer and partner can be picked in either order: a partner the new issuer
+  // doesn't reach is dropped, and a partner picked first fills in its issuer
+  // when only one reaches it.
   function handleTransferIssuerChange(issuer: string) {
-    setTransfer((prev) => ({ ...prev, issuer: issuer as Issuer, transfer_partner: '', card_ids: [] }));
+    const keeps = !!issuer && partnersForIssuer(transferPartners, issuer as PortalId).some((p) => p.program === transfer.transfer_partner);
+    setTransfer((prev) => ({ ...prev, issuer: issuer as Issuer, transfer_partner: keeps ? prev.transfer_partner : '', card_ids: [] }));
+  }
+
+  function handleTransferPartnerChange(program: string) {
+    const only = transfer.issuer ? '' : soleIssuer(transferPartners, program);
+    setTransfer((prev) => ({ ...prev, transfer_partner: program, ...(only ? { issuer: only as Issuer, card_ids: [] } : {}) }));
   }
 
   function handleSpendingIssuerChange(issuer: string) {
@@ -508,7 +503,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       onChange={(e) => handleTransferIssuerChange(e.target.value)}
                     >
                       <option value="">Select issuer…</option>
-                      {ISSUERS.map((iss) => (
+                      {issuerChoices.map((iss) => (
                         <option key={iss} value={iss}>{ISSUER_LABELS[iss]}</option>
                       ))}
                     </select>
@@ -519,13 +514,12 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     <select
                       className={iCls}
                       value={transfer.transfer_partner}
-                      onChange={(e) => setT('transfer_partner', e.target.value)}
-                      disabled={!transfer.issuer}
+                      onChange={(e) => handleTransferPartnerChange(e.target.value)}
                     >
-                      <option value="">{transfer.issuer ? 'Select partner…' : 'Select issuer first'}</option>
+                      <option value="">Select partner…</option>
                       {partnerOptions.map((p) => (
                         <option key={p.program} value={p.program}>
-                          [{p.type === 'hotel' ? 'Hotel' : 'Airline'}] {p.program} ({p.ratio})
+                          {partnerLabel(p, (transfer.issuer ? ISSUER_TO_PORTAL[transfer.issuer as Issuer] : '') as PortalId | '', (i) => ISSUER_LABELS[i as Issuer])}
                         </option>
                       ))}
                     </select>

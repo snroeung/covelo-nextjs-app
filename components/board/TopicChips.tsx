@@ -5,6 +5,7 @@ import { TOPIC_RULES } from '@/lib/board/constants';
 import type { BoardTopic } from '@/lib/board/types';
 import { FIELD } from '@/components/ui/field';
 import { Dialog, DialogBody, DialogHeader } from './Dialog';
+import { TopicChipMenu } from './TopicChipMenu';
 
 interface Props {
   topics: BoardTopic[];
@@ -35,6 +36,8 @@ export function TopicChips({ topics, selected, counts, allCount, onSelect }: Pro
     return { shown: pinned ? [...head, pinned] : head, hasMore: topics.length > head.length };
   }, [topics, selected]);
 
+  const selectedTopic = selected ? topics.find((t) => t.id === selected) : undefined;
+
   const count = (n: number | null | undefined) =>
     n == null ? null : <span className="font-mono text-[10.5px] opacity-80">{n}</span>;
 
@@ -59,6 +62,7 @@ export function TopicChips({ topics, selected, counts, allCount, onSelect }: Pro
               More topics
             </button>
           )}
+          {selectedTopic && <TopicChipMenu topic={selectedTopic} topics={topics} onGone={() => onSelect(null)} />}
         </div>
       </div>
       {moreOpen && (

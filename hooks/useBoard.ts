@@ -17,6 +17,7 @@ import {
 } from '@/lib/board/cache';
 import type { BoardComment, VoteValue } from '@/lib/board/types';
 import { useBoardToast } from '@/components/board/Toast';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 export const boardKeys = {
   feedRoot: ['board', 'feed'] as const,
@@ -31,11 +32,12 @@ export const boardKeys = {
 /** Who is looking. `ready` is false until the session check finishes, so queries don't fire as "signed out" first. */
 export function useBoardViewer() {
   const { user, profile, loading } = useAuth();
+  const isAdmin = useIsAdmin();
   return {
     ready: !loading,
     signedIn: !!user,
     id: user?.id ?? null,
-    isAdmin: (user?.app_metadata as { role?: string } | undefined)?.role === 'admin',
+    isAdmin,
     // The name other members see on this member's posts — never their email address
     name: user ? profile?.display_name?.trim() || profile?.username || (user.user_metadata as { full_name?: string } | undefined)?.full_name || 'Traveler' : null,
   };
@@ -256,5 +258,56 @@ export function useReport() {
   return useMutation({
     mutationFn: (v: { kind: 'post' | 'comment'; id: string; reason: (typeof import('@/lib/board/constants').BOARD_REPORT_REASONS)[number]; note?: string }) =>
       trpc.board.report.mutate(v),
+  });
+}
+
+// ─── Admin writes (moderators only; the server re-checks every one) ─────────
+
+type Target = { kind: 'post' | 'comment'; id: string };
+type RemoveReason = (typeof import('@/lib/board/constants').BOARD_REMOVE_REASONS)[number];
+type RejectReason = (typeof import('@/lib/board/constants').BOARD_REJECT_REASONS)[number];
+
+export type ModOp =
+  | ({ op: 'takeDown'; reason: RemoveReason; note?: string } & Target)
+  | ({ op: 'restore' } & Target)
+  | ({ op: 'approveHeld' } & Target)
+  | ({ op: 'dismissReports' } & Target)
+  | { op: 'setTopic'; postId: string; topicId: string }
+  | { op: 'lockComments'; postId: string; locked: boolean }
+  | { op: 'verify'; postId: string }
+  | { op: 'rejectOffer'; postId: string; reason: RejectReason }
+  | { op: 'renameTopic'; id: string; name: string }
+  | { op: 'mergeTopic'; sourceId: string; targetId: string }
+  | { op: 'hideTopic'; id: string; hidden: boolean }
+  | { op: 'promoteTopic'; id: string };
+
+function runModOp(v: ModOp) {
+  const a = trpc.board.admin;
+  switch (v.op) {
+    case 'takeDown': return a.takeDown.mutate({ kind: v.kind, id: v.id, reason: v.reason, note: v.note });
+    case 'restore': return a.restore.mutate({ kind: v.kind, id: v.id });
+    case 'approveHeld': return a.approveHeld.mutate({ kind: v.kind, id: v.id });
+    case 'dismissReports': return a.dismissReports.mutate({ kind: v.kind, id: v.id });
+    case 'setTopic': return a.setTopic.mutate({ postId: v.postId, topicId: v.topicId });
+    case 'lockComments': return a.lockComments.mutate({ postId: v.postId, locked: v.locked });
+    case 'verify': return a.approve.mutate({ postId: v.postId });
+    case 'rejectOffer': return a.reject.mutate({ postId: v.postId, reason: v.reason });
+    case 'renameTopic': return a.topics.rename.mutate({ id: v.id, name: v.name });
+    case 'mergeTopic': return a.topics.merge.mutate({ sourceId: v.sourceId, targetId: v.targetId });
+    case 'hideTopic': return a.topics.hide.mutate({ id: v.id, hidden: v.hidden });
+    case 'promoteTopic': return a.topics.promote.mutate({ id: v.id });
+  }
+}
+
+/** One mutation for every moderator action; refreshes the feed, the open post and the topic chips afterwards. */
+export function useModAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: ModOp) => runModOp(v),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: boardKeys.feedRoot });
+      void qc.invalidateQueries({ queryKey: boardKeys.postRoot });
+      void qc.invalidateQueries({ queryKey: ['board', 'topics'] });
+    },
   });
 }

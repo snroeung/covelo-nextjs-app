@@ -9,6 +9,8 @@ import { Avatar } from './Avatar';
 import { BTN_ACTION } from '@/components/ui/button';
 import { BoardIcon } from './icons';
 import { ModBanner } from './ModBanner';
+import { ModMenu } from './ModMenu';
+import { ModStrip } from './ModStrip';
 import { ReplyBox } from './ReplyBox';
 import { ReportDialog } from './ReportDialog';
 import { useBoardToast } from './Toast';
@@ -102,6 +104,7 @@ function CommentNode({ comment: c, depth, locked, actions }: { comment: BoardCom
                 {c.body}
               </p>
               {c.notice && <div className="mt-2"><ModBanner notice={c.notice} /></div>}
+              {c.mod && <div className="mt-2"><ModStrip mod={c.mod} /></div>}
 
               {!placeholder && (
                 <div className="-ml-1 mb-1.5 mt-1 flex flex-wrap items-center">
@@ -127,7 +130,12 @@ function CommentNode({ comment: c, depth, locked, actions }: { comment: BoardCom
                       Report
                     </button>
                   )}
+                  <ModMenu kind="comment" comment={c} />
                 </div>
+              )}
+
+              {c.body === '[removed by moderator]' && (
+                <div className="-ml-1 mb-1.5 flex"><ModMenu kind="comment" comment={c} /></div>
               )}
 
               {replying && (

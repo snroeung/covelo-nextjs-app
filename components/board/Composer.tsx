@@ -13,6 +13,7 @@ import { FIELD, LABEL } from '@/components/ui/field';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
 import { BoardIcon } from './icons';
 import { KindPicker, type PostKind } from './KindPicker';
+import { draftToDetails, type MemberOfferDetailsInput } from '@/lib/board/memberOffer';
 import { EMPTY_OFFER, NewOfferForm, newOfferError, type NewOfferDraft } from './NewOfferForm';
 import { OfferLinkPicker } from './OfferLinkPicker';
 import { postPath } from './share';
@@ -21,7 +22,6 @@ import { TopicPicker } from './TopicPicker';
 
 type OfferMode = 'link' | 'new';
 
-const orUndefined = (s: string) => s.trim() || undefined;
 
 export function Composer({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -41,7 +41,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const titleId = useId();
   const bodyId = useId();
 
-  const dirty = title.trim() !== '' || body.trim() !== '' || picked.length > 0 || linked !== null || offer.value !== '' || offer.name !== '';
+  const dirty = title.trim() !== '' || body.trim() !== '' || picked.length > 0 || linked !== null || offer.issuer !== '' || offer.description !== '';
   function requestClose() {
     if (!dirty || create.isPending || window.confirm('Discard this draft?')) onClose();
   }
@@ -81,10 +81,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
         ...(kind === 'offer' && mode === 'link' && linked?.table ? { link: { table: linked.table, id: linked.id } } : {}),
         ...(kind === 'offer' && mode === 'new'
           ? {
-              newOffer: {
-                type: offer.type, value: offer.value.trim(), name: offer.name.trim(), from: offer.from.trim(),
-                to: orUndefined(offer.to), conditions: orUndefined(offer.conditions), ends: orUndefined(offer.ends), url: orUndefined(offer.url),
-              },
+              newOffer: draftToDetails(offer) as MemberOfferDetailsInput,
             }
           : {}),
       },

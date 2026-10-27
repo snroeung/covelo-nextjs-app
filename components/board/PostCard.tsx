@@ -10,6 +10,8 @@ import { KindBadge, VerifyBadge } from './Badges';
 import { BTN_ACTION } from '@/components/ui/button';
 import { BoardIcon } from './icons';
 import { ModBanner } from './ModBanner';
+import { ModMenu } from './ModMenu';
+import { ModStrip } from './ModStrip';
 import { OfferPreview } from './OfferPreview';
 import { ReportDialog } from './ReportDialog';
 import { copyLink, postPath } from './share';
@@ -62,6 +64,7 @@ export function PostCard({ post }: { post: BoardPost }) {
 
         {post.offer && <div className="mt-2.5"><OfferPreview offer={post.offer} compact /></div>}
         {post.notice && <div className="mt-2.5"><ModBanner notice={post.notice} /></div>}
+        {post.mod && <div className="mt-2.5" onClick={(e) => e.stopPropagation()}><ModStrip mod={post.mod} postId={post.id} topicId={post.topics[0]?.id} /></div>}
 
         <div className="-ml-2.5 mt-1.5 flex flex-wrap" onClick={(e) => e.stopPropagation()}>
           <Link href={href} className={BTN_ACTION}>
@@ -87,6 +90,7 @@ export function PostCard({ post }: { post: BoardPost }) {
               Report
             </button>
           )}
+          <ModMenu kind="post" post={post} />
         </div>
       </div>
 

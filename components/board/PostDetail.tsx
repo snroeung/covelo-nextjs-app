@@ -13,6 +13,8 @@ import { CommentThread } from './CommentThread';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
 import { BoardIcon } from './icons';
 import { ModBanner } from './ModBanner';
+import { ModMenu } from './ModMenu';
+import { ModStrip } from './ModStrip';
 import { OfferPreview } from './OfferPreview';
 import { ReplyBox } from './ReplyBox';
 import { ReportDialog } from './ReportDialog';
@@ -105,6 +107,7 @@ export function PostDetail({ data }: { data: PostDetailData }) {
           )}
 
           {post.notice && <div className="mt-4"><ModBanner notice={post.notice} /></div>}
+          {post.mod && <div className="mt-3"><ModStrip mod={post.mod} postId={post.id} topicId={post.topics[0]?.id} /></div>}
           {post.offer && (
             <div className="mt-[18px] flex flex-col gap-2.5">
               <OfferPreview offer={post.offer} />
@@ -141,6 +144,7 @@ export function PostDetail({ data }: { data: PostDetailData }) {
                 Report
               </button>
             )}
+            <ModMenu kind="post" post={post} />
           </div>
         </div>
       </article>

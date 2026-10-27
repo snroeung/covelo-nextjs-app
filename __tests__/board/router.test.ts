@@ -64,6 +64,12 @@ beforeEach(() => {
 
 // ─── posts.create ────────────────────────────────────────────────────────────
 
+const transferOffer = {
+  kind: 'transfer' as const, issuer: 'amex' as const, transfer_partner: 'Virgin Atlantic', bonus_pct: 25,
+  start_date: '2026-06-01', end_date: '2026-06-30', source_url: 'https://www.virginatlantic.com/promo',
+};
+const spendingOffer = { kind: 'spending' as const, issuer: 'chase' as const, merchant_name: 'Hyatt', bonus_type: 'dollar_amount' as const, bonus_multiplier: 100, start_date: '2026-06-01', end_date: '2026-06-30' };
+
 describe('posts.create — happy path', () => {
   it('posts a tip: no review, clean, primary topic first, search text, audit event, cache bust', async () => {
     const db = mockDb();
@@ -150,7 +156,7 @@ describe('posts.create — moderation', () => {
       .rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Remove referral or affiliate links.' });
     await expect(caller().board.posts.create({
       kind: 'offer', title: 'Deal', topics: [{ id: T_HOTEL }],
-      newOffer: { type: 'PARTNER DEAL', value: '5×', name: 'Five times', from: 'Bilt', url: 'https://example.com/?ref=abc' },
+      newOffer: { ...transferOffer, source_url: 'https://example.com/?ref=abc' },
     })).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Remove referral or affiliate links.' });
     expect(db.of('board_member_offers', 'insert')).toHaveLength(0);
   });
@@ -293,11 +299,13 @@ describe('posts.create — offers', () => {
     const db = mockDb({ board_member_offers: (q) => (q.action === 'insert' ? { data: { id: MO1 } } : undefined) });
     await caller().board.posts.create({
       kind: 'offer', title: 'Amex → Virgin 25%', topics: [{ id: T_TRANSFER }],
-      newOffer: { type: 'TRANSFER BONUS', value: '+25%', name: '25% transfer bonus · Amex → Virgin', from: 'Amex', to: 'Virgin Atlantic', conditions: 'Max 50k', ends: 'Jun 30', url: 'https://www.virginatlantic.com/promo' },
+      newOffer: transferOffer,
     });
-    expect(db.of('board_member_offers', 'insert')[0].payload).toEqual({
-      type: 'TRANSFER BONUS', value: '+25%', name: '25% transfer bonus · Amex → Virgin', from_program: 'Amex', to_program: 'Virgin Atlantic',
-      conditions: 'Max 50k', ends_label: 'Jun 30', source_url: 'https://www.virginatlantic.com/promo',
+    // Flat columns are derived from the structured details, which are stored as-is
+    expect(db.of('board_member_offers', 'insert')[0].payload).toMatchObject({
+      type: 'TRANSFER BONUS', value: '+25%', name: '25% transfer bonus · American Express → Virgin Atlantic', from_program: 'American Express',
+      to_program: 'Virgin Atlantic', conditions: '1,000 pts → 1,250 pts', source_url: 'https://www.virginatlantic.com/promo',
+      details: { kind: 'transfer', issuer: 'amex', transfer_partner: 'Virgin Atlantic', bonus_pct: 25, card_ids: [], tags: [], country: 'US', start_date: '2026-06-01', end_date: '2026-06-30' },
     });
     expect(db.of('board_posts', 'insert')[0].payload).toMatchObject({ review: 'pending', member_offer_id: MO1, offer_id: null, offer_table: null });
   });
@@ -305,7 +313,7 @@ describe('posts.create — offers', () => {
   it('rate limits member-created offers more tightly', async () => {
     mockDb({ board_posts: (q) => (q.head ? { count: 4 } : q.action === 'select' ? { data: [{ created_at: ago(2 * HOUR), kind: 'offer', member_offer_id: MO1, offer_table: null, offer_id: null }, { created_at: ago(3 * HOUR), kind: 'offer', member_offer_id: MO1, offer_table: null, offer_id: null }, { created_at: ago(4 * HOUR), kind: 'offer', member_offer_id: MO1, offer_table: null, offer_id: null }] } : undefined) });
     await expect(caller().board.posts.create({
-      kind: 'offer', title: 'Another', topics: [{ id: T_TRANSFER }], newOffer: { type: 'FREE NIGHT', value: 'Free', name: 'Free night', from: 'Hyatt' },
+      kind: 'offer', title: 'Another', topics: [{ id: T_TRANSFER }], newOffer: spendingOffer,
     })).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS', message: expect.stringMatching(/new offers per day/) });
   });
 
@@ -318,7 +326,7 @@ describe('posts.create — offers', () => {
       board_post_topics: () => ({ error: { message: 'link failed' } }),
     });
     await expect(caller().board.posts.create({
-      kind: 'offer', title: 'Deal', topics: [{ name: 'Airport lounges' }], newOffer: { type: 'FREE NIGHT', value: 'Free', name: 'Free night', from: 'Hyatt' },
+      kind: 'offer', title: 'Deal', topics: [{ name: 'Airport lounges' }], newOffer: spendingOffer,
     })).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
     expect(db.of('board_posts', 'delete')).toHaveLength(1);
     expect(db.of('board_member_offers', 'delete')).toHaveLength(1);
@@ -338,10 +346,10 @@ describe('posts.create — offers', () => {
     await expect(caller().board.posts.create({ ...tipInput, link: offerInput.link })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(caller().board.posts.create({ kind: 'offer', title: 'x', topics: [{ id: T_HOTEL }] })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(caller().board.posts.create({
-      kind: 'offer', title: 'x', topics: [{ id: T_HOTEL }], link: offerInput.link, newOffer: { type: 'FREE NIGHT', value: 'Free', name: 'n', from: 'f' },
+      kind: 'offer', title: 'x', topics: [{ id: T_HOTEL }], link: offerInput.link, newOffer: spendingOffer,
     })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(caller().board.posts.create({
-      kind: 'offer', title: 'x', topics: [{ id: T_HOTEL }], newOffer: { type: 'FREE NIGHT', value: 'Free', name: 'n', from: 'f', url: 'javascript:alert(1)' },
+      kind: 'offer', title: 'x', topics: [{ id: T_HOTEL }], newOffer: { ...transferOffer, source_url: 'javascript:alert(1)' },
     })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });
