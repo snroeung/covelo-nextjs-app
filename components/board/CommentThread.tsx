@@ -6,7 +6,7 @@ import { describeError } from '@/lib/board/errors';
 import type { BoardComment, VoteValue } from '@/lib/board/types';
 import { useCreateComment, useDeleteComment, useRequireSignIn, useVoteComment } from '@/hooks/useBoard';
 import { Avatar } from './Avatar';
-import { BTN_ACTION } from './buttons';
+import { BTN_ACTION } from '@/components/ui/button';
 import { BoardIcon } from './icons';
 import { ModBanner } from './ModBanner';
 import { ReplyBox } from './ReplyBox';

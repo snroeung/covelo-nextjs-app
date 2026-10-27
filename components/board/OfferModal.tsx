@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { BoardOffer } from '@/lib/board/types';
-import { BTN_GHOST, BTN_PRIMARY } from './buttons';
+import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogFooter } from './Dialog';
 import { BoardIcon } from './icons';
 

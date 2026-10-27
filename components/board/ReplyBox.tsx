@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { BOARD_TEXT_LIMITS } from '@/lib/board/constants';
-import { BTN_GHOST, BTN_PRIMARY } from './buttons';
+import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
 
 interface Props {
   placeholder: string;

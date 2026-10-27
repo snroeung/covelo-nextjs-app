@@ -7,7 +7,7 @@ import { timeAgo, pluralize } from '@/lib/board/format';
 import type { BoardPost } from '@/lib/board/types';
 import { useRequireSignIn, useSavePost, useVotePost } from '@/hooks/useBoard';
 import { KindBadge, VerifyBadge } from './Badges';
-import { BTN_ACTION } from './buttons';
+import { BTN_ACTION } from '@/components/ui/button';
 import { BoardIcon } from './icons';
 import { ModBanner } from './ModBanner';
 import { OfferPreview } from './OfferPreview';

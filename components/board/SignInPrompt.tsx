@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BTN_GHOST, BTN_PRIMARY } from './buttons';
+import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
 
 /** Shown when a signed-out visitor tries to post. */

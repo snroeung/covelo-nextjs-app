@@ -90,6 +90,15 @@
   --gph-pending-soft:#fdf3dc;
   --gph-danger:      #b91c1c;
   --gph-danger-soft: #fee2e2;
+  /* Button fills. accent = green CTA (same in both themes); value = the
+     points-value CTA (ink in light, lime in dark). Hover on accent goes
+     darker, not lighter, to keep white text >=4.5:1. */
+  --gph-accent:      #2D7A3A;
+  --gph-accent-hi:   #246330;
+  --gph-accent-fg:   #ffffff;
+  --gph-value:       #18181b;
+  --gph-value-hi:    #27272a;
+  --gph-value-fg:    #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -110,6 +119,9 @@
   --gph-pending-soft:rgba(245, 158, 11, 0.12);
   --gph-danger:      #f87171;
   --gph-danger-soft: rgba(127, 29, 29, 0.4);
+  --gph-value:       #84CC16;
+  --gph-value-hi:    #A3E635;
+  --gph-value-fg:    #0a1628;
 }
 
 @theme inline {
@@ -130,6 +142,12 @@
   --color-gph-pending-soft: var(--gph-pending-soft);
   --color-gph-danger:       var(--gph-danger);
   --color-gph-danger-soft:  var(--gph-danger-soft);
+  --color-gph-accent:       var(--gph-accent);
+  --color-gph-accent-hi:    var(--gph-accent-hi);
+  --color-gph-accent-fg:    var(--gph-accent-fg);
+  --color-gph-value:        var(--gph-value);
+  --color-gph-value-hi:     var(--gph-value-hi);
+  --color-gph-value-fg:     var(--gph-value-fg);
 }
 
 @theme {

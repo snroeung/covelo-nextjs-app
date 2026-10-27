@@ -5,7 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { describeError } from '@/lib/board/errors';
 import { useBoardPost } from '@/hooks/useBoard';
 import { readFeedSearch } from './backLink';
-import { BTN_GHOST } from './buttons';
+import { BTN_GHOST } from '@/components/ui/button';
 import { FeedSkeleton } from './FeedSkeleton';
 import { BoardIcon } from './icons';
 import { PostDetail } from './PostDetail';

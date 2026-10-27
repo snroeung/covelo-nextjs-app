@@ -4,7 +4,8 @@ import { useId, useState } from 'react';
 import { BOARD_REPORT_REASONS, BOARD_TEXT_LIMITS } from '@/lib/board/constants';
 import { describeError } from '@/lib/board/errors';
 import { useReport } from '@/hooks/useBoard';
-import { BTN_GHOST, BTN_PRIMARY, FIELD, LABEL } from './buttons';
+import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
+import { FIELD, LABEL } from '@/components/ui/field';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
 import { useBoardToast } from './Toast';
 

@@ -2,7 +2,7 @@
 
 import { useId } from 'react';
 import { BOARD_OFFER_TYPES } from '@/lib/board/constants';
-import { FIELD, LABEL } from './buttons';
+import { FIELD, LABEL } from '@/components/ui/field';
 
 export interface NewOfferDraft {
   type: (typeof BOARD_OFFER_TYPES)[number];

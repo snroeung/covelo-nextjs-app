@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { TOPIC_RULES } from '@/lib/board/constants';
 import type { BoardTopic } from '@/lib/board/types';
-import { FIELD } from './buttons';
+import { FIELD } from '@/components/ui/field';
 import { Dialog, DialogBody, DialogHeader } from './Dialog';
 
 interface Props {

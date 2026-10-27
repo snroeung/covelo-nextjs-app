@@ -9,7 +9,7 @@ import { saveFeedSearch } from './backLink';
 import { BoardFilters } from './BoardFilters';
 import { BoardHeader } from './BoardHeader';
 import { BoardSidebar } from './BoardSidebar';
-import { BTN_GHOST } from './buttons';
+import { BTN_GHOST } from '@/components/ui/button';
 import { Composer } from './Composer';
 import { FeedSkeleton } from './FeedSkeleton';
 import { PostCard } from './PostCard';

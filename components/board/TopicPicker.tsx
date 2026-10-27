@@ -8,7 +8,7 @@ import {
   type TopicSelection,
 } from '@/lib/board/topicSelection';
 import type { BoardTopic } from '@/lib/board/types';
-import { FIELD, LABEL } from './buttons';
+import { FIELD, LABEL } from '@/components/ui/field';
 import { BoardIcon } from './icons';
 
 interface Props {

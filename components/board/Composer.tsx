@@ -8,7 +8,8 @@ import { selectionError, toTopicInputs, type TopicSelection } from '@/lib/board/
 import type { BoardOffer } from '@/lib/board/types';
 import { useBoardLimits, useBoardTopics, useCreatePost } from '@/hooks/useBoard';
 import { saveFeedSearch } from './backLink';
-import { BTN_GHOST, BTN_PRIMARY, FIELD, LABEL } from './buttons';
+import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
+import { FIELD, LABEL } from '@/components/ui/field';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
 import { BoardIcon } from './icons';
 import { KindPicker, type PostKind } from './KindPicker';

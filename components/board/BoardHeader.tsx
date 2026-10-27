@@ -1,4 +1,4 @@
-import { BTN_PRIMARY } from './buttons';
+import { BTN_PRIMARY } from '@/components/ui/button';
 import { BoardIcon } from './icons';
 
 export function BoardHeader({ onNewPost }: { onNewPost: () => void }) {

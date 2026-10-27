@@ -8,7 +8,7 @@ import { timeAgo } from '@/lib/board/format';
 import { useCreateComment, useDeletePost, useRequireSignIn, useSavePost, useVotePost, useBoardViewer } from '@/hooks/useBoard';
 import { Avatar } from './Avatar';
 import { KindBadge, VerifyBadge } from './Badges';
-import { BTN_ACTION, BTN_DANGER, BTN_GHOST } from './buttons';
+import { BTN_ACTION, BTN_DANGER, BTN_GHOST } from '@/components/ui/button';
 import { CommentThread } from './CommentThread';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
 import { BoardIcon } from './icons';
