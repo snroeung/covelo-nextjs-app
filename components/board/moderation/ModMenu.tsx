@@ -8,9 +8,9 @@ import { useBoardTopics, useModAction, type ModOp } from '@/hooks/useBoard';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { BTN_ACTION, BTN_DANGER, BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
 import { FIELD, LABEL } from '@/components/ui/field';
-import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
-import { BoardIcon } from './icons';
-import { useBoardToast } from './Toast';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/board/shared/Dialog';
+import { BoardIcon } from '@/components/board/shared/icons';
+import { useBoardToast } from '@/components/board/shared/Toast';
 
 type Item =
   | { kind: 'post'; post: BoardPost }

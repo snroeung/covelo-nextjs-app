@@ -5,7 +5,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { hasActiveFilters, MAX_QUERY, type BoardFilters as Filters, type FeedSort, type FeedType } from '@/lib/board/filters';
 import type { BoardTopic } from '@/lib/board/types';
 import type { FeedPage } from '@/lib/board/cache';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 import { TopicChips } from './TopicChips';
 
 interface Props {

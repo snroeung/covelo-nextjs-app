@@ -5,15 +5,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { describeError } from '@/lib/board/errors';
 import { DEFAULT_FILTERS, filtersToSearch, hasActiveFilters, parseFilters, type BoardFilters as Filters } from '@/lib/board/filters';
 import { useBoardFeed, useBoardTopics, useBoardViewer } from '@/hooks/useBoard';
-import { saveFeedSearch } from './backLink';
+import { saveFeedSearch } from '@/components/board/shared/backLink';
 import { BoardFilters } from './BoardFilters';
 import { BoardHeader } from './BoardHeader';
 import { BoardSidebar } from './BoardSidebar';
 import { BTN_GHOST } from '@/components/ui/button';
-import { Composer } from './Composer';
-import { FeedSkeleton } from './FeedSkeleton';
+import { Composer } from '@/components/board/compose/Composer';
+import { FeedSkeleton } from '@/components/board/shared/FeedSkeleton';
 import { PostCard } from './PostCard';
-import { SignInPrompt } from './SignInPrompt';
+import { SignInPrompt } from '@/components/board/shared/SignInPrompt';
 
 export function BoardPage() {
   const router = useRouter();

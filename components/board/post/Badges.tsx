@@ -1,6 +1,6 @@
 import type { BoardPost } from '@/lib/board/types';
 import { timeAgo } from '@/lib/board/format';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 
 const PILL = 'inline-flex items-center gap-1.5 rounded-full px-2 py-[3px] font-mono text-[9.5px] font-extrabold tracking-[0.08em]';
 

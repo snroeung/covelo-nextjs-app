@@ -6,17 +6,17 @@ import { useState } from 'react';
 import { timeAgo, pluralize } from '@/lib/board/format';
 import type { BoardPost } from '@/lib/board/types';
 import { useRequireSignIn, useSavePost, useVotePost } from '@/hooks/useBoard';
-import { KindBadge, VerifyBadge } from './Badges';
+import { KindBadge, VerifyBadge } from '@/components/board/post/Badges';
 import { BTN_ACTION } from '@/components/ui/button';
-import { BoardIcon } from './icons';
-import { ModBanner } from './ModBanner';
-import { ModMenu } from './ModMenu';
-import { ModStrip } from './ModStrip';
-import { OfferPreview } from './OfferPreview';
-import { ReportDialog } from './ReportDialog';
-import { copyLink, postPath } from './share';
-import { useBoardToast } from './Toast';
-import { VoteControl } from './VoteControl';
+import { BoardIcon } from '@/components/board/shared/icons';
+import { ModBanner } from '@/components/board/moderation/ModBanner';
+import { ModMenu } from '@/components/board/moderation/ModMenu';
+import { ModStrip } from '@/components/board/moderation/ModStrip';
+import { OfferPreview } from '@/components/board/offers/OfferPreview';
+import { ReportDialog } from '@/components/board/moderation/ReportDialog';
+import { copyLink, postPath } from '@/components/board/shared/share';
+import { useBoardToast } from '@/components/board/shared/Toast';
+import { VoteControl } from '@/components/board/post/VoteControl';
 
 /** "pointsplease · 2h · Hotels" */
 export function postMeta(post: BoardPost): string {

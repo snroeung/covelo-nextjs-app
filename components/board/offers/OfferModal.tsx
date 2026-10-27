@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import type { BoardOffer } from '@/lib/board/types';
 import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
-import { Dialog, DialogBody, DialogFooter } from './Dialog';
-import { BoardIcon } from './icons';
+import { Dialog, DialogBody, DialogFooter } from '@/components/board/shared/Dialog';
+import { BoardIcon } from '@/components/board/shared/icons';
 
 const isHttp = (url: string | null): url is string => !!url && /^https?:\/\//i.test(url);
 

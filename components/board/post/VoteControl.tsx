@@ -2,7 +2,7 @@
 
 import { toggleVote } from '@/lib/board/cache';
 import type { VoteValue } from '@/lib/board/types';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 
 interface Props {
   score: number;

@@ -7,9 +7,9 @@ import { useModAction, type ModOp } from '@/hooks/useBoard';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { BTN_DANGER, BTN_GHOST, BTN_PRIMARY, btn } from '@/components/ui/button';
 import { FIELD, LABEL } from '@/components/ui/field';
-import { Dialog, DialogBody, DialogHeader } from './Dialog';
-import { BoardIcon } from './icons';
-import { useBoardToast } from './Toast';
+import { Dialog, DialogBody, DialogHeader } from '@/components/board/shared/Dialog';
+import { BoardIcon } from '@/components/board/shared/icons';
+import { useBoardToast } from '@/components/board/shared/Toast';
 
 /** Admin-only: rename, merge, hide or promote the topic currently selected as a filter. */
 export function TopicChipMenu({ topic, topics, onGone }: { topic: BoardTopic; topics: BoardTopic[]; onGone: () => void }) {

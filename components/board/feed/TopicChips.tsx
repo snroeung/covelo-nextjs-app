@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import { TOPIC_RULES } from '@/lib/board/constants';
 import type { BoardTopic } from '@/lib/board/types';
 import { FIELD } from '@/components/ui/field';
-import { Dialog, DialogBody, DialogHeader } from './Dialog';
-import { TopicChipMenu } from './TopicChipMenu';
+import { Dialog, DialogBody, DialogHeader } from '@/components/board/shared/Dialog';
+import { TopicChipMenu } from '@/components/board/moderation/TopicChipMenu';
 
 interface Props {
   topics: BoardTopic[];

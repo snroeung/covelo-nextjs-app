@@ -9,7 +9,7 @@ import {
 } from '@/lib/board/topicSelection';
 import type { BoardTopic } from '@/lib/board/types';
 import { FIELD, LABEL } from '@/components/ui/field';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 
 interface Props {
   topics: BoardTopic[];

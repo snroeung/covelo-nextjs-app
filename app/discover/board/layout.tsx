@@ -1,6 +1,6 @@
 import { Footer } from '@/components/layout/Footer';
 import { NavBar } from '@/components/layout/NavBar';
-import { BoardToastProvider } from '@/components/board/Toast';
+import { BoardToastProvider } from '@/components/board/shared/Toast';
 
 // Shared chrome for the board's pages: the feed and a single post.
 export default function BoardLayout({ children }: { children: React.ReactNode }) {

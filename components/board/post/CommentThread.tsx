@@ -5,15 +5,15 @@ import { pluralize, timeAgo } from '@/lib/board/format';
 import { describeError } from '@/lib/board/errors';
 import type { BoardComment, VoteValue } from '@/lib/board/types';
 import { useCreateComment, useDeleteComment, useRequireSignIn, useVoteComment } from '@/hooks/useBoard';
-import { Avatar } from './Avatar';
+import { Avatar } from '@/components/board/shared/Avatar';
 import { BTN_ACTION } from '@/components/ui/button';
-import { BoardIcon } from './icons';
-import { ModBanner } from './ModBanner';
-import { ModMenu } from './ModMenu';
-import { ModStrip } from './ModStrip';
+import { BoardIcon } from '@/components/board/shared/icons';
+import { ModBanner } from '@/components/board/moderation/ModBanner';
+import { ModMenu } from '@/components/board/moderation/ModMenu';
+import { ModStrip } from '@/components/board/moderation/ModStrip';
 import { ReplyBox } from './ReplyBox';
-import { ReportDialog } from './ReportDialog';
-import { useBoardToast } from './Toast';
+import { ReportDialog } from '@/components/board/moderation/ReportDialog';
+import { useBoardToast } from '@/components/board/shared/Toast';
 import { VoteControl } from './VoteControl';
 
 /** Past this depth replies stop indenting, so a deep thread still fits a phone. */

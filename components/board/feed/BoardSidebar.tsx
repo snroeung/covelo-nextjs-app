@@ -1,4 +1,4 @@
-import { VerifyLegendBadge } from './Badges';
+import { VerifyLegendBadge } from '@/components/board/post/Badges';
 
 const RULES = [
   'Link a covelo offer, or create one for an admin to review.',

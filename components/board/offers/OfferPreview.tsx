@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { BoardOffer } from '@/lib/board/types';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 import { OfferModal } from './OfferModal';
 
 /** The offer a post is about, as a card that opens its details. */

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { BoardPage } from '@/components/board/BoardPage';
-import { FeedSkeleton } from '@/components/board/FeedSkeleton';
+import { BoardPage } from '@/components/board/feed/BoardPage';
+import { FeedSkeleton } from '@/components/board/shared/FeedSkeleton';
 
 export const metadata: Metadata = {
   title: 'The board · Covelo',

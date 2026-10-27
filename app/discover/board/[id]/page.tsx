@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PostDetailPage } from '@/components/board/PostDetailPage';
+import { PostDetailPage } from '@/components/board/post/PostDetailPage';
 
 export const metadata: Metadata = {
   title: 'Post · The board · Covelo',

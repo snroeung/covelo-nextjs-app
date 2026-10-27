@@ -5,8 +5,8 @@ import type { ModDetail } from '@/lib/board/types';
 import { useBoardTopics, useModAction } from '@/hooks/useBoard';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { btn } from '@/components/ui/button';
-import { BoardIcon } from './icons';
-import { useBoardToast } from './Toast';
+import { BoardIcon } from '@/components/board/shared/icons';
+import { useBoardToast } from '@/components/board/shared/Toast';
 
 interface Props {
   mod: ModDetail | null;

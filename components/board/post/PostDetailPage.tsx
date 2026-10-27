@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useSyncExternalStore } from 'react';
 import { describeError } from '@/lib/board/errors';
 import { useBoardPost } from '@/hooks/useBoard';
-import { readFeedSearch } from './backLink';
+import { readFeedSearch } from '@/components/board/shared/backLink';
 import { BTN_GHOST } from '@/components/ui/button';
-import { FeedSkeleton } from './FeedSkeleton';
-import { BoardIcon } from './icons';
+import { FeedSkeleton } from '@/components/board/shared/FeedSkeleton';
+import { BoardIcon } from '@/components/board/shared/icons';
 import { PostDetail } from './PostDetail';
 
 export function PostDetailPage({ id }: { id: string }) {

@@ -1,5 +1,5 @@
 import type { ModNotice } from '@/lib/board/types';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 
 const TITLE = { held: 'Held for review', removed: 'Removed by a moderator', rejected: 'Offer not verified' } as const;
 

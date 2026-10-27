@@ -5,7 +5,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useCatalogOffers } from '@/hooks/useBoard';
 import { describeError } from '@/lib/board/errors';
 import type { BoardOffer } from '@/lib/board/types';
-import { BoardIcon } from './icons';
+import { BoardIcon } from '@/components/board/shared/icons';
 
 interface Props {
   selected: BoardOffer | null;

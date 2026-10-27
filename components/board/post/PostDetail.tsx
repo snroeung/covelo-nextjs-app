@@ -6,20 +6,20 @@ import { countComments, sortThread, type CommentSort, type PostDetailData } from
 import { describeError } from '@/lib/board/errors';
 import { timeAgo } from '@/lib/board/format';
 import { useCreateComment, useDeletePost, useRequireSignIn, useSavePost, useVotePost, useBoardViewer } from '@/hooks/useBoard';
-import { Avatar } from './Avatar';
+import { Avatar } from '@/components/board/shared/Avatar';
 import { KindBadge, VerifyBadge } from './Badges';
 import { BTN_ACTION, BTN_DANGER, BTN_GHOST } from '@/components/ui/button';
 import { CommentThread } from './CommentThread';
-import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
-import { BoardIcon } from './icons';
-import { ModBanner } from './ModBanner';
-import { ModMenu } from './ModMenu';
-import { ModStrip } from './ModStrip';
-import { OfferPreview } from './OfferPreview';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/board/shared/Dialog';
+import { BoardIcon } from '@/components/board/shared/icons';
+import { ModBanner } from '@/components/board/moderation/ModBanner';
+import { ModMenu } from '@/components/board/moderation/ModMenu';
+import { ModStrip } from '@/components/board/moderation/ModStrip';
+import { OfferPreview } from '@/components/board/offers/OfferPreview';
 import { ReplyBox } from './ReplyBox';
-import { ReportDialog } from './ReportDialog';
-import { copyLink, postPath } from './share';
-import { useBoardToast } from './Toast';
+import { ReportDialog } from '@/components/board/moderation/ReportDialog';
+import { copyLink, postPath } from '@/components/board/shared/share';
+import { useBoardToast } from '@/components/board/shared/Toast';
 import { VoteControl } from './VoteControl';
 
 /** Verified / not-yet-verified explainer under an offer post. */

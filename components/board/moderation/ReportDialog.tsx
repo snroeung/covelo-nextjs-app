@@ -6,8 +6,8 @@ import { describeError } from '@/lib/board/errors';
 import { useReport } from '@/hooks/useBoard';
 import { BTN_GHOST, BTN_PRIMARY } from '@/components/ui/button';
 import { FIELD, LABEL } from '@/components/ui/field';
-import { Dialog, DialogBody, DialogFooter, DialogHeader } from './Dialog';
-import { useBoardToast } from './Toast';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/board/shared/Dialog';
+import { useBoardToast } from '@/components/board/shared/Toast';
 
 type Reason = (typeof BOARD_REPORT_REASONS)[number];
 

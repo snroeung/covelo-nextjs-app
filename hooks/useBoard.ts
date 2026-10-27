@@ -16,7 +16,7 @@ import {
   type FeedData, type FeedPage, type PostDetailData,
 } from '@/lib/board/cache';
 import type { BoardComment, VoteValue } from '@/lib/board/types';
-import { useBoardToast } from '@/components/board/Toast';
+import { useBoardToast } from '@/components/board/shared/Toast';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 
 export const boardKeys = {
