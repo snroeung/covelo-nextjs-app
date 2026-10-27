@@ -83,11 +83,14 @@ export async function navigateToAdminSection(page: Page, tab: 'Offers' | 'Ads') 
   await page.getByRole('link', { name: 'Admin', exact: true })
     .or(page.getByRole('button', { name: 'Admin', exact: true }))
     .click();
+  // The click starts a client-side navigation. Wait for it to land: on
+  // /discover the "Offers" name matches several buttons, on /admin just the tab.
+  await page.waitForURL('**/admin');
   // 4. Click the correct tab
   if (tab === 'Ads') {
-    await page.getByRole('button', { name: 'Sponsored ads' }).click();
+    await page.getByRole('button', { name: 'Sponsored ads', exact: true }).click();
   } else {
-    await page.getByRole('button', { name: 'Offers' }).click();
+    await page.getByRole('button', { name: 'Offers', exact: true }).click();
   }
 }
 

@@ -42,6 +42,7 @@ export function ModStrip({ mod, postId, topicId }: Props) {
     mod.reportCount > 0 ? `${mod.reportCount} report${mod.reportCount === 1 ? '' : 's'}${mod.reportReasons.length ? ` (${mod.reportReasons.join(', ')})` : ''}` : null,
     mod.reportedComments ? `${mod.reportedComments} reported comment${mod.reportedComments === 1 ? '' : 's'}` : null,
     mismatch && !target ? 'topic may not fit' : null,
+    mod.authorStanding !== 'normal' ? `author ${mod.authorStanding}` : null,
   ].filter(Boolean);
 
   return (

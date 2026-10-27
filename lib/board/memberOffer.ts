@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { spendingBonusToBoardOffer, transferBonusToBoardOffer } from "./offerView";
+import { CARD_NAMES, CARD_PORTAL_MAP, type CardId } from "@/lib/points/types";
 
 export const OFFER_ISSUERS = ["chase", "amex", "c1", "bilt", "citi"] as const;
 export type OfferIssuer = (typeof OFFER_ISSUERS)[number];
@@ -196,4 +197,104 @@ export function draftError(d: MemberOfferDraft): string | null {
 export function effectiveRatio(bonusPct: string): string {
   const n = parseFloat(bonusPct);
   return !isNaN(n) && n > 0 ? (1 + n / 100).toFixed(4) : "—";
+}
+
+// ─── Review & publish: member offer → offer editor ──────────────────────────
+
+import type { SpendingBonus, TransferBonus } from "@/lib/types/offers";
+
+export type EditorPrefill =
+  | { type: "transfer"; offer: Partial<TransferBonus> }
+  | { type: "spending"; offer: Partial<SpendingBonus> };
+
+/**
+ * What the offer editor starts from when an admin reviews a member's offer. New
+ * offers carry their structured `details`; offers created before migration 033
+ * only have the flat text columns, so the editor opens with what can be told
+ * from those and the admin fills the rest.
+ */
+export function prefillFromMemberOffer(row: Record<string, unknown>): EditorPrefill {
+  const parsed = memberOfferDetails.safeParse(row.details);
+  if (parsed.success) {
+    const d = parsed.data;
+    const common = {
+      issuer: d.issuer, card_ids: d.card_ids, tags: d.tags, start_date: d.start_date, end_date: d.end_date, country: d.country,
+      is_targeted: d.is_targeted, description: d.description ?? null, source_url: d.source_url ?? null, active: true,
+    };
+    return d.kind === "transfer"
+      ? { type: "transfer", offer: { ...common, transfer_partner: d.transfer_partner, bonus_pct: d.bonus_pct ?? null, min_transfer_points: d.min_transfer_points ?? null, for_status_transfer: d.for_status_transfer } }
+      : { type: "spending", offer: { ...common, merchant_name: d.merchant_name, bonus_type: d.bonus_type, bonus_multiplier: d.bonus_multiplier, spending_minimum: d.spending_minimum ?? null, minimum_nights: d.minimum_nights ?? null } };
+  }
+  return prefillFromLegacyOffer(row);
+}
+
+// ─── Offers created before migration 033 ────────────────────────────────────
+// They only have the flat text columns (type, value, name, from_program…), so
+// read what can be read from them: the bonus from `value`, the merchant and the
+// minimum spend from the name, the issuer (and card) from `from_program`, and
+// the end date from `ends_label`. Anything not found stays empty for the admin.
+
+const ISSUER_WORDS: Array<[OfferIssuer, RegExp]> = [
+  ["amex", /\b(american express|amex)\b/i],
+  ["c1", /\bcapital one\b/i],
+  ["chase", /\bchase\b/i],
+  ["bilt", /\bbilt\b/i],
+  ["citi", /\bciti\b/i],
+];
+
+function legacyIssuerAndCards(from: string): { issuer?: OfferIssuer; card_ids: string[] } {
+  const lower = from.toLowerCase().trim();
+  const cardId = (Object.keys(CARD_NAMES) as CardId[]).find((id) => CARD_NAMES[id].toLowerCase() === lower);
+  if (cardId) return { issuer: CARD_PORTAL_MAP[cardId] as OfferIssuer, card_ids: [cardId] };
+  return { issuer: ISSUER_WORDS.find(([, re]) => re.test(from))?.[0], card_ids: [] };
+}
+
+/** "$25" → dollar credit · "3%" → cash back · "5×" → points multiplier. */
+function legacyBonus(value: string, type: string): { bonus_type?: (typeof BONUS_TYPES)[number]; amount?: number } {
+  const n = parseFloat(value.replace(/[^0-9.]/g, ""));
+  const amount = Number.isFinite(n) && n > 0 ? n : undefined;
+  if (/^\s*\$/.test(value) || type === "STATEMENT CREDIT") return { bonus_type: "dollar_amount", amount };
+  if (/%/.test(value) || type === "CASH BACK") return { bonus_type: "cash_back_pct", amount };
+  return { bonus_type: "points_multiplier", amount };
+}
+
+/** "Nov 1, 2026" / "2026-11-01" → "2026-11-01". Labels without a year can't be placed, so they are skipped. */
+function legacyDate(label: string): string | undefined {
+  if (!/\b(19|20)\d{2}\b/.test(label)) return undefined;
+  const d = new Date(label);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function prefillFromLegacyOffer(row: Record<string, unknown>): EditorPrefill {
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  const type = text(row.type);
+  const name = text(row.name);
+  const from = text(row.from_program);
+  const to = text(row.to_program);
+  const { issuer, card_ids } = legacyIssuerAndCards(from);
+  const base = {
+    issuer, card_ids, is_targeted: card_ids.length > 0,
+    description: text(row.conditions) || null, source_url: text(row.source_url) || null,
+    end_date: legacyDate(text(row.ends_label)), country: "US", active: true,
+  };
+
+  if (type === "TRANSFER BONUS" || type === "STATUS MATCH") {
+    const pct = parseFloat(text(row.value).replace(/[^0-9.]/g, ""));
+    return {
+      type: "transfer",
+      offer: { ...base, transfer_partner: to, bonus_pct: Number.isFinite(pct) && pct > 0 && /%/.test(text(row.value)) ? pct : null },
+    } as EditorPrefill;
+  }
+
+  const { bonus_type, amount } = legacyBonus(text(row.value), type);
+  const merchant = to || /\bat (.+?)\.?$/i.exec(name)?.[1]?.trim() || name;
+  const spend = /(?:spend(?:ing)?|min\.? spend)\s*\$?\s*([\d,]+(?:\.\d+)?)/i.exec(`${name} ${text(row.conditions)}`)?.[1];
+  return {
+    type: "spending",
+    offer: {
+      ...base, merchant_name: merchant, bonus_type, bonus_multiplier: amount ?? (undefined as unknown as number),
+      spending_minimum: spend ? parseFloat(spend.replace(/,/g, "")) : null, minimum_nights: null,
+    },
+  } as EditorPrefill;
 }

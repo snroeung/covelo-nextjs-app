@@ -97,8 +97,12 @@ export function isBoardPendingTable(table: string): table is BoardPendingTable {
  * what the admin is being asked to decide:
  *   offer_review  an offer post waiting to be verified (Approve = verify)
  *   held          content the filters or member reports held (Approve = release)
+ *   reported      public content with open member reports (Approve = dismiss the
+ *                 reports and leave it up, Reject = take it down)
+ * Board rows also carry `report_count` / `report_reasons`, and offer posts a
+ * member created carry `member_offer` (the board_member_offers row).
  */
-export type BoardQueueReason = 'offer_review' | 'held';
+export type BoardQueueReason = 'offer_review' | 'held' | 'reported';
 
 export interface PendingReviewRow {
   table: PendingReviewTable;

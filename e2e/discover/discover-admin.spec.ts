@@ -525,7 +525,7 @@ test.describe('Transfer Bonus — create and display', () => {
 
     const modal = page.getByRole('dialog');
     await expect(modal).toBeVisible();
-    await expect(modal.getByText(new RegExp(GRID_PARTNER, 'i'))).toBeVisible();
+    await expect(modal.getByText(new RegExp(GRID_PARTNER, 'i')).first()).toBeVisible();
     await expect(modal.getByText(new RegExp(`${GRID_BONUS_PCT}%|\\+${GRID_BONUS_PCT}`, 'i'))).toBeVisible();
     // Expiry shows in the value plaque ("expires …")
     await expect(modal.getByText(/expir/i)).toBeVisible();

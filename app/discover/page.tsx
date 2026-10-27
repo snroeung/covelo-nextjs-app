@@ -81,13 +81,14 @@ function DiscoverPageInner() {
           <AffiliateAdSpot slot="below_grid" isDark={isDark} variant="editorial" />
         </div>
 
+        <div className="px-4 md:px-7 pb-8 max-w-5xl mx-auto">
+          <DiscoverBoardPromo isDark={isDark} />
+        </div>
+
         <div className="px-4 md:px-7 pb-7 max-w-5xl mx-auto">
           <DiscoverCreatorBanner isDark={isDark} />
         </div>
 
-        <div className="px-4 md:px-7 pb-8 max-w-5xl mx-auto">
-          <DiscoverBoardPromo isDark={isDark} />
-        </div>
       </main>
       <Footer />
 

@@ -19,7 +19,7 @@ import type {
   PendingReviewRow,
   PendingReviewTable,
 } from "@/lib/types/portalData";
-import { isBoardPendingTable } from "@/lib/types/portalData";
+import { isBoardPendingTable, type BoardQueueReason } from "@/lib/types/portalData";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function cacheGet<T>(key: string): Promise<T | null> {
@@ -61,14 +61,27 @@ const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
 const BOARD_QUEUE_LIMIT = 200;
 
 /**
- * The board's share of the queue: offer posts to verify, and held posts and
- * comments. Read with the admin's own session — migration 031 lets exactly an
- * admin JWT select these tables — so the board gets no special access path.
- * Reported-but-public content is not here; it lives in the board page's
- * Mod view ("Reported"), since it has no state for the queue to resolve.
+ * The board's share of the queue: offer posts to verify, held posts and
+ * comments, and public content with open member reports. Read with the admin's
+ * own session — migration 031 lets exactly an admin JWT select these tables —
+ * so the board gets no special access path. A row is listed once; when several
+ * apply the reason is held, then offer_review, then reported, and every row
+ * carries its open-report tally.
  */
 async function boardPendingRows(supabase: SupabaseClient): Promise<PendingReviewRow[]> {
-  const [posts, comments] = await Promise.all([
+  const reportsRes = await supabase.from("board_reports").select("target_kind, target_id, reason").is("resolved_at", null).limit(1000);
+  if (reportsRes.error) console.warn("[portalData.listAll] board reports:", reportsRes.error.message);
+  const tally = new Map<string, { count: number; reasons: string[] }>();
+  for (const r of (reportsRes.error ? [] : reportsRes.data ?? []) as Array<{ target_kind: string; target_id: string; reason: string }>) {
+    const t = tally.get(r.target_id) ?? { count: 0, reasons: [] };
+    t.count++;
+    if (!t.reasons.includes(r.reason)) t.reasons.push(r.reason);
+    tally.set(r.target_id, t);
+  }
+  const reportedPostIds = [...new Set((reportsRes.data ?? []).filter((r) => r.target_kind === "post").map((r) => r.target_id as string))];
+  const reportedCommentIds = [...new Set((reportsRes.data ?? []).filter((r) => r.target_kind === "comment").map((r) => r.target_id as string))];
+
+  const [posts, comments, reportedPosts, reportedComments] = await Promise.all([
     supabase
       .from("board_posts_feed")
       .select(FEED_COLUMNS)
@@ -84,26 +97,62 @@ async function boardPendingRows(supabase: SupabaseClient): Promise<PendingReview
       .eq("mod_status", "held")
       .order("created_at", { ascending: false })
       .limit(BOARD_QUEUE_LIMIT),
+    reportedPostIds.length
+      ? supabase.from("board_posts_feed").select(FEED_COLUMNS).in("id", reportedPostIds).is("deleted_at", null).in("mod_status", ["clean", "unscanned"])
+      : Promise.resolve({ data: [], error: null }),
+    reportedCommentIds.length
+      ? supabase.from("board_comments").select("*").in("id", reportedCommentIds).is("deleted_at", null).in("mod_status", ["clean", "unscanned"])
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (posts.error) console.warn("[portalData.listAll] board posts:", posts.error.message);
-  if (comments.error) console.warn("[portalData.listAll] board comments:", comments.error.message);
-
-  const commentRows = comments.error ? [] : ((comments.data ?? []) as unknown as Array<Record<string, unknown>>);
-  const authorIds = [...new Set(commentRows.map((c) => c.author_id as string))];
-  const names = new Map<string, string>();
-  if (authorIds.length > 0) {
-    const { data } = await supabase.from("profiles").select("id, display_name").in("id", authorIds);
-    for (const p of (data ?? []) as Array<{ id: string; display_name: string | null }>) names.set(p.id, p.display_name?.trim() || "Traveler");
+  for (const [what, res] of [["posts", posts], ["comments", comments], ["reported posts", reportedPosts], ["reported comments", reportedComments]] as const) {
+    if (res.error) console.warn(`[portalData.listAll] board ${what}:`, res.error.message);
   }
 
-  const rows: PendingReviewRow[] = [];
-  for (const row of posts.error ? [] : ((posts.data ?? []) as unknown as Array<Record<string, unknown>>)) {
-    rows.push({ table: "board_posts", row: { ...row, queue_reason: row.mod_status === "held" ? "held" : "offer_review" } });
+  type Row = Record<string, unknown>;
+  const rows = (res: { data: unknown; error: unknown }): Row[] => (res.error ? [] : ((res.data ?? []) as unknown as Row[]));
+  const seenPosts = new Set(rows(posts).map((r) => r.id as string));
+  const seenComments = new Set(rows(comments).map((r) => r.id as string));
+  const postRows = [...rows(posts), ...rows(reportedPosts).filter((r) => !seenPosts.has(r.id as string))];
+  const commentRows = [...rows(comments), ...rows(reportedComments).filter((r) => !seenComments.has(r.id as string))];
+
+  // Comment authors' names, and the member-created offers behind offer posts
+  const authorIds = [...new Set(commentRows.map((c) => c.author_id as string))];
+  const memberOfferIds = [...new Set(postRows.map((p) => p.member_offer_id as string | null).filter((x): x is string => !!x))];
+  const topicIds = [...new Set(postRows.flatMap((p) => (p.topic_ids as string[] | null) ?? []))];
+  const [profiles, memberOffers, topicRows] = await Promise.all([
+    authorIds.length ? supabase.from("profiles").select("id, display_name").in("id", authorIds) : Promise.resolve({ data: [] }),
+    memberOfferIds.length ? supabase.from("board_member_offers").select("*").in("id", memberOfferIds) : Promise.resolve({ data: [] }),
+    topicIds.length ? supabase.from("board_topics").select("id, name").in("id", topicIds) : Promise.resolve({ data: [] }),
+  ]);
+  const topicName = new Map(((topicRows.data ?? []) as Array<{ id: string; name: string }>).map((t) => [t.id, t.name]));
+  const names = new Map<string, string>();
+  for (const p of (profiles.data ?? []) as Array<{ id: string; display_name: string | null }>) names.set(p.id, p.display_name?.trim() || "Traveler");
+  const offerById = new Map(((memberOffers.data ?? []) as Array<{ id: string }>).map((o) => [o.id, o]));
+
+  const reportFields = (id: string) => ({ report_count: tally.get(id)?.count ?? 0, report_reasons: tally.get(id)?.reasons ?? [] });
+  const out: PendingReviewRow[] = [];
+  for (const row of postRows) {
+    const reason: BoardQueueReason = row.mod_status === "held" ? "held" : row.kind === "offer" && row.review === "pending" ? "offer_review" : "reported";
+    out.push({
+      table: "board_posts",
+      row: {
+        ...row,
+        queue_reason: reason,
+        ...reportFields(row.id as string),
+        // Primary topic first, with names, so Review & publish can show the member's own topics
+        topics: [...((row.topic_ids as string[] | null) ?? [])]
+          .sort((a, b) => Number(b === row.topic_id) - Number(a === row.topic_id))
+          .map((id) => ({ id, name: topicName.get(id) ?? 'Unknown topic' })),
+        member_offer: row.member_offer_id ? offerById.get(row.member_offer_id as string) ?? null : null },
+    });
   }
   for (const row of commentRows) {
-    rows.push({ table: "board_comments", row: { ...row, author_name: names.get(row.author_id as string) ?? "Traveler", queue_reason: "held" } });
+    out.push({
+      table: "board_comments",
+      row: { ...row, author_name: names.get(row.author_id as string) ?? "Traveler", queue_reason: row.mod_status === "held" ? "held" : "reported", ...reportFields(row.id as string) },
+    });
   }
-  return rows;
+  return out;
 }
 
 /** Board rows need the board API on; off, the queue is exactly what it was. */

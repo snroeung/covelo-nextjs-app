@@ -110,14 +110,33 @@ export function AdminOffersTable({ transferBonuses, spendingBonuses, filter, isD
           >
             {/* Offer info */}
             <div>
-              <div className={`text-sm font-semibold ${ink}`}>
-                {offerLabel}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className={`text-sm font-semibold ${ink}`}>{offerLabel}</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-widest ${
+                  offer.source === 'member'
+                    ? isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-50 text-amber-700'
+                    : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {offer.source === 'member' ? 'MEMBER' : offer.source === 'cron' ? 'SYNCED' : 'ADMIN'}
+                </span>
+                {(offer.post_to_board || offer.source === 'member') && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold tracking-widest ${
+                    isDark ? 'bg-green-900/40 text-green-400' : 'bg-green-100 text-green-700'
+                  }`}>
+                    ON THE BOARD
+                  </span>
+                )}
               </div>
               <div className={`text-[11px] font-mono mt-0.5 ${muted}`}>
                 {bonusLabel}{spendMin} · {offer.upvotes} upvotes · {offer.country ?? 'US'}
                 {offer.is_targeted && <span className="ml-2 text-amber-500">TARGETED</span>}
                 {isTransfer && (offer as TransferBonus).for_status_transfer && <span className="ml-2 text-cv-amber-400">STATUS</span>}
               </div>
+              {offer.source === 'member' && (
+                <p className={`mt-1.5 text-[11px] leading-snug ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                  Published from a member&apos;s board post. Check the terms and expiry against the source before leaving it live.
+                </p>
+              )}
             </div>
 
             {/* Type */}

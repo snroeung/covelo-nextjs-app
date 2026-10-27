@@ -16,7 +16,7 @@ type Item =
   | { kind: 'post'; post: BoardPost }
   | { kind: 'comment'; comment: BoardComment };
 
-type Step = 'menu' | 'takeDown' | 'reject' | 'topic';
+type Step = 'menu' | 'takeDown' | 'reject' | 'topic' | 'standing';
 
 const ROW = 'flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13.5px] font-semibold text-gph-ink hover:bg-gph-linesoft focus-visible:outline-2 focus-visible:outline-gph-ink';
 
@@ -52,6 +52,8 @@ function ModDialog({ onClose, ...item }: Item & { onClose: () => void }) {
   const targetRef = { kind: item.kind, id: target.id } as const;
   const removed = mod?.status === 'removed';
   const held = mod?.status === 'held';
+  const authorId = mod?.authorId ?? null;
+  const canRestrict = authorId !== null && !target.isMine;
   const pendingOffer = isPost && item.post.offer !== null && item.post.review === 'pending';
   // A member-created offer isn't in the catalog yet: it is verified by publishing it, not by approving the post
   const needsPublish = pendingOffer && isPost && item.post.offer?.source === 'member';
@@ -67,7 +69,7 @@ function ModDialog({ onClose, ...item }: Item & { onClose: () => void }) {
     });
   }
 
-  const title = step === 'menu' ? `Moderate this ${item.kind}` : step === 'takeDown' ? 'Take down' : step === 'reject' ? 'Reject offer' : 'Change topic';
+  const title = step === 'menu' ? `Moderate this ${item.kind}` : step === 'takeDown' ? 'Take down' : step === 'reject' ? 'Reject offer' : step === 'standing' ? 'Restrict author' : 'Change topic';
 
   return (
     <Dialog label={title} onClose={onClose} width="sm">
@@ -78,6 +80,12 @@ function ModDialog({ onClose, ...item }: Item & { onClose: () => void }) {
             {held && <li><button type="button" className={ROW} disabled={act.isPending} onClick={() => run({ op: 'approveHeld', ...targetRef }, 'Approved — it is public now')}>Approve held {item.kind}</button></li>}
             {removed && <li><button type="button" className={ROW} disabled={act.isPending} onClick={() => run({ op: 'restore', ...targetRef }, 'Restored')}>Restore</button></li>}
             {!removed && <li><button type="button" className={`${ROW} text-gph-danger!`} onClick={() => setStep('takeDown')}>Take down…</button></li>}
+            {canRestrict && (
+              <li><button type="button" className={ROW} onClick={() => setStep('standing')}>
+                Restrict author…
+                {mod?.authorStanding && mod.authorStanding !== 'normal' && <span className="ml-auto font-mono text-[10px] font-bold uppercase text-gph-pending">{mod.authorStanding}</span>}
+              </button></li>
+            )}
             {(mod?.reportCount ?? 0) > 0 && (
               <li><button type="button" className={ROW} disabled={act.isPending} onClick={() => run({ op: 'dismissReports', ...targetRef }, 'Reports dismissed')}>
                 Dismiss {mod!.reportCount} open report{mod!.reportCount === 1 ? '' : 's'}
@@ -130,6 +138,16 @@ function ModDialog({ onClose, ...item }: Item & { onClose: () => void }) {
           error={error}
           onBack={() => setStep('menu')}
           onSubmit={(reason) => run({ op: 'rejectOffer', postId: item.post.id, reason: reason as (typeof BOARD_REJECT_REASONS)[number] }, 'Offer rejected')}
+        />
+      )}
+
+      {step === 'standing' && authorId && (
+        <StandingStep
+          current={mod?.authorStanding ?? 'normal'}
+          pending={act.isPending}
+          error={error}
+          onBack={() => setStep('menu')}
+          onSubmit={(standing, note) => run({ op: 'setStanding', userId: authorId, standing, note }, standing === 'normal' ? 'Restrictions cleared' : `Author ${standing}`)}
         />
       )}
 
@@ -205,6 +223,50 @@ function TopicStep({ currentId, pending, error, onBack, onPick }: { currentId: s
       </DialogBody>
       <DialogFooter>
         <button type="button" onClick={onBack} className={BTN_GHOST}>Back</button>
+      </DialogFooter>
+    </>
+  );
+}
+
+const STANDINGS = [
+  ['normal', 'Normal', 'Clears a manual restriction. Removals in the last 30 days can still restrict them on their own.'],
+  ['restricted', 'Restricted', 'Posts and comments are held for review, with tighter posting limits.'],
+  ['banned', 'Banned', 'Anything they submit is rejected outright.'],
+] as const;
+
+function StandingStep({ current, pending, error, onBack, onSubmit }: {
+  current: string; pending: boolean; error: string | null; onBack: () => void;
+  onSubmit: (standing: 'normal' | 'restricted' | 'banned', note?: string) => void;
+}) {
+  const group = useId();
+  const noteId = useId();
+  const [standing, setStanding] = useState<'normal' | 'restricted' | 'banned' | null>(null);
+  const [note, setNote] = useState('');
+  return (
+    <>
+      <DialogBody>
+        <fieldset>
+          <legend className={LABEL}>AUTHOR STANDING <span className="font-sans font-medium normal-case tracking-normal">(now: {current})</span></legend>
+          <div className="flex flex-col gap-1.5">
+            {STANDINGS.map(([key, label, help]) => (
+              <label key={key} className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 ${standing === key ? 'border-gph-ink bg-gph-linesoft' : 'border-gph-line hover:bg-gph-linesoft'}`}>
+                <input type="radio" name={group} value={key} checked={standing === key} onChange={() => setStanding(key)} className="mt-0.5 size-4 accent-[var(--gph-action)]" />
+                <span className="text-[13.5px] font-semibold text-gph-ink">{label}<span className="mt-0.5 block text-[12px] font-normal text-gph-muted">{help}</span></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="mt-4">
+          <label htmlFor={noteId} className={LABEL}>NOTE <span className="font-sans font-medium normal-case tracking-normal">(optional, kept in the audit log)</span></label>
+          <textarea id={noteId} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} rows={2} className={`${FIELD} resize-y`} />
+        </div>
+        {error && <p role="alert" className="mt-3 text-[13px] font-semibold text-gph-danger">{error}</p>}
+      </DialogBody>
+      <DialogFooter>
+        <button type="button" onClick={onBack} className={BTN_GHOST}>Back</button>
+        <button type="button" disabled={!standing || standing === current || pending} onClick={() => standing && onSubmit(standing, note.trim() || undefined)} className={standing === 'normal' ? BTN_PRIMARY : BTN_DANGER}>
+          {pending ? 'Working…' : 'Apply'}
+        </button>
       </DialogFooter>
     </>
   );

@@ -34,8 +34,13 @@ export interface ModNotice {
 }
 
 /** Full moderation detail — admins only. */
+export type AuthorStanding = "normal" | "watch" | "restricted" | "banned";
+
 export interface ModDetail {
   status: ModStatus;
+  /** The member who wrote it (null for covelo's own posts). Admins only — never sent to members. */
+  authorId: string | null;
+  authorStanding: AuthorStanding;
   reasons: ModReason[];
   flags: ModFlag[];
   scores: Record<string, unknown> | null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveMemberOfferColumns, draftChecks, draftError, effectiveRatio, draftToDetails, EMPTY_MEMBER_OFFER, memberOfferDetails, type MemberOfferDraft } from '@/lib/board/memberOffer';
+import { prefillFromMemberOffer, deriveMemberOfferColumns, draftChecks, draftError, effectiveRatio, draftToDetails, EMPTY_MEMBER_OFFER, memberOfferDetails, type MemberOfferDraft } from '@/lib/board/memberOffer';
 
 const transfer: MemberOfferDraft = { ...EMPTY_MEMBER_OFFER, kind: 'transfer', issuer: 'chase', transfer_partner: 'Hyatt', bonus_pct: '30', start_date: '2026-11-01', end_date: '2026-12-31' };
 const spending: MemberOfferDraft = { ...EMPTY_MEMBER_OFFER, kind: 'spending', issuer: 'amex', merchant_name: 'Dining', bonus_type: 'points_multiplier', bonus_multiplier: '5', start_date: '2026-11-01', end_date: '2026-12-31' };
@@ -113,5 +113,49 @@ describe('draftChecks / effectiveRatio', () => {
     expect(effectiveRatio('30')).toBe('1.3000');
     expect(effectiveRatio('')).toBe('—');
     expect(effectiveRatio('0')).toBe('—');
+  });
+});
+
+describe('prefillFromMemberOffer — offers created before structured details', () => {
+  // A real one: posted from the old free-text form
+  const legacy = {
+    id: 'mo', type: 'STATEMENT CREDIT', value: '$25', name: '$25 credit when spending $100 at Banana', from_program: 'Chase Sapphire Reserve',
+    to_program: null, conditions: null, ends_label: 'Nov 1, 2026', source_url: 'https://chase.com', details: null,
+  };
+
+  it('reads the merchant, credit, minimum spend, card and end date out of the text the member wrote', () => {
+    const out = prefillFromMemberOffer(legacy);
+    expect(out.type).toBe('spending');
+    expect(out.offer).toMatchObject({
+      issuer: 'chase', card_ids: ['chase_reserve'], is_targeted: true, merchant_name: 'Banana',
+      bonus_type: 'dollar_amount', bonus_multiplier: 25, spending_minimum: 100, end_date: '2026-11-01', source_url: 'https://chase.com',
+    });
+  });
+
+  it('knows cash back and points multipliers from the value', () => {
+    expect(prefillFromMemberOffer({ ...legacy, type: 'CASH BACK', value: '3%' }).offer).toMatchObject({ bonus_type: 'cash_back_pct', bonus_multiplier: 3 });
+    expect(prefillFromMemberOffer({ ...legacy, type: 'POINTS BONUS', value: '5×' }).offer).toMatchObject({ bonus_type: 'points_multiplier', bonus_multiplier: 5 });
+  });
+
+  it('reads an issuer when from_program names one, and no card when it does not name a card', () => {
+    const out = prefillFromMemberOffer({ ...legacy, from_program: 'Amex Platinum perks' });
+    expect(out.offer).toMatchObject({ issuer: 'amex', card_ids: [], is_targeted: false });
+    expect(prefillFromMemberOffer({ ...legacy, from_program: 'Some program' }).offer.issuer).toBeUndefined();
+  });
+
+  it('prefers the partner the member named, and a transfer bonus keeps its percentage', () => {
+    const out = prefillFromMemberOffer({ ...legacy, type: 'TRANSFER BONUS', value: '+25%', from_program: 'Amex', to_program: 'Virgin Atlantic', name: '25% transfer bonus' });
+    expect(out).toMatchObject({ type: 'transfer', offer: { issuer: 'amex', transfer_partner: 'Virgin Atlantic', bonus_pct: 25 } });
+  });
+
+  it('leaves what it cannot place empty: an end date with no year, no amount', () => {
+    const out = prefillFromMemberOffer({ ...legacy, ends_label: 'Jun 30', value: 'Free', type: 'FREE NIGHT' });
+    expect(out.offer.end_date).toBeUndefined();
+    expect((out.offer as { bonus_multiplier?: number }).bonus_multiplier).toBeUndefined();
+  });
+
+  it('uses the structured details when there are some', () => {
+    const details = { kind: 'transfer', issuer: 'bilt', transfer_partner: 'American AAdvantage', bonus_pct: 30, start_date: '2026-11-01', end_date: '2026-12-31' };
+    expect(prefillFromMemberOffer({ ...legacy, details }).offer).toMatchObject({ issuer: 'bilt', transfer_partner: 'American AAdvantage', bonus_pct: 30 });
   });
 });

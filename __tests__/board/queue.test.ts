@@ -83,6 +83,52 @@ describe('listAll — board rows', () => {
     expect(by[HELD_COMMENT]).toMatchObject({ queue_reason: 'held', author_name: 'wanderyne', mod_reasons: ['toxicity'] });
   });
 
+  it('adds public posts and comments with open reports, once each, with their tally', async () => {
+    const REPORTED_TIP = uuid(220), REPORTED_COMMENT = uuid(320);
+    const { sessionDb } = setup({
+      ...board,
+      board_reports: () => ({ data: [
+        { target_kind: 'post', target_id: REPORTED_TIP, reason: 'Spam' },
+        { target_kind: 'post', target_id: REPORTED_TIP, reason: 'Offensive' },
+        { target_kind: 'post', target_id: HELD_POST, reason: 'Spam' },
+        { target_kind: 'comment', target_id: REPORTED_COMMENT, reason: 'Off-topic' },
+      ] }),
+      board_posts_feed: (q) => (q.calls.some((c) => c[0] === 'in' && c[1][0] === 'id')
+        ? { data: [feedRow({ id: REPORTED_TIP, title: 'Reported tip' }), feedRow({ id: HELD_POST, mod_status: 'held', title: 'Held tip' })] }
+        : board.board_posts_feed(q)),
+      board_comments: (q) => (q.calls.some((c) => c[0] === 'in' && c[1][0] === 'id')
+        ? { data: [commentRow({ id: REPORTED_COMMENT, author_id: ME })] }
+        : board.board_comments(q)),
+    });
+    const rows = await queue().listAll();
+    const by = Object.fromEntries(rows.filter((r) => r.table.startsWith('board_')).map((r) => [r.row.id as string, r.row]));
+
+    expect(by[REPORTED_TIP]).toMatchObject({ queue_reason: 'reported', report_count: 2, report_reasons: ['Spam', 'Offensive'] });
+    expect(by[REPORTED_COMMENT]).toMatchObject({ queue_reason: 'reported', report_count: 1, author_name: 'wanderyne' });
+    // Already in the queue as held: listed once, and the report count rides along
+    expect(rows.filter((r) => r.row.id === HELD_POST)).toHaveLength(1);
+    expect(by[HELD_POST]).toMatchObject({ queue_reason: 'held', report_count: 1 });
+    expect(sessionDb.of('board_posts_feed')).toHaveLength(2);
+  });
+
+  it('names each post\'s topics, primary first, for Review & publish', async () => {
+    setup({
+      ...board,
+      board_posts_feed: () => ({ data: [feedRow({ id: PENDING_OFFER, kind: 'offer', review: 'pending', member_offer_id: MO1, topic_id: uuid(2), topic_ids: [uuid(1), uuid(2)] })] }),
+      board_topics: () => ({ data: [{ id: uuid(1), name: 'Hotels' }, { id: uuid(2), name: 'Transfer bonuses' }] }),
+    });
+    const row = (await queue().listAll()).find((r) => r.row.id === PENDING_OFFER)!;
+    expect(row.row.topics).toEqual([{ id: uuid(2), name: 'Transfer bonuses' }, { id: uuid(1), name: 'Hotels' }]);
+  });
+
+  it('attaches the member-created offer to its post, for Review & publish', async () => {
+    setup({ ...board, board_member_offers: () => ({ data: [{ id: MO1, name: 'Amex → Virgin 25%', details: { kind: 'transfer' } }] }) });
+    const rows = await queue().listAll();
+    const offer = rows.find((r) => r.row.id === PENDING_OFFER)!;
+    expect(offer.row.member_offer).toMatchObject({ id: MO1, name: 'Amex → Virgin 25%' });
+    expect(rows.find((r) => r.row.id === HELD_POST)!.row.member_offer).toBeNull();
+  });
+
   it('board rows carry no `status`, so the existing table — which lists status = pending — does not show them yet', async () => {
     setup(board);
     const boardRows = (await queue().listAll()).filter((r) => r.table.startsWith('board_'));
@@ -93,7 +139,7 @@ describe('listAll — board rows', () => {
   it('reads with the admin\'s own session — the board has no special access path — and never touches the service role', async () => {
     const { sessionDb } = setup(board);
     await queue().listAll();
-    expect(boardTables(sessionDb).map((q) => q.table).sort()).toEqual(['board_comments', 'board_posts_feed']);
+    expect(boardTables(sessionDb).map((q) => q.table).sort()).toEqual(['board_comments', 'board_member_offers', 'board_posts_feed', 'board_reports', 'board_topics']);
     expect(vi.mocked(getSupabaseAdmin)).not.toHaveBeenCalled();
   });
 
@@ -156,11 +202,33 @@ describe('approve — board rows', () => {
   });
 
   it.each([
-    ['already verified', { review: 'approved' }, /Already approved/],
-    ['a tip', { kind: 'tip', review: null }, /Not an offer post/],
-  ])('refuses %s', async (_name, over, message) => {
-    setup({}, post(over));
-    await expect(queue().approve({ table: 'board_posts', id: P1 })).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(message) });
+    ['already verified', { review: 'approved' }],
+    ['a tip', { kind: 'tip', review: null }],
+  ])('with %s and no open reports, there is nothing to approve', async (_name, over) => {
+    // Public and unreported: the only thing approve could do is dismiss reports, and there are none
+    setup({}, { ...post(over), ...heldTarget('board_posts', 'clean') });
+    await expect(queue().approve({ table: 'board_posts', id: P1 })).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/no open reports/) });
+  });
+
+  it('dismisses the reports on a reported public tip and leaves it up', async () => {
+    const { serviceDb } = setup({}, {
+      ...post({ kind: 'tip', review: null }), ...heldTarget('board_posts', 'clean'),
+      board_reports: (q) => (q.head ? { data: null, count: 2 } : undefined),
+    });
+    await queue().approve({ table: 'board_posts', id: P1 });
+    expect(payload(serviceDb.of('board_reports', 'update')[0])).toMatchObject({ resolved_by: ADMIN });
+    expect(payload(serviceDb.of('board_mod_events', 'insert')[0])).toMatchObject({ action: 'dismiss_reports', actor_id: ADMIN });
+    expect(serviceDb.of('board_posts', 'update')).toHaveLength(0);
+  });
+
+  it('dismisses the reports on a reported public comment', async () => {
+    const { serviceDb } = setup({}, {
+      ...heldTarget('board_comments', 'clean'),
+      board_reports: (q) => (q.head ? { data: null, count: 1 } : undefined),
+    });
+    await queue().approve({ table: 'board_comments', id: C1 });
+    expect(payload(serviceDb.of('board_mod_events', 'insert')[0])).toMatchObject({ action: 'dismiss_reports' });
+    expect(serviceDb.of('board_comments', 'update')).toHaveLength(0);
   });
 
   it('releases a held post, settles its reports, and audits it', async () => {
@@ -255,9 +323,20 @@ describe('reject — board rows', () => {
     expect(payload(serviceDb.of('board_comments', 'update')[0])).toMatchObject({ mod_status: 'removed', removed_reason: 'Offensive' });
   });
 
-  it('refuses a public tip — there is nothing in the queue to reject', async () => {
+  it('takes a reported public tip down with a removal reason', async () => {
+    const { serviceDb } = setup({}, {
+      ...post({ kind: 'tip', review: null }),
+      board_posts: (q) => (q.single ? { data: { id: P1, author_id: OTHER, mod_status: 'clean', deleted_at: null } } : undefined),
+    });
+    await queue().reject({ table: 'board_posts', id: P1, reason: 'Spam' });
+    expect(payload(serviceDb.of('board_posts', 'update')[0])).toMatchObject({ mod_status: 'removed', removed_by: ADMIN, removed_reason: 'Spam' });
+    expect(payload(serviceDb.of('board_reports', 'update')[0])).toMatchObject({ resolved_by: ADMIN });
+  });
+
+  it('wants a removal reason, not a rejection reason, for a reported tip', async () => {
     setup({}, post({ kind: 'tip', review: null }));
-    await expect(queue().reject({ table: 'board_posts', id: P1, reason: 'Spam' })).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/Only offer posts and held content/) });
+    // "Can't confirm terms" belongs to offer rejections only
+    await expect(queue().reject({ table: 'board_posts', id: P1, reason: "Can't confirm terms" })).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/isn't a removal reason/) });
   });
 
   it('refuses an offer that was already rejected', async () => {

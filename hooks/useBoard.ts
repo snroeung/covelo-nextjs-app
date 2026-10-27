@@ -276,6 +276,7 @@ export type ModOp =
   | { op: 'lockComments'; postId: string; locked: boolean }
   | { op: 'verify'; postId: string }
   | { op: 'rejectOffer'; postId: string; reason: RejectReason }
+  | { op: 'setStanding'; userId: string; standing: 'normal' | 'restricted' | 'banned'; note?: string }
   | { op: 'renameTopic'; id: string; name: string }
   | { op: 'mergeTopic'; sourceId: string; targetId: string }
   | { op: 'hideTopic'; id: string; hidden: boolean }
@@ -292,6 +293,7 @@ function runModOp(v: ModOp) {
     case 'lockComments': return a.lockComments.mutate({ postId: v.postId, locked: v.locked });
     case 'verify': return a.approve.mutate({ postId: v.postId });
     case 'rejectOffer': return a.reject.mutate({ postId: v.postId, reason: v.reason });
+    case 'setStanding': return a.setStanding.mutate({ userId: v.userId, standing: v.standing, note: v.note });
     case 'renameTopic': return a.topics.rename.mutate({ id: v.id, name: v.name });
     case 'mergeTopic': return a.topics.merge.mutate({ sourceId: v.sourceId, targetId: v.targetId });
     case 'hideTopic': return a.topics.hide.mutate({ id: v.id, hidden: v.hidden });

@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { redis } from "@/lib/redis";
 import { isEnabled } from "@/lib/feature-flags";
 import { cacheKeys } from "@/lib/cache-config";
-import { BOARD_REJECT_REASONS, BOARD_REMOVE_REASONS } from "@/lib/board/constants";
+import { BOARD_REJECT_REASONS, BOARD_REMOVE_REASONS, BOARD_TEXT_LIMITS } from "@/lib/board/constants";
 import { scanBlocklist } from "@/lib/board/moderation/blocklist";
 import { validateTopic } from "@/lib/board/topics";
 import type { BoardPost, ModStatus, Viewer } from "@/lib/board/types";
@@ -21,7 +21,7 @@ import {
 } from "@/lib/board/server/review";
 import { rescanBlocklist, type RescanResult } from "@/lib/board/server/rescan";
 import { assertBoardPostReady, syncSystemPost, type OfferTable } from "@/lib/board/server/systemPost";
-import { followMerge, loadTopicIndex, setPrimaryTopic } from "@/lib/board/server/topics";
+import { followMerge, loadTopicIndex, setPostTopics, setPrimaryTopic } from "@/lib/board/server/topics";
 import { createSpendingBonusInput, createTransferBonusInput } from "@/server/routers/offers";
 
 // The Board — moderator side (plan §3, §6, §8). Everything here is
@@ -71,9 +71,16 @@ async function reportedPosts(admin: SupabaseClient, viewer: Viewer, type?: "tip"
 
 const offersCacheKeys = (table: OfferTable) => (table === "transfer_bonuses" ? cacheKeys.transferBonuses() : cacheKeys.spendingBonuses());
 
+/** The member's own post, as the admin corrected it while reviewing. Omitted = left as written. */
+const publishPostEdit = z.object({
+  title: z.string().trim().min(1).max(BOARD_TEXT_LIMITS.titleMax),
+  body: z.string().trim().max(BOARD_TEXT_LIMITS.bodyMax),
+  topicIds: z.array(id).min(1).max(5),
+}).optional();
+
 const publishInput = z.discriminatedUnion("table", [
-  z.object({ postId: id, table: z.literal("transfer_bonuses"), offer: createTransferBonusInput }),
-  z.object({ postId: id, table: z.literal("spending_bonuses"), offer: createSpendingBonusInput }),
+  z.object({ postId: id, table: z.literal("transfer_bonuses"), offer: createTransferBonusInput, post: publishPostEdit }),
+  z.object({ postId: id, table: z.literal("spending_bonuses"), offer: createSpendingBonusInput, post: publishPostEdit }),
 ]);
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -155,6 +162,19 @@ export const boardAdminRouter = router({
       if (!row.member_offer_id) throw bad("This post already links a catalog offer.");
       if (offer.post_to_board) assertBoardPostReady({ board_post_title: offer.board_post_title ?? null, board_topic: offer.board_topic ?? null });
 
+      // Check the corrected topics before anything is written, so a bad pick leaves no half-published offer
+      let postTopicIds: string[] | null = null;
+      if (input.post) {
+        const index = await loadTopicIndex(admin);
+        postTopicIds = [];
+        for (const topicId of input.post.topicIds) {
+          const picked = index.byId.get(topicId);
+          const topic = picked ? followMerge(index, picked) : null;
+          if (!topic || topic.status === "hidden") throw bad("One of those topics isn't available.");
+          if (!postTopicIds.includes(topic.id)) postTopicIds.push(topic.id);
+        }
+      }
+
       const inserted = await admin
         .from(table)
         .insert({ ...offer, source: "member", status: "approved", active: true, submitted_by: row.author_id })
@@ -175,9 +195,11 @@ export const boardAdminRouter = router({
           await admin.from("board_posts").update({
             offer_table: table, offer_id: offerId, member_offer_id: null,
             review: "approved", verified_by: ctx.user.id, verified_at: new Date().toISOString(), reject_reason: null,
+            ...(input.post ? { title: input.post.title, body: input.post.body } : {}),
           }).eq("id", row.id) as never,
           "publish post",
         );
+        if (postTopicIds) await setPostTopics(admin, row.id, postTopicIds);
       } catch (err) {
         for (const step of undo.reverse()) {
           try { await step(); } catch { /* best effort — the original error is what matters */ }
@@ -314,7 +336,6 @@ export const boardAdminRouter = router({
   // ── Topics ──
 
   topics: router({
-    /** The old name keeps resolving: it becomes an alias of the renamed topic. */
     rename: adminProcedure("api:board")
       .input(z.object({ id, name: z.string().trim().min(1).max(60) }))
       .mutation(async ({ input, ctx }) => {

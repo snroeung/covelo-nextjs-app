@@ -147,13 +147,21 @@ function pickReason<const T extends readonly string[]>(list: T, reason: string |
   return reason as T[number];
 }
 
-/** Approve: verify a linked offer · release held content. Member-created offers go through Publish. */
+/**
+ * Approve: verify a linked offer · release held content · dismiss the reports
+ * on public content. Member-created offers go through Publish instead.
+ */
 export async function approveBoardItem(admin: SupabaseClient, adminId: string, table: BoardQueueTable, id: string): Promise<void> {
-  if (table === "board_comments") return approveHeld(admin, adminId, "comment", id);
+  if (table === "board_comments") {
+    const target = await loadTarget(admin, "comment", id);
+    return target.mod_status === "held" ? approveHeld(admin, adminId, "comment", id) : dismissReports(admin, adminId, "comment", id);
+  }
 
   const row = await fetchPost(admin, id);
   if (!row || row.deleted_at) throw notFound();
   if (row.mod_status === "held") return approveHeld(admin, adminId, "post", id);
+  // A public post that is only here because of reports: leave it up, settle them
+  if (row.kind !== "offer" || row.review !== "pending") return dismissReports(admin, adminId, "post", id);
   const why = notApprovable(row);
   if (why) throw bad(why);
   await verify(admin, adminId, row.id);
@@ -161,7 +169,7 @@ export async function approveBoardItem(admin: SupabaseClient, adminId: string, t
 
 /**
  * Reject: refuse an offer post (reason from BOARD_REJECT_REASONS, shown to the
- * author) · take held content down (reason from BOARD_REMOVE_REASONS).
+ * author) · take held or reported content down (reason from BOARD_REMOVE_REASONS).
  */
 export async function rejectBoardItem(admin: SupabaseClient, adminId: string, table: BoardQueueTable, id: string, reason: string | undefined): Promise<void> {
   if (table === "board_comments") {
@@ -171,6 +179,8 @@ export async function rejectBoardItem(admin: SupabaseClient, adminId: string, ta
   const row = await fetchPost(admin, id);
   if (!row || row.deleted_at) throw notFound();
   if (row.mod_status === "held") return takeDown(admin, adminId, "post", id, pickReason(BOARD_REMOVE_REASONS, reason, "removal"));
-  if (row.kind !== "offer") throw bad("Only offer posts and held content can be rejected here.");
+  if (row.kind === "offer" && row.review === "rejected") throw bad("Already rejected.");
+  // A public post that is only here because of reports comes down with a removal reason
+  if (row.kind !== "offer" || row.review !== "pending") return takeDown(admin, adminId, "post", id, pickReason(BOARD_REMOVE_REASONS, reason, "removal"));
   await rejectOfferPost(admin, id, pickReason(BOARD_REJECT_REASONS, reason, "rejection"));
 }

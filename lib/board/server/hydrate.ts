@@ -10,7 +10,7 @@ import {
   type BoardOffer, type MemberOfferRow, type SpendingBonusFields, type TransferBonusFields,
 } from "@/lib/board/offerView";
 import type {
-  BoardAuthor, BoardComment, BoardPost, BoardTopicRef, ModDetail, ModNotice, ModStatus, Viewer, VoteValue,
+  AuthorStanding, BoardAuthor, BoardComment, BoardPost, BoardTopicRef, ModDetail, ModNotice, ModStatus, Viewer, VoteValue,
 } from "@/lib/board/types";
 import { commentRender, REMOVED_COMMENT_BODY } from "@/lib/board/visibility";
 import type { ModFlag, ModReason } from "@/lib/board/constants";
@@ -61,12 +61,27 @@ export async function loadReportTallies(admin: SupabaseClient, kind: "post" | "c
   return tallies;
 }
 
+/** author id → standing, for one page of posts or comments. Admin views only; absent = normal. */
+export async function loadAuthorStandings(admin: SupabaseClient, userIds: readonly string[]): Promise<Map<string, AuthorStanding>> {
+  const out = new Map<string, AuthorStanding>();
+  if (userIds.length === 0) return out;
+  const res = await admin.from("board_author_standing").select("user_id, standing").in("user_id", userIds as string[]);
+  for (const r of must(res, "standing") as unknown as Array<{ user_id: string; standing: string }>) {
+    if (r.standing === "banned" || r.standing === "restricted" || r.standing === "watch") out.set(r.user_id, r.standing);
+  }
+  return out;
+}
+
 function modDetail(
   status: ModStatus, reasons: string[], flags: string[], scores: Record<string, unknown> | null, removedReason: string | null,
-  viewer: Viewer, reports: ReportTally = NO_REPORTS,
+  viewer: Viewer, author: { id: string | null; standing?: AuthorStanding }, reports: ReportTally = NO_REPORTS,
 ): ModDetail | null {
   return viewer.isAdmin
-    ? { status, reasons: reasons as ModReason[], flags: flags as ModFlag[], scores, removedReason, reportCount: reports.count, reportReasons: reports.reasons }
+    ? {
+        status, reasons: reasons as ModReason[], flags: flags as ModFlag[], scores, removedReason,
+        authorId: author.id, authorStanding: author.standing ?? "normal",
+        reportCount: reports.count, reportReasons: reports.reasons,
+      }
     : null;
 }
 
@@ -79,7 +94,7 @@ export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow
   const verifierIds = unique(rows.map((r) => r.verified_by));
   const topicIds = unique(rows.flatMap((r) => r.topic_ids ?? []));
 
-  const [topics, votes, saves, transfers, spendings, members, verifiers, reportTallies] = await Promise.all([
+  const [topics, votes, saves, transfers, spendings, members, verifiers, reportTallies, standings] = await Promise.all([
     topicIds.length ? admin.from("board_topics").select("id, name, key").in("id", topicIds) : none,
     viewer.id ? admin.from("board_votes").select("post_id, value").eq("user_id", viewer.id).in("post_id", ids) : none,
     viewer.id ? admin.from("board_saves").select("post_id").eq("user_id", viewer.id).in("post_id", ids) : none,
@@ -92,6 +107,7 @@ export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow
     memberIds.length ? admin.from("board_member_offers").select("*").in("id", memberIds) : none,
     verifierIds.length ? admin.from("profiles").select("id, display_name").in("id", verifierIds) : none,
     viewer.isAdmin ? loadReportTallies(admin, "post", ids) : Promise.resolve(new Map<string, ReportTally>()),
+    viewer.isAdmin ? loadAuthorStandings(admin, unique(rows.map((r) => r.author_id))) : Promise.resolve(new Map<string, AuthorStanding>()),
   ]);
 
   const topicById = new Map((must(topics, "topics") as unknown as Array<BoardTopicRef>).map((t) => [t.id, t]));
@@ -130,7 +146,7 @@ export async function hydratePosts(admin: SupabaseClient, rows: readonly FeedRow
         ? { by: r.verified_by ? initials(verifierName.get(r.verified_by) ?? "Admin") : "CV", at: r.verified_at }
         : null,
       notice: noticeFor({ status: r.mod_status, reasons: r.mod_reasons, removedReason: r.removed_reason }, r.review, r.reject_reason, mine || viewer.isAdmin),
-      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, viewer, reportTallies.get(r.id)),
+      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, viewer, { id: r.author_id, standing: r.author_id ? standings.get(r.author_id) : undefined }, reportTallies.get(r.id)),
     };
   });
 }
@@ -162,6 +178,7 @@ export function buildCommentTree(
     viewer: Viewer; postAuthorId: string | null; names: ReadonlyMap<string, string>; votes: ReadonlyMap<string, VoteValue>;
     /** Admin views: open reports per comment */
     reports?: ReadonlyMap<string, ReportTally>;
+    standings?: ReadonlyMap<string, AuthorStanding>;
   },
 ): BoardComment[] {
   const children = new Map<string | null, CommentRow[]>();
@@ -192,7 +209,7 @@ export function buildCommentTree(
       score: placeholder ? 0 : r.score,
       myVote: ctx.votes.get(r.id) ?? 0,
       notice: noticeFor({ status: r.mod_status, reasons: r.mod_reasons, removedReason: r.removed_reason }, null, null, mine || ctx.viewer.isAdmin),
-      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, ctx.viewer, ctx.reports?.get(r.id)),
+      mod: modDetail(r.mod_status, r.mod_reasons, r.mod_flags, r.mod_scores, r.removed_reason, ctx.viewer, { id: r.author_id, standing: ctx.standings?.get(r.author_id) }, ctx.reports?.get(r.id)),
       replies,
     };
   };
@@ -211,14 +228,15 @@ export async function loadThread(
   if (rows.length === 0) return [];
 
   const authorIds = unique(rows.map((r) => r.author_id));
-  const [profiles, votes, reports] = await Promise.all([
+  const [profiles, votes, reports, standings] = await Promise.all([
     admin.from("profiles").select("id, display_name").in("id", authorIds),
     viewer.id ? admin.from("board_votes").select("comment_id, value").eq("user_id", viewer.id).in("comment_id", rows.map((r) => r.id)) : none,
     viewer.isAdmin ? loadReportTallies(admin, "comment", rows.map((r) => r.id)) : Promise.resolve(new Map<string, ReportTally>()),
+    viewer.isAdmin ? loadAuthorStandings(admin, authorIds) : Promise.resolve(new Map<string, AuthorStanding>()),
   ]);
   const names = new Map(
     (must(profiles, "profiles") as unknown as Array<{ id: string; display_name: string | null }>).map((p) => [p.id, p.display_name?.trim() || "Traveler"]),
   );
   const voteMap = new Map((must(votes, "votes") as unknown as Array<{ comment_id: string; value: VoteValue }>).map((v) => [v.comment_id, v.value]));
-  return buildCommentTree(rows, { viewer, postAuthorId, names, votes: voteMap, reports });
+  return buildCommentTree(rows, { viewer, postAuthorId, names, votes: voteMap, reports, standings });
 }

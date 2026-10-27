@@ -249,3 +249,32 @@ export async function setPrimaryTopic(
   );
   must(await admin.from("board_posts").update({ topic_id: topicId }).eq("id", postId) as never, "post topic");
 }
+
+/**
+ * Replace a post's topics with exactly this list; the first becomes primary.
+ * Used when an admin edits a member's post while publishing their offer.
+ */
+export async function setPostTopics(admin: SupabaseClient, postId: string, topicIds: readonly string[]): Promise<void> {
+  if (topicIds.length === 0) return;
+  const current = must(
+    await admin.from("board_post_topics").select("topic_id, is_primary").eq("post_id", postId) as never,
+    "post topics",
+  ) as unknown as Array<{ topic_id: string; is_primary: boolean }>;
+  const keep = new Set(topicIds);
+  const drop = current.filter((r) => !keep.has(r.topic_id)).map((r) => r.topic_id);
+  if (drop.length > 0) must(await admin.from("board_post_topics").delete().eq("post_id", postId).in("topic_id", drop) as never, "post topics drop");
+
+  // The one-primary index forbids two at once: demote a surviving old primary first
+  const oldPrimary = current.find((r) => r.is_primary)?.topic_id;
+  if (oldPrimary && keep.has(oldPrimary) && oldPrimary !== topicIds[0]) {
+    must(await admin.from("board_post_topics").update({ is_primary: false }).eq("post_id", postId).eq("topic_id", oldPrimary) as never, "post topics demote");
+  }
+  must(
+    await admin.from("board_post_topics").upsert(
+      topicIds.map((topic_id, i) => ({ post_id: postId, topic_id, is_primary: i === 0 })),
+      { onConflict: "post_id,topic_id" },
+    ) as never,
+    "post topics set",
+  );
+  must(await admin.from("board_posts").update({ topic_id: topicIds[0] }).eq("id", postId) as never, "post topic");
+}

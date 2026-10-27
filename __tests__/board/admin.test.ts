@@ -335,6 +335,48 @@ describe('admin.publish', () => {
     expect(db.of('transfer_bonuses', 'insert')).toHaveLength(0);
   });
 
+  describe('with the member\'s post corrected', () => {
+    const post = { title: 'Bilt → Hyatt 30% (fixed)', body: 'Cleaner body', topicIds: [T_TRANSFER, T_HOTEL] };
+
+    it('saves the title and body in the same statement that verifies it, and replaces the topics, first one primary', async () => {
+      const db = publishDb({
+        board_post_topics: (q) => (q.action === 'select' ? { data: [{ topic_id: T_AWARD, is_primary: true }, { topic_id: T_HOTEL, is_primary: false }] } : undefined),
+      });
+      await admin().publish({ ...input, post });
+
+      expect(payload(db.of('board_posts', 'update')[0])).toMatchObject({ review: 'approved', title: 'Bilt → Hyatt 30% (fixed)', body: 'Cleaner body' });
+      // the old primary that isn't kept goes; the kept one is re-upserted as non-primary; the new first is primary
+      expect(eqValue(db.of('board_post_topics', 'delete')[0], 'post_id')).toBe(P1);
+      expect(db.of('board_post_topics', 'delete')[0].calls.find((c) => c[0] === 'in')![1]).toEqual(['topic_id', [T_AWARD]]);
+      expect(payload(db.of('board_post_topics', 'upsert')[0])).toEqual([
+        { post_id: P1, topic_id: T_TRANSFER, is_primary: true },
+        { post_id: P1, topic_id: T_HOTEL, is_primary: false },
+      ]);
+      expect(db.of('board_posts', 'update').some((q) => payload(q).topic_id === T_TRANSFER)).toBe(true);
+    });
+
+    it('leaves the post as written when no correction is sent', async () => {
+      const db = publishDb();
+      await admin().publish(input);
+      expect(payload(db.of('board_posts', 'update')[0])).not.toHaveProperty('title');
+      expect(db.of('board_post_topics', 'upsert')).toHaveLength(0);
+    });
+
+    it('rejects a hidden or unknown topic before saving anything', async () => {
+      const hidden = topic(uuid(170), 'Banned', 'banned', { status: 'hidden' });
+      const db = publishDb({ board_topics: () => ({ data: [...TOPICS, hidden] }) });
+      await expect(admin().publish({ ...input, post: { ...post, topicIds: [hidden.id as string] } })).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/topics? isn't available/) });
+      await expect(admin().publish({ ...input, post: { ...post, topicIds: [uuid(999)] } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      expect(db.of('transfer_bonuses', 'insert')).toHaveLength(0);
+    });
+
+    it('needs a title and at least one topic', async () => {
+      publishDb();
+      await expect(admin().publish({ ...input, post: { ...post, title: '  ' } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      await expect(admin().publish({ ...input, post: { ...post, topicIds: [] } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    });
+  });
+
   it('validates the offer fields', async () => {
     mockDb();
     await expect(admin().publish({ ...input, offer: { ...offer, bonus_pct: -5 } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
@@ -585,6 +627,34 @@ describe('topics.merge', () => {
     const db = mockDb({}, { board_merge_topics: () => ({ error: { code, message } }) });
     await expect(admin().topics.merge({ sourceId: T_HOTEL, targetId: T_AWARD })).rejects.toMatchObject({ code: expected });
     expect(db.of('board_mod_events', 'insert')).toHaveLength(0);
+  });
+});
+
+describe('author details on moderation', () => {
+  const standings: Record<string, Handler> = { board_author_standing: () => ({ data: [{ user_id: OTHER, standing: 'restricted' }] }) };
+
+  it('gives an admin the author id and standing', async () => {
+    mockDb({ board_posts_feed: () => ({ data: [feedRow({ mod_status: 'held' })] }), ...standings });
+    const out = await admin().modFeed({});
+    expect(out.posts[0].mod).toMatchObject({ authorId: OTHER, authorStanding: 'restricted' });
+  });
+
+  it('treats an author with no standing row as normal, and covelo\'s own posts as having no author', async () => {
+    mockDb({
+      board_posts_feed: () => ({ data: [feedRow({ mod_status: 'held' }), feedRow({ id: uuid(99), mod_status: 'held', author_id: null, is_system: true })] }),
+      board_author_standing: () => ({ data: [] }),
+    });
+    const out = await admin().modFeed({});
+    expect(out.posts[0].mod).toMatchObject({ authorId: OTHER, authorStanding: 'normal' });
+    expect(out.posts[1].mod).toMatchObject({ authorId: null, authorStanding: 'normal' });
+  });
+
+  it('never puts the author id in what a member gets', async () => {
+    asUser(ME);
+    mockDb({ board_posts_feed: () => ({ data: [feedRow()] }), ...standings });
+    const out = await caller().board.posts.list({});
+    expect(out.posts[0].mod).toBeNull();
+    expect(JSON.stringify(out)).not.toContain(OTHER);
   });
 });
 
