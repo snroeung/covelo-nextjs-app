@@ -98,6 +98,17 @@ export function applyVisibility<T>(query: T, viewer: Viewer): T {
   return q.in("mod_status", ["clean", "unscanned"]).or("review.is.null,review.neq.rejected") as unknown as T;
 }
 
+/**
+ * Offer posts whose offer has ended are not browsable: they drop out of the
+ * feed, search, saved lists and counts. A post with no offer, or an offer with
+ * no readable end date, never expires. Extending the offer's end date brings
+ * its post back; a direct link to it still opens.
+ */
+export function applyNotExpired<T>(query: T, now: Date): T {
+  const today = now.toISOString().slice(0, 10);
+  return (query as unknown as Q).or(`offer_expires_on.is.null,offer_expires_on.gte.${today}`) as unknown as T;
+}
+
 function applyFilters<T>(query: T, p: FeedParams): T {
   let q = (query as unknown as Q).is("deleted_at", null);
   if (p.type) q = q.eq("kind", p.type);
@@ -123,7 +134,10 @@ export async function queryFeed(
 
   const base = () => {
     const filtered = applyFilters(admin.from("board_posts_feed").select(FEED_COLUMNS), params);
-    return params.modStatuses ? (filtered as unknown as Q).in("mod_status", params.modStatuses) as unknown as typeof filtered : applyVisibility(filtered, viewer);
+    // The Mod view lists what members can't see, expired offers included
+    return params.modStatuses
+      ? (filtered as unknown as Q).in("mod_status", params.modStatuses) as unknown as typeof filtered
+      : applyNotExpired(applyVisibility(filtered, viewer), now);
   };
   const newest = () => base().order("created_at", { ascending: false }).limit(FEED_WINDOW);
   const top = () => base().order("score", { ascending: false }).order("created_at", { ascending: false }).limit(FEED_WINDOW);
@@ -146,10 +160,13 @@ export async function queryFeed(
 }
 
 /** Posts matching the filters, for the "All topics" chip count. */
-export async function countFeed(admin: SupabaseClient, viewer: Viewer, params: FeedParams): Promise<number> {
-  const res = await applyVisibility(
-    applyFilters(admin.from("board_posts_feed").select("id", { count: "exact", head: true }), params),
-    viewer,
+export async function countFeed(admin: SupabaseClient, viewer: Viewer, params: FeedParams, now: Date = new Date()): Promise<number> {
+  const res = await applyNotExpired(
+    applyVisibility(
+      applyFilters(admin.from("board_posts_feed").select("id", { count: "exact", head: true }), params),
+      viewer,
+    ),
+    now,
   );
   must(res, "feed count");
   return res.count ?? 0;

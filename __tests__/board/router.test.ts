@@ -356,6 +356,28 @@ describe('posts.create — offers', () => {
 
 // ─── posts.list / posts.get ─────────────────────────────────────────────────
 
+describe('posts.list — expired offers', () => {
+  const expiryFilter = (q: { calls: Array<[string, unknown[]]> }) =>
+    q.calls.some((c) => c[0] === 'or' && /^offer_expires_on\.is\.null,offer_expires_on\.gte\.\d{4}-\d{2}-\d{2}$/.test(String(c[1][0])));
+
+  it('hides offer posts whose offer has ended, from the list and from the chip count', async () => {
+    const db = mockDb({ board_posts_feed: (q) => (q.head ? { count: 1 } : { data: [feedRow()] }) });
+    await caller().board.posts.list({});
+    const queries = db.of('board_posts_feed');
+    expect(queries.length).toBeGreaterThan(1); // the page and its count
+    expect(queries.every(expiryFilter)).toBe(true);
+  });
+
+  it('keeps posts with no offer or no end date: the filter lets NULL through, and uses today\'s date', async () => {
+    const db = mockDb({ board_posts_feed: () => ({ data: [feedRow()] }) });
+    await caller().board.posts.list({});
+    const today = new Date().toISOString().slice(0, 10);
+    const q = db.of('board_posts_feed').find((x) => !x.head)!;
+    expect(arg(q, 'or')).toBeDefined();
+    expect(q.calls.some((c) => c[0] === 'or' && c[1][0] === `offer_expires_on.is.null,offer_expires_on.gte.${today}`)).toBe(true);
+  });
+});
+
 describe('posts.list', () => {
   const feedQueries = (db: ReturnType<typeof mockDb>) => db.of('board_posts_feed').filter((q) => !q.head);
 
@@ -657,6 +679,58 @@ describe('comments.vote', () => {
   it('404s a held comment belonging to someone else', async () => {
     mockDb({ board_comments: () => ({ data: commentRow({ mod_status: 'held' }) }) });
     await expect(caller().board.comments.vote({ commentId: C1, value: 1 })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('posts.saved', () => {
+  const P2 = uuid(41), P3 = uuid(42);
+  const saves = (...ids: string[]) => ({ board_saves: () => ({ data: ids.map((post_id) => ({ post_id })) }) });
+
+  it('is for signed-in members only', async () => {
+    asUser(null);
+    mockDb();
+    await expect(caller().board.posts.saved()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+
+  it('lists the member\'s saved posts, most recently saved first, whatever order the feed returns them in', async () => {
+    mockDb({
+      ...saves(P2, P1), // P2 was saved last
+      board_posts_feed: () => ({ data: [feedRow({ id: P1 }), feedRow({ id: P2 })] }),
+    });
+    const out = await caller().board.posts.saved();
+    expect(out.map((p) => p.id)).toEqual([P2, P1]);
+  });
+
+  it('only asks for this member\'s saves, newest first, and for exactly those posts', async () => {
+    const db = mockDb({ ...saves(P1, P2), board_posts_feed: () => ({ data: [feedRow({ id: P1 }), feedRow({ id: P2 })] }) });
+    await caller().board.posts.saved();
+    const saved = db.of('board_saves')[0];
+    expect(eqValue(saved, 'user_id')).toBe(ME);
+    expect(called(saved, 'order', 'created_at', { ascending: false })).toBe(true);
+    const feed = db.of('board_posts_feed').find((q) => !q.head)!;
+    expect(called(feed, 'in', 'id', [P1, P2])).toBe(true);
+  });
+
+  it('drops a saved post whose offer has ended, or that the member can no longer see', async () => {
+    const db = mockDb({ ...saves(P1, P2, P3), board_posts_feed: () => ({ data: [feedRow({ id: P1 })] }) }); // the feed leaves P2 and P3 out
+    const out = await caller().board.posts.saved();
+    expect(out.map((p) => p.id)).toEqual([P1]);
+    const feed = db.of('board_posts_feed').find((q) => !q.head)!;
+    // the same expiry and visibility filters as the main feed do the dropping
+    expect(feed.calls.some((c) => c[0] === 'or' && /offer_expires_on\.gte\./.test(String(c[1][0])))).toBe(true);
+    expect(feed.calls.some((c) => c[0] === 'or' && /mod_status\.in\.\(clean,unscanned\)/.test(String(c[1][0])))).toBe(true);
+  });
+
+  it('is empty without touching the feed when nothing is saved', async () => {
+    const db = mockDb({ ...saves() });
+    expect(await caller().board.posts.saved()).toEqual([]);
+    expect(db.of('board_posts_feed')).toHaveLength(0);
+  });
+
+  it('is gone when the board API is off', async () => {
+    flagState.enabled = false;
+    mockDb();
+    await expect(caller().board.posts.saved()).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });
 

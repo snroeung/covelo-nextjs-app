@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { buildModalCopy, isTransfer, daysUntil, ISSUER_LABELS } from '@/lib/discover/offerCopy';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
+import { SaveOfferButton } from '@/components/offers/SaveOfferButton';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { CARD_PORTAL_MAP } from '@/lib/points/types';
 
@@ -148,12 +149,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
                   </svg>
                 </a>
               )}
-              <button type="button" className={btn('secondary')}>
-                <svg className="w-3 h-3" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 12.2S1.5 9 1.5 5.3A2.8 2.8 0 0 1 7 4.1a2.8 2.8 0 0 1 5.5 1.2C12.5 9 7 12.2 7 12.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                </svg>
-                Save offer
-              </button>
+              <SaveOfferButton offer={offer} variant="full" />
             </div>
 
             <div className="p-4 rounded-lg border bg-gph-card border-gph-line">

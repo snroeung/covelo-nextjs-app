@@ -73,3 +73,5 @@ export function sortThread(list: readonly BoardComment[], sort: CommentSort): Bo
 export function patchDetail(data: PostDetailData | undefined, fn: (d: PostDetailData) => PostDetailData): PostDetailData | undefined {
   return data ? fn(data) : data;
 }
+
+export { refreshAfterWrite } from "../refreshAfterWrite";

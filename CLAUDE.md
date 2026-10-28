@@ -463,6 +463,16 @@ Everything else runs **only when the change reaches it**, and the narrowest form
 
 Don't run the full unit suite, full e2e, or an audit "to be safe" on a typo fix or a scoped component change; say which gates you ran and why the others didn't apply.
 
+### Supabase migrations (dev database)
+
+Any commit that adds a new `.sql` file under `supabase/` (migrations) must also be applied to the **dev** database before the commit point is called done:
+
+1. `npm run db:push:dev -- --dry` — review the pending list; only the new file(s) should appear
+2. `npm run db:push:dev` — pushes to covelo-dev only (script is hard-wired to the dev project)
+3. Apply to the local DB too when testing locally: `npx supabase migration up --local`
+
+Say in the commit-point message that the migration was pushed to dev. Never push to beta or production from here; those follow the branch/release flow.
+
 ### Commit size
 Keep commits **small and focused**. One logical change per commit. Avoid bundling unrelated changes.
 

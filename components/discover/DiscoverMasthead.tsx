@@ -3,13 +3,17 @@
 import { btn } from '@/components/ui/button';
 import Link from 'next/link';
 import { todayPill } from '@/lib/discover/offerCopy';
+import type { SpendingBonus, TransferBonus } from '@/lib/types/offers';
+import { SavedOffersMenu } from '@/components/offers/SavedOffersMenu';
 
 interface Props {
   isDark: boolean;
   offerCount: number;
+  /** A saved offer was picked: show it in the page's offer view */
+  onOpenOffer: (offer: TransferBonus | SpendingBonus) => void;
 }
 
-export function DiscoverMasthead({ isDark, offerCount }: Props) {
+export function DiscoverMasthead({ isDark, offerCount, onOpenOffer }: Props) {
   const pillBg = isDark ? 'bg-gph-dark-actionsoft text-gph-dark-action' : 'bg-gph-actionsoft text-gph-action';
 
   return (
@@ -25,15 +29,7 @@ export function DiscoverMasthead({ isDark, offerCount }: Props) {
         </h1>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className={btn('secondary')}
-        >
-          <svg className="w-3 h-3" viewBox="0 0 14 14" fill="none">
-            <path d="M7 12.2S1.5 9 1.5 5.3A2.8 2.8 0 0 1 7 4.1a2.8 2.8 0 0 1 5.5 1.2C12.5 9 7 12.2 7 12.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          </svg>
-          Saved · 3
-        </button>
+        <SavedOffersMenu onOpen={onOpenOffer} />
         <Link
           href="/offers"
           target="_blank"

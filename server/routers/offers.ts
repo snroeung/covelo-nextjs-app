@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, flaggedProcedure, adminProcedure } from "@/server/trpc";
+import { router, flaggedProcedure, adminProcedure, authedProcedure } from "@/server/trpc";
+import { SAVED_OFFERS_LIMIT, isLiveOffer, liveOfferFilter, liveOffers } from "@/lib/offers/live";
 import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
@@ -103,14 +104,18 @@ export const offersRouter = router({
   listTransferBonuses: flaggedProcedure("api:offers")
     .query(async (): Promise<TransferBonus[]> => {
       const key = cacheKeys.transferBonuses();
+      // A cached list can outlive an offer by up to its TTL: re-check the dates on the way out
       const cached = await cacheGet<TransferBonus[]>(key);
-      if (cached) return cached;
+      if (cached) return liveOffers(cached);
 
+      // Row-level security hides ended offers from members, but not from an admin
+      // session — and this list is cached for everyone, so filter explicitly.
       const supabase = await createClient();
       const { data, error } = await supabase
         .from("transfer_bonuses")
         .select("*")
         .eq("active", true)
+        .or(liveOfferFilter())
         .order("bonus_pct", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
@@ -123,19 +128,79 @@ export const offersRouter = router({
     .query(async (): Promise<SpendingBonus[]> => {
       const key = cacheKeys.spendingBonuses();
       const cached = await cacheGet<SpendingBonus[]>(key);
-      if (cached) return cached;
+      if (cached) return liveOffers(cached);
 
       const supabase = await createClient();
       const { data, error } = await supabase
         .from("spending_bonuses")
         .select("*")
         .eq("active", true)
+        .or(liveOfferFilter())
         .order("bonus_multiplier", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       const result = (data ?? []) as SpendingBonus[];
       await cacheSet(key, result, CACHE.spendingBonuses.ttl);
       return result;
+    }),
+
+  // ── Saved offers (members only) ──
+
+  /** The member's saved offers that are still live, most recently saved first. */
+  saved: authedProcedure("api:offers").query(async ({ ctx }): Promise<Array<TransferBonus | SpendingBonus>> => {
+    const { data: saves, error } = await ctx.supabase
+      .from("saved_offers")
+      .select("offer_table, offer_id")
+      .eq("user_id", ctx.user.id)
+      .order("created_at", { ascending: false })
+      .limit(SAVED_OFFERS_LIMIT);
+    if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+    const rows = (saves ?? []) as Array<{ offer_table: OfferTable; offer_id: string }>;
+    if (rows.length === 0) return [];
+
+    const idsFor = (table: OfferTable) => rows.filter((r) => r.offer_table === table).map((r) => r.offer_id);
+    const fetchLive = async (table: OfferTable) => {
+      const ids = idsFor(table);
+      if (ids.length === 0) return [];
+      const res = await ctx.supabase.from(table).select("*").in("id", ids).eq("active", true).or(liveOfferFilter());
+      if (res.error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: res.error.message });
+      return (res.data ?? []) as Array<TransferBonus | SpendingBonus>;
+    };
+    const [transfers, spendings] = await Promise.all([fetchLive("transfer_bonuses"), fetchLive("spending_bonuses")]);
+    const byKey = new Map<string, TransferBonus | SpendingBonus>([
+      ...transfers.map((o) => [`transfer_bonuses:${o.id}`, o] as const),
+      ...spendings.map((o) => [`spending_bonuses:${o.id}`, o] as const),
+    ]);
+    // Offers that ended, were switched off or were deleted are not there to return
+    return rows.map((r) => byKey.get(`${r.offer_table}:${r.offer_id}`)).filter((o): o is TransferBonus | SpendingBonus => !!o);
+  }),
+
+  save: authedProcedure("api:offers")
+    .input(z.object({ table: z.enum(["transfer_bonuses", "spending_bonuses"]), id: z.guid(), saved: z.boolean() }))
+    .mutation(async ({ input, ctx }): Promise<{ saved: boolean }> => {
+      const own = { user_id: ctx.user.id, offer_table: input.table, offer_id: input.id };
+      if (!input.saved) {
+        const { error } = await ctx.supabase.from("saved_offers").delete().match(own);
+        if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+        return { saved: false };
+      }
+
+      const { data: offer, error: lookupError } = await ctx.supabase.from(input.table).select("id, active, end_date").eq("id", input.id).maybeSingle();
+      if (lookupError) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: lookupError.message });
+      if (!offer || !isLiveOffer(offer as { active: boolean; end_date: string | null })) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "That offer isn't available to save." });
+      }
+
+      const { count, error: countError } = await ctx.supabase.from("saved_offers").select("offer_id", { count: "exact", head: true }).eq("user_id", ctx.user.id);
+      if (countError) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: countError.message });
+      const { data: already } = await ctx.supabase.from("saved_offers").select("offer_id").match(own).maybeSingle();
+      if (!already && (count ?? 0) >= SAVED_OFFERS_LIMIT) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `You can save up to ${SAVED_OFFERS_LIMIT} offers. Remove one to save another.` });
+      }
+
+      const { error } = await ctx.supabase.from("saved_offers").upsert(own, { onConflict: "user_id,offer_table,offer_id", ignoreDuplicates: true });
+      if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+      return { saved: true };
     }),
 
   // Public read works via "sponsored_ads_public_read" RLS policy (005_offers_rls_update.sql)

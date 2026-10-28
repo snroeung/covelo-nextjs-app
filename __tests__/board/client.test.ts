@@ -1,9 +1,10 @@
+import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, it, expect } from 'vitest';
 import { timeAgo, pluralize, untilLabel } from '@/lib/board/format';
 import { parseFilters, filtersToSearch, feedInput, hasActiveFilters, DEFAULT_FILTERS, MAX_QUERY } from '@/lib/board/filters';
 import {
   scoreAfterVote, applyPostVote, applyCommentVote, toggleVote, patchPostInFeed, removePostFromFeed,
-  mapComment, insertComment, countComments, sortThread, type FeedData,
+  mapComment, insertComment, countComments, sortThread, refreshAfterWrite, type FeedData,
 } from '@/lib/board/cache';
 import { describeError, isRateLimited } from '@/lib/board/errors';
 import type { BoardComment, BoardPost } from '@/lib/board/types';
@@ -288,5 +289,40 @@ describe('topic selection', () => {
   it('explains why it can\'t be posted', () => {
     expect(selectionError([])).toBe('Pick at least one topic.');
     expect(selectionError(addExisting([], t(1)))).toBeNull();
+  });
+});
+
+// ─── refreshAfterWrite ───────────────────────────────────────────────────────
+
+describe('refreshAfterWrite', () => {
+  // A saved list that is opened (and fetched) while the save is still being written:
+  // the fetch reads the database before the write lands.
+  async function scenario(settle: (qc: QueryClient, key: readonly string[]) => Promise<void>) {
+    const key = ['board', 'saved', 'me'] as const;
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const db: string[] = [];
+    const queryFn = async () => {
+      const seen = [...db]; // read now…
+      await new Promise((r) => setTimeout(r, 30)); // …answer later
+      return seen;
+    };
+    const observer = new QueryObserver(qc, { queryKey: key, queryFn });
+    const unsubscribe = observer.subscribe(() => {}); // the list is open: fetch #1 starts, with no data yet
+    await new Promise((r) => setTimeout(r, 5));
+    db.push('saved-post'); // the save commits while fetch #1 is in flight
+    await settle(qc, key);
+    await new Promise((r) => setTimeout(r, 80));
+    const data = qc.getQueryData<string[]>(key);
+    unsubscribe();
+    qc.clear();
+    return data;
+  }
+
+  it('a plain invalidate keeps the stale answer of the fetch already in flight (the bug)', async () => {
+    expect(await scenario(async (qc, key) => { await qc.invalidateQueries({ queryKey: key }); })).toEqual([]);
+  });
+
+  it('cancelling first makes the refetch start after the write, so the list has the new post', async () => {
+    expect(await scenario(refreshAfterWrite)).toEqual(['saved-post']);
   });
 });

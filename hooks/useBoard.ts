@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { feedInput, type BoardFilters } from '@/lib/board/filters';
 import { describeError } from '@/lib/board/errors';
 import {
-  applyCommentVote, applyPostVote, insertComment, mapComment, patchPostInFeed, removePostFromFeed,
+  applyCommentVote, applyPostVote, insertComment, mapComment, patchPostInFeed, refreshAfterWrite, removePostFromFeed,
   type FeedData, type FeedPage, type PostDetailData,
 } from '@/lib/board/cache';
 import type { BoardComment, VoteValue } from '@/lib/board/types';
@@ -26,6 +26,8 @@ export const boardKeys = {
   postRoot: ['board', 'post'] as const,
   topics: (viewer: string | null) => ['board', 'topics', viewer] as const,
   limits: (viewer: string | null) => ['board', 'limits', viewer] as const,
+  saved: (viewer: string | null) => ['board', 'saved', viewer] as const,
+  savedRoot: ['board', 'saved'] as const,
   offers: (q: string) => ['board', 'offers', q] as const,
 };
 
@@ -94,6 +96,17 @@ export function useBoardTopics() {
 }
 
 /** What the composer needs before the member writes a long post. Always fresh. */
+/** The signed-in member's saved posts. Off until the list is opened, and never for a signed-out visitor. */
+export function useSavedPosts(enabled: boolean) {
+  const viewer = useBoardViewer();
+  return useQuery({
+    queryKey: boardKeys.saved(viewer.id),
+    queryFn: () => trpc.board.posts.saved.query(),
+    enabled: enabled && viewer.signedIn,
+    staleTime: 15_000,
+  });
+}
+
 export function useBoardLimits(enabled: boolean) {
   const viewer = useBoardViewer();
   return useQuery({
@@ -201,6 +214,8 @@ export function useSavePost() {
       restore(ctx?.snap);
       toast.show(describeError(err).message, { tone: 'error' });
     },
+    // Saving or unsaving changes the saved list in the board header (see refreshAfterWrite)
+    onSettled: () => refreshAfterWrite(qc, boardKeys.savedRoot),
   });
 }
 

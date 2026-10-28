@@ -71,6 +71,9 @@ const createPostInput = z
 
 const voteValue = z.union([z.literal(-1), z.literal(0), z.literal(1)]);
 
+/** The most saved posts one member's list shows */
+const SAVED_POSTS_LIMIT = 50;
+
 // ─── Small helpers ───────────────────────────────────────────────────────────
 
 const notFound = (what = "Post") => new TRPCError({ code: "NOT_FOUND", message: `${what} not found.` });
@@ -148,6 +151,24 @@ export const boardRouter = router({
         ]);
         return { posts: await hydratePosts(admin, page.rows, viewer), nextCursor: page.nextCursor, counts };
       }),
+
+    /** The signed-in member's saved posts, most recently saved first. Posts they can no longer see (removed, held) drop out. */
+    saved: authedProcedure("api:board").query(async ({ ctx }): Promise<BoardPost[]> => {
+      const admin = getSupabaseAdmin();
+      const res = await admin
+        .from("board_saves")
+        .select("post_id, created_at")
+        .eq("user_id", ctx.user.id)
+        .order("created_at", { ascending: false })
+        .limit(SAVED_POSTS_LIMIT);
+      const order = (must(res, "saved posts") as unknown as Array<{ post_id: string }>).map((r) => r.post_id);
+      if (order.length === 0) return [];
+
+      const page = await queryFeed(admin, ctx.viewer, { sort: "new", ids: order, limit: order.length });
+      const posts = await hydratePosts(admin, page.rows, ctx.viewer);
+      const rank = new Map(order.map((id, i) => [id, i]));
+      return posts.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+    }),
 
     get: viewerProcedure("api:board")
       .input(z.object({ id }))

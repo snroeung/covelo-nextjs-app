@@ -1,5 +1,6 @@
 import { BTN_PRIMARY } from '@/components/ui/button';
 import { BoardIcon } from '@/components/board/shared/icons';
+import { SavedPostsMenu } from './SavedPostsMenu';
 
 export function BoardHeader({ onNewPost }: { onNewPost: () => void }) {
   return (
@@ -11,10 +12,13 @@ export function BoardHeader({ onNewPost }: { onNewPost: () => void }) {
           Travel tips and offers from members. Offer posts link to a covelo offer and carry a verified mark once an admin confirms them.
         </p>
       </div>
-      <button type="button" onClick={onNewPost} className={BTN_PRIMARY}>
-        <BoardIcon name="plus" size={13} />
-        New post
-      </button>
+      <div className="flex items-center gap-2">
+        <SavedPostsMenu />
+        <button type="button" onClick={onNewPost} className={BTN_PRIMARY}>
+          <BoardIcon name="plus" size={13} />
+          New post
+        </button>
+      </div>
     </div>
   );
 }

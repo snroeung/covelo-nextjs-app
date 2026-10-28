@@ -17,7 +17,7 @@ export interface SeededMemberOffer {
 }
 
 /** A member-created transfer-bonus offer post, pending review, by the seeded local member. */
-export async function seedMemberOfferPost(opts: { title?: string; body?: string; topicCount?: number } = {}): Promise<SeededMemberOffer> {
+export async function seedMemberOfferPost(opts: { title?: string; body?: string; topicCount?: number; endDate?: string } = {}): Promise<SeededMemberOffer> {
   const db = getSupabaseAdmin();
   const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
   const member = users?.users.find((u) => u.email === (process.env.PLAYWRIGHT_MEMBER_EMAIL || 'member@covelo.local'));
@@ -30,7 +30,7 @@ export async function seedMemberOfferPost(opts: { title?: string; body?: string;
   const title = opts.title ?? `${SEED_PREFIX} Bilt → AAdvantage 30% ${Math.random().toString(36).slice(2, 8)}`;
   const details = {
     kind: 'transfer', issuer: 'bilt', transfer_partner: 'American AAdvantage', bonus_pct: 30, card_ids: [], tags: [],
-    start_date: '2026-11-01', end_date: '2026-12-31', country: 'US', is_targeted: false, for_status_transfer: false,
+    start_date: '2026-01-01', end_date: opts.endDate ?? '2099-12-31', country: 'US', is_targeted: false, for_status_transfer: false,
     description: 'Seeded by e2e', source_url: 'https://example.com/promo',
   };
   const mo = await db.from('board_member_offers').insert({
@@ -71,6 +71,13 @@ export async function cleanupSeededPost(postId: string, memberOfferId: string): 
   const { data: mo } = await db.from('board_member_offers').select('published_table, published_id').eq('id', memberOfferId).maybeSingle();
   if (mo?.published_table && mo.published_id) await db.from(mo.published_table).delete().eq('id', mo.published_id);
   await db.from('board_member_offers').delete().eq('id', memberOfferId);
+}
+
+/** Move a seeded offer's end date (e.g. into the past, to expire its post). */
+export async function setSeededOfferEnd(memberOfferId: string, endDate: string): Promise<void> {
+  const db = getSupabaseAdmin();
+  const { data } = await db.from('board_member_offers').select('details').eq('id', memberOfferId).single();
+  await db.from('board_member_offers').update({ details: { ...(data?.details as object), end_date: endDate } }).eq('id', memberOfferId);
 }
 
 /** What the database now says about a seeded post. */
