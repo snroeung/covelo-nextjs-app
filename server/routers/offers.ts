@@ -77,18 +77,20 @@ export const createSpendingBonusInput = z.object({
 /**
  * Keep the covelo board post in step with a saved offer. Runs after the offer
  * is stored; it is skipped when the offer is not on the board and the request
- * did not touch the toggle (nothing to create or hide).
+ * did not touch the toggle (nothing to create or hide). An inactive offer is
+ * never on the board: its post is hidden whatever the toggle says.
  */
 async function syncBoardPost(
   table: OfferTable,
-  row: { id: string; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
+  row: { id: string; active?: boolean; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
   adminUserId: string,
   touchedToggle: boolean,
 ): Promise<void> {
-  if (row.post_to_board !== true && !touchedToggle) return;
+  const onBoard = row.post_to_board === true && row.active !== false;
+  if (!onBoard && !touchedToggle && row.active !== false) return;
   try {
     await syncSystemPost(getSupabaseAdmin(), table, row.id, {
-      post_to_board: row.post_to_board === true,
+      post_to_board: onBoard,
       board_topic: row.board_topic ?? null,
       board_post_title: row.board_post_title ?? null,
       board_post_body: row.board_post_body ?? null,
@@ -346,17 +348,21 @@ export const offersRouter = router({
         table:  z.enum(["transfer_bonuses", "spending_bonuses"]),
         active: z.boolean(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const supabase = await createClient();
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from(input.table)
           .update({ active: input.active })
-          .eq("id", input.id);
+          .eq("id", input.id)
+          .select()
+          .single();
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
 
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
+        // Deactivating hides the offer's board post; reactivating restores it if the toggle is still on
+        await syncBoardPost(input.table, data, ctx.user.id, true);
       }),
 
     createTransferBonus: adminProcedure("api:offers")
