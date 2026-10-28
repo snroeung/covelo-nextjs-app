@@ -17,7 +17,10 @@
     "db:push:dev": "tsx scripts/db-push-dev/run.ts",
     "portal-sync:eval": "tsx scripts/portal-sync/eval.ts",
     "seed:local-admin": "tsx scripts/seed-local-admin.ts",
-    "seed:local-member": "tsx scripts/seed-local-member.ts"
+    "seed:local-member": "tsx scripts/seed-local-member.ts",
+    "board:dormancy": "tsx scripts/board/dormancy.ts",
+    "board:backfill": "tsx scripts/board/backfill-system-posts.ts",
+    "board:purge-expired": "tsx scripts/board/purge-expired.ts"
   },
   "overrides": {
     "postcss": "^8.5.25",

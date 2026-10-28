@@ -163,6 +163,17 @@ Reviews come **only from Google Places (New)** — Duffel's `review_score` / `re
   `reviewsUri`/review `googleMapsUri`, visit date, and "Summarized with Gemini" on the summary.
 - Kill switch: `integration:google-places:reviews`.
 
+### The board — jobs and rollout
+
+Flags: `ui:board` (route gate in `proxy.ts`) and `api:board` (router). Both are on in `local`, `beta` and `production`. To pull the board from an environment, drop it from `enabledIn` in `lib/feature-flags.ts`. Moderation runs on every post and comment at creation; the Claude classifier fails open (`unscanned`) and there is deliberately no rescan job. Expired offer posts are hidden by `offer_expires_on` (migration 034) and soft-deleted by the daily purge job after a 7-day grace period.
+
+Jobs (GitHub Actions, `.github/workflows/board-jobs.yml`, same env/secrets as `portal-data-sync.yml`):
+- `npm run board:dormancy` — weekly (Mon 10:00 UTC). Active topics with no visible post for 60 days → dormant; a new post reactivates by trigger.
+- `npm run board:purge-expired [-- --dry] [-- --days N]` — daily (11:00 UTC). Soft-deletes (`deleted_at`, like an author delete) offer posts whose offer ended more than N days ago (default 7); up to 500 per run. Not a hard delete: nothing cascades and rows can be restored by hand.
+- `npm run board:backfill [-- --dry]` — one-off per environment. Creates covelo posts for live offers with `post_to_board = true` and no post. Run `--dry` first. Dispatch from Actions (`job: backfill-dry` / `backfill`) or locally.
+
+Release order for a new environment: push migrations 025–035 (`npm run db:push:dev` for dev), confirm `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY` and the Upstash vars are set, run `backfill-dry` then `backfill`, then enable the two flags.
+
 ### Redemption comparison components
 Renderings of the same `PointsResult`, chosen by how much room the surface has. All of
 them rank through `hooks/useRankedViews.ts` (bonus lookup + rank + re-sort on displayed

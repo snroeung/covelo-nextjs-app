@@ -137,19 +137,15 @@ describe('getEnabledFlags()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The Board — local-only until Phase 8 rollout
+// The Board — on in every environment
 // ---------------------------------------------------------------------------
 
 describe('board flags', () => {
-  it('ui:board and api:board are enabled locally only', () => {
-    withEnv('local', () => {
-      expect(isEnabled('ui:board')).toBe(true);
-      expect(isEnabled('api:board')).toBe(true);
-    });
-    for (const env of ['beta', 'production'] as const) {
+  it('ui:board and api:board are enabled in local, beta and production', () => {
+    for (const env of ['local', 'beta', 'production'] as const) {
       withEnv(env, () => {
-        expect(isEnabled('ui:board')).toBe(false);
-        expect(isEnabled('api:board')).toBe(false);
+        expect(isEnabled('ui:board')).toBe(true);
+        expect(isEnabled('api:board')).toBe(true);
       });
     }
   });

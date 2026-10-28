@@ -39,7 +39,8 @@ export async function syncSystemPost(
   table: OfferTable,
   offerId: string,
   fields: OfferBoardFields,
-  adminUserId: string,
+  /** The admin who saved the offer. A scheduled backfill has none: the post then shows covelo's own verified mark. */
+  adminUserId: string | null,
 ): Promise<SystemPostResult> {
   const found = await admin
     .from("board_posts")

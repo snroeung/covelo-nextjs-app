@@ -1,0 +1,67 @@
+name: Board Jobs
+
+# Scheduled upkeep for the board. Topic dormancy runs weekly: a topic needs 60
+# quiet days to go dormant, so a faster cadence changes nothing. Expired offer
+# posts are removed daily. The backfill is a one-off, run by hand (dry first)
+# when the board is switched on in an environment.
+
+on:
+  schedule:
+    - cron: "0 10 * * 1" # weekly, Monday 10:00 UTC — topic dormancy
+    - cron: "0 11 * * *" # daily, 11:00 UTC — remove expired offer posts
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Job to run"
+        required: true
+        default: "dormancy"
+        type: choice
+        options:
+          - dormancy
+          - purge-expired-dry
+          - purge-expired
+          - backfill-dry
+          - backfill
+      environment:
+        description: "Target environment"
+        required: false
+        default: "Preview"
+        type: choice
+        options:
+          - Preview
+          - Production
+
+concurrency:
+  group: board-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.job || (github.event.schedule == '0 10 * * 1' && 'dormancy' || 'purge-expired') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'Production' }}
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      JOB: ${{ github.event_name == 'workflow_dispatch' && inputs.job || (github.event.schedule == '0 10 * * 1' && 'dormancy' || 'purge-expired') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: Run job
+        shell: bash
+        run: |
+          case "$JOB" in
+            dormancy)          npm run board:dormancy ;;
+            purge-expired-dry) npm run board:purge-expired -- --dry ;;
+            purge-expired)     npm run board:purge-expired ;;
+            backfill-dry)  npm run board:backfill -- --dry ;;
+            backfill)      npm run board:backfill ;;
+            *) echo "Unknown job: $JOB"; exit 1 ;;
+          esac
