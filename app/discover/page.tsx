@@ -12,9 +12,12 @@ import { DiscoverCreatorBanner } from '@/components/discover/DiscoverCreatorBann
 import { DiscoverBoardPromo } from '@/components/discover/DiscoverBoardPromo';
 import { DiscoverOfferModal } from '@/components/discover/DiscoverOfferModal';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
+import { BoardToastProvider } from '@/components/board/shared/Toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { sortByValueThenRecency } from '@/lib/discover/offerCopy';
+import { browserTimeZone } from '@/lib/time';
+import { liveOffers } from '@/lib/offers/live';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
@@ -23,15 +26,18 @@ function DiscoverPageInner() {
   const { isDark } = useTheme();
   const [openOffer, setOpenOffer] = useState<Offer | null>(null);
 
-  const { data: transferBonuses = [], isLoading: loadingTransfer } = useQuery({
+  // The server only sends live offers; re-check here so a tab left open past an end date doesn't keep showing it
+  const { data: transferData = [], isLoading: loadingTransfer } = useQuery({
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
   });
+  const transferBonuses = liveOffers(transferData, new Date(), browserTimeZone());
 
-  const { data: spendingBonuses = [], isLoading: loadingSpending } = useQuery({
+  const { data: spendingData = [], isLoading: loadingSpending } = useQuery({
     queryKey: ['offers.spendingBonuses'],
     queryFn:  () => trpc.offers.listSpendingBonuses.query(),
   });
+  const spendingBonuses = liveOffers(spendingData, new Date(), browserTimeZone());
 
   const isLoading = loadingTransfer || loadingSpending;
 
@@ -54,7 +60,7 @@ function DiscoverPageInner() {
 
       <main className="flex-1">
         <div className="px-4 md:px-7 py-6 max-w-5xl mx-auto mt-6 flex flex-col gap-7 rounded-xl border bg-gph-card border-gph-line">
-          <DiscoverMasthead isDark={isDark} offerCount={remainingPool.length} />
+          <DiscoverMasthead isDark={isDark} offerCount={remainingPool.length} onOpenOffer={setOpenOffer} />
 
           {isLoading ? (
             <div className="flex flex-col gap-3 animate-pulse py-2">
@@ -81,13 +87,14 @@ function DiscoverPageInner() {
           <AffiliateAdSpot slot="below_grid" isDark={isDark} variant="editorial" />
         </div>
 
+        <div className="px-4 md:px-7 pb-8 max-w-5xl mx-auto">
+          <DiscoverBoardPromo isDark={isDark} />
+        </div>
+
         <div className="px-4 md:px-7 pb-7 max-w-5xl mx-auto">
           <DiscoverCreatorBanner isDark={isDark} />
         </div>
 
-        <div className="px-4 md:px-7 pb-8 max-w-5xl mx-auto">
-          <DiscoverBoardPromo isDark={isDark} />
-        </div>
       </main>
       <Footer />
 
@@ -101,7 +108,9 @@ function DiscoverPageInner() {
 export default function DiscoverPage() {
   return (
     <Suspense>
-      <DiscoverPageInner />
+      <BoardToastProvider>
+        <DiscoverPageInner />
+      </BoardToastProvider>
     </Suspense>
   );
 }

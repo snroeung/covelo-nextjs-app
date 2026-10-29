@@ -1,5 +1,6 @@
 // TTL constants (seconds)
 export const TTL = {
+  FIVE_MINUTES:    60 * 5,
   FIFTEEN_MINUTES: 60 * 15,
   ONE_HOUR:        60 * 60,
   ONE_DAY:         60 * 60 * 24,
@@ -41,6 +42,9 @@ export const cacheKeys = {
     `portal-data:travel-collections:${type}`,
   pointsValuations: () =>
     `portal-data:points-valuations`,
+  // Shared topic list for board chips + composer — never user-specific
+  boardTopics:      () =>
+    `board:topics`,
 } as const;
 
 // Cache entry config — one place to change a TTL
@@ -61,4 +65,6 @@ export const CACHE = {
   transferPartners: { ttl: TTL.ONE_DAY },
   travelCollections: { ttl: TTL.ONE_DAY },
   pointsValuations: { ttl: TTL.THIRTY_DAYS },
+  // Busted on topic create/merge/rename/status change
+  boardTopics:      { ttl: TTL.FIVE_MINUTES },
 } as const;

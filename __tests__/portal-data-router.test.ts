@@ -12,8 +12,9 @@ vi.mock('@/lib/redis', () => ({
   },
 }));
 
+// Every flag is on except the board's, which has its own tests (board/queue.test.ts)
 vi.mock('@/lib/feature-flags', () => ({
-  isEnabled: () => true,
+  isEnabled: (flag: string) => flag !== 'api:board',
 }));
 
 import { createClient } from '@/lib/supabase/server';

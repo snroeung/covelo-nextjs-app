@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,21 +8,9 @@ import { trpc } from '@/lib/trpc-client';
 import { CARD_NAMES, ISSUER_CARDS, type CardId, type PortalId } from '@/lib/points/types';
 import { PARTNER_IMAGES } from '@/lib/partnerImages';
 import type { Issuer, TransferBonus, SpendingBonus } from '@/lib/types/offers';
-
-const OFFER_TAGS = [
-  'Statement credit',
-  'Free night',
-  'Sign on bonus',
-  'Points bonus',
-  'Transfer bonus',
-  'Cash back',
-  'Hotel credit',
-  'Flight credit',
-  'Dining credit',
-  'Travel credit',
-  'Annual benefit',
-  'Limited time',
-];
+import { OFFER_TAGS, prefillFromMemberOffer } from '@/lib/board/memberOffer';
+import { TopicMultiSelect } from './TopicMultiSelect';
+import { issuersForPartner, partnerLabel, partnersForIssuer, soleIssuer } from '@/lib/points/partnerOptions';
 
 type OfferType = 'transfer' | 'spending';
 
@@ -58,6 +47,10 @@ interface TransferForm {
   source_url:       string;
   country:          string;
   active:           boolean;
+  post_to_board:    boolean;
+  board_topic:      string;
+  board_post_title: string;
+  board_post_body:  string;
 }
 
 interface SpendingForm {
@@ -76,6 +69,10 @@ interface SpendingForm {
   source_url:       string;
   country:          string;
   active:           boolean;
+  post_to_board:    boolean;
+  board_topic:      string;
+  board_post_title: string;
+  board_post_body:  string;
 }
 
 type InitialOffer =
@@ -84,6 +81,14 @@ type InitialOffer =
 
 interface Props {
   initial?: InitialOffer;
+  /** Review & publish: a member-created offer, shown as the editor's starting point */
+  fromPost?: {
+    postId: string;
+    memberOffer: Record<string, unknown>;
+    author?: string;
+    /** The member's own post, as written: shown for review and saved with the publish */
+    post: { title: string; body: string; topicIds: string[]; topics: Array<{ id: string; name: string }> };
+  };
   onSave:   () => void;
   onCancel: () => void;
   isDark:   boolean;
@@ -101,17 +106,28 @@ function inputCls(isDark: boolean) {
   }`;
 }
 
-export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
+export function AdminOfferEditor({ initial, fromPost, onSave, onCancel, isDark }: Props) {
   const queryClient = useQueryClient();
   const isEditing = !!initial;
 
+  // Editing starts from the saved row; reviewing a member's offer from their submission
+  const seed: InitialOffer | undefined = initial ?? (fromPost ? (prefillFromMemberOffer(fromPost.memberOffer) as unknown as InitialOffer) : undefined);
   const [offerType, setOfferType] = useState<OfferType>(
-    initial?.type ?? 'transfer'
+    seed?.type ?? 'transfer'
   );
   const [error, setError] = useState<string | null>(null);
+  // Reviewing a member's offer shows only what a member could fill in; the
+  // admin-only controls (tags and country) sit
+  // behind "Admin extras". They stay mounted so their values still save.
+  const [showExtras, setShowExtras] = useState(!fromPost);
+  // The member's own post, editable while reviewing (title, body, topics)
+  const [postTitle, setPostTitle] = useState(fromPost?.post.title ?? '');
+  const [postBody, setPostBody] = useState(fromPost?.post.body ?? '');
+  const [postTopicIds, setPostTopicIds] = useState<string[]>(fromPost?.post.topicIds ?? []);
+  const adminOnly = showExtras ? '' : 'hidden';
 
-  const initT = initial?.type === 'transfer' ? initial.offer : undefined;
-  const initS = initial?.type === 'spending' ? initial.offer : undefined;
+  const initT = seed?.type === 'transfer' ? seed.offer : undefined;
+  const initS = seed?.type === 'spending' ? seed.offer : undefined;
 
   const [transfer, setTransfer] = useState<TransferForm>({
     issuer:           initT?.issuer           ?? '',
@@ -128,6 +144,10 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     source_url:       initT?.source_url       ?? '',
     country:          initT?.country          ?? 'US',
     active:           initT?.active           ?? true,
+    post_to_board:    initT?.post_to_board    ?? false,
+    board_topic:      initT?.board_topic      ?? '',
+    board_post_title: initT?.board_post_title ?? '',
+    board_post_body:  initT?.board_post_body  ?? '',
   });
 
   const [spending, setSpending] = useState<SpendingForm>({
@@ -146,6 +166,10 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     source_url:       initS?.source_url              ?? '',
     country:          initS?.country                 ?? 'US',
     active:           initS?.active                  ?? true,
+    post_to_board:    initS?.post_to_board           ?? false,
+    board_topic:      initS?.board_topic             ?? '',
+    board_post_title: initS?.board_post_title        ?? '',
+    board_post_body:  initS?.board_post_body         ?? '',
   });
 
   const card  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
@@ -162,10 +186,14 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     queryFn:  () => trpc.portalData.listTransferPartners.query(),
   });
 
+  const { data: boardTopics } = useQuery({
+    queryKey: ['board.topics.admin'],
+    queryFn:  () => trpc.board.topics.list.query({}),
+  });
+
   // Transfer partner options filtered by issuer — DB-approved partners only
-  const partnerOptions = transfer.issuer
-    ? (transferPartners?.[ISSUER_TO_PORTAL[transfer.issuer as Issuer]] ?? [])
-    : [];
+  const partnerOptions = partnersForIssuer(transferPartners, (transfer.issuer ? ISSUER_TO_PORTAL[transfer.issuer as Issuer] : '') as PortalId | '');
+  const issuerChoices = issuersForPartner(transferPartners, transfer.transfer_partner, ISSUERS);
 
   // Card checkboxes filtered by issuer
   const transferCardOptions = transfer.issuer
@@ -182,8 +210,16 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     ? (1 + bonusPctNum / 100).toFixed(4)
     : '—';
 
-  const { mutate: createTransfer, isPending: creatingTransfer } = useMutation({
-    mutationFn: () => trpc.offers.admin.createTransferBonus.mutate({
+  // The editor's "Post to board" section. Title and body are stored as written.
+  const boardFields = (f: { post_to_board: boolean; board_topic: string; board_post_title: string; board_post_body: string }) => ({
+    post_to_board:    f.post_to_board,
+    board_topic:      f.board_topic || null,
+    board_post_title: f.board_post_title || null,
+    board_post_body:  f.board_post_body || null,
+  });
+
+  function transferCreatePayload() {
+    return {
       issuer:           transfer.issuer as Issuer,
       transfer_partner: transfer.transfer_partner,
       bonus_pct:        transfer.bonus_pct ? parseFloat(transfer.bonus_pct) : null,
@@ -192,13 +228,19 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       tags:             transfer.tags,
       start_date:       transfer.start_date,
       end_date:         transfer.end_date,
-      is_targeted:      transfer.is_targeted,
+      // A member can't set "targeted" directly: specific cards means targeted
+      is_targeted:      fromPost ? transfer.card_ids.length > 0 : transfer.is_targeted,
       for_status_transfer: transfer.for_status_transfer,
       card_ids:         transfer.card_ids,
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
-    }),
+      ...boardFields(transfer),
+    };
+  }
+
+  const { mutate: createTransfer, isPending: creatingTransfer } = useMutation({
+    mutationFn: () => trpc.offers.admin.createTransferBonus.mutate(transferCreatePayload()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
       onSave();
@@ -206,8 +248,8 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
 
-  const { mutate: createSpending, isPending: creatingSpending } = useMutation({
-    mutationFn: () => trpc.offers.admin.createSpendingBonus.mutate({
+  function spendingCreatePayload() {
+    return {
       issuer:           spending.issuer as Issuer,
       merchant_name:    spending.merchant_name,
       bonus_multiplier: parseFloat(spending.bonus_multiplier),
@@ -219,16 +261,40 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       card_ids:         spending.card_ids,
       start_date:       spending.start_date,
       end_date:         spending.end_date,
-      is_targeted:      spending.is_targeted,
+      is_targeted:      fromPost ? spending.card_ids.length > 0 : spending.is_targeted,
       source_url:       spending.source_url || null,
       country:          spending.country,
       active:           spending.active,
-    }),
+      ...boardFields(spending),
+    };
+  }
+
+  const { mutate: createSpending, isPending: creatingSpending } = useMutation({
+    mutationFn: () => trpc.offers.admin.createSpendingBonus.mutate(spendingCreatePayload()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
       onSave();
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
+  });
+
+  // Review & publish: the member's offer goes into the catalog, their post
+  // links to it and is verified — one server step (board.admin.publish).
+  const { mutate: publishFromPost, isPending: publishingFromPost } = useMutation({
+    mutationFn: () => {
+      if (!fromPost) throw new Error('No post to publish');
+      const post = { title: postTitle.trim(), body: postBody.trim(), topicIds: postTopicIds };
+      return offerType === 'transfer'
+        ? trpc.board.admin.publish.mutate({ postId: fromPost.postId, table: 'transfer_bonuses', offer: transferCreatePayload(), post })
+        : trpc.board.admin.publish.mutate({ postId: fromPost.postId, table: 'spending_bonuses', offer: spendingCreatePayload(), post });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
+      queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
+      queryClient.invalidateQueries({ queryKey: ['board'] });
+      onSave();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Publish failed'),
   });
 
   // Shared with the Publish action below — publishing re-saves the form's
@@ -250,6 +316,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       source_url:       transfer.source_url || null,
       country:          transfer.country,
       active:           transfer.active,
+      ...boardFields(transfer),
     };
   }
 
@@ -271,6 +338,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       source_url:       spending.source_url || null,
       country:          spending.country,
       active:           spending.active,
+      ...boardFields(spending),
     };
   }
 
@@ -313,7 +381,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     onError: (e) => setError(e instanceof Error ? e.message : 'Publish failed'),
   });
 
-  const isPending = creatingTransfer || creatingSpending || updatingTransfer || updatingSpending || publishing;
+  const isPending = creatingTransfer || creatingSpending || updatingTransfer || updatingSpending || publishing || publishingFromPost;
 
   // A row synced in by the scraper (source: 'cron') stays status: 'pending'
   // until an admin approves it — offer to publish it directly from here
@@ -328,8 +396,17 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     setSpending((prev) => ({ ...prev, [key]: value }));
   }
 
+  // Issuer and partner can be picked in either order: a partner the new issuer
+  // doesn't reach is dropped, and a partner picked first fills in its issuer
+  // when only one reaches it.
   function handleTransferIssuerChange(issuer: string) {
-    setTransfer((prev) => ({ ...prev, issuer: issuer as Issuer, transfer_partner: '', card_ids: [] }));
+    const keeps = !!issuer && partnersForIssuer(transferPartners, issuer as PortalId).some((p) => p.program === transfer.transfer_partner);
+    setTransfer((prev) => ({ ...prev, issuer: issuer as Issuer, transfer_partner: keeps ? prev.transfer_partner : '', card_ids: [] }));
+  }
+
+  function handleTransferPartnerChange(program: string) {
+    const only = transfer.issuer ? '' : soleIssuer(transferPartners, program);
+    setTransfer((prev) => ({ ...prev, transfer_partner: program, ...(only ? { issuer: only as Issuer, card_ids: [] } : {}) }));
   }
 
   function handleSpendingIssuerChange(issuer: string) {
@@ -400,7 +477,9 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
 
   function handlePublish() {
     setError(null);
-    if (isEditing) {
+    if (fromPost) {
+      publishFromPost();
+    } else if (isEditing) {
       if (offerType === 'transfer') updateTransfer();
       else updateSpending();
     } else {
@@ -433,7 +512,19 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     { label: 'Source URL valid (if set)', ok: !spending.source_url || /^https?:\/\/.+/.test(spending.source_url) },
   ];
 
-  const checks = offerType === 'transfer' ? transferChecks : spendingChecks;
+  const boardForm = offerType === 'transfer' ? transfer : spending;
+  const boardChecks = fromPost
+    ? [
+        { label: 'Post title filled', ok: postTitle.trim().length > 0 },
+        { label: 'At least one topic', ok: postTopicIds.length > 0 },
+      ]
+    : boardForm.post_to_board
+    ? [
+        { label: 'Board post title filled', ok: boardForm.board_post_title.trim().length > 0 },
+        { label: 'Board topic picked',      ok: boardForm.board_topic.trim().length > 0 },
+      ]
+    : [];
+  const checks = [...(offerType === 'transfer' ? transferChecks : spendingChecks), ...boardChecks];
   const allValid = checks.every((c) => c.ok);
 
   const toggleBtnCls = (active: boolean) =>
@@ -447,15 +538,15 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
     `relative w-9 h-5 rounded-full transition-colors ${on ? color : isDark ? 'bg-gph-dark-line' : 'bg-gray-300'}`;
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${card}`}>
+    <div role="region" aria-label={fromPost ? 'Review member offer' : isEditing ? 'Edit offer' : 'New offer'} className={`rounded-xl border overflow-hidden ${card}`}>
       {/* Header */}
       <div className={`flex items-center justify-between px-5 py-4 border-b ${line}`}>
         <div>
           <div className={`text-[10px] font-mono font-bold tracking-widest mb-1 ${muted}`}>
-            {isEditing ? 'EDIT OFFER' : 'NEW OFFER'}
+            {fromPost ? 'REVIEW & PUBLISH' : isEditing ? 'EDIT OFFER' : 'NEW OFFER'}
           </div>
           <h3 className={`text-lg font-bold ${ink}`}>
-            {isEditing ? 'Edit offer' : 'Create a new offer'}
+            {fromPost ? 'Review member offer' : isEditing ? 'Edit offer' : 'Create a new offer'}
           </h3>
         </div>
         <button
@@ -471,27 +562,51 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
       {/* Offer type toggle */}
       <div className={`px-5 py-3 border-b flex items-center gap-2 ${line} ${subBg}`}>
         <button
-          onClick={() => !isEditing && setOfferType('transfer')}
+          onClick={() => !isEditing && !fromPost && setOfferType('transfer')}
           className={toggleBtnCls(offerType === 'transfer')}
-          disabled={isEditing}
+          disabled={isEditing || !!fromPost}
         >
           Transfer Bonus
         </button>
         <button
-          onClick={() => !isEditing && setOfferType('spending')}
+          onClick={() => !isEditing && !fromPost && setOfferType('spending')}
           className={toggleBtnCls(offerType === 'spending')}
-          disabled={isEditing}
+          disabled={isEditing || !!fromPost}
         >
           Spending Bonus
         </button>
-        {isEditing && (
-          <span className={`ml-2 text-[10px] font-mono ${muted}`}>Type is locked when editing</span>
+        {(isEditing || fromPost) && (
+          <span className={`ml-2 text-[10px] font-mono ${muted}`}>{fromPost ? 'Type is set by the member’s offer' : 'Type is locked when editing'}</span>
         )}
       </div>
 
       <div className="grid md:grid-cols-[1.2fr_1fr]">
         {/* ── Form ── */}
         <div className={`p-5 md:p-6 flex flex-col gap-5 border-r ${line}`}>
+
+          {fromPost && (
+            <div role="group" aria-label="Submitted by the member" className={`rounded-lg border p-4 ${line} ${subBg}`}>
+              <div className={`text-[10px] font-mono font-bold tracking-widest mb-1.5 ${muted}`}>
+                SUBMITTED BY {(fromPost.author ?? 'A MEMBER').toUpperCase()}
+              </div>
+              <div className={`text-sm font-bold ${ink}`}>{fromPost.post.title}</div>
+              <div className={`text-xs font-mono mt-0.5 ${muted}`}>
+                {[fromPost.memberOffer.name, fromPost.memberOffer.ends_label ? `ends ${fromPost.memberOffer.ends_label}` : null].filter(Boolean).join(' · ')}
+              </div>
+              <p className={`text-xs mt-2 ${muted}`}>
+                These are the fields the member filled in. Check them against the source, correct anything that is off, then publish.
+              </p>
+              <button
+                type="button"
+                aria-expanded={showExtras}
+                onClick={() => setShowExtras((v) => !v)}
+                className={`mt-2 min-h-11 text-xs font-bold underline underline-offset-2 ${isDark ? 'text-gph-dark-ink' : 'text-gray-700'}`}
+              >
+                {showExtras ? 'Hide admin extras' : 'Show admin extras'}
+                <span className={`ml-1 font-normal ${muted}`}>(tags and country)</span>
+              </button>
+            </div>
+          )}
 
           {offerType === 'transfer' ? (
             <>
@@ -507,7 +622,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       onChange={(e) => handleTransferIssuerChange(e.target.value)}
                     >
                       <option value="">Select issuer…</option>
-                      {ISSUERS.map((iss) => (
+                      {issuerChoices.map((iss) => (
                         <option key={iss} value={iss}>{ISSUER_LABELS[iss]}</option>
                       ))}
                     </select>
@@ -518,13 +633,12 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                     <select
                       className={iCls}
                       value={transfer.transfer_partner}
-                      onChange={(e) => setT('transfer_partner', e.target.value)}
-                      disabled={!transfer.issuer}
+                      onChange={(e) => handleTransferPartnerChange(e.target.value)}
                     >
-                      <option value="">{transfer.issuer ? 'Select partner…' : 'Select issuer first'}</option>
+                      <option value="">Select partner…</option>
                       {partnerOptions.map((p) => (
                         <option key={p.program} value={p.program}>
-                          [{p.type === 'hotel' ? 'Hotel' : 'Airline'}] {p.program} ({p.ratio})
+                          {partnerLabel(p, (transfer.issuer ? ISSUER_TO_PORTAL[transfer.issuer as Issuer] : '') as PortalId | '', (i) => ISSUER_LABELS[i as Issuer])}
                         </option>
                       ))}
                     </select>
@@ -591,7 +705,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
               <section>
                 <div className={`mb-3 ${lCls}`}>3 · TAGS, DATES & FLAGS</div>
                 <div className="flex flex-col gap-3">
-                  <div>
+                  <div className={adminOnly}>
                     <label className={`block mb-1.5 ${lCls}`}>TAGS <span className={muted}>— select all that apply</span></label>
                     <div className="flex flex-wrap gap-2">
                       {OFFER_TAGS.map((tag) => {
@@ -622,7 +736,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       <label className={`block mb-1.5 ${lCls}`}>END DATE <span className="text-red-500">*</span></label>
                       <input type="date" className={iCls} value={transfer.end_date} onChange={(e) => setT('end_date', e.target.value)} />
                     </div>
-                    <div className="col-span-2">
+                    <div className={`col-span-2 ${adminOnly}`}>
                       <label className={`block mb-1.5 ${lCls}`}>COUNTRY / REGION</label>
                       <select className={iCls} value={transfer.country} onChange={(e) => setT('country', e.target.value)}>
                         <option value="US">United States</option>
@@ -642,7 +756,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       placeholder="https://…"
                     />
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className={`flex items-center gap-3 ${fromPost ? 'hidden' : adminOnly}`}>
                     <button
                       type="button"
                       onClick={() => setT('is_targeted', !transfer.is_targeted)}
@@ -666,7 +780,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       {transfer.for_status_transfer ? 'Counts toward elite/award status with partner' : 'Points bonus only — no status transfer'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className={`flex items-center gap-3 ${fromPost ? 'hidden' : adminOnly}`}>
                     <button
                       type="button"
                       onClick={() => setT('active', !transfer.active)}
@@ -789,7 +903,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
               <section>
                 <div className={`mb-3 ${lCls}`}>3 · TAGS, DATES & FLAGS</div>
                 <div className="flex flex-col gap-3">
-                  <div>
+                  <div className={adminOnly}>
                     <label className={`block mb-1.5 ${lCls}`}>TAGS <span className={muted}>— select all that apply</span></label>
                     <div className="flex flex-wrap gap-2">
                       {OFFER_TAGS.map((tag) => {
@@ -820,7 +934,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       <label className={`block mb-1.5 ${lCls}`}>END DATE <span className="text-red-500">*</span></label>
                       <input type="date" className={iCls} value={spending.end_date} onChange={(e) => setS('end_date', e.target.value)} />
                     </div>
-                    <div className="col-span-2">
+                    <div className={`col-span-2 ${adminOnly}`}>
                       <label className={`block mb-1.5 ${lCls}`}>COUNTRY / REGION</label>
                       <select className={iCls} value={spending.country} onChange={(e) => setS('country', e.target.value)}>
                         <option value="US">United States</option>
@@ -840,7 +954,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       placeholder="https://…"
                     />
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className={`flex items-center gap-3 ${fromPost ? 'hidden' : adminOnly}`}>
                     <button
                       type="button"
                       onClick={() => setS('is_targeted', !spending.is_targeted)}
@@ -852,7 +966,7 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
                       {spending.is_targeted ? 'Targeted — not available to all cardholders' : 'Available to all cardholders'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className={`flex items-center gap-3 ${fromPost ? 'hidden' : adminOnly}`}>
                     <button
                       type="button"
                       onClick={() => setS('active', !spending.active)}
@@ -869,6 +983,95 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
             </>
           )}
 
+          {/* 4. Board post. Reviewing a member's offer: their own post, prefilled, editable. Otherwise: the covelo post for this offer. */}
+          {fromPost ? (
+            <section role="group" aria-label="The member's post">
+              <div className={`mb-3 ${lCls}`}>4 · MEMBER&apos;S POST</div>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label htmlFor="review-post-title" className={`block mb-1.5 ${lCls}`}>POST TITLE</label>
+                  <input id="review-post-title" className={iCls} maxLength={200} value={postTitle} onChange={(e) => setPostTitle(e.target.value)} />
+                </div>
+                <div>
+                  <label htmlFor="review-post-body" className={`block mb-1.5 ${lCls}`}>POST BODY <span className={muted}>— optional</span></label>
+                  <textarea id="review-post-body" rows={4} className={iCls} value={postBody} onChange={(e) => setPostBody(e.target.value)} />
+                </div>
+                <div>
+                  <span className={`block mb-1.5 ${lCls}`}>TOPICS <span className={muted}>— the first is the primary topic</span></span>
+                  <TopicMultiSelect
+                    options={[
+                      ...fromPost.post.topics,
+                      ...(boardTopics ?? []).filter((t) => !fromPost.post.topics.some((m) => m.id === t.id)).map((t) => ({ id: t.id, name: t.name })),
+                    ]}
+                    value={postTopicIds}
+                    onChange={setPostTopicIds}
+                    isDark={isDark}
+                    inputClassName={iCls}
+                  />
+                </div>
+              </div>
+            </section>
+          ) : (
+          <section className={adminOnly}>
+            <div className={`mb-3 ${lCls}`}>4 · BOARD POST</div>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={boardForm.post_to_board}
+                  aria-label="Post this offer to the board"
+                  onClick={() => (offerType === 'transfer' ? setT('post_to_board', !transfer.post_to_board) : setS('post_to_board', !spending.post_to_board))}
+                  className={toggleSwitchCls(boardForm.post_to_board)}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${boardForm.post_to_board ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+                <span className={`text-sm font-semibold ${ink}`}>
+                  {boardForm.post_to_board ? 'Posted to the board by covelo' : 'Not on the board'}
+                </span>
+              </div>
+
+              {boardForm.post_to_board && (
+                <>
+                  <div>
+                    <label className={`block mb-1.5 ${lCls}`}>BOARD TOPIC</label>
+                    <select
+                      className={iCls}
+                      value={boardForm.board_topic}
+                      onChange={(e) => (offerType === 'transfer' ? setT('board_topic', e.target.value) : setS('board_topic', e.target.value))}
+                    >
+                      <option value="">Select topic…</option>
+                      {boardForm.board_topic && !(boardTopics ?? []).some((t) => t.name === boardForm.board_topic) && (
+                        <option value={boardForm.board_topic}>{boardForm.board_topic}</option>
+                      )}
+                      {(boardTopics ?? []).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 ${lCls}`}>POST TITLE</label>
+                    <input
+                      className={iCls}
+                      maxLength={140}
+                      value={boardForm.board_post_title}
+                      onChange={(e) => (offerType === 'transfer' ? setT('board_post_title', e.target.value) : setS('board_post_title', e.target.value))}
+                      placeholder="Written by the sync for scraped offers; write one for hand-made ones"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block mb-1.5 ${lCls}`}>POST BODY <span className={muted}>— optional</span></label>
+                    <textarea
+                      rows={3}
+                      className={iCls}
+                      value={boardForm.board_post_body}
+                      onChange={(e) => (offerType === 'transfer' ? setT('board_post_body', e.target.value) : setS('board_post_body', e.target.value))}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+          )}
+
           {error && <p className="text-sm text-red-500 font-semibold">{error}</p>}
 
           <div className={`flex items-center justify-end gap-3 pt-4 border-t ${line}`}>
@@ -883,13 +1086,11 @@ export function AdminOfferEditor({ initial, onSave, onCancel, isDark }: Props) {
             <button
               disabled={isPending || !allValid}
               onClick={handlePublish}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 ${
-                isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-              }`}
+              className={btn('primary', 'md', 'text-sm!')}
             >
               {isPending
                 ? (isEditing ? 'Saving…' : 'Publishing…')
-                : (isEditing ? 'Save changes' : 'Publish offer')}
+                : (fromPost ? 'Publish & verify' : isEditing ? 'Save changes' : 'Publish offer')}
             </button>
             {isPendingOffer && (
               <button

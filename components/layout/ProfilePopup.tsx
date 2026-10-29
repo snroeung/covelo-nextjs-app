@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { btn } from '@/components/ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
@@ -119,11 +120,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
         </div>
         <button
           onClick={() => editing ? (setEditing(false), setBalanceDrafts({})) : startEditing()}
-          className={`ml-auto shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-            editing
-              ? isDark ? 'bg-gph-dark-bg text-gph-dark-muted' : 'bg-gray-100 text-gray-500'
-              : isDark ? 'bg-gph-dark-bg text-white hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
+          className={btn('secondary', 'md', 'ml-auto shrink-0 text-xs! px-3!')}
         >
           {editing ? 'Cancel' : 'Edit'}
         </button>
@@ -193,9 +190,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className={`w-full py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-60 ${
-                isDark ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-900 hover:bg-gray-700 text-white'
-              }`}
+              className={btn('primary', 'md', 'w-full text-sm!')}
             >
               {saving ? 'Saving…' : 'Save changes'}
             </button>
@@ -282,9 +277,7 @@ export function ProfilePopup({ anchorRef, onClose }: ProfilePopupProps) {
         </Link>
         <button
           onClick={signOut}
-          className={`w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
-            isDark ? 'text-red-400 hover:bg-red-500/10' : 'text-red-600 hover:bg-red-50'
-          }`}
+          className={btn('danger', 'md', 'w-full text-sm!')}
         >
           Sign out
         </button>

@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
-import type { PendingReviewRow, PendingReviewTable as PendingTableName } from '@/lib/types/portalData';
+import { isBoardPendingTable, type BoardQueueReason, type PendingReviewRow, type PendingReviewTable as PendingTableName } from '@/lib/types/portalData';
+import { BOARD_REJECT_REASONS, BOARD_REMOVE_REASONS } from '@/lib/board/constants';
+import { Dialog, DialogBody, DialogFooter, DialogHeader } from '@/components/board/shared/Dialog';
+import { BTN_DANGER, BTN_GHOST } from '@/components/ui/button';
 import { PendingReviewDetailModal } from './PendingReviewDetailModal';
 import {
   ActionButton, rowActionStatus, settleAfterSuccess,
@@ -25,9 +28,12 @@ export const TABLE_LABELS: Record<PendingTableName, string> = {
   transfer_bonuses:  'Transfer bonus',
   spending_bonuses:  'Spending bonus',
   points_valuations: 'Points valuation',
+  board_posts:       'Board post',
+  board_comments:    'Board comment',
 };
 
-type TableFilter = 'all' | PendingTableName;
+type TableFilter = 'all' | 'board' | PendingTableName;
+type ReasonFilter = 'all' | BoardQueueReason;
 
 const TABLE_FILTER_TABS: { key: TableFilter; label: string }[] = [
   { key: 'all',               label: 'All' },
@@ -36,7 +42,34 @@ const TABLE_FILTER_TABS: { key: TableFilter; label: string }[] = [
   { key: 'transfer_bonuses',  label: 'Transfer bonus' },
   { key: 'spending_bonuses',  label: 'Spending bonus' },
   { key: 'points_valuations', label: 'Points valuation' },
+  { key: 'board',             label: 'From the board' },
 ];
+
+export const QUEUE_REASON_LABELS: Record<BoardQueueReason, string> = {
+  offer_review: 'Offer to verify',
+  held:         'Held',
+  reported:     'Reported',
+};
+
+export function isBoardRow(item: PendingReviewRow): boolean {
+  return isBoardPendingTable(item.table);
+}
+
+export function queueReason(item: PendingReviewRow): BoardQueueReason | null {
+  return isBoardRow(item) ? (item.row.queue_reason as BoardQueueReason) ?? null : null;
+}
+
+/** A member-created offer isn't in the catalog yet: it's verified by publishing it, not by approving the post. */
+export function needsPublish(item: PendingReviewRow): boolean {
+  return item.table === 'board_posts' && queueReason(item) === 'offer_review' && !!item.row.member_offer_id;
+}
+
+/** Which list the reject reason comes from, and what it's called. */
+export function rejectReasonsFor(item: PendingReviewRow): { reasons: readonly string[]; label: string } {
+  return queueReason(item) === 'offer_review'
+    ? { reasons: BOARD_REJECT_REASONS, label: 'WHY IS THE OFFER NOT VERIFIED?' }
+    : { reasons: BOARD_REMOVE_REASONS, label: 'WHY IS IT COMING DOWN?' };
+}
 
 export function rowTitle(item: PendingReviewRow): string {
   const r = item.row;
@@ -57,6 +90,10 @@ export function rowTitle(item: PendingReviewRow): string {
       return `${r.issuer} · ${r.merchant_name}`;
     case 'points_valuations':
       return String(r.program);
+    case 'board_posts':
+      return String(r.title ?? '');
+    case 'board_comments':
+      return String(r.body ?? '').slice(0, 120);
   }
 }
 
@@ -77,6 +114,16 @@ export function rowDetail(item: PendingReviewRow): string {
           : `${r.bonus_multiplier}× points`;
     case 'points_valuations':
       return `${r.cpp}¢/pt · ${r.source_month}`;
+    case 'board_posts':
+    case 'board_comments': {
+      const reports = Number(r.report_count ?? 0);
+      return [
+        String(r.author_name ?? 'Member'),
+        QUEUE_REASON_LABELS[r.queue_reason as BoardQueueReason]?.toLowerCase() ?? 'board',
+        needsPublish(item) ? 'member-created offer' : null,
+        reports > 0 ? `${reports} report${reports === 1 ? '' : 's'}` : null,
+      ].filter(Boolean).join(' · ');
+    }
   }
 }
 
@@ -104,14 +151,19 @@ interface Props {
   // the parent shell owns tab switching and the editingOffer state that
   // opens AdminOfferEditor there, so this table just asks for it.
   onEditOffer: (item: PendingReviewRow) => void;
+  // A member-created offer is published through the offer editor, prefilled
+  // from the member's submission — the shell opens it on the Offers tab.
+  onReviewPublish: (item: PendingReviewRow) => void;
 }
 
-export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
+export function PendingReviewTable({ rows, isDark, onEditOffer, onReviewPublish }: Props) {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editField, setEditField] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState<TableFilter>('all');
+  const [reasonFilter, setReasonFilter] = useState<ReasonFilter>('all');
+  const [rejecting, setRejecting] = useState<PendingReviewRow | null>(null);
   const [issuerFilter, setIssuerFilter] = useState<IssuerFilter>('all');
   const [detailItem, setDetailItem] = useState<PendingReviewRow | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -144,14 +196,15 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (args: { table: PendingTableName; id: string }) =>
+    mutationFn: (args: { table: PendingTableName; id: string; reason?: string }) =>
       trpc.portalData.admin.reject.mutate(args),
     onSuccess: () => settleAfterSuccess(invalidate, () => rejectMutation.reset()),
   });
 
   const bulkApproveMutation = useMutation({
+    // Member-created offers need the editor, so a bulk approve leaves them out
     mutationFn: (items: PendingReviewRow[]) =>
-      Promise.all(items.map((item) =>
+      Promise.all(items.filter((item) => !needsPublish(item)).map((item) =>
         trpc.portalData.admin.approve.mutate({ table: item.table, id: item.row.id as string }),
       )),
     onSuccess: () => {
@@ -159,6 +212,16 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
       settleAfterSuccess(invalidate, () => bulkApproveMutation.reset());
     },
   });
+
+  function approveLabel(item: PendingReviewRow): string {
+    if (needsPublish(item)) return 'Review & publish';
+    switch (queueReason(item)) {
+      case 'offer_review': return 'Verify';
+      case 'held':         return 'Release';
+      case 'reported':     return 'Dismiss reports';
+      default:             return 'Approve';
+    }
+  }
 
   const isPending = approveMutation.isPending || rejectMutation.isPending || bulkApproveMutation.isPending;
 
@@ -177,9 +240,13 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
 
   // Approved/rejected rows never show here again — the sync-run stays
   // visible elsewhere, but pending review only ever lists status='pending'.
-  const pendingRows = rows.filter((item) => item.row.status === 'pending');
+  // Board rows have no status column: being in the list is being pending.
+  const pendingRows = rows.filter((item) => isBoardRow(item) || item.row.status === 'pending');
   const issuerRows = pendingRows.filter((item) => issuerFilter === 'all' || rowIssuer(item) === issuerFilter);
-  const filteredRows = issuerRows.filter((item) => tableFilter === 'all' || item.table === tableFilter);
+  const matchesTable = (item: PendingReviewRow, key: TableFilter) => key === 'all' || (key === 'board' ? isBoardRow(item) : item.table === key);
+  const filteredRows = issuerRows
+    .filter((item) => matchesTable(item, tableFilter))
+    .filter((item) => reasonFilter === 'all' || queueReason(item) === reasonFilter);
 
   const inputCls = `px-2 py-1 rounded-md text-xs font-mono border outline-none ${
     isDark
@@ -234,13 +301,15 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
   }
 
   const selectedItems = filteredRows.filter((item) => selected.has(rowKey(item)));
+  const approvableItems = selectedItems.filter((item) => !needsPublish(item));
+  const skippedCount = selectedItems.length - approvableItems.length;
 
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <div className="flex flex-wrap gap-1.5">
           {TABLE_FILTER_TABS.map((t) => {
-            const count = t.key === 'all' ? issuerRows.length : issuerRows.filter((r) => r.table === t.key).length;
+            const count = issuerRows.filter((r) => matchesTable(r, t.key)).length;
             return (
               <button key={t.key} onClick={() => setTableFilter(t.key)} className={filterTabCls(tableFilter === t.key)}>
                 {t.label}
@@ -251,14 +320,29 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
             );
           })}
         </div>
-        <IssuerFilterSelect value={issuerFilter} onChange={setIssuerFilter} isDark={isDark} />
+        <div className="flex items-center gap-2">
+          {tableFilter === 'board' && (
+            <select
+              aria-label="Filter board items by reason"
+              value={reasonFilter}
+              onChange={(e) => setReasonFilter(e.target.value as ReasonFilter)}
+              className={`px-2 py-1.5 rounded-lg text-xs font-bold border outline-none min-h-11 ${isDark ? 'bg-gph-dark-bg border-gph-dark-line text-gph-dark-ink' : 'bg-white border-gray-200 text-gray-700'}`}
+            >
+              <option value="all">All reasons</option>
+              {(Object.keys(QUEUE_REASON_LABELS) as BoardQueueReason[]).map((r) => <option key={r} value={r}>{QUEUE_REASON_LABELS[r]}</option>)}
+            </select>
+          )}
+          <IssuerFilterSelect value={issuerFilter} onChange={setIssuerFilter} isDark={isDark} />
+        </div>
       </div>
 
       {selectedItems.length > 0 && (
         <div className={`flex items-center justify-between gap-3 mb-3 px-4 py-2 rounded-lg border ${
           isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-gray-50 border-gray-200'
         }`}>
-          <span className={`text-xs font-mono font-bold ${ink}`}>{selectedItems.length} selected</span>
+          <span className={`text-xs font-mono font-bold ${ink}`}>
+            {selectedItems.length} selected{skippedCount > 0 && ` · ${skippedCount} need Review & publish, skipped`}
+          </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelected(new Set())}
@@ -269,10 +353,10 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
               Clear
             </button>
             <ActionButton
-              disabled={isPending}
+              disabled={isPending || approvableItems.length === 0}
               status={bulkApproveMutation.isPending ? 'loading' : bulkApproveMutation.isSuccess ? 'done' : 'idle'}
-              onClick={() => bulkApproveMutation.mutate(selectedItems)}
-              idleLabel={`Approve ${selectedItems.length}`}
+              onClick={() => bulkApproveMutation.mutate(approvableItems)}
+              idleLabel={`Approve ${approvableItems.length}`}
               loadingLabel="Approving…"
               doneLabel="Approved"
               className="bg-green-100 text-green-700 hover:bg-green-200"
@@ -362,11 +446,11 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
 
             <div className="shrink-0 pt-0.5">
               <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                item.row.source === 'cron'
+                isBoardRow(item) || item.row.source === 'cron'
                   ? isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-50 text-amber-700'
                   : isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600'
               }`}>
-                {String(item.row.source ?? '')}
+                {isBoardRow(item) ? (QUEUE_REASON_LABELS[queueReason(item)!] ?? 'board').toUpperCase() : String(item.row.source ?? '')}
               </span>
             </div>
 
@@ -393,19 +477,21 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); startEdit(item); }}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
-                      isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Edit
-                  </button>
+                  {!isBoardRow(item) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startEdit(item); }}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                        isDark ? 'bg-gph-dark-linesoft text-gph-dark-ink hover:bg-white/10' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Edit
+                    </button>
+                  )}
                   <ActionButton
                     disabled={isPending}
                     status={rowActionStatus(approveMutation, id)}
-                    onClick={(e) => { e.stopPropagation(); submitApprove(item, false); }}
-                    idleLabel="Approve"
+                    onClick={(e) => { e.stopPropagation(); if (needsPublish(item)) onReviewPublish(item); else submitApprove(item, false); }}
+                    idleLabel={approveLabel(item)}
                     loadingLabel="Approving…"
                     doneLabel="Approved"
                     className="bg-green-100 text-green-700 hover:bg-green-200"
@@ -415,11 +501,10 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
                     status={rowActionStatus(rejectMutation, id)}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (window.confirm(`Reject "${rowTitle(item)}"?`)) {
-                        rejectMutation.mutate({ table: item.table, id });
-                      }
+                      if (isBoardRow(item)) setRejecting(item);
+                      else if (window.confirm(`Reject "${rowTitle(item)}"?`)) rejectMutation.mutate({ table: item.table, id });
                     }}
-                    idleLabel="Reject"
+                    idleLabel={isBoardRow(item) ? 'Reject…' : 'Reject'}
                     loadingLabel="Rejecting…"
                     doneLabel="Rejected"
                     className="bg-red-100 text-red-700 hover:bg-red-200"
@@ -437,11 +522,62 @@ export function PendingReviewTable({ rows, isDark, onEditOffer }: Props) {
           item={detailItem}
           isDark={isDark}
           isPending={isPending}
-          onApprove={() => { submitApprove(detailItem, false); setDetailItem(null); }}
-          onReject={() => { rejectMutation.mutate({ table: detailItem.table, id: detailItem.row.id as string }); setDetailItem(null); }}
+          onApprove={() => { if (needsPublish(detailItem)) onReviewPublish(detailItem); else submitApprove(detailItem, false); setDetailItem(null); }}
+          onReject={() => {
+            if (isBoardRow(detailItem)) setRejecting(detailItem);
+            else rejectMutation.mutate({ table: detailItem.table, id: detailItem.row.id as string });
+            setDetailItem(null);
+          }}
           onClose={() => setDetailItem(null)}
         />
       )}
+
+      {rejecting && (
+        <RejectReasonDialog
+          item={rejecting}
+          pending={rejectMutation.isPending}
+          error={rejectMutation.error instanceof Error ? rejectMutation.error.message : null}
+          onCancel={() => { rejectMutation.reset(); setRejecting(null); }}
+          onConfirm={(reason) => rejectMutation.mutate(
+            { table: rejecting.table, id: rejecting.row.id as string, reason },
+            { onSuccess: () => setRejecting(null) },
+          )}
+        />
+      )}
     </div>
+  );
+}
+
+/** Board rejections need a reason the member sees (offers) or the audit log keeps (removals). */
+function RejectReasonDialog({ item, pending, error, onCancel, onConfirm }: {
+  item: PendingReviewRow; pending: boolean; error: string | null; onCancel: () => void; onConfirm: (reason: string) => void;
+}) {
+  const { reasons, label } = rejectReasonsFor(item);
+  const [reason, setReason] = useState<string | null>(null);
+  const title = queueReason(item) === 'offer_review' ? 'Reject offer' : 'Take down';
+  return (
+    <Dialog label={title} onClose={onCancel} width="sm">
+      <DialogHeader title={title} kicker={rowTitle(item).slice(0, 60)} onClose={onCancel} />
+      <DialogBody>
+        <fieldset>
+          <legend className="mb-1.5 block font-mono text-[10px] font-extrabold tracking-[0.12em] text-gph-muted">{label}</legend>
+          <div className="flex flex-col gap-1.5">
+            {reasons.map((r) => (
+              <label key={r} className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 text-[13.5px] font-semibold ${reason === r ? 'border-gph-ink bg-gph-linesoft' : 'border-gph-line hover:bg-gph-linesoft'}`}>
+                <input type="radio" name="reject-reason" value={r} checked={reason === r} onChange={() => setReason(r)} className="size-4 accent-[var(--gph-action)]" />
+                {r}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {error && <p role="alert" className="mt-3 text-[13px] font-semibold text-gph-danger">{error}</p>}
+      </DialogBody>
+      <DialogFooter>
+        <button type="button" onClick={onCancel} className={BTN_GHOST}>Cancel</button>
+        <button type="button" disabled={!reason || pending} onClick={() => reason && onConfirm(reason)} className={BTN_DANGER}>
+          {pending ? 'Working…' : title}
+        </button>
+      </DialogFooter>
+    </Dialog>
   );
 }

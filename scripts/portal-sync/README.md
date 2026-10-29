@@ -13,7 +13,9 @@ fetch.ts     → fetchStatic() or fetchRendered() (Playwright), gated by robots.
 extract.ts   → LLM extraction of structured records from the fetched page text
 upsert.ts    → dedupes against status='approved' rows, writes new candidates
                as status='pending' into transfer_partners / hotel_collections /
-               transfer_bonuses / spending_bonuses
+               transfer_bonuses / spending_bonuses. Bonus rows also get an
+               auto-generated board post title/body (genPost.ts);
+               post_to_board stays false until an admin opts in
 audit.ts     → recordSyncRun() writes one row per source into portal_sync_runs
 cache.ts     → invalidateCacheFor() busts the Redis entry for that portal
 ```

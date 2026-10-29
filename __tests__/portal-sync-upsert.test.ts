@@ -38,6 +38,26 @@ function makeSupabase(fromResults: Array<{ data: unknown; error: unknown }>): Su
   } as unknown as SupabaseClient;
 }
 
+// Captures the row passed to .insert(); dedup lookups resolve in call order.
+function capturingSupabase(fromResults: Array<{ data: unknown; error: unknown }>) {
+  const captured: { row?: Record<string, unknown> } = {};
+  let i = 0;
+  const supabase = {
+    from: () => {
+      const result = fromResults[i++] ?? { data: null, error: null };
+      const b: Record<string, unknown> = {};
+      b.select = () => b;
+      b.eq = () => b;
+      b.is = () => b;
+      b.limit = () => b;
+      b.insert = (row: Record<string, unknown>) => { captured.row = row; return Promise.resolve({ error: null }); };
+      b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+      return b;
+    },
+  } as unknown as SupabaseClient;
+  return { supabase, captured };
+}
+
 const sourceUrl = 'https://example.com/rewards';
 
 describe('upsertTransferPartner', () => {
@@ -323,6 +343,20 @@ describe('upsertTransferBonus', () => {
     expect(await upsertTransferBonus({ supabase, sourceUrl }, record)).toBe(true);
     expect(insertedRow?.card_ids).toEqual([]);
   });
+
+  it('writes an auto-generated board post title and body, leaving post_to_board off', async () => {
+    const { supabase, captured } = capturingSupabase([{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }]);
+    expect(await upsertTransferBonus({ supabase, sourceUrl }, { ...record, description: 'Transfers post instantly.' })).toBe(true);
+    expect(captured.row?.board_post_title).toBe('Chase → United MileagePlus +25% transfer bonus is live — ends Dec 31');
+    expect(captured.row?.board_post_body).toBe('+25% · Chase → United MileagePlus. 1,000 pts → 1,250 pts. Ends Dec 31. Transfers post instantly.');
+    expect(captured.row).not.toHaveProperty('post_to_board');
+  });
+
+  it('writes status-match post copy when there is no bonus percentage', async () => {
+    const { supabase, captured } = capturingSupabase([{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }]);
+    await upsertTransferBonus({ supabase, sourceUrl }, { ...record, issuer: 'bilt', transfer_partner: 'Accor', bonus_pct: null, min_transfer_points: 5000 });
+    expect(captured.row?.board_post_title).toBe('Accor status match via Bilt (transfer at least 5,000 pts) — ends Dec 31');
+  });
 });
 
 describe('upsertSpendingBonus', () => {
@@ -346,6 +380,13 @@ describe('upsertSpendingBonus', () => {
       { data: null, error: null },
     ]);
     expect(await upsertSpendingBonus({ supabase, sourceUrl }, record)).toBe(true);
+  });
+
+  it('writes an auto-generated board post title and body', async () => {
+    const { supabase, captured } = capturingSupabase([{ data: [], error: null }, { data: [], error: null }]);
+    expect(await upsertSpendingBonus({ supabase, sourceUrl }, { ...record, minimum_nights: 2 })).toBe(true);
+    expect(captured.row?.board_post_title).toBe('5× points · Marriott (2 nights minimum) — ends Dec 31');
+    expect(captured.row?.board_post_body).toBe('5× · American Express → Marriott. 2 nights minimum. Ends Dec 31.');
   });
 
   it('passes through card_ids that belong to the record issuer', async () => {

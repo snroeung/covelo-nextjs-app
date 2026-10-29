@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { Fragment, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { CollectionBanner } from '@/components/offers/CollectionBanner';
@@ -193,7 +194,7 @@ function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textP
               type="button"
               onClick={onCompare}
               aria-haspopup="dialog"
-              className="w-full sm:w-auto min-h-11 px-5 rounded-lg bg-cv-lime-500 hover:bg-cv-lime-400 text-cv-navy-950 text-sm font-extrabold whitespace-nowrap transition-colors"
+              className={btn('value', 'lg', 'whitespace-nowrap')}
             >
               Compare →
             </button>

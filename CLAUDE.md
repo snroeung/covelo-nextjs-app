@@ -51,6 +51,22 @@ Be straight forward and quick to the point
 | `cv-amber-400` | `#F5A623` | Transfer dot indicator, amber text |
 | `cv-amber-900` | `#6B3500` | Dark amber bg for transfer section |
 
+### Buttons (`components/ui/button.ts`)
+
+One module owns every button. `btn(variant, size, extra)` returns a class string — works on `<button>`, `<a>`, `<Link>`. Colors are the theme-reactive `gph-*` tokens, so **never `isDark`-branch a button and never hand-roll button colors**. Layout-only classes (`w-full`, `ml-auto`, `shrink-0`) go in `extra`.
+
+| Variant | Use |
+|---|---|
+| `primary` | Default neutral CTA (board, Discover, admin save, auth) |
+| `accent` | Green CTA — Sign in, avatar, best-choice "View deal", onboarding. One per view |
+| `value` | Points-value CTA — Compare, View details, Add to trip (ink in light, lime in dark) |
+| `secondary` | Bordered alternative action (Back, Google sign-in, Edit) |
+| `danger` | Destructive / sign out |
+| `quiet` | Icon + label action under a post or comment |
+| `link` | Inline text button |
+
+Sizes: `md` (`min-h-11`), `lg` (`min-h-12`, full-width on mobile), `icon` (44×44). There is no size under 44px. Disabled styles cover both `disabled` and `aria-disabled`. Chips, tabs, segmented toggles and pagination page numbers are **not** buttons in this system and keep their own selected-state styles. `FIELD`/`LABEL` live in `components/ui/field.ts`.
+
 ### Shell theme (NavBar / Footer / AppShell)
 
 The shared chrome around every page (nav bar, footer, search-form header, sidebar) uses the
@@ -70,7 +86,7 @@ constant `gphTheme` object from `lib/discover/theme.ts` rather than hardcoding t
 
 Green accent, filled elements (self-contained, same value regardless of theme):
 - **Active nav link / avatar**: `bg-cv-green-800 text-white` (5.3:1 contrast)
-- **Sign in / primary CTA**: `bg-cv-green-800 text-white hover:brightness-110`
+- **Sign in / primary CTA**: `btn('accent')` from `components/ui/button.ts`
 
 Individual page bodies (search forms, hotel/flight cards, admin tables) are **not** part of
 this reskin and keep their existing per-page colors (`gray-*`, `cv-blue-*`, `cv-navy-*`, etc.)
@@ -146,6 +162,17 @@ Reviews come **only from Google Places (New)** — Duffel's `review_score` / `re
   (`assets/attribution/`, unmodified, 16–19px tall — not a styled "Google Maps" text), links to
   `reviewsUri`/review `googleMapsUri`, visit date, and "Summarized with Gemini" on the summary.
 - Kill switch: `integration:google-places:reviews`.
+
+### The board — jobs and rollout
+
+Flags: `ui:board` (route gate in `proxy.ts`) and `api:board` (router). Both are on in `local`, `beta` and `production`. To pull the board from an environment, drop it from `enabledIn` in `lib/feature-flags.ts`. Moderation runs on every post and comment at creation; the Claude classifier fails open (`unscanned`) and there is deliberately no rescan job. Expired offer posts are hidden by `offer_expires_on` (migration 034) and soft-deleted by the daily purge job after a 7-day grace period.
+
+Jobs (GitHub Actions, `.github/workflows/board-jobs.yml`, same env/secrets as `portal-data-sync.yml`):
+- `npm run board:dormancy` — weekly (Mon 10:00 UTC). Active topics with no visible post for 60 days → dormant; a new post reactivates by trigger.
+- `npm run board:purge-expired [-- --dry] [-- --days N]` — daily (11:00 UTC). Soft-deletes (`deleted_at`, like an author delete) offer posts whose offer ended more than N days ago (default 7); up to 500 per run. Not a hard delete: nothing cascades and rows can be restored by hand.
+- `npm run board:backfill [-- --dry]` — one-off per environment. Creates covelo posts for live offers with `post_to_board = true` and no post. Run `--dry` first. Dispatch from Actions (`job: backfill-dry` / `backfill`) or locally.
+
+Release order for a new environment: push migrations 025–037 (`npm run db:push:dev` for dev), confirm `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY` and the Upstash vars are set, run `backfill-dry` then `backfill`, then enable the two flags.
 
 ### Redemption comparison components
 Renderings of the same `PointsResult`, chosen by how much room the surface has. All of
@@ -446,6 +473,16 @@ Everything else runs **only when the change reaches it**, and the narrowest form
 | `npm audit --audit-level=high` | `package.json` changed, or before a release — not for code-only work |
 
 Don't run the full unit suite, full e2e, or an audit "to be safe" on a typo fix or a scoped component change; say which gates you ran and why the others didn't apply.
+
+### Supabase migrations (dev database)
+
+Any commit that adds a new `.sql` file under `supabase/` (migrations) must also be applied to the **dev** database before the commit point is called done:
+
+1. `npm run db:push:dev -- --dry` — review the pending list; only the new file(s) should appear
+2. `npm run db:push:dev` — pushes to covelo-dev only (script is hard-wired to the dev project)
+3. Apply to the local DB too when testing locally: `npx supabase migration up --local`
+
+Say in the commit-point message that the migration was pushed to dev. Never push to beta or production from here; those follow the branch/release flow.
 
 ### Commit size
 Keep commits **small and focused**. One logical change per commit. Avoid bundling unrelated changes.

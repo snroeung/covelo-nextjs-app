@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavBar } from '@/components/layout/NavBar';
@@ -19,7 +20,7 @@ import { StatusFilterTabs, IssuerFilterSelect, ISSUER_FILTER_OPTIONS, type Statu
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offers';
-import type { TransferPartnerRow, TravelCollection, PointsValuation, PendingReviewRow } from '@/lib/types/portalData';
+import { isBoardPendingTable, type TransferPartnerRow, type TravelCollection, type PointsValuation, type PendingReviewRow } from '@/lib/types/portalData';
 
 type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections' | 'valuations';
 type OfferTypeFilter = 'all' | 'transfer' | 'spending';
@@ -59,6 +60,8 @@ export function OffersAdminShell() {
   const [editingOffer, setEditingOffer] = useState<
     null | { mode: 'new' } | { mode: 'transfer'; offer: TransferBonus } | { mode: 'spending'; offer: SpendingBonus }
   >(null);
+  // Review & publish: the offer editor opened from a member-created offer post
+  const [reviewing, setReviewing] = useState<null | NonNullable<React.ComponentProps<typeof AdminOfferEditor>['fromPost']>>(null);
   const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingCollection, setEditingCollection] = useState<TravelCollection | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingValuation, setEditingValuation] = useState<PointsValuation | null | undefined>(undefined); // undefined = hidden, null = new
@@ -93,8 +96,23 @@ export function OffersAdminShell() {
   const { data: pendingRows = [], isLoading: loadingPending } = useQuery({
     queryKey: ['portalData.admin.listAll'],
     queryFn:  () => trpc.portalData.admin.listAll.query(),
-    enabled:  tab === 'pending',
   });
+
+  // Header counts and the tab badge need the queue whichever tab is open
+  const pendingCounts = pendingRows.reduce(
+    (acc, item) => {
+      if (isBoardPendingTable(item.table)) {
+        acc.board++;
+        if (item.row.queue_reason === 'held') acc.held++;
+        if (item.row.queue_reason === 'reported') acc.reported++;
+      } else if (item.row.status !== 'pending') {
+        return acc;
+      }
+      acc.total++;
+      return acc;
+    },
+    { total: 0, board: 0, held: 0, reported: 0 },
+  );
 
   const { data: syncRuns = [], isLoading: loadingSyncRuns } = useQuery({
     queryKey: ['portalData.admin.listSyncRuns'],
@@ -132,6 +150,22 @@ export function OffersAdminShell() {
     } else if (item.table === 'spending_bonuses') {
       setEditingOffer({ mode: 'spending', offer: item.row as unknown as SpendingBonus });
     }
+    setTab('offers');
+  }
+
+  // A member-created offer is verified by publishing it: open the offer
+  // editor on the Offers tab, prefilled from what the member submitted.
+  function handleReviewPublish(item: PendingReviewRow) {
+    const memberOffer = item.row.member_offer as Record<string, unknown> | null;
+    if (!memberOffer) return;
+    const topics = (item.row.topics ?? []) as Array<{ id: string; name: string }>;
+    setReviewing({
+      postId: item.row.id as string,
+      memberOffer,
+      author: item.row.author_name as string | undefined,
+      post: { title: String(item.row.title ?? ''), body: String(item.row.body ?? ''), topicIds: topics.map((t) => t.id), topics },
+    });
+    setEditingOffer({ mode: 'new' });
     setTab('offers');
   }
 
@@ -192,16 +226,16 @@ export function OffersAdminShell() {
             </h1>
             <p className={`text-sm mt-1 ${muted}`}>
               {(offersData?.transferBonuses.length ?? 0) + (offersData?.spendingBonuses.length ?? 0)} total ·{' '}
-              {liveAdsCount} ads live
+              {liveAdsCount} ads live ·{' '}
+              {pendingCounts.total} pending
+              {pendingCounts.board > 0 && ` (${pendingCounts.board} from the board${pendingCounts.held ? `, ${pendingCounts.held} held` : ''}${pendingCounts.reported ? `, ${pendingCounts.reported} reported` : ''})`}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {tab === 'offers' && (
               <button
                 onClick={() => setEditingOffer({ mode: 'new' })}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -212,9 +246,7 @@ export function OffersAdminShell() {
             {tab === 'ads' && (
               <button
                 onClick={() => setEditingAd(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -225,9 +257,7 @@ export function OffersAdminShell() {
             {tab === 'partners' && (
               <button
                 onClick={() => setEditingPartner(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -238,9 +268,7 @@ export function OffersAdminShell() {
             {tab === 'collections' && (
               <button
                 onClick={() => setEditingCollection(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -251,9 +279,7 @@ export function OffersAdminShell() {
             {tab === 'valuations' && (
               <button
                 onClick={() => setEditingValuation(null)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-                }`}
+                className={btn('primary', 'md', 'text-sm!')}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -285,6 +311,11 @@ export function OffersAdminShell() {
           </button>
           <button onClick={() => setTab('pending')} className={navTabCls(tab === 'pending')}>
             Pending review
+            {pendingCounts.total > 0 && (
+              <span aria-label={`${pendingCounts.total} pending`} className="ml-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 font-mono text-[10px] font-bold text-gray-900">
+                {pendingCounts.total}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -301,14 +332,16 @@ export function OffersAdminShell() {
                   editingOffer.mode === 'spending' ? { type: 'spending', offer: editingOffer.offer } :
                   undefined
                 }
+                fromPost={reviewing ?? undefined}
                 onSave={() => {
                   // Covers the case this editor was opened from a pending
                   // row (Pending review → Edit) — its own list otherwise
                   // wouldn't reflect the edit until Pending review refetches.
                   queryClient.invalidateQueries({ queryKey: ['portalData.admin.listAll'] });
                   setEditingOffer(null);
+                  setReviewing(null);
                 }}
-                onCancel={() => setEditingOffer(null)}
+                onCancel={() => { setEditingOffer(null); setReviewing(null); }}
                 isDark={isDark}
               />
             )}
@@ -349,22 +382,6 @@ export function OffersAdminShell() {
                 offerStatus,
               )}
             />
-
-            {/* Disclaimer: user-submitted review coming soon */}
-            <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-[11px] font-mono leading-relaxed ${
-              isDark
-                ? 'bg-amber-900/20 border-amber-700/50 text-amber-400'
-                : 'bg-amber-50 border-amber-200 text-amber-700'
-            }`}>
-              <svg className="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25"/>
-                <path d="M8 5v3.5M8 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              <span>
-                <span className="font-bold">User-submitted offer review is coming soon.</span>
-                {' '}All current offers are admin-curated.
-              </span>
-            </div>
 
             {loadingOffers ? (
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
@@ -427,7 +444,7 @@ export function OffersAdminShell() {
               <div className={`h-64 rounded-xl animate-pulse ${isDark ? 'bg-gph-dark-card' : 'bg-white'}`} />
             ) : (
               <>
-                <PendingReviewTable rows={pendingRows} isDark={isDark} onEditOffer={handleEditPendingOffer} />
+                <PendingReviewTable rows={pendingRows} isDark={isDark} onEditOffer={handleEditPendingOffer} onReviewPublish={handleReviewPublish} />
                 <SyncRunsLog runs={syncRuns} isDark={isDark} />
               </>
             )}

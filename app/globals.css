@@ -82,6 +82,23 @@
   /* Shell accent green — cv-green-800 vs. cv-green-400, each chosen for
      >=4.5:1 text contrast against gph-bg/gph-dark-bg respectively. */
   --gph-accent-green: #2D7A3A;
+  /* Status colors (the board: verified / awaiting-review / destructive). Each
+     soft/fg pair is >=4.5:1 in its own theme. */
+  --gph-ok:          #0b7a44;
+  --gph-ok-soft:     #dcf3e3;
+  --gph-pending:     #8a5300;
+  --gph-pending-soft:#fdf3dc;
+  --gph-danger:      #b91c1c;
+  --gph-danger-soft: #fee2e2;
+  /* Button fills. accent = green CTA (same in both themes); value = the
+     points-value CTA (ink in light, lime in dark). Hover on accent goes
+     darker, not lighter, to keep white text >=4.5:1. */
+  --gph-accent:      #2D7A3A;
+  --gph-accent-hi:   #246330;
+  --gph-accent-fg:   #ffffff;
+  --gph-value:       #18181b;
+  --gph-value-hi:    #27272a;
+  --gph-value-fg:    #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -96,6 +113,15 @@
   --gph-actionsoft:  #222226;
   --gph-navy:        #000000;
   --gph-accent-green: #7DC48A;
+  --gph-ok:          #4ade80;
+  --gph-ok-soft:     rgba(15, 157, 88, 0.16);
+  --gph-pending:     #f5b544;
+  --gph-pending-soft:rgba(245, 158, 11, 0.12);
+  --gph-danger:      #f87171;
+  --gph-danger-soft: rgba(127, 29, 29, 0.4);
+  --gph-value:       #84CC16;
+  --gph-value-hi:    #A3E635;
+  --gph-value-fg:    #0a1628;
 }
 
 @theme inline {
@@ -110,6 +136,18 @@
   --color-gph-actionsoft:  var(--gph-actionsoft);
   --color-gph-navy:        var(--gph-navy);
   --color-gph-accent-green: var(--gph-accent-green);
+  --color-gph-ok:           var(--gph-ok);
+  --color-gph-ok-soft:      var(--gph-ok-soft);
+  --color-gph-pending:      var(--gph-pending);
+  --color-gph-pending-soft: var(--gph-pending-soft);
+  --color-gph-danger:       var(--gph-danger);
+  --color-gph-danger-soft:  var(--gph-danger-soft);
+  --color-gph-accent:       var(--gph-accent);
+  --color-gph-accent-hi:    var(--gph-accent-hi);
+  --color-gph-accent-fg:    var(--gph-accent-fg);
+  --color-gph-value:        var(--gph-value);
+  --color-gph-value-hi:     var(--gph-value-hi);
+  --color-gph-value-fg:     var(--gph-value-fg);
 }
 
 @theme {
@@ -143,6 +181,26 @@ body {
   background: #F3F4F6;
   color: #111827;
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* ── Dropdowns ───────────────────────────────────────────────────────────────
+   The browser's own chevron sits flush against the edge. Draw it ourselves with
+   room on the right, on every <select>. Deliberately outside Tailwind's layers:
+   unlayered rules beat the `px-*` utilities, so a select that sets its own
+   horizontal padding still keeps the gap. Only the arrow and the right padding
+   are set — colours, borders and the left padding stay with each component. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236b7280' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2.75rem;
+  text-overflow: ellipsis;
+}
+:root[data-theme="dark"] select:not([multiple]):not([size]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239a9aa0' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
 }
 
 /* ── Comparison-card overlays (grouped booking alternatives) ──────────────────
@@ -194,3 +252,7 @@ body {
 .poi-popup .mapboxgl-popup-tip {
   display: none;
 }
+
+/* Horizontal chip rows (the board's topic filter): scrolls without a visible bar */
+.cv-scroll { scrollbar-width: none; }
+.cv-scroll::-webkit-scrollbar { display: none; }

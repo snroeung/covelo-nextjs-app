@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useState } from 'react';
 import Image from 'next/image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -469,9 +470,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
             <button
               disabled={isPending}
               onClick={handleSubmit}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 ${
-                isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'
-              }`}
+              className={btn('primary', 'md', 'text-sm!')}
             >
               {isPending ? 'Saving…' : ad ? 'Save changes' : 'Publish ad'}
             </button>
@@ -597,7 +596,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
             </div>
             <button
               onClick={onSave}
-              className={`w-full px-6 py-2.5 rounded-lg text-sm font-bold transition-colors ${isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'}`}
+              className={btn('primary', 'md', 'w-full px-6! text-sm!')}
             >
               Done
             </button>
@@ -629,7 +628,7 @@ export function AdminAdEditor({ ad, onSave, onCancel, isDark }: Props) {
             <div className="flex gap-2 w-full">
               <button
                 onClick={() => { setError(null); handleSubmit(); }}
-                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition-colors ${isDark ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-700'}`}
+                className={btn('primary', 'md', 'flex-1 text-sm!')}
               >
                 Try again
               </button>

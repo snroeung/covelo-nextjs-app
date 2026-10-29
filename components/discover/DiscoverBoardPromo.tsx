@@ -1,5 +1,8 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
+import Link from 'next/link';
+
 // Static, illustrative content — there is no live community-board backend in
 // this app yet (the board it links to isn't built either, per scope). Mirrors
 // what CommunityBoard.tsx already showed, minus the blur/fade/"launching"
@@ -36,12 +39,6 @@ export function DiscoverBoardPromo({ isDark }: Props) {
   // for that small-text usage only.
   const good     = 'text-gph-good';
   const voteGood = isDark ? 'text-gph-good' : 'text-green-800';
-  const ghostCls = isDark
-    ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
-    : 'bg-gph-card border border-gph-line text-gph-ink hover:bg-gph-linesoft';
-  const solidCls = isDark
-    ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi'
-    : 'bg-gph-action text-white hover:bg-gph-actionhi';
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-[1fr_1.15fr] rounded-xl border-[1.5px] overflow-hidden border-gph-ink bg-gph-card">
@@ -66,16 +63,16 @@ export function DiscoverBoardPromo({ isDark }: Props) {
           ))}
         </div>
         <div className="flex items-center gap-2.5 mt-7">
-          <a
+          <Link
             href="/discover/board"
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[13px] font-bold min-h-11 ${solidCls}`}
+            className={btn('primary')}
           >
             Open the board
             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
               <path d="M2 6h8M6.5 2.5L10 6l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-          </a>
-          <button type="button" className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-md text-xs font-bold min-h-11 ${ghostCls}`}>
+          </Link>
+          <button type="button" className={btn('secondary')}>
             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
               <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>

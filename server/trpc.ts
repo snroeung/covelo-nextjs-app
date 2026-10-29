@@ -3,13 +3,21 @@ import { isEnabled } from "@/lib/feature-flags";
 import type { FlagName } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 
-const t = initTRPC.create({
-  errorFormatter({ shape }) {
+/** What every request carries before auth: the viewer's IANA time zone (already validated, UTC when unknown). */
+export interface TrpcContext {
+  timeZone?: string;
+}
+
+const t = initTRPC.context<TrpcContext>().create({
+  errorFormatter({ shape, error }) {
+    // Rate-limit errors carry when the caller may retry as `cause.retryAt` (ISO string)
+    const retryAt = (error.cause as { retryAt?: unknown } | undefined)?.retryAt;
     return {
       ...shape,
       data: {
         ...shape.data,
         stack: undefined,
+        ...(typeof retryAt === "string" ? { retryAt } : {}),
       },
     };
   },
@@ -38,13 +46,38 @@ export function flaggedProcedure(flag: FlagName) {
   });
 }
 
+/** True when the Supabase user carries app_metadata.role === "admin" (service-role-set, so unspoofable). */
+export function isAdminUser(user: { app_metadata?: unknown } | null | undefined): boolean {
+  return (user?.app_metadata as Record<string, unknown> | undefined)?.role === "admin";
+}
+
+/**
+ * Public procedure that still knows who is asking: ctx.viewer is
+ * { id, isAdmin }, with id null when signed out. For reads whose visibility
+ * depends on the viewer (the board feed).
+ */
+export function viewerProcedure(flag: FlagName) {
+  return t.procedure.use(async ({ ctx, next }) => {
+    if (!isEnabled(flag)) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Feature "${flag}" is not available in this environment.`,
+      });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user), timeZone: ctx.timeZone } } });
+  });
+}
+
 /**
  * Admin-only procedure. Verifies the caller's Supabase JWT and checks
  * app_metadata.role === "admin". app_metadata can only be set via the
- * service role key, so it cannot be spoofed by regular users.
+ * service role key, so it cannot be spoofed by regular users. ctx carries the
+ * admin (user, session client, viewer) for resolvers that record who acted.
  */
 export function adminProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return t.procedure.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -56,11 +89,10 @@ export function adminProcedure(flag: FlagName) {
     if (error || !user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }
-    const role = (user.app_metadata as Record<string, unknown>)?.role;
-    if (role !== "admin") {
+    if (!isAdminUser(user)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
     }
-    return next();
+    return next({ ctx: { user, supabase, isAdmin: true as const, viewer: { id: user.id, isAdmin: true, timeZone: ctx.timeZone } } });
   });
 }
 
@@ -70,7 +102,7 @@ export function adminProcedure(flag: FlagName) {
  * policies keyed on auth.uid() apply to its writes.
  */
 export function authedProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return t.procedure.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -82,6 +114,7 @@ export function authedProcedure(flag: FlagName) {
     if (error || !user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }
-    return next({ ctx: { user, supabase } });
+    const isAdmin = isAdminUser(user);
+    return next({ ctx: { user, supabase, isAdmin, viewer: { id: user.id, isAdmin, timeZone: ctx.timeZone } } });
   });
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
@@ -195,9 +196,7 @@ function EditorialAd({ ad, isDark, isMulti, index, total, goTo }: {
         </div>
         <a
           href={ad.cta_url} target="_blank" rel="noopener noreferrer sponsored"
-          className={`shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[12px] font-bold transition-colors ${
-            isDark ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi' : 'bg-gph-action text-white hover:bg-gph-actionhi'
-          }`}
+          className={btn('primary', 'md', 'shrink-0')}
         >
           {ad.cta_label} <ArrowIcon />
         </a>

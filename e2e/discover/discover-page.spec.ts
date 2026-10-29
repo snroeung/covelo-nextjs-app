@@ -64,14 +64,18 @@ test.describe('Discover page — general', () => {
     // no NavBar — use a page that renders NavBar (and its dropdown) instead.
     await page.goto('/discover');
 
-    await page.getByRole('link', { name: /^discover$/i }).hover();
+    // On /discover the nav link carries a "Home" badge, so its name is "Discover Home"
+    await page.getByRole('link', { name: /^discover/i }).first().hover();
 
     // The dropdown's "All offers" link is identified by its description
     // line, since the masthead's "See all offers · N" link also matches a
     // loose "all offers" name search on this page.
     const allOffersItem = page.getByRole('link').filter({ hasText: 'Every active offer' });
 
-    await expect(page.getByText(/^the board$/i)).toBeVisible();
+    // "The board" is a real link now, found by its description line
+    const boardItem = page.getByRole('link').filter({ hasText: 'Community offers and tips' });
+    await expect(boardItem).toBeVisible();
+    await expect(boardItem).toHaveAttribute('href', '/discover/board');
     await expect(allOffersItem).toBeVisible();
     await expect(page.getByText(/^front page$/i)).toHaveCount(0);
 

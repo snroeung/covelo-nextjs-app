@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useState } from 'react';
 import type { QuoteValues, ReportSubjectType } from '@/lib/reports/types';
 import { NotFoundCheck, QuoteFields, quoteFromDraft, type QuoteDraft } from '@/components/booking/QuoteFields';
@@ -76,7 +77,7 @@ export function LeavingPanel({
       </div>
 
       <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-        <button type="button" onClick={onBack} className={`min-h-11 px-4 rounded-lg border text-sm font-bold ${st.secondary}`}>
+        <button type="button" onClick={onBack} className={btn('secondary', 'md', 'text-sm!')}>
           ← Back to comparison
         </button>
         <div className="relative group flex flex-col">
@@ -86,9 +87,7 @@ export function LeavingPanel({
             aria-disabled={locked || !ready || submitting}
             aria-busy={submitting}
             aria-describedby={locked ? 'leaving-submit-why' : undefined}
-            className={`min-h-11 px-5 rounded-lg text-sm font-bold inline-flex items-center justify-center gap-2 ${st.primary} ${
-              submitting ? 'cursor-wait' : locked || !ready ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
+            className={btn('primary', 'md', `px-5! text-sm! gap-2 ${submitting ? 'cursor-wait! aria-disabled:opacity-100!' : ''}`)}
           >
             {submitting && (
               <span

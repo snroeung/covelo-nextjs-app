@@ -19,12 +19,6 @@ export function bookingStyles(isDark: boolean) {
     noneChip: isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-700',
     warnBox:  isDark ? 'bg-cv-amber-900/60 border-cv-amber-700 text-cv-amber-200' : 'bg-cv-amber-50 border-cv-amber-400 text-cv-amber-900',
     goodBox:  isDark ? 'bg-green-950/40 border-cv-green-800 text-cv-green-400' : 'bg-cv-green-50 border-cv-green-500 text-cv-green-800',
-    primary:  isDark
-      ? 'bg-gph-dark-action hover:bg-gph-dark-actionhi text-gph-dark-bg'
-      : 'bg-cv-navy-950 hover:bg-cv-navy-900 text-white',
-    secondary: isDark
-      ? 'border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
-      : 'border-gray-300 text-gray-900 hover:bg-gray-100',
     link:     isDark ? 'text-gph-dark-ink underline underline-offset-2' : 'text-gray-900 underline underline-offset-2',
   };
 }

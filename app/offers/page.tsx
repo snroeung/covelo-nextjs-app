@@ -7,9 +7,13 @@ import { Footer } from '@/components/layout/Footer';
 import { OfferRow } from '@/components/discover/OfferRow';
 import { DiscoverOfferModal } from '@/components/discover/DiscoverOfferModal';
 import { FilterDropdown, type FilterDropdownOption } from '@/components/discover/FilterDropdown';
+import { BoardToastProvider } from '@/components/board/shared/Toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { ISSUER_LABELS, isTransfer, sortByValueThenRecency } from '@/lib/discover/offerCopy';
+import { browserTimeZone } from '@/lib/time';
+import { liveOffers } from '@/lib/offers/live';
+import { SavedOffersMenu } from '@/components/offers/SavedOffersMenu';
 import type { TransferBonus, SpendingBonus, Issuer } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
@@ -35,15 +39,18 @@ function OffersPageInner() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [openOffer, setOpenOffer] = useState<Offer | null>(null);
 
-  const { data: transferBonuses = [], isLoading: loadingTransfer } = useQuery({
+  // The server only sends live offers; re-check here so a tab left open past an end date doesn't keep showing it
+  const { data: transferData = [], isLoading: loadingTransfer } = useQuery({
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
   });
 
-  const { data: spendingBonuses = [], isLoading: loadingSpending } = useQuery({
+  const { data: spendingData = [], isLoading: loadingSpending } = useQuery({
     queryKey: ['offers.spendingBonuses'],
     queryFn:  () => trpc.offers.listSpendingBonuses.query(),
   });
+  const transferBonuses = useMemo(() => liveOffers(transferData, new Date(), browserTimeZone()), [transferData]);
+  const spendingBonuses = useMemo(() => liveOffers(spendingData, new Date(), browserTimeZone()), [spendingData]);
 
   const isLoading = loadingTransfer || loadingSpending;
 
@@ -63,9 +70,12 @@ function OffersPageInner() {
       <main className="flex-1">
         <div className="max-w-3xl mx-auto mt-6 mb-8 rounded-xl border bg-gph-card border-gph-line">
           <div className="px-4 md:px-7 py-5 flex flex-col gap-5 border-b border-gph-line">
-            <h1 className="text-3xl md:text-4xl font-extrabold leading-none tracking-tight text-gph-ink">
-              All offers
-            </h1>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="text-3xl md:text-4xl font-extrabold leading-none tracking-tight text-gph-ink">
+                All offers
+              </h1>
+              <SavedOffersMenu onOpen={setOpenOffer} />
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <FilterDropdown label="Card" options={ISSUER_OPTIONS} value={issuerFilter} onChange={setIssuerFilter} />
@@ -107,7 +117,9 @@ function OffersPageInner() {
 export default function OffersPage() {
   return (
     <Suspense>
-      <OffersPageInner />
+      <BoardToastProvider>
+        <OffersPageInner />
+      </BoardToastProvider>
     </Suspense>
   );
 }

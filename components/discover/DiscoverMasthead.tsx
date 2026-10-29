@@ -1,21 +1,20 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import Link from 'next/link';
 import { todayPill } from '@/lib/discover/offerCopy';
+import type { SpendingBonus, TransferBonus } from '@/lib/types/offers';
+import { SavedOffersMenu } from '@/components/offers/SavedOffersMenu';
 
 interface Props {
   isDark: boolean;
   offerCount: number;
+  /** A saved offer was picked: show it in the page's offer view */
+  onOpenOffer: (offer: TransferBonus | SpendingBonus) => void;
 }
 
-export function DiscoverMasthead({ isDark, offerCount }: Props) {
+export function DiscoverMasthead({ isDark, offerCount, onOpenOffer }: Props) {
   const pillBg = isDark ? 'bg-gph-dark-actionsoft text-gph-dark-action' : 'bg-gph-actionsoft text-gph-action';
-  const ghostCls = isDark
-    ? 'bg-gph-dark-card border border-gph-dark-line text-gph-dark-ink hover:bg-gph-dark-linesoft'
-    : 'bg-gph-card border border-gph-line text-gph-ink hover:bg-gph-linesoft';
-  const solidCls = isDark
-    ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi'
-    : 'bg-gph-action text-white hover:bg-gph-actionhi';
 
   return (
     <div className="flex items-end justify-between gap-6 flex-wrap pb-3.5 border-b-2 border-gph-ink">
@@ -30,20 +29,12 @@ export function DiscoverMasthead({ isDark, offerCount }: Props) {
         </h1>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-md text-xs font-bold transition-colors min-h-11 ${ghostCls}`}
-        >
-          <svg className="w-3 h-3" viewBox="0 0 14 14" fill="none">
-            <path d="M7 12.2S1.5 9 1.5 5.3A2.8 2.8 0 0 1 7 4.1a2.8 2.8 0 0 1 5.5 1.2C12.5 9 7 12.2 7 12.2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          </svg>
-          Saved · 3
-        </button>
+        <SavedOffersMenu onOpen={onOpenOffer} />
         <Link
           href="/offers"
           target="_blank"
           rel="noopener noreferrer"
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold transition-colors min-h-11 ${solidCls}`}
+          className={btn('primary')}
         >
           See all offers · {offerCount}
           <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">

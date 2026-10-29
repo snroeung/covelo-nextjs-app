@@ -14,8 +14,13 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "portal-sync": "tsx scripts/portal-sync/run.ts",
+    "db:push:dev": "tsx scripts/db-push-dev/run.ts",
     "portal-sync:eval": "tsx scripts/portal-sync/eval.ts",
-    "seed:local-admin": "tsx scripts/seed-local-admin.ts"
+    "seed:local-admin": "tsx scripts/seed-local-admin.ts",
+    "seed:local-member": "tsx scripts/seed-local-member.ts",
+    "board:dormancy": "tsx scripts/board/dormancy.ts",
+    "board:backfill": "tsx scripts/board/backfill-system-posts.ts",
+    "board:purge-expired": "tsx scripts/board/purge-expired.ts"
   },
   "overrides": {
     "postcss": "^8.5.25",
@@ -33,7 +38,8 @@
     "@upstash/redis": "^1.37.0",
     "cheerio": "^1.2.0",
     "mapbox-gl": "^3.22.0",
-    "next": "^16.2.12",
+    "next": "^16.4.3",
+    "obscenity": "^0.4.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "^4.3.6"

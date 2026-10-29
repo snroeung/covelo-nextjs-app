@@ -135,3 +135,27 @@ describe('getEnabledFlags()', () => {
   });
 
 });
+
+// ---------------------------------------------------------------------------
+// The Board — on in every environment
+// ---------------------------------------------------------------------------
+
+describe('board flags', () => {
+  it('ui:board and api:board are enabled in local, beta and production', () => {
+    for (const env of ['local', 'beta', 'production'] as const) {
+      withEnv(env, () => {
+        expect(isEnabled('ui:board')).toBe(true);
+        expect(isEnabled('api:board')).toBe(true);
+      });
+    }
+  });
+
+  it('board moderation + topic cache integrations are on everywhere', () => {
+    for (const env of ['local', 'beta', 'production'] as const) {
+      withEnv(env, () => {
+        expect(isEnabled('integration:anthropic:moderation')).toBe(true);
+        expect(isEnabled('integration:redis:board')).toBe(true);
+      });
+    }
+  });
+});

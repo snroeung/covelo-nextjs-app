@@ -1,5 +1,6 @@
 'use client';
 
+import { btn } from '@/components/ui/button';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
@@ -252,7 +253,7 @@ export function AdminTransferPartnerEditor({ initial, isDark, onCancel, onSave }
         <button
           disabled={!allValid || isPending}
           onClick={() => (isEditing ? update() : create())}
-          className="px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+          className={btn('primary', 'md', 'text-sm!')}
         >
           {isPending ? 'Saving…' : isEditing ? 'Save changes' : 'Publish'}
         </button>

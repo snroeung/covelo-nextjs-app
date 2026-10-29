@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { btn } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePopup } from '@/components/layout/ProfilePopup';
@@ -11,6 +12,7 @@ import { isEnabled } from '@/lib/feature-flags';
 const flightsEnabled    = isEnabled('ui:flights');
 const hotelsEnabled     = isEnabled('ui:hotels');
 const discoverEnabled   = isEnabled('ui:discover');
+const boardEnabled      = isEnabled('ui:board');
 
 export function NavBar() {
   const { user, profile, loading } = useAuth();
@@ -151,15 +153,14 @@ export function NavBar() {
             {discoverOpen && (
               <div className="absolute top-full left-0 w-[244px] pt-1.5 z-50">
                 <div className="rounded-xl border shadow-lg overflow-hidden p-1.5 flex flex-col gap-1 bg-gph-card border-gph-line">
-                  <div className="px-3.5 py-2.5 rounded-lg cursor-default text-gph-muted">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold tracking-tight">The board</span>
-                      <span className="text-[10px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-gph-linesoft">
-                        Soon
-                      </span>
-                    </div>
-                    <div className="text-[10.5px] font-mono mt-0.5 tracking-wide">Community offers and tips</div>
-                  </div>
+                  <SearchDropdownItem
+                    href="/discover/board"
+                    label="The board"
+                    description="Community offers and tips"
+                    enabled={boardEnabled}
+                    active={pathname.startsWith('/discover/board')}
+                    onClick={closeDiscover}
+                  />
                   <Link
                     href="/offers"
                     onClick={closeDiscover}
@@ -196,7 +197,7 @@ export function NavBar() {
             <button
               ref={avatarRef}
               onClick={() => setPopupOpen((v) => !v)}
-              className="w-9 h-9 rounded-full bg-cv-green-800 flex items-center justify-center text-white text-xs font-bold select-none hover:bg-cv-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-cv-green-500 focus:ring-offset-2"
+              className={btn('accent', 'icon', 'rounded-full! text-xs select-none')}
               aria-label="Open profile"
               aria-expanded={popupOpen}
             >
@@ -212,7 +213,7 @@ export function NavBar() {
         ) : (
           <button
             onClick={() => router.push('/auth')}
-            className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors bg-cv-green-800 text-white hover:brightness-110"
+            className={btn('accent', 'md', 'text-sm!')}
           >
             Sign in
           </button>

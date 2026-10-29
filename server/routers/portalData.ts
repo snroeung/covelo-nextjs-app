@@ -5,6 +5,9 @@ import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { approveBoardItem, rejectBoardItem } from "@/lib/board/server/review";
+import { FEED_COLUMNS } from "@/lib/board/server/feed";
 import type { PortalId } from "@/lib/points/types";
 import type { TransferPartnerConfig, PointsValuationConfig } from "@/lib/points/transferPartners";
 import { sameProgram } from "@/lib/points/programNames";
@@ -16,6 +19,8 @@ import type {
   PendingReviewRow,
   PendingReviewTable,
 } from "@/lib/types/portalData";
+import { isBoardPendingTable, type BoardQueueReason } from "@/lib/types/portalData";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:portal-data")) return null;
@@ -44,6 +49,7 @@ function groupTransferPartners(rows: TransferPartnerRow[]): Record<PortalId, Tra
   return grouped;
 }
 
+/** The catalog tables whose rows wait for review by `status` / `source`. */
 const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
   "transfer_partners",
   "travel_collections",
@@ -51,6 +57,110 @@ const PENDING_REVIEW_TABLES: PendingReviewTable[] = [
   "spending_bonuses",
   "points_valuations",
 ];
+
+const BOARD_QUEUE_LIMIT = 200;
+
+/**
+ * The board's share of the queue: offer posts to verify, held posts and
+ * comments, and public content with open member reports. Read with the admin's
+ * own session — migration 031 lets exactly an admin JWT select these tables —
+ * so the board gets no special access path. A row is listed once; when several
+ * apply the reason is held, then offer_review, then reported, and every row
+ * carries its open-report tally.
+ */
+async function boardPendingRows(supabase: SupabaseClient): Promise<PendingReviewRow[]> {
+  const reportsRes = await supabase.from("board_reports").select("target_kind, target_id, reason").is("resolved_at", null).limit(1000);
+  if (reportsRes.error) console.warn("[portalData.listAll] board reports:", reportsRes.error.message);
+  const tally = new Map<string, { count: number; reasons: string[] }>();
+  for (const r of (reportsRes.error ? [] : reportsRes.data ?? []) as Array<{ target_kind: string; target_id: string; reason: string }>) {
+    const t = tally.get(r.target_id) ?? { count: 0, reasons: [] };
+    t.count++;
+    if (!t.reasons.includes(r.reason)) t.reasons.push(r.reason);
+    tally.set(r.target_id, t);
+  }
+  const reportedPostIds = [...new Set((reportsRes.data ?? []).filter((r) => r.target_kind === "post").map((r) => r.target_id as string))];
+  const reportedCommentIds = [...new Set((reportsRes.data ?? []).filter((r) => r.target_kind === "comment").map((r) => r.target_id as string))];
+
+  const [posts, comments, reportedPosts, reportedComments] = await Promise.all([
+    supabase
+      .from("board_posts_feed")
+      .select(FEED_COLUMNS)
+      .is("deleted_at", null)
+      // held (any kind) — or an offer waiting for verification that is still public
+      .or("mod_status.eq.held,and(kind.eq.offer,review.eq.pending,mod_status.in.(clean,unscanned))")
+      .order("created_at", { ascending: false })
+      .limit(BOARD_QUEUE_LIMIT),
+    supabase
+      .from("board_comments")
+      .select("*")
+      .is("deleted_at", null)
+      .eq("mod_status", "held")
+      .order("created_at", { ascending: false })
+      .limit(BOARD_QUEUE_LIMIT),
+    reportedPostIds.length
+      ? supabase.from("board_posts_feed").select(FEED_COLUMNS).in("id", reportedPostIds).is("deleted_at", null).in("mod_status", ["clean", "unscanned"])
+      : Promise.resolve({ data: [], error: null }),
+    reportedCommentIds.length
+      ? supabase.from("board_comments").select("*").in("id", reportedCommentIds).is("deleted_at", null).in("mod_status", ["clean", "unscanned"])
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  for (const [what, res] of [["posts", posts], ["comments", comments], ["reported posts", reportedPosts], ["reported comments", reportedComments]] as const) {
+    if (res.error) console.warn(`[portalData.listAll] board ${what}:`, res.error.message);
+  }
+
+  type Row = Record<string, unknown>;
+  const rows = (res: { data: unknown; error: unknown }): Row[] => (res.error ? [] : ((res.data ?? []) as unknown as Row[]));
+  const seenPosts = new Set(rows(posts).map((r) => r.id as string));
+  const seenComments = new Set(rows(comments).map((r) => r.id as string));
+  const postRows = [...rows(posts), ...rows(reportedPosts).filter((r) => !seenPosts.has(r.id as string))];
+  const commentRows = [...rows(comments), ...rows(reportedComments).filter((r) => !seenComments.has(r.id as string))];
+
+  // Comment authors' names, and the member-created offers behind offer posts
+  const authorIds = [...new Set(commentRows.map((c) => c.author_id as string))];
+  const memberOfferIds = [...new Set(postRows.map((p) => p.member_offer_id as string | null).filter((x): x is string => !!x))];
+  const topicIds = [...new Set(postRows.flatMap((p) => (p.topic_ids as string[] | null) ?? []))];
+  const [profiles, memberOffers, topicRows] = await Promise.all([
+    authorIds.length ? supabase.from("profiles").select("id, display_name").in("id", authorIds) : Promise.resolve({ data: [] }),
+    memberOfferIds.length ? supabase.from("board_member_offers").select("*").in("id", memberOfferIds) : Promise.resolve({ data: [] }),
+    topicIds.length ? supabase.from("board_topics").select("id, name").in("id", topicIds) : Promise.resolve({ data: [] }),
+  ]);
+  const topicName = new Map(((topicRows.data ?? []) as Array<{ id: string; name: string }>).map((t) => [t.id, t.name]));
+  const names = new Map<string, string>();
+  for (const p of (profiles.data ?? []) as Array<{ id: string; display_name: string | null }>) names.set(p.id, p.display_name?.trim() || "Traveler");
+  const offerById = new Map(((memberOffers.data ?? []) as Array<{ id: string }>).map((o) => [o.id, o]));
+
+  const reportFields = (id: string) => ({ report_count: tally.get(id)?.count ?? 0, report_reasons: tally.get(id)?.reasons ?? [] });
+  const out: PendingReviewRow[] = [];
+  for (const row of postRows) {
+    const reason: BoardQueueReason = row.mod_status === "held" ? "held" : row.kind === "offer" && row.review === "pending" ? "offer_review" : "reported";
+    out.push({
+      table: "board_posts",
+      row: {
+        ...row,
+        queue_reason: reason,
+        ...reportFields(row.id as string),
+        // Primary topic first, with names, so Review & publish can show the member's own topics
+        topics: [...((row.topic_ids as string[] | null) ?? [])]
+          .sort((a, b) => Number(b === row.topic_id) - Number(a === row.topic_id))
+          .map((id) => ({ id, name: topicName.get(id) ?? 'Unknown topic' })),
+        member_offer: row.member_offer_id ? offerById.get(row.member_offer_id as string) ?? null : null },
+    });
+  }
+  for (const row of commentRows) {
+    out.push({
+      table: "board_comments",
+      row: { ...row, author_name: names.get(row.author_id as string) ?? "Traveler", queue_reason: row.mod_status === "held" ? "held" : "reported", ...reportFields(row.id as string) },
+    });
+  }
+  return out;
+}
+
+/** Board rows need the board API on; off, the queue is exactly what it was. */
+function assertBoardEnabled(): void {
+  if (!isEnabled("api:board")) {
+    throw new TRPCError({ code: "NOT_FOUND", message: 'Feature "api:board" is not available in this environment.' });
+  }
+}
 
 async function invalidatePortalDataCache(): Promise<void> {
   await redis.del(cacheKeys.transferPartners()).catch(() => {});
@@ -182,6 +292,7 @@ export const portalDataRouter = router({
             }
           }
         });
+        if (isEnabled("api:board")) rows.push(...(await boardPendingRows(supabase)));
         return rows;
       }),
 
@@ -200,12 +311,19 @@ export const portalDataRouter = router({
 
     approve: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations", "board_posts", "board_comments"]),
         id:    z.string().uuid(),
         runId: z.string().uuid().optional(),
         edits: z.record(z.string(), z.string()).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Board rows: verify an offer post, or release held content. Their own actions, not a status flip.
+        if (isBoardPendingTable(input.table)) {
+          assertBoardEnabled();
+          await approveBoardItem(getSupabaseAdmin(), ctx.user.id, input.table, input.id);
+          return { id: input.id };
+        }
+
         const supabase = await createClient();
         const { data: original, error: fetchError } = await supabase
           .from(input.table)
@@ -274,10 +392,18 @@ export const portalDataRouter = router({
 
     reject: adminProcedure("api:portal-data")
       .input(z.object({
-        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations"]),
+        table: z.enum(["transfer_partners", "travel_collections", "transfer_bonuses", "spending_bonuses", "points_valuations", "board_posts", "board_comments"]),
         id:    z.string().uuid(),
+        /** Board rows only: shown to the member. Offer posts take a rejection reason, held content a removal reason. */
+        reason: z.string().max(100).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (isBoardPendingTable(input.table)) {
+          assertBoardEnabled();
+          await rejectBoardItem(getSupabaseAdmin(), ctx.user.id, input.table, input.id, input.reason);
+          return;
+        }
+
         const supabase = await createClient();
         const { error } = await supabase
           .from(input.table)

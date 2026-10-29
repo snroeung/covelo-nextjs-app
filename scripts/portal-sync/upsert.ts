@@ -9,6 +9,8 @@ import type {
 } from "./schemas";
 import { normalizeProgramName, sameProgram } from "@/lib/points/programNames";
 import { ISSUER_CARDS, type CardId, type PortalId } from "@/lib/points/types";
+import { boardPostColumns } from "./genPost";
+import { spendingBonusToBoardOffer, transferBonusToBoardOffer } from "@/lib/board/offerView";
 
 // Defends against hallucinated/mismatched ids before they hit the DB —
 // e.g. the model returning an Amex card id for a Chase-issuer record.
@@ -209,6 +211,8 @@ export async function upsertTransferBonus(
     source: "cron",
     status: "pending",
     active: false,
+    // Board post copy ready for review; post_to_board stays false until an admin opts in
+    ...boardPostColumns(transferBonusToBoardOffer({ ...record, transfer_partner: transferPartner })),
   });
   if (error) {
     console.error(`[upsert:transfer_bonus] insert failed for "${transferPartner}" (${ctx.sourceUrl}): ${error.message}`);
@@ -246,6 +250,8 @@ export async function upsertSpendingBonus(
     source: "cron",
     status: "pending",
     active: false,
+    // Board post copy ready for review; post_to_board stays false until an admin opts in
+    ...boardPostColumns(spendingBonusToBoardOffer(record)),
   });
   if (error) {
     console.error(`[upsert:spending_bonus] insert failed for "${record.merchant_name}" (${ctx.sourceUrl}): ${error.message}`);

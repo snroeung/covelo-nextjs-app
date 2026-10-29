@@ -20,11 +20,21 @@ vi.mock('@/lib/feature-flags', () => ({
   isEnabled: () => true,
 }));
 
+vi.mock('@/lib/supabase/admin', () => ({
+  getSupabaseAdmin: vi.fn(() => ({})),
+}));
+
+vi.mock('@/lib/board/server/systemPost', () => ({
+  assertBoardPostReady: vi.fn(),
+  syncSystemPost: vi.fn().mockResolvedValue('none'),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 import { redis } from '@/lib/redis';
 import { appRouter } from '@/server/routers/_app';
 import type { TransferBonus, SpendingBonus, SponsoredAd } from '@/lib/types/offers';
 import { cacheKeys } from '@/lib/cache-config';
+import { syncSystemPost } from '@/lib/board/server/systemPost';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +116,7 @@ const mockTransferBonus: TransferBonus = {
   country: 'US',
   submitted_by: null,
   upvotes: 0,
+  post_to_board: false, board_topic: null, board_post_title: null, board_post_body: null,
   active: true,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -132,6 +143,7 @@ const mockSpendingBonus: SpendingBonus = {
   country: 'US',
   submitted_by: null,
   upvotes: 0,
+  post_to_board: false, board_topic: null, board_post_title: null, board_post_body: null,
   active: true,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -537,7 +549,7 @@ describe('offers.admin.updateActive()', () => {
   });
 
   it('20. deactivates an offer (active → false)', async () => {
-    setupSupabase({ data: null, error: null });
+    setupSupabase({ data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', active: true, post_to_board: false }, error: null });
 
     await expect(
       caller.offers.admin.updateActive({
@@ -549,7 +561,7 @@ describe('offers.admin.updateActive()', () => {
   });
 
   it('21. reactivates an offer (active → true)', async () => {
-    setupSupabase({ data: null, error: null });
+    setupSupabase({ data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', active: true, post_to_board: false }, error: null });
 
     await expect(
       caller.offers.admin.updateActive({
@@ -561,7 +573,7 @@ describe('offers.admin.updateActive()', () => {
   });
 
   it('22. invalidates both bonus caches after an active change', async () => {
-    setupSupabase({ data: null, error: null });
+    setupSupabase({ data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', active: true, post_to_board: false }, error: null });
 
     await caller.offers.admin.updateActive({
       id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -571,6 +583,42 @@ describe('offers.admin.updateActive()', () => {
 
     expect(redis.del).toHaveBeenCalledWith(cacheKeys.transferBonuses());
     expect(redis.del).toHaveBeenCalledWith(cacheKeys.spendingBonuses());
+  });
+
+  it('23. deactivating hides the board post even when post_to_board is still on', async () => {
+    setupSupabase({
+      data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', active: false, post_to_board: true, board_topic: 't', board_post_title: 'x', board_post_body: 'y' },
+      error: null,
+    });
+
+    await caller.offers.admin.updateActive({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      table: 'transfer_bonuses',
+      active: false,
+    });
+
+    expect(syncSystemPost).toHaveBeenCalledWith(
+      expect.anything(), 'transfer_bonuses', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      expect.objectContaining({ post_to_board: false }), 'admin-user-1',
+    );
+  });
+
+  it('24. reactivating restores the board post when post_to_board is on', async () => {
+    setupSupabase({
+      data: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', active: true, post_to_board: true, board_topic: 't', board_post_title: 'x', board_post_body: 'y' },
+      error: null,
+    });
+
+    await caller.offers.admin.updateActive({
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      table: 'transfer_bonuses',
+      active: true,
+    });
+
+    expect(syncSystemPost).toHaveBeenCalledWith(
+      expect.anything(), 'transfer_bonuses', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      expect.objectContaining({ post_to_board: true }), 'admin-user-1',
+    );
   });
 });
 

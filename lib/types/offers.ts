@@ -27,6 +27,12 @@ export interface TransferBonus {
   submitted_by: string | null;
   upvotes: number;
   active: boolean;
+  /** Board post for this offer (plan §6): posted to the board when true */
+  post_to_board: boolean;
+  board_topic: string | null;
+  /** Filled by the portal-sync cron, then edited by an admin; used as written */
+  board_post_title: string | null;
+  board_post_body: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +59,12 @@ export interface SpendingBonus {
   submitted_by: string | null;
   upvotes: number;
   active: boolean;
+  /** Board post for this offer (plan §6): posted to the board when true */
+  post_to_board: boolean;
+  board_topic: string | null;
+  /** Filled by the portal-sync cron, then edited by an admin; used as written */
+  board_post_title: string | null;
+  board_post_body: string | null;
   created_at: string;
   updated_at: string;
 }
