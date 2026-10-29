@@ -74,20 +74,28 @@ export const createSpendingBonusInput = z.object({
   ...boardFieldsForCreate,
 });
 
+/** An offer as saved, plus why its board post could not be kept in step (the offer itself is saved either way). */
+export type WithBoardSync<T> = T & { board_sync_error?: string };
+
 /**
  * Keep the covelo board post in step with a saved offer. Runs after the offer
- * is stored; it is skipped when the offer is not on the board and the request
- * did not touch the toggle (nothing to create or hide). An inactive offer is
- * never on the board: its post is hidden whatever the toggle says.
+ * is stored. A new offer that is not on the board has nothing to create or
+ * hide; an existing one is always checked, because its post can exist whatever
+ * the row's flag says (the portal-sync script flips it without a post).
+ * An inactive offer is never on the board: its post is hidden whatever the toggle says.
+ *
+ * Returns the failure message instead of throwing: the offer is already saved
+ * and its cache busted, so failing the mutation would make the client retry (a
+ * duplicate on create) or roll back a write that happened.
  */
-async function syncBoardPost(
+async function syncBoardPost<T extends { id: string }>(
   table: OfferTable,
-  row: { id: string; active?: boolean; end_date?: string | null; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
+  row: T & { active?: boolean; end_date?: string | null; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
   adminUserId: string,
-  touchedToggle: boolean,
-): Promise<void> {
+  isNew: boolean,
+): Promise<WithBoardSync<T>> {
   const onBoard = row.post_to_board === true && row.active !== false;
-  if (!onBoard && !touchedToggle && row.active !== false) return;
+  if (isNew && !onBoard) return row;
   try {
     await syncSystemPost(getSupabaseAdmin(), table, row.id, {
       post_to_board: onBoard,
@@ -96,10 +104,11 @@ async function syncBoardPost(
       board_post_body: row.board_post_body ?? null,
       end_date: row.end_date ?? null,
     }, adminUserId);
+    return row;
   } catch (err) {
-    // The offer itself is saved; say so, so the admin only has to fix the board fields
     const message = err instanceof Error ? err.message : "board post sync failed";
-    throw new TRPCError({ code: err instanceof TRPCError ? err.code : "INTERNAL_SERVER_ERROR", message: `Offer saved, but not posted to the board: ${message}` });
+    console.error({ time: new Date().toISOString(), table, offerId: row.id, boardSync: message });
+    return { ...row, board_sync_error: `Offer saved, but not posted to the board: ${message}` };
   }
 }
 
@@ -304,8 +313,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
-        await syncBoardPost("transfer_bonuses", data, ctx.user.id, input.post_to_board !== undefined);
-        return data as TransferBonus;
+        return (await syncBoardPost("transfer_bonuses", data, ctx.user.id, false)) as WithBoardSync<TransferBonus>;
       }),
 
     updateSpendingBonus: adminProcedure("api:offers")
@@ -341,8 +349,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
-        await syncBoardPost("spending_bonuses", data, ctx.user.id, input.post_to_board !== undefined);
-        return data as SpendingBonus;
+        return (await syncBoardPost("spending_bonuses", data, ctx.user.id, false)) as WithBoardSync<SpendingBonus>;
       }),
 
     updateActive: adminProcedure("api:offers")
@@ -365,7 +372,8 @@ export const offersRouter = router({
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
         // Deactivating hides the offer's board post; reactivating restores it if the toggle is still on
-        await syncBoardPost(input.table, data, ctx.user.id, true);
+        const { board_sync_error } = await syncBoardPost(input.table, data, ctx.user.id, false);
+        return board_sync_error ? { board_sync_error } : {};
       }),
 
     createTransferBonus: adminProcedure("api:offers")
@@ -381,8 +389,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.transferBonuses()).catch(() => {});
-        await syncBoardPost("transfer_bonuses", data, ctx.user.id, false);
-        return data as TransferBonus;
+        return (await syncBoardPost("transfer_bonuses", data, ctx.user.id, true)) as WithBoardSync<TransferBonus>;
       }),
 
     createSpendingBonus: adminProcedure("api:offers")
@@ -398,8 +405,7 @@ export const offersRouter = router({
 
         if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
         await redis.del(cacheKeys.spendingBonuses()).catch(() => {});
-        await syncBoardPost("spending_bonuses", data, ctx.user.id, false);
-        return data as SpendingBonus;
+        return (await syncBoardPost("spending_bonuses", data, ctx.user.id, true)) as WithBoardSync<SpendingBonus>;
       }),
 
     listAds: adminProcedure("api:offers")

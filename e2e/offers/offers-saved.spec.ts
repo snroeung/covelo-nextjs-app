@@ -72,7 +72,7 @@ test.describe('Offers — saved offers', () => {
     await expect(savedItem(page)).toBeVisible();
     await page.keyboard.press('Escape');
 
-    await offer.setEndDate(isoDay(-1)); // ended yesterday
+    await offer.setEndDate(isoDay(-2)); // ended two UTC days ago: over in every time zone
     await page.reload();
     await expect(page.getByRole('heading', { name: 'All offers' })).toBeVisible();
     await expect(row(page)).toHaveCount(0);
@@ -105,6 +105,29 @@ test.describe('Offers — saved offers', () => {
     expect(box!.width).toBeLessThanOrEqual(375);
     await page.keyboard.press('Escape');
     await expect(savedPanel(page)).toBeHidden();
+  });
+});
+
+// An offer's last day ends at midnight in the viewer's own zone. Earliest "today" is UTC-12's, latest is UTC+14's:
+// UTC today is never over for UTC-12, and UTC yesterday is always over for UTC+14.
+test.describe('Offers — the cutoff follows the viewer time zone', () => {
+  test.describe('far behind UTC', () => {
+    test.use({ timezoneId: 'Etc/GMT+12' });
+    test('10. an offer ending on the UTC day is still shown', async ({ page }) => {
+      await offer.setEndDate(isoDay(0));
+      await page.goto('/offers');
+      await expect(row(page)).toBeVisible();
+    });
+  });
+
+  test.describe('far ahead of UTC', () => {
+    test.use({ timezoneId: 'Pacific/Kiritimati' });
+    test('11. an offer that ended on the previous UTC day is gone', async ({ page }) => {
+      await offer.setEndDate(isoDay(-1));
+      await page.goto('/offers');
+      await expect(page.getByRole('heading', { name: 'All offers' })).toBeVisible();
+      await expect(row(page)).toHaveCount(0);
+    });
   });
 });
 

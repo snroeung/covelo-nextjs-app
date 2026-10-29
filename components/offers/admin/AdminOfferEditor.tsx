@@ -89,7 +89,8 @@ interface Props {
     /** The member's own post, as written: shown for review and saved with the publish */
     post: { title: string; body: string; topicIds: string[]; topics: Array<{ id: string; name: string }> };
   };
-  onSave:   () => void;
+  /** `boardWarning` = the offer saved but its board post could not be kept in step */
+  onSave:   (boardWarning?: string) => void;
   onCancel: () => void;
   isDark:   boolean;
 }
@@ -241,9 +242,9 @@ export function AdminOfferEditor({ initial, fromPost, onSave, onCancel, isDark }
 
   const { mutate: createTransfer, isPending: creatingTransfer } = useMutation({
     mutationFn: () => trpc.offers.admin.createTransferBonus.mutate(transferCreatePayload()),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
-      onSave();
+      onSave(saved.board_sync_error);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
@@ -271,9 +272,9 @@ export function AdminOfferEditor({ initial, fromPost, onSave, onCancel, isDark }
 
   const { mutate: createSpending, isPending: creatingSpending } = useMutation({
     mutationFn: () => trpc.offers.admin.createSpendingBonus.mutate(spendingCreatePayload()),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
-      onSave();
+      onSave(saved.board_sync_error);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
@@ -344,18 +345,18 @@ export function AdminOfferEditor({ initial, fromPost, onSave, onCancel, isDark }
 
   const { mutate: updateTransfer, isPending: updatingTransfer } = useMutation({
     mutationFn: () => trpc.offers.admin.updateTransferBonus.mutate(transferUpdatePayload()),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
-      onSave();
+      onSave(saved.board_sync_error);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });
 
   const { mutate: updateSpending, isPending: updatingSpending } = useMutation({
     mutationFn: () => trpc.offers.admin.updateSpendingBonus.mutate(spendingUpdatePayload()),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['offers.admin.listAll'] });
-      onSave();
+      onSave(saved.board_sync_error);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Save failed'),
   });

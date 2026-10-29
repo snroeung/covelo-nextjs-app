@@ -61,6 +61,7 @@ export function OffersAdminShell() {
     null | { mode: 'new' } | { mode: 'transfer'; offer: TransferBonus } | { mode: 'spending'; offer: SpendingBonus }
   >(null);
   // Review & publish: the offer editor opened from a member-created offer post
+  const [boardNotice, setBoardNotice] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<null | NonNullable<React.ComponentProps<typeof AdminOfferEditor>['fromPost']>>(null);
   const [editingPartner, setEditingPartner] = useState<TransferPartnerRow | null | undefined>(undefined); // undefined = hidden, null = new
   const [editingCollection, setEditingCollection] = useState<TravelCollection | null | undefined>(undefined); // undefined = hidden, null = new
@@ -324,6 +325,13 @@ export function OffersAdminShell() {
       <div className="px-4 md:px-8 py-8 max-w-6xl mx-auto w-full flex flex-col gap-6">
         {tab === 'offers' && (
           <>
+            {boardNotice && (
+              <div role="status" className="flex items-start justify-between gap-3 rounded-lg border border-cv-amber-400 bg-cv-amber-400/10 px-4 py-3 text-sm text-gph-ink">
+                <span>{boardNotice}</span>
+                <button type="button" onClick={() => setBoardNotice(null)} className="shrink-0 font-semibold underline min-h-11 min-w-11">Dismiss</button>
+              </div>
+            )}
+
             {/* Create / edit offer editor */}
             {editingOffer !== null && (
               <AdminOfferEditor
@@ -333,7 +341,8 @@ export function OffersAdminShell() {
                   undefined
                 }
                 fromPost={reviewing ?? undefined}
-                onSave={() => {
+                onSave={(boardWarning) => {
+                  setBoardNotice(boardWarning ?? null);
                   // Covers the case this editor was opened from a pending
                   // row (Pending review → Edit) — its own list otherwise
                   // wouldn't reflect the edit until Pending review refetches.

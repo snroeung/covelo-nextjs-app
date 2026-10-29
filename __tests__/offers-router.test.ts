@@ -557,7 +557,7 @@ describe('offers.admin.updateActive()', () => {
         table: 'transfer_bonuses',
         active: false,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({});
   });
 
   it('21. reactivates an offer (active → true)', async () => {
@@ -569,7 +569,7 @@ describe('offers.admin.updateActive()', () => {
         table: 'transfer_bonuses',
         active: true,
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({});
   });
 
   it('22. invalidates both bonus caches after an active change', async () => {

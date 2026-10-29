@@ -77,16 +77,22 @@ describe('createTransferBonus', () => {
     expect(db.log).toHaveLength(0);
   });
 
-  it('says the offer saved when only the board post failed', async () => {
+  it('keeps the offer saved and reports the board failure instead of failing the mutation', async () => {
     const db = setup(offerRow({ ...board, board_topic: 'No such topic' }));
     await expect(caller().offers.admin.createTransferBonus({ ...base, ...board, board_topic: 'No such topic' }))
-      .rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Offer saved, but not posted to the board: Unknown board topic "No such topic".' });
+      .resolves.toMatchObject({ board_sync_error: 'Offer saved, but not posted to the board: Unknown board topic "No such topic".' });
     expect(db.of('transfer_bonuses', 'insert')).toHaveLength(1);
     expect(db.of('board_posts', 'insert')).toHaveLength(0);
   });
 });
 
 describe('updateTransferBonus', () => {
+  it('re-syncs even when the toggle is untouched and the row\'s flag is off: a leftover post gets hidden', async () => {
+    const db = setup(offerRow(), { board_posts: (q) => (q.action === 'select' ? { data: [{ id: P1, deleted_at: null }] } : undefined) });
+    await caller().offers.admin.updateTransferBonus({ id: OFFER1, description: 'edited' } as never);
+    expect(payload(db.of('board_posts', 'update')[0]).deleted_at).toEqual(expect.any(String));
+  });
+
   it('turning the toggle off hides covelo\'s post', async () => {
     const db = setup(offerRow(), { board_posts: (q) => (q.action === 'select' ? { data: [{ id: P1, deleted_at: null }] } : undefined) });
     await caller().offers.admin.updateTransferBonus({ id: OFFER1, post_to_board: false });
@@ -105,10 +111,10 @@ describe('updateTransferBonus', () => {
     expect(eqValue(db.of('board_posts', 'update')[0], 'id')).toBe(P1);
   });
 
-  it('an unrelated edit to an offer that is not posted touches nothing on the board', async () => {
+  it('an unrelated edit to an offer that is not posted only looks, and writes nothing on the board', async () => {
     const db = setup(offerRow());
     await caller().offers.admin.updateTransferBonus({ id: OFFER1, description: 'updated terms' });
-    expect(boardCalls(db)).toHaveLength(0);
+    expect(boardCalls(db).filter((q) => q.action !== 'select')).toHaveLength(0);
   });
 
   it('an unrelated edit to a posted offer refreshes covelo\'s post from the stored text', async () => {
