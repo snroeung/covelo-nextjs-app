@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLiveOffer, liveOfferFilter, liveOffers, todayIso } from '@/lib/offers/live';
+import { isLiveOffer, isRealIsoDate, liveOfferFilter, liveOffers, todayIso } from '@/lib/offers/live';
 
 const NOON = new Date('2026-10-27T12:00:00Z');
 
@@ -31,5 +31,16 @@ describe('liveOffers / liveOfferFilter / todayIso', () => {
   it('builds the matching database filter', () => {
     expect(todayIso(NOON)).toBe('2026-10-27');
     expect(liveOfferFilter(NOON)).toBe('end_date.is.null,end_date.gte.2026-10-27');
+  });
+});
+
+describe('isRealIsoDate', () => {
+  it('accepts real days, including leap day, and rejects impossible ones', () => {
+    expect(isRealIsoDate('2026-12-31')).toBe(true);
+    expect(isRealIsoDate('2028-02-29')).toBe(true);
+    expect(isRealIsoDate('2026-02-29')).toBe(false);
+    expect(isRealIsoDate('2026-02-31')).toBe(false);
+    expect(isRealIsoDate('2026-13-45')).toBe(false);
+    expect(isRealIsoDate('26-1-1')).toBe(false);
   });
 });

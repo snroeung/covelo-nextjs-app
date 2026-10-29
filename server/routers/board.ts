@@ -24,6 +24,7 @@ import { loadActor, loadDisplayName, type UserEvents } from "@/lib/board/server/
 import { logModEvent } from "@/lib/board/server/audit";
 import { bustTopicsCache, cacheGet, cacheSet } from "@/lib/board/server/cache";
 import { must, throwIfBlocked } from "@/lib/board/server/errors";
+import { todayIso } from "@/lib/offers/live";
 import { countFeed, fetchPost, queryFeed, type FeedRow } from "@/lib/board/server/feed";
 import { COMMENT_COLUMNS, buildCommentTree, hydratePosts, loadThread, type CommentRow } from "@/lib/board/server/hydrate";
 import { loadBlockedTerms, moderateSubmission } from "@/lib/board/server/moderate";
@@ -662,12 +663,12 @@ function latest(dates: readonly Date[]): Date | null {
 
 async function loadChipCounts(
   admin: SupabaseClient,
-  viewer: { id: string | null; isAdmin: boolean },
+  viewer: Viewer,
   type: "tip" | "offer" | undefined,
 ): Promise<{ all: number; byTopic: Record<string, number> }> {
   const [all, byTopic] = await Promise.all([
     countFeed(admin, viewer, { sort: "new", type }),
-    admin.rpc("board_topic_counts", { p_kind: type ?? null }),
+    admin.rpc("board_topic_counts", { p_kind: type ?? null, p_today: todayIso(new Date(), viewer.timeZone) }),
   ]);
   const rows = (must(byTopic as never, "topic counts") ?? []) as unknown as Array<{ topic_id: string; n: number | string }>;
   return { all, byTopic: Object.fromEntries(rows.map((r) => [r.topic_id, Number(r.n)])) };

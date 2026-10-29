@@ -109,4 +109,6 @@ export interface BoardTopic {
 export interface Viewer {
   id: string | null;
   isAdmin: boolean;
+  /** IANA zone the viewer's offer dates end in; UTC when unknown */
+  timeZone?: string;
 }

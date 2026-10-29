@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { spendingBonusToBoardOffer, transferBonusToBoardOffer } from "./offerView";
+import { isRealIsoDate } from "@/lib/offers/live";
 import { CARD_NAMES, CARD_PORTAL_MAP, type CardId } from "@/lib/points/types";
 
 export const OFFER_ISSUERS = ["chase", "amex", "c1", "bilt", "citi"] as const;
@@ -26,7 +27,10 @@ export const OFFER_COUNTRIES = [
   { value: "AU", label: "Australia" },
 ] as const;
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-06-30.");
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-06-30.")
+  .refine(isRealIsoDate, "That date doesn't exist. Use a date like 2026-06-30.");
 const httpLink = z
   .string()
   .trim()
@@ -258,12 +262,23 @@ function legacyBonus(value: string, type: string): { bonus_type?: (typeof BONUS_
   return { bonus_type: "points_multiplier", amount };
 }
 
-/** "Nov 1, 2026" / "2026-11-01" → "2026-11-01". Labels without a year can't be placed, so they are skipped. */
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/**
+ * "Nov 1, 2026" / "2026-11-01" → "2026-11-01". Labels without a year can't be placed, so they are skipped.
+ * Read as plain calendar parts — never through a Date's local getters — so the result is the same in every
+ * server time zone, and in the same UTC day the database and todayIso() use.
+ */
 function legacyDate(label: string): string | undefined {
-  if (!/\b(19|20)\d{2}\b/.test(label)) return undefined;
-  const d = new Date(label);
-  if (Number.isNaN(d.getTime())) return undefined;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const iso = /\b((?:19|20)\d{2})-(\d{2})-(\d{2})\b/.exec(label);
+  const named = /\b([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+((?:19|20)\d{2})\b/.exec(label);
+  let out: string | undefined;
+  if (iso) out = `${iso[1]}-${iso[2]}-${iso[3]}`;
+  else if (named) {
+    const month = MONTHS.indexOf(named[1].toLowerCase()) + 1;
+    if (month > 0) out = `${named[3]}-${String(month).padStart(2, "0")}-${named[2].padStart(2, "0")}`;
+  }
+  return out && isRealIsoDate(out) ? out : undefined;
 }
 
 export function prefillFromLegacyOffer(row: Record<string, unknown>): EditorPrefill {

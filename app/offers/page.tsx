@@ -11,6 +11,7 @@ import { BoardToastProvider } from '@/components/board/shared/Toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { ISSUER_LABELS, isTransfer, sortByValueThenRecency } from '@/lib/discover/offerCopy';
+import { browserTimeZone } from '@/lib/time';
 import { liveOffers } from '@/lib/offers/live';
 import { SavedOffersMenu } from '@/components/offers/SavedOffersMenu';
 import type { TransferBonus, SpendingBonus, Issuer } from '@/lib/types/offers';
@@ -48,8 +49,8 @@ function OffersPageInner() {
     queryKey: ['offers.spendingBonuses'],
     queryFn:  () => trpc.offers.listSpendingBonuses.query(),
   });
-  const transferBonuses = useMemo(() => liveOffers(transferData), [transferData]);
-  const spendingBonuses = useMemo(() => liveOffers(spendingData), [spendingData]);
+  const transferBonuses = useMemo(() => liveOffers(transferData, new Date(), browserTimeZone()), [transferData]);
+  const spendingBonuses = useMemo(() => liveOffers(spendingData, new Date(), browserTimeZone()), [spendingData]);
 
   const isLoading = loadingTransfer || loadingSpending;
 

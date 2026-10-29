@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, flaggedProcedure, adminProcedure, authedProcedure } from "@/server/trpc";
-import { SAVED_OFFERS_LIMIT, isLiveOffer, liveOfferFilter, liveOffers } from "@/lib/offers/live";
+import { SAVED_OFFERS_LIMIT, isLiveOffer, liveOffers, widestLiveOfferFilter } from "@/lib/offers/live";
 import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
@@ -104,11 +104,13 @@ async function syncBoardPost(
 
 export const offersRouter = router({
   listTransferBonuses: flaggedProcedure("api:offers")
-    .query(async (): Promise<TransferBonus[]> => {
+    .query(async ({ ctx }): Promise<TransferBonus[]> => {
       const key = cacheKeys.transferBonuses();
-      // A cached list can outlive an offer by up to its TTL: re-check the dates on the way out
+      // The cache is shared by every viewer, so it holds what is live anywhere on Earth; each
+      // viewer gets the offers still live in their own time zone. A cached list can also outlive
+      // an offer by up to its TTL, so the dates are re-checked on the way out.
       const cached = await cacheGet<TransferBonus[]>(key);
-      if (cached) return liveOffers(cached);
+      if (cached) return liveOffers(cached, new Date(), ctx.timeZone);
 
       // Row-level security hides ended offers from members, but not from an admin
       // session — and this list is cached for everyone, so filter explicitly.
@@ -117,33 +119,33 @@ export const offersRouter = router({
         .from("transfer_bonuses")
         .select("*")
         .eq("active", true)
-        .or(liveOfferFilter())
+        .or(widestLiveOfferFilter())
         .order("bonus_pct", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       const result = (data ?? []) as TransferBonus[];
       await cacheSet(key, result, CACHE.transferBonuses.ttl);
-      return result;
+      return liveOffers(result, new Date(), ctx.timeZone);
     }),
 
   listSpendingBonuses: flaggedProcedure("api:offers")
-    .query(async (): Promise<SpendingBonus[]> => {
+    .query(async ({ ctx }): Promise<SpendingBonus[]> => {
       const key = cacheKeys.spendingBonuses();
       const cached = await cacheGet<SpendingBonus[]>(key);
-      if (cached) return liveOffers(cached);
+      if (cached) return liveOffers(cached, new Date(), ctx.timeZone);
 
       const supabase = await createClient();
       const { data, error } = await supabase
         .from("spending_bonuses")
         .select("*")
         .eq("active", true)
-        .or(liveOfferFilter())
+        .or(widestLiveOfferFilter())
         .order("bonus_multiplier", { ascending: false });
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       const result = (data ?? []) as SpendingBonus[];
       await cacheSet(key, result, CACHE.spendingBonuses.ttl);
-      return result;
+      return liveOffers(result, new Date(), ctx.timeZone);
     }),
 
   // ── Saved offers (members only) ──
@@ -164,9 +166,9 @@ export const offersRouter = router({
     const fetchLive = async (table: OfferTable) => {
       const ids = idsFor(table);
       if (ids.length === 0) return [];
-      const res = await ctx.supabase.from(table).select("*").in("id", ids).eq("active", true).or(liveOfferFilter());
+      const res = await ctx.supabase.from(table).select("*").in("id", ids).eq("active", true).or(widestLiveOfferFilter());
       if (res.error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: res.error.message });
-      return (res.data ?? []) as Array<TransferBonus | SpendingBonus>;
+      return liveOffers((res.data ?? []) as Array<TransferBonus | SpendingBonus>, new Date(), ctx.timeZone);
     };
     const [transfers, spendings] = await Promise.all([fetchLive("transfer_bonuses"), fetchLive("spending_bonuses")]);
     const byKey = new Map<string, TransferBonus | SpendingBonus>([
@@ -189,7 +191,7 @@ export const offersRouter = router({
 
       const { data: offer, error: lookupError } = await ctx.supabase.from(input.table).select("id, active, end_date").eq("id", input.id).maybeSingle();
       if (lookupError) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: lookupError.message });
-      if (!offer || !isLiveOffer(offer as { active: boolean; end_date: string | null })) {
+      if (!offer || !isLiveOffer(offer as { active: boolean; end_date: string | null }, new Date(), ctx.timeZone)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "That offer isn't available to save." });
       }
 

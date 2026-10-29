@@ -21,6 +21,8 @@ describe('draftError', () => {
     ['no merchant', { ...spending, merchant_name: ' ' }, /merchant/i],
     ['no amount', { ...spending, bonus_multiplier: '' }, /amount/i],
     ['end before start', { ...transfer, start_date: '2026-12-31', end_date: '2026-01-01' }, /end date/i],
+    ['impossible end date', { ...transfer, start_date: '2026-01-01', end_date: '2026-02-31' }, /exist/i],
+    ['impossible month', { ...transfer, start_date: '2026-00-10' }, /exist/i],
     ['non-http link', { ...transfer, source_url: 'javascript:alert(1)' }, /http/i],
   ])('flags %s', (_name, draft, message) => {
     expect(draftError(draft as MemberOfferDraft)).toMatch(message);
@@ -152,6 +154,15 @@ describe('prefillFromMemberOffer — offers created before structured details', 
     const out = prefillFromMemberOffer({ ...legacy, ends_label: 'Jun 30', value: 'Free', type: 'FREE NIGHT' });
     expect(out.offer.end_date).toBeUndefined();
     expect((out.offer as { bonus_multiplier?: number }).bonus_multiplier).toBeUndefined();
+  });
+
+  it('reads end-date labels as calendar parts, whatever the server time zone', () => {
+    const end = (ends_label: string) => prefillFromMemberOffer({ ...legacy, ends_label }).offer.end_date;
+    expect(end('2026-12-31')).toBe('2026-12-31');
+    expect(end('Nov 1, 2026')).toBe('2026-11-01');
+    expect(end('December 5th, 2026')).toBe('2026-12-05');
+    expect(end('Feb 31, 2026')).toBeUndefined();
+    expect(end('2026-13-45')).toBeUndefined();
   });
 
   it('uses the structured details when there are some', () => {

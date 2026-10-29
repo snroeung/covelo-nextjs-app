@@ -9,7 +9,7 @@ vi.mock('@/lib/feature-flags', () => ({ isEnabled: () => true }));
 import { createClient } from '@/lib/supabase/server';
 import { redis } from '@/lib/redis';
 import { appRouter } from '@/server/routers/_app';
-import { liveOfferFilter } from '@/lib/offers/live';
+import { widestLiveOfferFilter } from '@/lib/offers/live';
 
 const ME = 'user-1';
 const T1 = '11111111-1111-4111-8111-111111111111';
@@ -47,7 +47,7 @@ describe('offers.listTransferBonuses / listSpendingBonuses — ended offers', ()
     for (const table of ['transfer_bonuses', 'spending_bonuses']) {
       const q = db.of(table)[0];
       expect(called(q, 'eq', 'active', true)).toBe(true);
-      expect(called(q, 'or', liveOfferFilter())).toBe(true);
+      expect(called(q, 'or', widestLiveOfferFilter())).toBe(true);
     }
   });
 
@@ -85,7 +85,7 @@ describe('offers.saved', () => {
     expect(eqValue(saves, 'user_id')).toBe(ME);
     expect(called(saves, 'order', 'created_at', { ascending: false })).toBe(true);
     // Only live ones are fetched
-    expect(called(db.of('transfer_bonuses')[0], 'or', liveOfferFilter())).toBe(true);
+    expect(called(db.of('transfer_bonuses')[0], 'or', widestLiveOfferFilter())).toBe(true);
     expect(called(db.of('transfer_bonuses')[0], 'in', 'id', [T2, T1])).toBe(true);
   });
 

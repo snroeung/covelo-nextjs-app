@@ -172,7 +172,7 @@ Jobs (GitHub Actions, `.github/workflows/board-jobs.yml`, same env/secrets as `p
 - `npm run board:purge-expired [-- --dry] [-- --days N]` — daily (11:00 UTC). Soft-deletes (`deleted_at`, like an author delete) offer posts whose offer ended more than N days ago (default 7); up to 500 per run. Not a hard delete: nothing cascades and rows can be restored by hand.
 - `npm run board:backfill [-- --dry]` — one-off per environment. Creates covelo posts for live offers with `post_to_board = true` and no post. Run `--dry` first. Dispatch from Actions (`job: backfill-dry` / `backfill`) or locally.
 
-Release order for a new environment: push migrations 025–035 (`npm run db:push:dev` for dev), confirm `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY` and the Upstash vars are set, run `backfill-dry` then `backfill`, then enable the two flags.
+Release order for a new environment: push migrations 025–037 (`npm run db:push:dev` for dev), confirm `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY` and the Upstash vars are set, run `backfill-dry` then `backfill`, then enable the two flags.
 
 ### Redemption comparison components
 Renderings of the same `PointsResult`, chosen by how much room the surface has. All of

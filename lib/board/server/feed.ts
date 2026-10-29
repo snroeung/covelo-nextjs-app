@@ -7,6 +7,7 @@
 // slice. The window is a v1 cap — the 500 newest / 500 highest-scored posts
 // match any filter — which is far deeper than a page-through.
 
+import { todayIso } from "@/lib/offers/live";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   compareForFeed, decodeCursor, encodeCursor, isAfterCursor, makeCursor, type BoardSort, type RankablePost,
@@ -104,8 +105,8 @@ export function applyVisibility<T>(query: T, viewer: Viewer): T {
  * no readable end date, never expires. Extending the offer's end date brings
  * its post back; a direct link to it still opens.
  */
-export function applyNotExpired<T>(query: T, now: Date): T {
-  const today = now.toISOString().slice(0, 10);
+export function applyNotExpired<T>(query: T, now: Date, timeZone?: string): T {
+  const today = todayIso(now, timeZone);
   return (query as unknown as Q).or(`offer_expires_on.is.null,offer_expires_on.gte.${today}`) as unknown as T;
 }
 
@@ -137,7 +138,7 @@ export async function queryFeed(
     // The Mod view lists what members can't see, expired offers included
     return params.modStatuses
       ? (filtered as unknown as Q).in("mod_status", params.modStatuses) as unknown as typeof filtered
-      : applyNotExpired(applyVisibility(filtered, viewer), now);
+      : applyNotExpired(applyVisibility(filtered, viewer), now, viewer.timeZone);
   };
   const newest = () => base().order("created_at", { ascending: false }).limit(FEED_WINDOW);
   const top = () => base().order("score", { ascending: false }).order("created_at", { ascending: false }).limit(FEED_WINDOW);
@@ -167,6 +168,7 @@ export async function countFeed(admin: SupabaseClient, viewer: Viewer, params: F
       viewer,
     ),
     now,
+    viewer.timeZone,
   );
   must(res, "feed count");
   return res.count ?? 0;

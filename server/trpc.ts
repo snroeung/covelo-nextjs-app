@@ -3,7 +3,12 @@ import { isEnabled } from "@/lib/feature-flags";
 import type { FlagName } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
 
-const t = initTRPC.create({
+/** What every request carries before auth: the viewer's IANA time zone (already validated, UTC when unknown). */
+export interface TrpcContext {
+  timeZone?: string;
+}
+
+const t = initTRPC.context<TrpcContext>().create({
   errorFormatter({ shape, error }) {
     // Rate-limit errors carry when the caller may retry as `cause.retryAt` (ISO string)
     const retryAt = (error.cause as { retryAt?: unknown } | undefined)?.retryAt;
@@ -52,7 +57,7 @@ export function isAdminUser(user: { app_metadata?: unknown } | null | undefined)
  * depends on the viewer (the board feed).
  */
 export function viewerProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return t.procedure.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -61,7 +66,7 @@ export function viewerProcedure(flag: FlagName) {
     }
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user) } } });
+    return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user), timeZone: ctx.timeZone } } });
   });
 }
 
@@ -72,7 +77,7 @@ export function viewerProcedure(flag: FlagName) {
  * admin (user, session client, viewer) for resolvers that record who acted.
  */
 export function adminProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return t.procedure.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -87,7 +92,7 @@ export function adminProcedure(flag: FlagName) {
     if (!isAdminUser(user)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required." });
     }
-    return next({ ctx: { user, supabase, isAdmin: true as const, viewer: { id: user.id, isAdmin: true } } });
+    return next({ ctx: { user, supabase, isAdmin: true as const, viewer: { id: user.id, isAdmin: true, timeZone: ctx.timeZone } } });
   });
 }
 
@@ -97,7 +102,7 @@ export function adminProcedure(flag: FlagName) {
  * policies keyed on auth.uid() apply to its writes.
  */
 export function authedProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return t.procedure.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -110,6 +115,6 @@ export function authedProcedure(flag: FlagName) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }
     const isAdmin = isAdminUser(user);
-    return next({ ctx: { user, supabase, isAdmin, viewer: { id: user.id, isAdmin } } });
+    return next({ ctx: { user, supabase, isAdmin, viewer: { id: user.id, isAdmin, timeZone: ctx.timeZone } } });
   });
 }

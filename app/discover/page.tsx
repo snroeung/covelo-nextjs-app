@@ -16,6 +16,7 @@ import { BoardToastProvider } from '@/components/board/shared/Toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { trpc } from '@/lib/trpc-client';
 import { sortByValueThenRecency } from '@/lib/discover/offerCopy';
+import { browserTimeZone } from '@/lib/time';
 import { liveOffers } from '@/lib/offers/live';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
@@ -30,13 +31,13 @@ function DiscoverPageInner() {
     queryKey: ['offers.transferBonuses'],
     queryFn:  () => trpc.offers.listTransferBonuses.query(),
   });
-  const transferBonuses = liveOffers(transferData);
+  const transferBonuses = liveOffers(transferData, new Date(), browserTimeZone());
 
   const { data: spendingData = [], isLoading: loadingSpending } = useQuery({
     queryKey: ['offers.spendingBonuses'],
     queryFn:  () => trpc.offers.listSpendingBonuses.query(),
   });
-  const spendingBonuses = liveOffers(spendingData);
+  const spendingBonuses = liveOffers(spendingData, new Date(), browserTimeZone());
 
   const isLoading = loadingTransfer || loadingSpending;
 
