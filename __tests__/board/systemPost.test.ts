@@ -102,7 +102,7 @@ describe('syncSystemPost — updating and reviving', () => {
     });
     await expect(sync(db, on())).resolves.toBe('updated');
     expect(db.of('board_posts', 'insert')).toHaveLength(0);
-    expect(db.of('board_posts', 'update')[0].payload).toMatchObject({ title: 'Bilt → World of Hyatt +30% is live', topic_id: T_TRANSFER, deleted_at: null });
+    expect(db.of('board_posts', 'update')[0].payload).toMatchObject({ title: 'Bilt → World of Hyatt +30% is live', topic_id: T_TRANSFER });
     // old primary → secondary, new topic → primary; the unique one-primary index needs that order
     const links = db.of('board_post_topics');
     expect(links.map((q) => q.action)).toEqual(['select', 'update', 'upsert']);
@@ -118,6 +118,36 @@ describe('syncSystemPost — updating and reviving', () => {
     expect(db.of('board_posts', 'insert')).toHaveLength(0);
     expect(db.of('board_posts', 'update')[0].payload).toMatchObject({ deleted_at: null });
     expect(eqValue(db.of('board_posts', 'update')[0], 'id')).toBe(P1);
+  });
+});
+
+describe('syncSystemPost — an update never undoes moderation', () => {
+  const updated = (db: ReturnType<typeof setup>) => db.of('board_posts', 'update')[0].payload as Record<string, unknown>;
+  const withTopic = { board_post_topics: (q: { single?: boolean }) => (q.single ? { data: { topic_id: T_TRANSFER } } : undefined) } as Record<string, Handler>;
+
+  it('writes content only: no moderation, review or verification fields on a verified post', async () => {
+    const db = setup([{ id: P1, deleted_at: null, mod_status: 'removed', review: 'approved', verified_at: ago(HOUR) }], withTopic);
+    await sync(db, on());
+    const keys = Object.keys(updated(db)).sort();
+    expect(keys).toEqual(['body', 'search_extra', 'title', 'topic_id']);
+  });
+
+  it('sets verification only if the post was never verified', async () => {
+    const db = setup([{ id: P1, deleted_at: null, verified_at: null }], withTopic);
+    await sync(db, on());
+    expect(updated(db)).toMatchObject({ verified_by: ADMIN, verified_at: expect.any(String) });
+  });
+
+  it('revives a post the toggle hid while the offer is live', async () => {
+    const db = setup([{ id: P1, deleted_at: ago(HOUR), verified_at: ago(HOUR) }], withTopic);
+    await sync(db, on({ end_date: '2999-01-01' }));
+    expect(updated(db)).toMatchObject({ deleted_at: null });
+  });
+
+  it('keeps an ended offer\'s purged post purged', async () => {
+    const db = setup([{ id: P1, deleted_at: ago(HOUR), verified_at: ago(HOUR) }], withTopic);
+    await sync(db, on({ end_date: '2020-01-01' }));
+    expect(updated(db)).not.toHaveProperty('deleted_at');
   });
 });
 

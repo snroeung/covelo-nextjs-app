@@ -209,7 +209,7 @@ export const boardAdminRouter = router({
 
       if (offer.post_to_board) {
         await syncSystemPost(admin, table, offerId, {
-          post_to_board: true, board_topic: offer.board_topic ?? null, board_post_title: offer.board_post_title ?? null, board_post_body: offer.board_post_body ?? null,
+          post_to_board: true, board_topic: offer.board_topic ?? null, board_post_title: offer.board_post_title ?? null, board_post_body: offer.board_post_body ?? null, end_date: offer.end_date ?? null,
         }, ctx.user.id).catch((err) => {
           throw new TRPCError({ code: err instanceof TRPCError ? err.code : "INTERNAL_SERVER_ERROR", message: `Published, but not posted to the board: ${err instanceof Error ? err.message : "sync failed"}` });
         });

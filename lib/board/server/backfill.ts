@@ -27,6 +27,7 @@ interface OfferRow {
   board_topic: string | null;
   board_post_title: string | null;
   board_post_body: string | null;
+  end_date: string | null;
 }
 
 const TABLES: OfferTable[] = ["transfer_bonuses", "spending_bonuses"];
@@ -38,7 +39,7 @@ export async function backfillSystemPosts(admin: SupabaseClient, opts: { dry: bo
   for (const table of TABLES) {
     const res = await admin
       .from(table)
-      .select("id, post_to_board, board_topic, board_post_title, board_post_body")
+      .select("id, post_to_board, board_topic, board_post_title, board_post_body, end_date")
       .eq("post_to_board", true)
       .eq("active", true)
       .in("status", ["admin", "approved"])

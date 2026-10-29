@@ -82,7 +82,7 @@ export const createSpendingBonusInput = z.object({
  */
 async function syncBoardPost(
   table: OfferTable,
-  row: { id: string; active?: boolean; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
+  row: { id: string; active?: boolean; end_date?: string | null; post_to_board?: boolean; board_topic?: string | null; board_post_title?: string | null; board_post_body?: string | null },
   adminUserId: string,
   touchedToggle: boolean,
 ): Promise<void> {
@@ -94,6 +94,7 @@ async function syncBoardPost(
       board_topic: row.board_topic ?? null,
       board_post_title: row.board_post_title ?? null,
       board_post_body: row.board_post_body ?? null,
+      end_date: row.end_date ?? null,
     }, adminUserId);
   } catch (err) {
     // The offer itself is saved; say so, so the admin only has to fix the board fields
