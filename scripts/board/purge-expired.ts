@@ -4,6 +4,7 @@
 
 import "dotenv/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { checkSupabase } from "../supabase-healthcheck";
 import { EXPIRED_POST_GRACE_DAYS, purgeExpiredOfferPosts } from "@/lib/board/server/purgeExpired";
 
 const dry = process.argv.includes("--dry");
@@ -14,7 +15,10 @@ if (!Number.isInteger(graceDays) || graceDays < 0) {
   process.exit(1);
 }
 
-purgeExpiredOfferPosts(getSupabaseAdmin(), { dry, graceDays })
+const db = getSupabaseAdmin();
+
+checkSupabase(db, "board_posts")
+  .then((ok) => { if (!ok) process.exit(1); return purgeExpiredOfferPosts(db, { dry, graceDays }); })
   .then((r) => {
     console.log(`${dry ? "Would remove" : "Removed"} ${r.posts.length} expired offer post${r.posts.length === 1 ? "" : "s"} (offer ended over ${graceDays} days ago).`);
     for (const p of r.posts) console.log(`  - ${p.id}  ended ${p.offerExpiredOn}  ${p.title}`);

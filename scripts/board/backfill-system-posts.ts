@@ -4,11 +4,15 @@
 
 import "dotenv/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { checkSupabase } from "../supabase-healthcheck";
 import { backfillSystemPosts } from "@/lib/board/server/backfill";
 
 const dry = process.argv.includes("--dry");
 
-backfillSystemPosts(getSupabaseAdmin(), { dry })
+const db = getSupabaseAdmin();
+
+checkSupabase(db, "board_posts")
+  .then((ok) => { if (!ok) process.exit(1); return backfillSystemPosts(db, { dry }); })
   .then((r) => {
     const verb = dry ? "Would post" : "Posted";
     console.log(`${verb} ${r.posted.length} · skipped ${r.skipped.length} · failed ${r.failed.length}`);
