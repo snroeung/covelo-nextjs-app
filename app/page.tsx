@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { btn } from '@/components/ui/button';
 
 // ─── Palette (matches crPal exactly) ─────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export default function StartPage() {
   const { user, profile, signOut, loading: authLoading } = useAuth();
   const t = isDark ? PAL.dark : PAL.light;
 
+  const [drawerOpen, setDrawerOpen]   = useState(false);
+  const touchY = useRef<number | null>(null);
   const [view, setView]               = useState<View>('form');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail]             = useState('');
@@ -100,14 +103,13 @@ export default function StartPage() {
     <div style={{ minHeight: '100vh', background: t.bg, color: t.ink, fontFamily: 'var(--font-geist-sans), Inter, system-ui, sans-serif' }}>
 
       {/* ── Two-column body ────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.85fr', minHeight: 'calc(100vh - 29px)' }}>
+      <div className="grid grid-cols-1 md:grid-cols-[1.25fr_0.85fr]" style={{ minHeight: 'calc(100vh - 29px)' }}>
 
         {/* ── LEFT: brand ──────────────────────────────────────────── */}
-        <div style={{
-          background: t.card, padding: '56px 56px',
-          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-          borderRight: `1px solid ${t.line}`,
-        }}>
+        <div
+          className="flex flex-col justify-between px-6 pt-10 pb-32 md:px-14 md:py-14 md:border-r"
+          style={{ background: t.card, borderColor: t.line }}
+        >
           <div>
             {/* Wordmark */}
             <Link href="/" style={{ fontWeight: 700, fontSize: 22, letterSpacing: '-0.03em', color: t.ink, textDecoration: 'none' }}>
@@ -116,7 +118,7 @@ export default function StartPage() {
 
             {/* Hero headline */}
             <h1 style={{
-              fontSize: 96, lineHeight: 0.9, fontWeight: 800,
+              fontSize: 'clamp(56px, 16vw, 96px)', lineHeight: 0.9, fontWeight: 800,
               letterSpacing: '-0.045em', margin: '72px 0 0', color: t.ink,
             }}>
               Travel,<br />by the<br />
@@ -171,11 +173,57 @@ export default function StartPage() {
         </div>
 
         {/* ── RIGHT: auth ───────────────────────────────────────────── */}
-        <div style={{
-          padding: '56px 48px', display: 'flex',
-          flexDirection: 'column', justifyContent: 'center',
-          background: t.bg,
-        }}>
+        {/* Mobile: bottom drawer (tap or swipe up to expand) replaces the auth panel */}
+        <div
+          className="md:hidden fixed inset-x-0 z-30 rounded-t-2xl border-t shadow-[0_-4px_16px_rgba(0,0,0,0.12)]"
+          style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom))', background: t.card, borderColor: t.line, touchAction: 'pan-x' }}
+          onTouchStart={(e) => { touchY.current = e.touches[0].clientY; }}
+          onTouchEnd={(e) => {
+            if (touchY.current === null) return;
+            const dy = e.changedTouches[0].clientY - touchY.current;
+            touchY.current = null;
+            if (dy < -30) setDrawerOpen(true);
+            else if (dy > 30) setDrawerOpen(false);
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setDrawerOpen((o) => !o)}
+            aria-expanded={drawerOpen}
+            aria-controls="home-drawer-body"
+            className="flex min-h-11 w-full flex-col items-center gap-1 px-4 pt-2 pb-1"
+            style={{ color: t.ink }}
+          >
+            <span aria-hidden="true" className="h-1 w-9 rounded-full" style={{ background: t.line }} />
+            <span className="flex w-full items-center justify-between text-sm font-semibold">
+              {user ? 'Your account' : 'Sign in for full features'}
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: drawerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}>
+                <path d="m6 15 6-6 6 6" />
+              </svg>
+            </span>
+          </button>
+          <div
+            id="home-drawer-body"
+            className="overflow-hidden px-4 transition-[max-height] duration-200"
+            style={{ maxHeight: drawerOpen ? 220 : 0 }}
+            hidden={!drawerOpen}
+          >
+            <p className="m-0 pb-3 pt-1 text-sm" style={{ color: t.muted }}>
+              {user
+                ? 'Manage your cards, balances and saved offers.'
+                : 'Sign in to sync your cards and balances, save offers, and unlock the full Covelo experience.'}
+            </p>
+            <Link href="/you" className={btn('accent', 'lg', 'mb-3 w-full')}>
+              {user ? 'Go to You' : 'Sign in or sign up'}
+            </Link>
+          </div>
+        </div>
+
+        <div
+          className="hidden md:flex flex-col justify-center px-12 py-14"
+          style={{ background: t.bg }}
+        >
           {authLoading ? (
             /* ── Loading skeleton ── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
