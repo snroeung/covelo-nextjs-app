@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import { createPortal } from 'react-dom';
 import { TRPCClientError } from '@trpc/client';
 import type { PointsResult } from '@/lib/points/types';
@@ -95,14 +96,12 @@ export function CompareModal({
       onCloseRef.current();
     };
     window.addEventListener('keydown', onKey, true);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     closeRef.current?.focus();
     return () => {
       window.removeEventListener('keydown', onKey, true);
-      document.body.style.overflow = prevOverflow;
     };
   }, []);
+  useScrollLock();
 
   useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); }, [flow.step]);
 
@@ -164,7 +163,7 @@ export function CompareModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-200 flex items-end md:items-center justify-center bg-black/30 backdrop-blur-sm md:p-4"
+      className="fixed inset-0 z-200 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4 overscroll-contain"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
@@ -172,7 +171,7 @@ export function CompareModal({
         aria-modal="true"
         aria-label={label}
         data-testid="compare-modal"
-        className={`w-full md:max-w-3xl max-h-[92vh] md:max-h-[85vh] rounded-t-2xl md:rounded-xl shadow-xl border flex flex-col ${st.surface} ${st.border}`}
+        className={`w-full md:max-w-3xl max-h-[85dvh] rounded-xl shadow-xl border flex flex-col ${st.surface} ${st.border}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Sticky close bar */}

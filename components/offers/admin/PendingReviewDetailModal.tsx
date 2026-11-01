@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import type { PendingReviewRow } from '@/lib/types/portalData';
 import { QUEUE_REASON_LABELS, TABLE_LABELS, isBoardRow, needsPublish, queueReason, rowTitle } from './PendingReviewTable';
 
@@ -100,10 +101,7 @@ export function PendingReviewDetailModal({ item, isDark, isPending, onApprove, o
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  useScrollLock();
 
   const ink     = isDark ? 'text-gph-dark-ink'   : 'text-gray-900';
   const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
