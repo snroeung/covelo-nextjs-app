@@ -6,7 +6,8 @@ import { hasActiveFilters, MAX_QUERY, type BoardFilters as Filters, type FeedSor
 import type { BoardTopic } from '@/lib/board/types';
 import type { FeedPage } from '@/lib/board/cache';
 import { BoardIcon } from '@/components/board/shared/icons';
-import { TopicChips } from './TopicChips';
+import { FilterDropdown } from '@/components/discover/FilterDropdown';
+import { TopicFilter } from './TopicFilter';
 
 interface Props {
   filters: Filters;
@@ -16,28 +17,8 @@ interface Props {
   counts: FeedPage['counts'];
 }
 
-function Segmented<T extends string>({ label, options, value, onChange }: { label: string; options: ReadonlyArray<readonly [T, string]>; value: T; onChange: (v: T) => void }) {
-  return (
-    <div role="group" aria-label={label} className="flex gap-[3px] rounded-[7px] bg-gph-bg p-[3px]">
-      {options.map(([key, text]) => (
-        <button
-          key={key}
-          type="button"
-          aria-pressed={value === key}
-          onClick={() => onChange(key)}
-          className={`min-h-11 min-w-11 rounded-[5px] px-3 text-xs font-bold focus-visible:outline-2 focus-visible:outline-gph-ink ${
-            value === key ? 'bg-gph-card text-gph-ink shadow-[0_0_0_1px_var(--gph-line)]' : 'text-gph-muted hover:text-gph-ink'
-          }`}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-const SORTS = [['hot', 'Hot'], ['new', 'New'], ['top', 'Top']] as const satisfies ReadonlyArray<readonly [FeedSort, string]>;
-const TYPES = [['all', 'All'], ['tip', 'Tips'], ['offer', 'Offers']] as const satisfies ReadonlyArray<readonly [FeedType, string]>;
+const SORTS: { value: FeedSort; label: string }[] = [{ value: 'hot', label: 'Hot' }, { value: 'new', label: 'New' }, { value: 'top', label: 'Top' }];
+const TYPES: { value: FeedType; label: string }[] = [{ value: 'all', label: 'All' }, { value: 'tip', label: 'Tips' }, { value: 'offer', label: 'Offers' }];
 
 export function BoardFilters({ filters, onChange, onClear, topics, counts }: Props) {
   // The box keeps what was typed; the URL (and so the query) follows 300 ms later
@@ -64,24 +45,34 @@ export function BoardFilters({ filters, onChange, onClear, topics, counts }: Pro
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5 rounded-[10px] border border-gph-line bg-gph-card px-2.5 py-1.5">
-        <Segmented label="Sort posts" options={SORTS} value={filters.sort} onChange={(sort) => onChange({ sort })} />
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented label="Show" options={TYPES} value={filters.type} onChange={(type) => onChange({ type })} />
-          {filters.type !== 'tip' && (
-            <button
-              type="button"
-              aria-pressed={filters.verified}
-              onClick={() => onChange({ verified: !filters.verified })}
-              className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[11.5px] font-bold focus-visible:outline-2 focus-visible:outline-gph-ink ${
-                filters.verified ? 'border-gph-ok bg-gph-ok-soft text-gph-ok' : 'border-gph-line text-gph-muted hover:text-gph-ink'
-              }`}
-            >
-              <BoardIcon name="shield" size={12} />
-              Verified offers only
-            </button>
-          )}
-        </div>
+      {/* One line of dropdowns. Phones scroll it sideways (fade = more to the right); md+ wraps if it must. */}
+      <div
+        role="group"
+        aria-label="Filter posts"
+        className="cv-scroll -mx-4 mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_calc(100%-28px),transparent)] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:[mask-image:none]"
+      >
+        <FilterDropdown label="Sort" options={SORTS} value={filters.sort} onChange={(sort) => onChange({ sort })} />
+        <FilterDropdown label="Show" options={TYPES} value={filters.type} onChange={(type) => onChange({ type })} />
+        <TopicFilter
+          topics={topics}
+          selected={filters.topic}
+          counts={counts?.byTopic ?? null}
+          allCount={counts?.all ?? null}
+          onSelect={(topic) => onChange({ topic })}
+        />
+        {filters.type !== 'tip' && (
+          <button
+            type="button"
+            aria-pressed={filters.verified}
+            onClick={() => onChange({ verified: !filters.verified })}
+            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-gph-ink ${
+              filters.verified ? 'border-gph-ok bg-gph-ok-soft text-gph-ok' : 'border-gph-line bg-gph-card text-gph-muted hover:text-gph-ink'
+            }`}
+          >
+            <BoardIcon name="shield" size={12} />
+            Verified offers only
+          </button>
+        )}
       </div>
 
       <label className="mb-3 flex items-center gap-2.5 rounded-[10px] border border-gph-line bg-gph-card px-3.5 focus-within:border-gph-ink">
@@ -101,14 +92,6 @@ export function BoardFilters({ filters, onChange, onClear, topics, counts }: Pro
           </button>
         )}
       </label>
-
-      <TopicChips
-        topics={topics}
-        selected={filters.topic}
-        counts={counts?.byTopic ?? null}
-        allCount={counts?.all ?? null}
-        onSelect={(topic) => onChange({ topic })}
-      />
 
       {hasActiveFilters(filters) && (
         <div className="-mt-1 mb-3">

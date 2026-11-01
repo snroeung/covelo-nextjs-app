@@ -55,11 +55,11 @@ test.describe('The board — moderator tools', () => {
     await expect(dialog).toBeHidden();
   });
 
-  test('5. picking a topic chip offers topic tools to the admin', async ({ page }) => {
+  test('5. picking a topic offers topic tools to the admin', async ({ page }) => {
     await page.goto('/discover/board');
-    const chips = page.getByRole('group', { name: 'Filter by topic' });
-    const topic = chips.getByRole('button', { pressed: false }).nth(1);
-    test.skip((await topic.count()) === 0, 'No topic chips to select');
+    await page.getByRole('button', { name: /^Topic:/ }).click();
+    const topic = page.getByRole('listbox', { name: 'Topic' }).getByRole('option').nth(1);
+    test.skip((await topic.count()) === 0, 'No topics to select');
     await topic.click();
     const manage = page.getByRole('button', { name: /^Manage/ });
     await expect(manage).toBeVisible();
