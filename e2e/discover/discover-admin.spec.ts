@@ -137,7 +137,7 @@ test.describe('Sponsored Ad — flights_inline slot', () => {
     await page.getByText(AD_HEADLINE_EDIT).first().waitFor({ timeout: 15_000 }).catch(() => {});
 
     const cta = page.getByRole('link', { name: /apply now/i }).first();
-    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    if (await cta.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
       const href = await cta.getAttribute('href');
       expect(href).toContain('example.com/delta-reserve');
     }
@@ -215,7 +215,7 @@ test.describe('Sponsored Ad — hotels_inline slot', () => {
     await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 15_000 }).catch(() => {});
 
     const cta = page.getByRole('link', { name: /apply now/i }).first();
-    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    if (await cta.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
       const href = await cta.getAttribute('href');
       expect(href).toContain('example.com/hyatt-card');
     }
@@ -286,7 +286,7 @@ test.describe('Sponsored Ad — trip_strip slot', () => {
     await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 10_000 });
 
     const cta = page.getByRole('link', { name: /apply now/i }).first();
-    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    if (await cta.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
       const href = await cta.getAttribute('href');
       expect(href).toContain('example.com/sapphire-reserve');
     }
@@ -476,7 +476,7 @@ test.describe('Transfer Bonus — create and display', () => {
     // exists elsewhere in this env, ours renders in the secondary/rail instead —
     // covered by test 23 — so only assert when it did land as the lead.
     const leadKicker = page.getByText(new RegExp(`CHASE.*${PARTNER}`, 'i')).first();
-    if (await leadKicker.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    if (await leadKicker.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) {
       await expect(page.getByText(`+${BONUS_PCT}%`).first()).toBeVisible();
     }
   });
@@ -520,7 +520,7 @@ test.describe('Transfer Bonus — create and display', () => {
     for (let i = 0; i < Math.min(await cards.count(), 12) && !found; i++) {
       await cards.nth(i).click();
       await expect(modal).toBeVisible();
-      found = await urgency.isVisible({ timeout: 1_500 }).catch(() => false);
+      found = await urgency.waitFor({ state: 'visible', timeout: 1_500 }).then(() => true).catch(() => false);
       if (!found) {
         await page.keyboard.press('Escape');
         await expect(modal).toBeHidden();
