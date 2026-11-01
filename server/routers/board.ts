@@ -665,13 +665,20 @@ async function loadChipCounts(
   admin: SupabaseClient,
   viewer: Viewer,
   type: "tip" | "offer" | undefined,
-): Promise<{ all: number; byTopic: Record<string, number> }> {
-  const [all, byTopic] = await Promise.all([
-    countFeed(admin, viewer, { sort: "new", type }),
-    admin.rpc("board_topic_counts", { p_kind: type ?? null, p_today: todayIso(new Date(), viewer.timeZone) }),
-  ]);
-  const rows = (must(byTopic as never, "topic counts") ?? []) as unknown as Array<{ topic_id: string; n: number | string }>;
-  return { all, byTopic: Object.fromEntries(rows.map((r) => [r.topic_id, Number(r.n)])) };
+): Promise<{ all: number; byTopic: Record<string, number> } | null> {
+  // The counts only decorate the filters. If they can't be had, the feed still
+  // loads — without counts — and the cause goes to the server log, not the page.
+  try {
+    const [all, byTopic] = await Promise.all([
+      countFeed(admin, viewer, { sort: "new", type }),
+      admin.rpc("board_topic_counts", { p_kind: type ?? null, p_today: todayIso(new Date(), viewer.timeZone) }),
+    ]);
+    const rows = (must(byTopic as never, "topic counts") ?? []) as unknown as Array<{ topic_id: string; n: number | string }>;
+    return { all, byTopic: Object.fromEntries(rows.map((r) => [r.topic_id, Number(r.n)])) };
+  } catch (err) {
+    console.error("[board] chip counts unavailable, serving the feed without them:", err);
+    return null;
+  }
 }
 
 /** What a report needs to know about its target; also proves the reporter can see it. */

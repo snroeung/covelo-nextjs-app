@@ -88,10 +88,13 @@ test.describe('The board — phone filters', () => {
     expect(await page.evaluate(() => document.body.style.position)).toBe('');
   });
 
-  test('Topic dropdown lists topics with counts and filters the feed', async ({ page }) => {
+  test('Topic dropdown lists topics and filters the feed', async ({ page }) => {
     await page.goto('/discover/board');
     await page.getByRole('button', { name: /^Topic:/ }).click();
     const options = page.getByRole('listbox', { name: 'Topic' }).getByRole('option');
+    // Topics arrive with the feed; wait for them instead of counting an empty list
+    await expect.poll(() => options.count(), { timeout: 10_000 }).toBeGreaterThan(0);
+    await page.waitForTimeout(500);
     test.skip((await options.count()) < 2, 'No topics to select');
     await options.nth(1).click();
     await expect(page).toHaveURL(/topic=/);

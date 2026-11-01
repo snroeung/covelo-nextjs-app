@@ -134,7 +134,7 @@ test.describe('Search page — phone', () => {
   test('top bar is just the wordmark and theme toggle; navigation is the bottom tab bar', async ({ page }) => {
     await page.goto('/search');
     await expect(tabBar(page)).toBeVisible();
-    await expect(tabBar(page).getByRole('link')).toHaveText(['Search', 'Offers', 'You']);
+    await expect(tabBar(page).getByRole('link')).toHaveText(['Search', 'Offers', 'Board', 'You']);
     await expect(tabBar(page).getByRole('link', { name: 'Search' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
   });

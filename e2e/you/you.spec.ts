@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { MOBILE, expectNoHorizontalScroll, tabBar } from '../utils/mobile-helpers';
+import { MOBILE, expectNoHorizontalScroll, goToTab, tabBar } from '../utils/mobile-helpers';
 
 // The e2e session is the signed-in admin account (e2e/global-setup.ts).
 
@@ -19,19 +19,25 @@ test.describe('You page — phone', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('the You tab is active here, and the tab bar moves between Search, Offers and You', async ({ page }) => {
+  test('the You tab is active here, and the tab bar moves between Search, Offers, Board and You', async ({ page }) => {
     await page.goto('/you');
     await expect(tabBar(page).getByRole('link', { name: 'You' })).toHaveAttribute('aria-current', 'page');
 
-    await tabBar(page).getByRole('link', { name: 'Search' }).click();
+    await goToTab(page, 'Search');
     await expect(page).toHaveURL(/\/search$/);
     await expect(tabBar(page).getByRole('link', { name: 'Search' })).toHaveAttribute('aria-current', 'page');
 
-    await tabBar(page).getByRole('link', { name: 'Offers' }).click();
+    await goToTab(page, 'Offers');
     await expect(page).toHaveURL(/\/discover$/);
     await expect(tabBar(page).getByRole('link', { name: 'Offers' })).toHaveAttribute('aria-current', 'page');
 
-    await tabBar(page).getByRole('link', { name: 'You' }).click();
+    await goToTab(page, 'Board');
+    await expect(page).toHaveURL(/\/discover\/board$/);
+    // Board is its own tab; Offers is not also lit on the board page
+    await expect(tabBar(page).getByRole('link', { name: 'Board' })).toHaveAttribute('aria-current', 'page');
+    await expect(tabBar(page).getByRole('link', { name: 'Offers' })).not.toHaveAttribute('aria-current', 'page');
+
+    await goToTab(page, 'You');
     await expect(page).toHaveURL(/\/you$/);
   });
 
@@ -52,7 +58,7 @@ test.describe('You page — phone', () => {
     await page.goto('/you');
     const bar = (await tabBar(page).boundingBox())!;
     expect(bar.y + bar.height).toBeLessThanOrEqual(844 + 1);
-    await expect(tabBar(page).getByRole('link')).toHaveCount(3);
+    await expect(tabBar(page).getByRole('link')).toHaveCount(4);
 
     await page.goto('/auth');
     await expect(tabBar(page)).toBeHidden();

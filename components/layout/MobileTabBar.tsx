@@ -5,12 +5,12 @@ import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { isEnabled } from '@/lib/feature-flags';
 
-// Phone-only bottom navigation (Search / Offers / You). The top NavBar keeps
+// Phone-only bottom navigation (Search / Offers / Board / You). The top NavBar keeps
 // just the wordmark and theme toggle below md; from md up this bar is gone.
 
 const HIDDEN_ON = ['/admin', '/auth', '/onboarding'];
 
-type TabKey = 'search' | 'offers' | 'you';
+type TabKey = 'search' | 'offers' | 'board' | 'you';
 
 const TABS: Array<{ key: TabKey; label: string; href: string; enabled: boolean; match: (p: string) => boolean }> = [
   {
@@ -19,7 +19,11 @@ const TABS: Array<{ key: TabKey; label: string; href: string; enabled: boolean; 
   },
   {
     key: 'offers', label: 'Offers', href: '/discover', enabled: isEnabled('ui:discover'),
-    match: (p) => p.startsWith('/discover') || p.startsWith('/offers'),
+    match: (p) => (p.startsWith('/discover') && !p.startsWith('/discover/board')) || p.startsWith('/offers'),
+  },
+  {
+    key: 'board', label: 'Board', href: '/discover/board', enabled: isEnabled('ui:board'),
+    match: (p) => p.startsWith('/discover/board'),
   },
   {
     key: 'you', label: 'You', href: '/you', enabled: isEnabled('ui:you'),
@@ -34,6 +38,7 @@ function TabIcon({ tab, active }: { tab: TabKey; active: boolean }) {
   };
   if (tab === 'search') return <svg {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
   if (tab === 'offers') return <svg {...props}><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></svg>;
+  if (tab === 'board') return <svg {...props}><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
   return <svg {...props}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
 }
 

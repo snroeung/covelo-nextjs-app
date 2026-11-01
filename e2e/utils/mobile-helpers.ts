@@ -27,3 +27,14 @@ export async function swipe(page: Page, x: number, y: number, dx: number, dy = 0
 
 /** Bottom tab bar (phone only). */
 export const tabBar = (page: Page) => page.getByTestId('mobile-tab-bar');
+
+/**
+ * Activate a tab-bar link from the keyboard. A pointer click can land on the
+ * Next.js dev-mode badge, which floats over the bottom-left corner (the Search
+ * tab) and only exists under `next dev`.
+ */
+export async function goToTab(page: Page, name: 'Search' | 'Offers' | 'Board' | 'You') {
+  const link = tabBar(page).getByRole('link', { name });
+  await link.focus();
+  await page.keyboard.press('Enter');
+}

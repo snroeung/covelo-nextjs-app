@@ -56,6 +56,8 @@ export function describeError(err: unknown): BoardError {
     }
   }
   if (code === "UNAUTHORIZED") return { message: "Sign in to do that.", code, retryAt };
+  // A 500's text is for the server log, not for a member
+  if (code === "INTERNAL_SERVER_ERROR") return { message: "Something went wrong on our side. Try again in a moment.", code, retryAt };
   if (/failed to fetch|networkerror|load failed/i.test(raw)) {
     return { message: "Can't reach covelo — check your connection and try again.", code: code ?? "NETWORK", retryAt };
   }
