@@ -43,7 +43,7 @@ jobs:
       ANTHROPIC_ORGANIZATION_ID: 8512cc98-b90a-4b8f-9a9b-3aad0e97ea29
       ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01BUnNiED8SAP2FhdVQqbcuw
       ANTHROPIC_WORKSPACE_ID: wrkspc_01KvkjWW6sX9ejhAb3y4zh6z
-      ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/anthropic-oidc-token
+      ANTHROPIC_IDENTITY_TOKEN_FILE: /tmp/anthropic-oidc-token
       SOURCE_KEY_FILTER: ${{ github.event.inputs.source_key || 'all' }}
     steps:
       - uses: actions/checkout@v4
