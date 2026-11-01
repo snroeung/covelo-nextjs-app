@@ -228,15 +228,29 @@ select:not([multiple]):not([size]) {
   animation-iteration-count: infinite;
   will-change: transform;
 }
-.tk-paused:hover .tk-track { animation-play-state: paused; }
+.tk-paused:hover .tk-track,
+.tk-paused:active .tk-track { animation-play-state: paused; }
 /* Fade the left/right edges so cards slide in and out of view softly. */
 .tk-mask {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
 }
-@media (prefers-reduced-motion: reduce) {
-  .tk-track { animation: none !important; }
-  .tk-mask { overflow-x: auto !important; -webkit-mask-image: none; mask-image: none; }
+/* Touch screens (and reduced motion) have no hover to pause on and the
+   overflow-hidden marquee can't be dragged, so the track becomes a plain
+   swipeable row: no animation, one copy of the cards, snap to each card. */
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .tk-track { animation: none !important; will-change: auto; }
+  .tk-mask {
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+  .tk-mask::-webkit-scrollbar { display: none; }
+  .tk-dup { display: none !important; }
+  .tk-track button { scroll-snap-align: start; }
 }
 
 /* ── Mapbox POI popup card ────────────────────────────────────────────────── */
@@ -256,3 +270,26 @@ select:not([multiple]):not([size]) {
 /* Horizontal chip rows (the board's topic filter): scrolls without a visible bar */
 .cv-scroll { scrollbar-width: none; }
 .cv-scroll::-webkit-scrollbar { display: none; }
+
+/* ── Mobile shell ────────────────────────────────────────────────────────────
+   `clip` (not `hidden`) so the page can never be dragged sideways to expose
+   whitespace, without turning <html>/<body> into scroll containers. Real
+   overflow culprits are fixed at the source; this is the backstop.
+   `has-tabbar` is set by MobileTabBar while the bottom bar shows: it reserves
+   the bar's height so content and the footer clear it. AppShell pages are
+   h-dvh, so they subtract the same var instead. */
+html,
+body {
+  overflow-x: clip;
+}
+
+:root {
+  --tabbar-h: 0px;
+}
+
+@media (max-width: 767px) {
+  body.has-tabbar {
+    --tabbar-h: calc(3.5rem + env(safe-area-inset-bottom));
+    padding-bottom: var(--tabbar-h);
+  }
+}

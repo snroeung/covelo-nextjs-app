@@ -76,7 +76,9 @@ export function NavBar() {
         covelo<span className="text-gph-accent-green">.</span>
       </Link>
 
-      <div className="flex items-center gap-1">
+      {/* Below md the bottom tab bar (MobileTabBar) carries navigation and the
+          account lives on /you, so the top bar keeps only wordmark + theme toggle */}
+      <div className="hidden md:flex items-center gap-1">
         {/* Search dropdown */}
         <div
           ref={searchRef}
@@ -191,9 +193,9 @@ export function NavBar() {
         <ThemeToggle compact />
 
         {loading ? (
-          <div className="w-9 h-9 rounded-full bg-gph-linesoft animate-pulse" />
+          <div className="hidden md:block w-9 h-9 rounded-full bg-gph-linesoft animate-pulse" />
         ) : user ? (
-          <div className="relative">
+          <div className="hidden md:block relative">
             <button
               ref={avatarRef}
               onClick={() => setPopupOpen((v) => !v)}
@@ -213,7 +215,7 @@ export function NavBar() {
         ) : (
           <button
             onClick={() => router.push('/auth')}
-            className={btn('accent', 'md', 'text-sm!')}
+            className={btn('accent', 'md', 'hidden! md:inline-flex! text-sm!')}
           >
             Sign in
           </button>

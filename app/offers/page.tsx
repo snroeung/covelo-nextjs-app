@@ -68,7 +68,7 @@ function OffersPageInner() {
       <NavBar />
 
       <main className="flex-1">
-        <div className="max-w-3xl mx-auto mt-6 mb-8 rounded-xl border bg-gph-card border-gph-line">
+        <div className="max-w-3xl mx-4 md:mx-auto mt-6 mb-8 rounded-xl border bg-gph-card border-gph-line">
           <div className="px-4 md:px-7 py-5 flex flex-col gap-5 border-b border-gph-line">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-3xl md:text-4xl font-extrabold leading-none tracking-tight text-gph-ink">
