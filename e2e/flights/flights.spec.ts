@@ -369,7 +369,7 @@ test.describe('Flights page — pagination', () => {
     const firstCardBefore = await page.getByTestId('flight-card').first().innerText();
 
     await page.getByRole('button', { name: 'Next page' }).click();
-    await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 2', exact: true })).toHaveAttribute('aria-current', 'page');
     const firstCardAfter = await page.getByTestId('flight-card').first().innerText();
     expect(firstCardAfter).not.toBe(firstCardBefore);
 
@@ -377,7 +377,7 @@ test.describe('Flights page — pagination', () => {
     expect(scrollTop).toBe(0);
 
     await page.getByRole('button', { name: 'Previous page' }).click();
-    await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 1', exact: true })).toHaveAttribute('aria-current', 'page');
   });
 
   test('changing sort resets to page 1', async ({ page }) => {
@@ -389,10 +389,10 @@ test.describe('Flights page — pagination', () => {
 
     await page.getByLabel('Per page').selectOption('10');
     await page.getByRole('button', { name: 'Next page' }).click();
-    await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 2', exact: true })).toHaveAttribute('aria-current', 'page');
 
     await page.getByRole('button', { name: 'Cheap' }).click();
-    await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 1', exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('button', { name: 'Previous page' })).toBeDisabled();
   });
 

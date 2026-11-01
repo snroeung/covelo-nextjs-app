@@ -243,7 +243,14 @@ export const staysRouter = router({
           if (cached) return cached;
 
           const supabase = await createClient();
-          const { data, error } = await supabase.from("travel_collections").select("*").eq("type", "hotel");
+          // Filter in the query, not just via row-level security: an admin session can read inactive
+          // and pending rows, and this list is cached under a key every visitor shares
+          const { data, error } = await supabase
+            .from("travel_collections")
+            .select("*")
+            .eq("type", "hotel")
+            .in("status", ["approved", "admin"])
+            .eq("active", true);
           if (error) throw error;
 
           const result = (data ?? []) as TravelCollection[];

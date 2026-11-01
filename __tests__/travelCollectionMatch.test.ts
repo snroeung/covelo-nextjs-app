@@ -94,6 +94,15 @@ describe("matchHotelCollections", () => {
     expect(matches.has("acc_6b")).toBe(false);
   });
 
+  it("ignores a paused collection (active=false) — an admin's feed can contain them, and one must not win over a live one", () => {
+    const paused = makeCollection({ id: "00000000-0000-0000-0000-00000000000a", collection_name: "Paused", active: false });
+    const live = makeCollection({ id: "00000000-0000-0000-0000-00000000000b", collection_name: "Live" });
+    const results = [makeResult("acc_paused", "The Ritz-Carlton New York")];
+    // Paused first: with equal scores the first candidate wins, so it would have taken the hotel
+    expect(matchHotelCollections(results, [paused, live], SEARCH_DATE).get("acc_paused")?.collection_name).toBe("Live");
+    expect(matchHotelCollections(results, [paused], SEARCH_DATE).has("acc_paused")).toBe(false);
+  });
+
   it("ignores collections with type=flight", () => {
     const collections = [makeCollection({ type: "flight" })];
     const results = [makeResult("acc_7", "The Ritz-Carlton New York")];
@@ -226,6 +235,12 @@ describe("matchFlightCollections", () => {
     const offers = [makeOffer("offer_4", "UA")];
     const matches = matchFlightCollections(offers, collections, SEARCH_DATE);
     expect(matches.has("offer_4")).toBe(false);
+  });
+
+  it("ignores a paused collection (active=false)", () => {
+    const collections = [makeFlightCollection({ active: false })];
+    const offers = [makeOffer("offer_paused", "UA")];
+    expect(matchFlightCollections(offers, collections, SEARCH_DATE).has("offer_paused")).toBe(false);
   });
 
   it("ignores collections with type=hotel", () => {

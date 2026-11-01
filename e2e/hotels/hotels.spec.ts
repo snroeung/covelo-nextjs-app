@@ -430,7 +430,7 @@ test.describe('Hotels page — pagination', () => {
     const firstCardBefore = await page.getByTestId('hotel-card').last().innerText();
 
     await page.getByRole('button', { name: 'Next page' }).click();
-    await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 2', exact: true })).toHaveAttribute('aria-current', 'page');
     const firstCardAfter = await page.getByTestId('hotel-card').last().innerText();
     expect(firstCardAfter).not.toBe(firstCardBefore);
 
@@ -438,7 +438,7 @@ test.describe('Hotels page — pagination', () => {
     expect(scrollTop).toBe(0);
 
     await page.getByRole('button', { name: 'Previous page' }).click();
-    await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 1', exact: true })).toHaveAttribute('aria-current', 'page');
   });
 
   test('changing the star filter resets to page 1', async ({ page }) => {
@@ -450,10 +450,10 @@ test.describe('Hotels page — pagination', () => {
 
     await page.getByLabel('Per page').selectOption('10');
     await page.getByRole('button', { name: 'Next page' }).click();
-    await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 2', exact: true })).toHaveAttribute('aria-current', 'page');
 
     await page.getByRole('button', { name: '4★+' }).click();
-    await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('button', { name: 'Page 1', exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('button', { name: 'Previous page' })).toBeDisabled();
   });
 
@@ -561,171 +561,178 @@ test.describe('Hotels page — map', () => {
   });
 });
 
-test.describe('Hotels page — banners', () => {
+// Banners and featured pagination both create travel collections that target the same
+// first hotel, in one database shared by every worker. A hotel matched by two live
+// collections shows only one of them, so these run one after the other, in one worker.
+test.describe('Hotels page — travel collections', () => {
   test.describe.configure({ mode: 'serial' });
-  const COLLECTION_NAME = `${TEST_PREFIX} Banner Match Test`;
-  let bonusPartner: string | null = null;
 
-  test.afterAll(async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
-    const page = await ctx.newPage();
-    if (bonusPartner) await setOfferActive(page, bonusPartner, false).catch(() => {});
-    await setTravelCollectionActive(page, COLLECTION_NAME, false).catch(() => {});
-    await ctx.close();
-  });
+  test.describe('Hotels page — banners', () => {
+    test.describe.configure({ mode: 'serial' });
+    const COLLECTION_NAME = `${TEST_PREFIX} Banner Match Test`;
+    let bonusPartner: string | null = null;
 
-  test('TransferBonusBanner appears on a hotel card when a live bonus matches a transferable partner', async ({ page }) => {
-    // Don't hardcode a partner name — seed data varies by environment, so
-    // discover whatever real hotel partner is actually live for Chase.
-    bonusPartner = await discoverTransferPartnerProgram(page, 'chase', 'Hotel');
-    test.skip(!bonusPartner, 'No real hotel transfer partner seeded for Chase in this environment');
-
-    await createTransferBonus(page, {
-      issuer: 'chase',
-      partner: bonusPartner!,
-      bonusPct: 30,
-      startDate: today(),
-      endDate: daysFromNow(30),
-      description: 'E2E banner match bonus.',
+    test.afterAll(async ({ browser }) => {
+      const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+      const page = await ctx.newPage();
+      if (bonusPartner) await setOfferActive(page, bonusPartner, false).catch(() => {});
+      await setTravelCollectionActive(page, COLLECTION_NAME, false).catch(() => {});
+      await ctx.close();
     });
 
-    await gotoHotelsWithResults(page);
-    const cards = page.getByTestId('hotel-card');
-    const total = await cards.count();
-    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+    test('TransferBonusBanner appears on a hotel card when a live bonus matches a transferable partner', async ({ page }) => {
+      // Don't hardcode a partner name — seed data varies by environment, so
+      // discover whatever real hotel partner is actually live for Chase.
+      bonusPartner = await discoverTransferPartnerProgram(page, 'chase', 'Hotel');
+      test.skip(!bonusPartner, 'No real hotel transfer partner seeded for Chase in this environment');
 
-    // Only results in this partner's chain (if any) will have
-    // transferAlternatives that include it — banner presence depends on
-    // live Duffel inventory actually containing a matching chain/hotel.
-    const escapedPartner = bonusPartner!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const bannerTextRe = new RegExp(`to ${escapedPartner}`);
-    const bannerCard = cards.filter({ hasText: bannerTextRe }).first();
-    // isVisible() does not wait/retry — use waitFor so this doesn't false-skip
-    // while the search results (and their points calc) are still loading.
-    const hasMatch = await bannerCard.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasMatch, `No hotel in this result set carries a live transfer bonus to ${bonusPartner}`);
+      await createTransferBonus(page, {
+        issuer: 'chase',
+        partner: bonusPartner!,
+        bonusPct: 30,
+        startDate: today(),
+        endDate: daysFromNow(30),
+        description: 'E2E banner match bonus.',
+      });
 
-    await expect(bannerCard.getByText(bannerTextRe)).toBeVisible();
-    await expect(bannerCard.getByText('Limited time')).toBeVisible();
-  });
+      await gotoHotelsWithResults(page);
+      const cards = page.getByTestId('hotel-card');
+      const total = await cards.count();
+      test.skip(total === 0, 'No hotels returned by Duffel for this query');
 
-  test('CollectionBanner appears on a hotel card matching a live travel collection', async ({ page }) => {
-    await gotoHotelsWithResults(page);
-    const cards = page.getByTestId('hotel-card');
-    const total = await cards.count();
-    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+      // Only results in this partner's chain (if any) will have
+      // transferAlternatives that include it — banner presence depends on
+      // live Duffel inventory actually containing a matching chain/hotel.
+      const escapedPartner = bonusPartner!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const bannerTextRe = new RegExp(`to ${escapedPartner}`);
+      const bannerCard = cards.filter({ hasText: bannerTextRe }).first();
+      // isVisible() does not wait/retry — use waitFor so this doesn't false-skip
+      // while the search results (and their points calc) are still loading.
+      const hasMatch = await bannerCard.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+      test.skip(!hasMatch, `No hotel in this result set carries a live transfer bonus to ${bonusPartner}`);
 
-    const propertyName = (await cards.first().locator('h3').first().textContent())?.trim();
-    test.skip(!propertyName, 'Could not read a hotel name from the first result');
-
-    await createTravelCollection(page, {
-      type: 'hotel',
-      issuer: 'Amex',
-      collectionName: COLLECTION_NAME,
-      propertyName: propertyName!,
-      perkSummary: 'E2E banner match perk.',
-      limitedTime: true,
+      await expect(bannerCard.getByText(bannerTextRe)).toBeVisible();
+      await expect(bannerCard.getByText('Limited time')).toBeVisible();
     });
 
-    await gotoHotelsWithResults(page);
-    const matchingCard = page.getByTestId('hotel-card').filter({ hasText: propertyName! }).first();
-    await expect(matchingCard.getByText(COLLECTION_NAME)).toBeVisible({ timeout: 15_000 });
-    await expect(matchingCard.getByText('Limited time')).toBeVisible();
-  });
+    test('CollectionBanner appears on a hotel card matching a live travel collection', async ({ page }) => {
+      await gotoHotelsWithResults(page);
+      const cards = page.getByTestId('hotel-card');
+      const total = await cards.count();
+      test.skip(total === 0, 'No hotels returned by Duffel for this query');
 
-  test('banner info button reveals detail on click, without requiring hover', async ({ page }) => {
-    await gotoHotelsWithResults(page);
-    const cards = page.getByTestId('hotel-card');
-    const total = await cards.count();
-    test.skip(total === 0, 'No hotels returned by Duffel for this query');
+      const propertyName = (await cards.first().locator('h3').first().textContent())?.trim();
+      test.skip(!propertyName, 'Could not read a hotel name from the first result');
 
-    const infoBtn = page
-      .getByRole('button', { name: 'View collection perk details' })
-      .or(page.getByRole('button', { name: 'View transfer bonus details' }))
-      .first();
-    const hasBanner = await infoBtn.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasBanner, 'Neither banner from the prior two tests matched a hotel in this result set');
-
-    await infoBtn.click();
-    // Tooltip renders as the info button's own next sibling (both live inside
-    // the same relatively-positioned wrapper <span>)
-    const tooltip = infoBtn.locator('xpath=following-sibling::div').first();
-    await expect(tooltip).toBeVisible({ timeout: 5_000 });
-  });
-});
-
-test.describe('Hotels page — featured pagination', () => {
-  test.describe.configure({ mode: 'serial' });
-  const createdCollections: string[] = [];
-
-  test.afterAll(async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
-    const page = await ctx.newPage();
-    for (const name of createdCollections) {
-      await setTravelCollectionActive(page, name, false).catch(() => {});
-    }
-    await ctx.close();
-  });
-
-  test('Featured hotels section paginates 2 at a time once 3+ hotels qualify', async ({ page }) => {
-    await gotoHotelsWithResults(page);
-    const cards = page.getByTestId('hotel-card');
-    const total = await cards.count();
-    test.skip(total === 0, 'No hotels returned by Duffel for this query');
-
-    // Collect up to 3 distinct property names from the current result set —
-    // travel collections match by property name, so tying one collection to
-    // each of 3 real hotels gives 3 independently-featured hotels without
-    // depending on any single sandbox property being returned.
-    const names: string[] = [];
-    const count = await cards.count();
-    for (let i = 0; i < count && names.length < 3; i++) {
-      const name = (await cards.nth(i).locator('h3').first().textContent())?.trim();
-      if (name && !names.includes(name)) names.push(name);
-    }
-    test.skip(names.length < 3, 'Fewer than 3 distinct hotels in this result set');
-
-    for (const [i, name] of names.entries()) {
-      const collectionName = `${TEST_PREFIX} Featured Pagination Test ${i + 1}`;
       await createTravelCollection(page, {
         type: 'hotel',
         issuer: 'Amex',
-        collectionName,
-        propertyName: name,
-        perkSummary: 'E2E featured-pagination collection.',
+        collectionName: COLLECTION_NAME,
+        propertyName: propertyName!,
+        perkSummary: 'E2E banner match perk.',
         limitedTime: true,
       });
-      createdCollections.push(collectionName);
-    }
 
-    await gotoHotelsWithResults(page);
-    const featuredSection = page.getByTestId('featured-hotels-section');
-    const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
-    test.skip(!hasFeatured, 'The fresh search did not redraw any of the 3 targeted hotels');
+      await gotoHotelsWithResults(page);
+      const matchingCard = page.getByTestId('hotel-card').filter({ hasText: propertyName! }).first();
+      await expect(matchingCard.getByText(COLLECTION_NAME)).toBeVisible({ timeout: 15_000 });
+      await expect(matchingCard.getByText('Limited time')).toBeVisible();
+    });
 
-    const pager = featuredSection.getByTestId('hotels-featured-pagination');
-    const hasPager = await pager.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
-    test.skip(!hasPager, 'Fewer than 3 distinct featured hotels survived the fresh search');
+    test('banner info button reveals detail on click, without requiring hover', async ({ page }) => {
+      await gotoHotelsWithResults(page);
+      const cards = page.getByTestId('hotel-card');
+      const total = await cards.count();
+      test.skip(total === 0, 'No hotels returned by Duffel for this query');
 
-    // Fixed at 2 per page — the Featured strip's own pager, separate from
-    // the regular results' configurable Pagination control.
-    await expect(featuredSection.getByTestId('hotel-card')).toHaveCount(2);
-    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeDisabled();
-    await expect(pager.getByRole('button', { name: 'Next featured page' })).toBeEnabled();
+      const infoBtn = page
+        .getByRole('button', { name: 'View collection perk details' })
+        .or(page.getByRole('button', { name: 'View transfer bonus details' }))
+        .first();
+      const hasBanner = await infoBtn.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+      test.skip(!hasBanner, 'Neither banner from the prior two tests matched a hotel in this result set');
 
-    const firstPageFirstName = await featuredSection.getByTestId('hotel-card').first().locator('h3').first().textContent();
-    await pager.getByRole('button', { name: 'Next featured page' }).click();
-    await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeEnabled();
-    const secondPageFirstName = await featuredSection.getByTestId('hotel-card').first().locator('h3').first().textContent();
-    expect(secondPageFirstName).not.toBe(firstPageFirstName);
+      await infoBtn.click();
+      // Tooltip renders as the info button's own next sibling (both live inside
+      // the same relatively-positioned wrapper <span>)
+      const tooltip = infoBtn.locator('xpath=following-sibling::div').first();
+      await expect(tooltip).toBeVisible({ timeout: 5_000 });
+    });
+  });
 
-    // The regular results list below keeps its own independent, unaffected
-    // pager — moving the Featured page never resets or touches it.
-    const regularPager = page.getByRole('navigation', { name: /^hotel results pagination$/i });
-    const hasRegularPager = await regularPager.isVisible().catch(() => false);
-    if (hasRegularPager) {
-      await expect(regularPager.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
-    }
+  test.describe('Hotels page — featured pagination', () => {
+    test.describe.configure({ mode: 'serial' });
+    const createdCollections: string[] = [];
+
+    test.afterAll(async ({ browser }) => {
+      const ctx = await browser.newContext({ storageState: 'e2e/.auth/admin.json' });
+      const page = await ctx.newPage();
+      for (const name of createdCollections) {
+        await setTravelCollectionActive(page, name, false).catch(() => {});
+      }
+      await ctx.close();
+    });
+
+    test('Featured hotels section paginates 2 at a time once 3+ hotels qualify', async ({ page }) => {
+      await gotoHotelsWithResults(page);
+      const cards = page.getByTestId('hotel-card');
+      const total = await cards.count();
+      test.skip(total === 0, 'No hotels returned by Duffel for this query');
+
+      // Collect up to 3 distinct property names from the current result set —
+      // travel collections match by property name, so tying one collection to
+      // each of 3 real hotels gives 3 independently-featured hotels without
+      // depending on any single sandbox property being returned.
+      const names: string[] = [];
+      const count = await cards.count();
+      for (let i = 0; i < count && names.length < 3; i++) {
+        const name = (await cards.nth(i).locator('h3').first().textContent())?.trim();
+        if (name && !names.includes(name)) names.push(name);
+      }
+      test.skip(names.length < 3, 'Fewer than 3 distinct hotels in this result set');
+
+      for (const [i, name] of names.entries()) {
+        const collectionName = `${TEST_PREFIX} Featured Pagination Test ${i + 1}`;
+        await createTravelCollection(page, {
+          type: 'hotel',
+          issuer: 'Amex',
+          collectionName,
+          propertyName: name,
+          perkSummary: 'E2E featured-pagination collection.',
+          limitedTime: true,
+        });
+        createdCollections.push(collectionName);
+      }
+
+      await gotoHotelsWithResults(page);
+      const featuredSection = page.getByTestId('featured-hotels-section');
+      const hasFeatured = await featuredSection.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+      test.skip(!hasFeatured, 'The fresh search did not redraw any of the 3 targeted hotels');
+
+      const pager = featuredSection.getByTestId('hotels-featured-pagination');
+      const hasPager = await pager.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false);
+      test.skip(!hasPager, 'Fewer than 3 distinct featured hotels survived the fresh search');
+
+      // Fixed at 2 per page — the Featured strip's own pager, separate from
+      // the regular results' configurable Pagination control.
+      await expect(featuredSection.getByTestId('hotel-card')).toHaveCount(2);
+      await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeDisabled();
+      await expect(pager.getByRole('button', { name: 'Next featured page' })).toBeEnabled();
+
+      const firstPageFirstName = await featuredSection.getByTestId('hotel-card').first().locator('h3').first().textContent();
+      await pager.getByRole('button', { name: 'Next featured page' }).click();
+      await expect(pager.getByRole('button', { name: 'Previous featured page' })).toBeEnabled();
+      const secondPageFirstName = await featuredSection.getByTestId('hotel-card').first().locator('h3').first().textContent();
+      expect(secondPageFirstName).not.toBe(firstPageFirstName);
+
+      // The regular results list below keeps its own independent, unaffected
+      // pager — moving the Featured page never resets or touches it.
+      const regularPager = page.getByRole('navigation', { name: /^hotel results pagination$/i });
+      const hasRegularPager = await regularPager.isVisible().catch(() => false);
+      if (hasRegularPager) {
+        await expect(regularPager.getByRole('button', { name: 'Page 1', exact: true })).toHaveAttribute('aria-current', 'page');
+      }
+    });
   });
 });
 
