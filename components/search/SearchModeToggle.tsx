@@ -25,7 +25,7 @@ export function SearchModeToggle({ mode, onChange }: { mode: SearchMode; onChang
   const wrapCls = isDark ? 'border-gph-dark-line bg-gph-dark-card' : 'border-gray-200 bg-gray-100';
 
   return (
-    <div className={`inline-flex gap-1 rounded-xl border p-1.5 ${wrapCls}`} role="tablist" aria-label="Search type">
+    <div className={`grid grid-cols-2 gap-1 rounded-xl border p-1.5 w-full max-w-sm mx-auto md:w-auto md:mx-0 ${wrapCls}`} role="tablist" aria-label="Search type">
       {opts.map(({ k, label, Icon }) => {
         const active = mode === k;
         const activeCls = isDark ? 'bg-gph-dark-action text-gph-dark-bg' : 'bg-gray-900 text-white';
@@ -36,7 +36,7 @@ export function SearchModeToggle({ mode, onChange }: { mode: SearchMode; onChang
             role="tab"
             aria-selected={active}
             onClick={() => onChange(k)}
-            className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold min-h-11 transition-colors ${active ? activeCls : idleCls}`}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold min-h-11 transition-colors ${active ? activeCls : idleCls}`}
           >
             <Icon className="w-4 h-4" />
             {label}

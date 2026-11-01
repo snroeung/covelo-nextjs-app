@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePointsCalc } from '@/hooks/usePointsCalc';
 import { calcPoints } from '@/lib/points/calcPoints';
@@ -209,13 +210,14 @@ function cppChip(cpp: number | undefined, isDark: boolean): { label: string; cls
   const label = `${cpp.toFixed(2)}¢/pt`;
   if (cpp >= 1.8) return { label, cls: 'bg-cv-green-800 text-white' };
   if (cpp >= 1.4) return { label, cls: 'bg-cv-green-800 text-white' };
-  return { label, cls: isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-500' };
+  return { label, cls: isDark ? 'bg-gph-dark-linesoft text-gph-dark-muted' : 'bg-gray-100 text-gray-600' };
 }
 
 // ── Slide card (hook-free — full detail lives in the modal) ──────────────────
 function SlideCard({ card, onOpen, isDark, inert }: { card: BoardCard; onOpen: (c: BoardCard) => void; isDark: boolean; inert?: boolean }) {
   const surface = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
-  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  // gray-600, not 500: 10px labels need 4.5:1
+  const muted   = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const ink     = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
   const divider = isDark ? 'border-gph-dark-line' : 'border-gray-100';
   const chip = cppChip(card.cpp, isDark);
@@ -271,7 +273,7 @@ function Marquee({ cards, onOpen, isDark }: { cards: BoardCard[]; onOpen: (c: Bo
   const durationSec = Math.max(30, filled.length * 5);
 
   const half = (aria: boolean) => (
-    <div className="flex" aria-hidden={aria || undefined}>
+    <div className={aria ? 'flex tk-dup' : 'flex'} aria-hidden={aria || undefined}>
       {filled.map((c, i) => (
         <SlideCard key={`${c.id}-${i}`} card={c} onOpen={onOpen} isDark={isDark} inert={aria} />
       ))}
@@ -305,6 +307,8 @@ export function SearchBoard({ items, loading }: { items: BoardCard[]; loading?: 
     selected?.hotelChain,
   );
 
+  useScrollLock(selected !== null);
+
   if (loading) {
     return <div className={`py-14 text-center text-sm font-mono tracking-widest ${muted}`}>LOADING LIVE BOARD…</div>;
   }
@@ -325,7 +329,10 @@ export function SearchBoard({ items, loading }: { items: BoardCard[]; loading?: 
           onClick={() => setSelected(null)}
         >
           <div
-            className={`w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border shadow-xl p-6 ${panel}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={selected.title}
+            className={`w-full max-w-2xl max-h-[85dvh] overflow-y-auto overscroll-contain rounded-xl border shadow-xl p-6 ${panel}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 mb-4">

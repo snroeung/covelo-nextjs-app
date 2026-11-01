@@ -59,7 +59,7 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, showDivid
     : textMuted;
 
   return (
-    <div className={`mx-5 ${showDivider ? `border-t ${dividerCls}` : ''}`}>
+    <div className={`mx-3.5 md:mx-5 ${showDivider ? `border-t ${dividerCls}` : ''}`}>
       {/* ── DESKTOP: one horizontal row ──────────────────────────────────── */}
       <div
         className="hidden md:grid items-center py-4 gap-5"
@@ -108,41 +108,21 @@ function RouteRow({ route, isDark, textPrimary, textMuted, dividerCls, showDivid
         </div>
       </div>
 
-      {/* ── MOBILE: label → departure → metadata → arrival ────────────────── */}
-      <div className="md:hidden py-3.5">
-        <div className="mb-2.5 min-w-0">
-          <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${textPrimary}`}>
-            {route.label} · {route.dateLabel}
-          </p>
-          <p className={`text-[9px] font-mono truncate ${textMuted}`}>
-            {route.carrier}{route.flightLabel ? ` · ${route.flightLabel}` : ''}
-          </p>
-        </div>
-
-        <div className="flex items-baseline gap-3">
-          <p className={`text-2xl font-extrabold font-mono tabular-nums leading-none w-24 shrink-0 ${textPrimary}`}>
-            {route.depTime}
-          </p>
-          <p className={`text-xs font-mono min-w-0 truncate ${textMuted}`}>
-            <span className={`text-sm font-bold ${textPrimary}`}>{route.depCode}</span>
-            {route.depCity && <> · {route.depCity}</>}
-          </p>
-        </div>
-
-        <p className={`text-[10px] font-mono my-1.5 ${textMuted}`}>
-          <span aria-hidden="true" className="inline-block w-24">↓</span>
-          {route.duration} · <span className={`font-bold ${stopCls}`}>{route.stopLabel}</span>
+      {/* ── MOBILE: one compact line per leg — times left, date + duration right ── */}
+      <div className="md:hidden py-2.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
+        <p className={`min-w-0 flex items-baseline gap-1.5 font-mono tabular-nums ${textPrimary}`}>
+          <span className="text-[15px] font-bold">{route.depTime}</span>
+          <span className={`text-[9.5px] ${textMuted}`}>{route.depCode}</span>
+          <span aria-hidden="true" className={textMuted}>→</span>
+          <span className="text-[15px] font-bold">{route.arrTime}</span>
+          <span className={`text-[9.5px] ${textMuted}`}>{route.arrCode}</span>
         </p>
-
-        <div className="flex items-baseline gap-3">
-          <p className={`text-2xl font-extrabold font-mono tabular-nums leading-none w-24 shrink-0 ${textPrimary}`}>
-            {route.arrTime}
-          </p>
-          <p className={`text-xs font-mono min-w-0 truncate ${textMuted}`}>
-            <span className={`text-sm font-bold ${textPrimary}`}>{route.arrCode}</span>
-            {route.arrCity && <> · {route.arrCity}</>}
-          </p>
-        </div>
+        <p className={`text-right font-mono text-[9px] uppercase tracking-wide leading-tight ${textMuted}`}>
+          {route.label} · {route.dateLabel}
+          <span className={`block mt-0.5 font-bold ${route.stops === 0 ? stopCls : textPrimary}`}>
+            {route.duration} · {route.stopLabel}
+          </span>
+        </p>
       </div>
     </div>
   );
@@ -166,22 +146,22 @@ interface BestValueStripProps {
 function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: BestValueStripProps) {
   const boxCls = isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200';
   return (
-    <div className={`border-t px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-5 ${dividerCls}`}>
+    <div className={`border-t px-3.5 py-3 md:px-5 md:py-4 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-5 ${dividerCls}`}>
       <p className="flex items-baseline gap-2 shrink-0">
         <span className={`text-xs font-mono uppercase ${textMuted}`}>From</span>
-        <span data-testid="from-cash" className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+        <span data-testid="from-cash" className={`text-2xl md:text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
           {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
         </span>
       </p>
 
-      <div className={`flex-1 min-w-0 rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3 ${boxCls}`}>
+      <div className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 md:px-4 md:py-3 flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-2 ${boxCls}`}>
         {best ? (
           <>
             <div className="min-w-0 flex-1">
               <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
                 Best value
               </p>
-              <p className={`text-base font-semibold leading-tight truncate mt-0.5 ${textPrimary}`}>{best.displayName}</p>
+              <p className={`text-[13px] md:text-base font-semibold leading-tight truncate mt-0.5 ${textPrimary}`}>{best.displayName}</p>
             </div>
             {best.cpp !== null ? (
               <p data-testid="best-value-cpp" className={`text-xl font-extrabold font-mono tabular-nums leading-none shrink-0 ${textPrimary}`}>
@@ -194,7 +174,7 @@ function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textP
               type="button"
               onClick={onCompare}
               aria-haspopup="dialog"
-              className={btn('value', 'lg', 'whitespace-nowrap')}
+              className={btn('value', 'md', 'whitespace-nowrap md:min-h-12 md:px-5 md:text-sm')}
             >
               Compare →
             </button>
@@ -269,27 +249,23 @@ export function FlightCard({ offer }: { offer: any }) {
       )}
 
       {/* 1. Header — airline identity left, trip shape right */}
-      <div className="px-5 pt-5 pb-2 flex items-center justify-between gap-4">
+      <div className="px-3.5 pt-3 pb-1 md:px-5 md:pt-5 md:pb-2 flex items-center justify-between gap-3 md:gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <div
             data-testid="airline-badge"
-            className="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-extrabold font-mono shrink-0 select-none"
+            className="w-7 h-7 md:w-11 md:h-11 rounded-full flex items-center justify-center text-white text-[9px] md:text-xs font-extrabold font-mono shrink-0 select-none"
             style={{ background: getAirlineColor(airlineIata) }}
           >
             {airlineIata ?? '?'}
           </div>
           <div className="min-w-0">
-            <p data-testid="airline-name" className={`text-xl font-bold leading-tight truncate ${textPrimary}`}>
+            <p data-testid="airline-name" className={`text-sm md:text-xl font-bold leading-tight truncate ${textPrimary}`}>
               {airline}
-            </p>
-            {/* Phones: trip shape sits under the name so the name never truncates */}
-            <p className={`sm:hidden text-[10px] font-bold font-mono uppercase tracking-widest mt-0.5 ${tripMetaCls}`}>
-              {tripMeta}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <p className={`hidden sm:block text-xs font-bold font-mono uppercase tracking-widest ${tripMetaCls}`}>
+          <p className={`text-[9.5px] md:text-xs font-bold font-mono uppercase tracking-wide md:tracking-widest text-right ${tripMetaCls}`}>
             {tripMeta}
           </p>
           {addToTrip}

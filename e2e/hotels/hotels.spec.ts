@@ -15,6 +15,7 @@ import {
   daysFromNow,
   TEST_PREFIX,
 } from '../utils/admin-helpers';
+import { MOBILE, expectNoHorizontalScroll, tabBar } from '../utils/mobile-helpers';
 
 function futureDate(daysFromNow: number): string {
   const d = new Date();
@@ -725,5 +726,49 @@ test.describe('Hotels page — featured pagination', () => {
     if (hasRegularPager) {
       await expect(regularPager.getByRole('button', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page');
     }
+  });
+});
+
+test.describe('Hotels page — phone', () => {
+  test.use(MOBILE);
+
+  test('results show a compact summary bar and tab bar; page cannot drag sideways', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const cards = page.getByTestId('hotel-card');
+    test.skip((await cards.count()) === 0, 'No hotels returned for this query');
+
+    await expect(page.getByTestId('mobile-results-header')).toContainText('Philadelphia');
+    await expect(page.getByTestId('mobile-results-header')).toContainText(/nights? · 2 guests/);
+    await expect(tabBar(page)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('hotel card is a compact row: thumbnail left, price on the bottom row, no review score', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const card = page.getByTestId('hotel-card').first();
+    test.skip((await page.getByTestId('hotel-card').count()) === 0, 'No hotels returned for this query');
+
+    // The property row (photo + text) — the card may also carry a banner above it.
+    // It used to be a ~358px square photo stacked above the text.
+    const photo = (await card.getByRole('button', { name: /View details for/ }).boundingBox())!;
+    expect(photo.height).toBeLessThan(200);
+    expect(Math.round(photo.width)).toBe(104);
+    await expect(card.getByText(/\/night/)).toBeVisible();
+    await expect(card.getByText(/\/10|Exceptional|Excellent|Very Good/)).toHaveCount(0);
+  });
+
+  test('tapping a card opens the detail modal and locks the page behind it', async ({ page }) => {
+    await gotoHotelsWithResults(page);
+    const card = page.getByTestId('hotel-card').first();
+    test.skip((await page.getByTestId('hotel-card').count()) === 0, 'No hotels returned for this query');
+
+    await card.getByRole('button', { name: /View details for/ }).click();
+    await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe('fixed');
+    expect(await page.locator('#app-main-scroll').evaluate((el) => getComputedStyle(el).overflow)).toBe('hidden');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe('');
   });
 });

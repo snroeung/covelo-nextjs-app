@@ -15,6 +15,7 @@ import {
   daysFromNow,
   TEST_PREFIX,
 } from '../utils/admin-helpers';
+import { MOBILE, expectNoHorizontalScroll, tabBar } from '../utils/mobile-helpers';
 
 function futureDate(daysFromNow: number): string {
   const d = new Date();
@@ -816,5 +817,63 @@ test.describe('Flights page — Best value reflects live transfer bonus', () => 
     const featuredValue = parseFloat(featuredCppText);
     expect(barValue).toBeGreaterThan(0);
     expect(barValue).toBe(featuredValue);
+  });
+});
+
+test.describe('Flights page — phone', () => {
+  test.use(MOBILE);
+
+  test('results show a compact summary bar, sort chips and compact cards', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    test.skip((await cards.count()) === 0, 'No flights returned by Duffel for this query');
+
+    await expect(page.getByTestId('mobile-results-header')).toContainText('PHL → SFO');
+    await expect(page.getByTestId('mobile-results-header')).toContainText(/adult/);
+    await expect(page.getByRole('group', { name: 'Sort flights' }).getByRole('button')).toHaveText(['Best', 'Cheap', 'Fast']);
+    await expect(tabBar(page)).toBeVisible();
+    await expectNoHorizontalScroll(page);
+
+    // Edit reopens the search form, Collapse closes it again
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.getByRole('button', { name: 'Collapse search' })).toBeVisible();
+
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('sort chip changes the sort without losing results', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    const total = await cards.count();
+    test.skip(total < 2, 'Need 2+ flights to verify sort');
+
+    const chip = page.getByRole('group', { name: 'Sort flights' }).getByRole('button', { name: 'Cheap' });
+    await chip.click();
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    expect(await cards.count()).toBe(total);
+  });
+
+  test('Compare popup is centered and the page behind it stays put', async ({ page }) => {
+    await gotoFlightsWithResults(page);
+    const cards = page.getByTestId('flight-card');
+    test.skip((await cards.count()) === 0, 'No flights returned by Duffel for this query');
+
+    await cards.first().getByRole('button', { name: /Compare/ }).click();
+    const dialog = page.getByTestId('compare-modal');
+    await expect(dialog).toBeVisible();
+
+    const box = (await dialog.boundingBox())!;
+    expect(Math.abs(box.y + box.height / 2 - 844 / 2)).toBeLessThan(60);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+
+    const main = page.locator('#app-main-scroll');
+    expect(await main.evaluate((el) => getComputedStyle(el).overflow)).toBe('hidden');
+    expect(await page.evaluate(() => document.body.style.position)).toBe('fixed');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    expect(await page.evaluate(() => document.body.style.position)).toBe('');
   });
 });

@@ -70,9 +70,9 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
       {/* 2. Property block — last section, so it owns the card's bottom corners.
              The redemption comparison lives in the detail modal's room cards:
              pricing is per room, so a card-level winner would be guesswork. */}
-      <div className={`flex flex-col md:flex-row md:h-44 overflow-hidden rounded-b-xl ${hasTopBanner ? '' : 'rounded-t-xl'}`}>
+      <div className={`flex flex-row md:h-44 overflow-hidden rounded-b-xl ${hasTopBanner ? '' : 'rounded-t-xl'}`}>
         <div
-          className={`relative w-full aspect-square md:aspect-auto md:w-44 md:h-full shrink-0 ${onOpenDetail ? 'cursor-pointer' : ''}`}
+          className={`relative w-[104px] min-h-32 md:min-h-0 md:w-44 md:h-full shrink-0 ${onOpenDetail ? 'cursor-pointer' : ''}`}
           onClick={() => onOpenDetail?.(searchResult)}
           role={onOpenDetail ? 'button' : undefined}
           tabIndex={onOpenDetail ? 0 : undefined}
@@ -95,22 +95,22 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
           )}
         </div>
 
-        {/* Info — border-t separates it from the photo when stacked on mobile */}
-        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden border-t md:border-t-0 ${dividerCls}`}>
-          <div className="flex-1 p-5 overflow-hidden">
+        {/* Info — phones: a 104px thumbnail beside a compact column, price on the bottom row */}
+        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden border-l md:border-l-0 ${dividerCls}`}>
+          <div className="flex-1 p-3 md:p-5 overflow-hidden flex flex-col md:block">
             {/* Cash price — the room-level redemption comparison prices against it */}
-            <div className="float-right ml-4 text-right">
-              <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mb-1 ${textMuted}`}>
+            <div className={`order-last mt-auto pt-2 border-t flex items-baseline gap-2 md:order-none md:mt-0 md:pt-0 md:border-t-0 md:block md:float-right md:ml-4 md:text-right ${dividerCls}`}>
+              <p className={`text-[9px] md:text-[10px] font-bold font-mono tracking-widest uppercase md:mb-1 ${textMuted}`}>
                 From
               </p>
-              <p className={`text-2xl font-extrabold tracking-tight leading-none ${textPrimary}`}>
+              <p className={`text-[17px] md:text-2xl font-extrabold tracking-tight leading-none ${textPrimary}`}>
                 {fmtMoney(totalAmount)}
               </p>
-              <p className={`text-xs mt-0.5 ${textMuted}`}>{fmtMoney(perNight)}/night</p>
+              <p className={`ml-auto md:ml-0 text-[11px] md:text-xs md:mt-0.5 whitespace-nowrap ${textMuted}`}>{fmtMoney(perNight)}/night</p>
             </div>
 
             {/* Hotel class stars */}
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1 md:mb-1.5 order-2 md:order-none">
               {stars !== null && stars !== undefined && (
                 <div className="flex gap-0.5" role="img" aria-label={`${stars} star hotel`}>
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -122,21 +122,21 @@ export function HotelCard({ searchResult, onOpenDetail }: { searchResult: any; d
 
             {/* Hotel name */}
             <h3
-              className={`text-xl font-extrabold leading-tight tracking-tight mb-1 truncate ${textPrimary} ${onOpenDetail ? 'cursor-pointer hover:underline underline-offset-2' : ''}`}
+              className={`order-1 md:order-none text-sm md:text-xl font-bold md:font-extrabold leading-tight tracking-tight mb-1 line-clamp-2 md:block md:line-clamp-none md:truncate ${textPrimary} ${onOpenDetail ? 'cursor-pointer hover:underline underline-offset-2' : ''}`}
               onClick={() => onOpenDetail?.(searchResult)}
             >
               {name}
             </h3>
 
             {location && (
-              <p className={`text-sm mb-2.5 truncate ${textMuted}`}>
+              <p className={`order-3 md:order-none text-xs md:text-sm md:mb-2.5 truncate ${textMuted}`}>
                 {location}
               </p>
             )}
 
             {/* Amenity pills */}
             {amenities.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
+              <div className="hidden md:flex flex-wrap gap-1.5 mt-3">
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {amenities.map((a: any, i: number) => (
                   <span key={i} className={`text-[10px] font-bold font-mono tracking-wide px-2.5 py-1 rounded ${pillBg}`}>

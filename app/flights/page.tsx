@@ -20,6 +20,7 @@ import { calcPoints } from '@/lib/points/calcPoints';
 import { getOfferFlightInfo, getOfferTripDates, groupOffersByAirline, offerPriceRange } from '@/lib/flights/itinerary';
 import { findLiveBonus } from '@/lib/points/transferBonus';
 import { findLiveSpendingBonusForAirline } from '@/lib/points/spendingBonusMatch';
+import { flightSummarySubtitle } from '@/lib/searchSummary';
 
 type TripType   = 'roundtrip' | 'oneway';
 type CabinClass = 'economy' | 'premium_economy' | 'business' | 'first';
@@ -767,6 +768,10 @@ function FlightsPageInner() {
     <AppShell
       header={header}
       hasResults={rawOffers.length > 0}
+      summary={committed ? {
+        title: `${committed.origin} → ${committed.destination}`,
+        subtitle: flightSummarySubtitle(committed.departureDate, committed.returnDate, committed.passengers),
+      } : undefined}
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
       <h1 className="sr-only">Flight search results</h1>
@@ -844,6 +849,25 @@ function FlightsPageInner() {
               {/* Refine dropdown — mobile only */}
               <RefineDropdown {...refineProps} />
             </div>
+          </div>
+
+          {/* Sort chips — phones only (the segmented tabs above are hidden below sm) */}
+          <div role="group" aria-label="Sort flights" className="sm:hidden -mx-4 px-4 flex gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {SORT_TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={sort === key}
+                onClick={() => setSort(key)}
+                className={`shrink-0 min-h-11 px-4 rounded-full border text-xs font-bold transition-colors ${
+                  sort === key
+                    ? 'bg-gph-ink text-gph-bg border-gph-ink'
+                    : 'bg-gph-card text-gph-muted border-gph-line'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Flight results — one drilled-into airline's full list, or the grouped "top pick per airline" list */}

@@ -17,6 +17,7 @@ import { trpc } from '@/lib/trpc-client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePerPage } from '@/hooks/usePerPage';
 import { clampPage, paginate, pageRange } from '@/lib/pagination';
+import { nightsBetween, staySummarySubtitle } from '@/lib/searchSummary';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 
 
@@ -528,9 +529,9 @@ function HotelsPageInner() {
   );
 
   const resultsHeader = accommodations.length > 0 && (
-    <div className={`flex items-end justify-between pb-3 mb-5 border-b-2 ${isDark ? 'border-gph-dark-action' : 'border-gray-900'}`}>
+    <div className={`flex flex-col gap-3 md:flex-row md:items-end md:justify-between pb-3 mb-5 border-b-2 ${isDark ? 'border-gph-dark-action' : 'border-gray-900'}`}>
       <div>
-        <h2 className={`text-3xl font-extrabold tracking-tight leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+        <h2 className={`text-xl md:text-3xl font-extrabold tracking-tight leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {accommodations.length} hotel{accommodations.length !== 1 ? 's' : ''}{destPlace?.name ? ` in ${destPlace.name}` : ' found'}
         </h2>
         <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-2 ${isDark ? 'text-gph-dark-muted' : 'text-gray-600'}`}>
@@ -542,7 +543,7 @@ function HotelsPageInner() {
         </p>
       </div>
 
-      <div className="flex gap-2 shrink-0">
+      <div className="flex flex-wrap gap-2 md:shrink-0">
         {/* Mobile-only filter button */}
         <HotelFiltersDropdown
           isDark={isDark}
@@ -595,6 +596,10 @@ function HotelsPageInner() {
     <AppShell
       header={header}
       hasResults={accommodations.length > 0}
+      summary={destPlace?.name ? {
+        title: destPlace.name,
+        subtitle: staySummarySubtitle(checkIn, checkOut, nightsBetween(checkIn, checkOut), guests.adults + guests.children),
+      } : undefined}
       sidebar={allAccommodations.length > 0 ? (
         <HotelFiltersContent
           isDark={isDark}
