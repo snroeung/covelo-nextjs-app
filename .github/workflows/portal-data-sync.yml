@@ -18,6 +18,10 @@ on:
           - Preview
           - Production
 
+permissions:
+  id-token: write
+  contents: read
+
 concurrency:
   group: portal-data-sync
   cancel-in-progress: false
@@ -33,7 +37,13 @@ jobs:
       SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
       UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Workload identity federation (replaces ANTHROPIC_API_KEY). The SDK reads these
+      # and exchanges the GitHub OIDC token in ANTHROPIC_IDENTITY_TOKEN_FILE itself.
+      ANTHROPIC_FEDERATION_RULE_ID: fdrl_01XTYYdjmzXns86Hu3LJHeCS
+      ANTHROPIC_ORGANIZATION_ID: 8512cc98-b90a-4b8f-9a9b-3aad0e97ea29
+      ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01BUnNiED8SAP2FhdVQqbcuw
+      ANTHROPIC_WORKSPACE_ID: wrkspc_01KvkjWW6sX9ejhAb3y4zh6z
+      ANTHROPIC_IDENTITY_TOKEN_FILE: ${{ runner.temp }}/anthropic-oidc-token
       SOURCE_KEY_FILTER: ${{ github.event.inputs.source_key || 'all' }}
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +53,18 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Keep Anthropic OIDC token fresh
+        shell: bash
+        run: |
+          fetch() {
+            curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value > "$ANTHROPIC_IDENTITY_TOKEN_FILE.tmp"
+            mv "$ANTHROPIC_IDENTITY_TOKEN_FILE.tmp" "$ANTHROPIC_IDENTITY_TOKEN_FILE"
+          }
+          fetch
+          echo "::add-mask::$(cat "$ANTHROPIC_IDENTITY_TOKEN_FILE")"
+          # OIDC tokens are short-lived; the sync can run up to 30 min
+          (while sleep 120; do fetch; done) &
       - name: Run sync
         shell: bash
         run: |

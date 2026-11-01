@@ -10,7 +10,7 @@ const MAX_PAGE_TEXT_CHARS = 20_000;
 let client: Anthropic | null = null;
 
 function getClient(): Anthropic {
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!client) client = new Anthropic();
   return client;
 }
 
