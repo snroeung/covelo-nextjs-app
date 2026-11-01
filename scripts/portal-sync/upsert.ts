@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { describeDbError } from "../supabase-healthcheck";
 import type { RecordType } from "./schemas";
 import type {
   TransferPartnerRecord,
@@ -170,7 +171,7 @@ export async function upsertTransferPartner(
     source_url: ctx.sourceUrl,
   });
   if (error) {
-    console.error(`[upsert:transfer_partner] insert failed for "${record.program}" (${ctx.sourceUrl}): ${error.message}`);
+    console.error(`[upsert:transfer_partner] insert failed for "${record.program}" (${ctx.sourceUrl}): ${describeDbError(error)}`);
   }
   return !error;
 }
@@ -215,7 +216,7 @@ export async function upsertTransferBonus(
     ...boardPostColumns(transferBonusToBoardOffer({ ...record, transfer_partner: transferPartner })),
   });
   if (error) {
-    console.error(`[upsert:transfer_bonus] insert failed for "${transferPartner}" (${ctx.sourceUrl}): ${error.message}`);
+    console.error(`[upsert:transfer_bonus] insert failed for "${transferPartner}" (${ctx.sourceUrl}): ${describeDbError(error)}`);
   }
   return !error;
 }
@@ -254,7 +255,7 @@ export async function upsertSpendingBonus(
     ...boardPostColumns(spendingBonusToBoardOffer(record)),
   });
   if (error) {
-    console.error(`[upsert:spending_bonus] insert failed for "${record.merchant_name}" (${ctx.sourceUrl}): ${error.message}`);
+    console.error(`[upsert:spending_bonus] insert failed for "${record.merchant_name}" (${ctx.sourceUrl}): ${describeDbError(error)}`);
   }
   return !error;
 }
@@ -302,7 +303,7 @@ export async function upsertTravelCollection(
   });
   if (error) {
     const label = record.property_name ? `${record.collection_name} / ${record.property_name}` : record.collection_name;
-    console.error(`[upsert:travel_collection] insert failed for "${label}" (${ctx.sourceUrl}): ${error.message}`);
+    console.error(`[upsert:travel_collection] insert failed for "${label}" (${ctx.sourceUrl}): ${describeDbError(error)}`);
   }
   return !error;
 }
@@ -328,7 +329,7 @@ export async function upsertPointsValuation(
     source_url: ctx.sourceUrl,
   });
   if (error) {
-    console.error(`[upsert:points_valuation] insert failed for "${record.program}" (${ctx.sourceUrl}): ${error.message}`);
+    console.error(`[upsert:points_valuation] insert failed for "${record.program}" (${ctx.sourceUrl}): ${describeDbError(error)}`);
   }
   return !error;
 }
