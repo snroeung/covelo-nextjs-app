@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import { AddToTripButton } from '@/components/layout/AddToTripButton';
 import { HotelBestRedemptionBar } from '@/components/hotels/HotelBestRedemptionBar';
 import { useQuery } from '@tanstack/react-query';
@@ -439,15 +440,13 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
   });
 
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+  useScrollLock();
 
   const n = photos.length;
   const go = (d: number) => setPhotoIdx(i => (i + d + n) % n);
@@ -468,7 +467,7 @@ export function HotelDetailModal({ searchResult, onClose }: { searchResult: any;
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain"
       style={overlayStyle}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >

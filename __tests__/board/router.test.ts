@@ -397,6 +397,28 @@ describe('posts.list', () => {
     expect(called(q, 'or', 'review.is.null,review.neq.rejected')).toBe(true);
   });
 
+  it('still serves the feed when the topic counts function is missing — no counts, no error', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockDb(
+      { board_posts_feed: (q) => (q.head ? { count: 7 } : { data: [feedRow()] }) },
+      { board_topic_counts: () => ({ error: { code: 'PGRST202', message: 'Could not find the function public.board_topic_counts(p_kind, p_today) in the schema cache' } }) },
+    );
+    const out = await caller().board.posts.list({});
+    expect(out.posts.map((p) => p.id)).toEqual([P1]);
+    expect(out.counts).toBeNull();
+    expect(log).toHaveBeenCalled(); // the cause is logged on the server
+    log.mockRestore();
+  });
+
+  it('a failed query throws a message with no database names in it', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockDb({ board_posts_feed: () => ({ error: { message: 'relation "board_posts_feed" does not exist' } }) });
+    const err = await caller().board.posts.list({}).catch((e) => e);
+    expect(err.message).toBe('Something went wrong on our side. Try again in a moment.');
+    expect(err.message).not.toMatch(/board_posts_feed/);
+    log.mockRestore();
+  });
+
   it('adds the viewer\'s own held and rejected posts for a signed-in member', async () => {
     const db = mockDb({ board_posts_feed: () => ({ data: [feedRow()] }) });
     await caller().board.posts.list({});

@@ -196,6 +196,12 @@ describe('comment trees', () => {
 });
 
 describe('describeError', () => {
+  it('never shows a 500\'s text — database names stay in the server log', () => {
+    const e = describeError(trpc('Board topic counts failed: Could not find the function public.board_topic_counts(p_kind, p_today) in the schema cache', { code: 'INTERNAL_SERVER_ERROR' }));
+    expect(e.message).toBe('Something went wrong on our side. Try again in a moment.');
+    expect(e.message).not.toMatch(/board_topic_counts|schema cache/);
+  });
+
   const trpc = (message: string, data: Record<string, unknown> = {}) => ({ message, data });
 
   it('passes a plain server message through, with its code', () => {

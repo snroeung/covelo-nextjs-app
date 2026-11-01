@@ -2,6 +2,7 @@
 
 import { btn } from '@/components/ui/button';
 import { useEffect } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 import { buildModalCopy, isTransfer, daysUntil, ISSUER_LABELS } from '@/lib/discover/offerCopy';
 import { PhotoPlaceholder } from '@/components/discover/PhotoPlaceholder';
@@ -27,10 +28,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+  useScrollLock();
 
   const issuerBalance = selectedCards
     .filter((id) => CARD_PORTAL_MAP[id] === offer.issuer)
@@ -53,7 +51,7 @@ export function DiscoverOfferModal({ offer, isDark, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={copy.headline}
-        className="relative w-full max-w-[900px] max-h-[90vh] overflow-y-auto rounded-2xl border shadow-2xl bg-gph-card border-gph-line"
+        className="relative w-full max-w-[900px] max-h-[90dvh] overflow-y-auto overscroll-contain rounded-2xl border shadow-2xl bg-gph-card border-gph-line"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative">

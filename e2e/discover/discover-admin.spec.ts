@@ -137,7 +137,7 @@ test.describe('Sponsored Ad — flights_inline slot', () => {
     await page.getByText(AD_HEADLINE_EDIT).first().waitFor({ timeout: 15_000 }).catch(() => {});
 
     const cta = page.getByRole('link', { name: /apply now/i }).first();
-    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    if (await cta.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
       const href = await cta.getAttribute('href');
       expect(href).toContain('example.com/delta-reserve');
     }
@@ -215,7 +215,7 @@ test.describe('Sponsored Ad — hotels_inline slot', () => {
     await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 15_000 }).catch(() => {});
 
     const cta = page.getByRole('link', { name: /apply now/i }).first();
-    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    if (await cta.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
       const href = await cta.getAttribute('href');
       expect(href).toContain('example.com/hyatt-card');
     }
@@ -286,7 +286,7 @@ test.describe('Sponsored Ad — trip_strip slot', () => {
     await page.getByText(AD_HEADLINE).first().waitFor({ timeout: 10_000 });
 
     const cta = page.getByRole('link', { name: /apply now/i }).first();
-    if (await cta.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    if (await cta.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
       const href = await cta.getAttribute('href');
       expect(href).toContain('example.com/sapphire-reserve');
     }
@@ -476,7 +476,7 @@ test.describe('Transfer Bonus — create and display', () => {
     // exists elsewhere in this env, ours renders in the secondary/rail instead —
     // covered by test 23 — so only assert when it did land as the lead.
     const leadKicker = page.getByText(new RegExp(`CHASE.*${PARTNER}`, 'i')).first();
-    if (await leadKicker.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    if (await leadKicker.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true).catch(() => false)) {
       await expect(page.getByText(`+${BONUS_PCT}%`).first()).toBeVisible();
     }
   });
@@ -508,11 +508,26 @@ test.describe('Transfer Bonus — create and display', () => {
 
     await page.goto('/discover');
     await expandOffers(page);
-    await page.getByText(GRID_PARTNER).first().click();
 
+    // Offers created by test runs land as Pending, which has no Deactivate action,
+    // so earlier runs' IHG offers pile up and one of them (expiring today, no "ends
+    // in" line) can sort first. Open IHG cards until we reach the one just created.
+    const cards = page.getByText(GRID_PARTNER);
+    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
     const modal = page.getByRole('dialog');
-    await expect(modal).toBeVisible();
-    await expect(modal.getByText(/ends in \d+ days?/i)).toBeVisible({ timeout: 5_000 });
+    const urgency = modal.getByText(/ends in \d+ days?/i);
+    let found = false;
+    for (let i = 0; i < Math.min(await cards.count(), 12) && !found; i++) {
+      await cards.nth(i).click();
+      await expect(modal).toBeVisible();
+      found = await urgency.waitFor({ state: 'visible', timeout: 1_500 }).then(() => true).catch(() => false);
+      if (!found) {
+        await page.keyboard.press('Escape');
+        await expect(modal).toBeHidden();
+      }
+    }
+    expect(found, 'an IHG offer ending in 3 days shows "ENDS IN n DAYS" in its modal').toBe(true);
+    await expect(modal.getByText(`${TEST_PREFIX} Urgent IHG transfer bonus`)).toBeVisible();
   });
 
   test('25. clicking card opens detail modal with full offer details', async ({ page }) => {
@@ -526,9 +541,10 @@ test.describe('Transfer Bonus — create and display', () => {
     const modal = page.getByRole('dialog');
     await expect(modal).toBeVisible();
     await expect(modal.getByText(new RegExp(GRID_PARTNER, 'i')).first()).toBeVisible();
-    await expect(modal.getByText(new RegExp(`${GRID_BONUS_PCT}%|\\+${GRID_BONUS_PCT}`, 'i'))).toBeVisible();
+    // The bonus appears in the plaque, the headline and the body copy — any one will do
+    await expect(modal.getByText(new RegExp(`${GRID_BONUS_PCT}%|\\+${GRID_BONUS_PCT}`, 'i')).first()).toBeVisible();
     // Expiry shows in the value plaque ("expires …")
-    await expect(modal.getByText(/expir/i)).toBeVisible();
+    await expect(modal.getByText(/expir/i).first()).toBeVisible();
   });
 
   test('28. deactivate and reactivate: offer disappears then reappears on /offers', async ({ page }) => {
@@ -536,7 +552,8 @@ test.describe('Transfer Bonus — create and display', () => {
     test.skip(!transferBonusCreated, 'Skipped: transfer bonus creation (test 21) failed');
     // "World of Hyatt" doesn't appear anywhere else on the page (the board
     // promo's static content doesn't reference it), so this stays unambiguous.
-    const offerHeading = /chase\s*→\s*world of hyatt/i;
+    // Matches the offer headline: "Chase opens a 30% premium transferring to World of Hyatt".
+    const offerHeading = /transferring to world of hyatt/i;
 
     // Deactivate
     await setOfferActive(page, PARTNER, false);

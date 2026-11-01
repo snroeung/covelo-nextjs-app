@@ -62,6 +62,7 @@ export function matchHotelCollections(
   const candidates = collections.filter(
     (c) =>
       c.type === "hotel" &&
+      c.active &&
       c.property_name &&
       (c.status === "approved" || c.status === "admin") &&
       isLiveForSearch(c, searchDate),
@@ -103,6 +104,7 @@ export function matchFlightCollections(
   const candidates = collections.filter(
     (c) =>
       c.type === "flight" &&
+      c.active &&
       (c.status === "approved" || c.status === "admin") &&
       isLiveForSearch(c, searchDate),
   );

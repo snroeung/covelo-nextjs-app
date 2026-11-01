@@ -5,24 +5,29 @@ import { useState } from 'react';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
 import { BalancePanel } from '@/components/wallet/BalancePanel';
 import { NavBar } from '@/components/layout/NavBar';
+import { MobileResultsHeader } from '@/components/search/MobileResultsHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSelectedCards } from '@/contexts/SelectedCardsContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { MAIN_SCROLL_ID } from '@/hooks/useScrollLock';
 
-/** DOM id of the results scroll container — used by pagination's scroll-to-top
- *  and the hotels back-to-top button. */
-export const MAIN_SCROLL_ID = 'app-main-scroll';
+// DOM id of the results scroll container — used by pagination's scroll-to-top
+// and the hotels back-to-top button. Defined beside the scroll lock, which also needs it.
+export { MAIN_SCROLL_ID };
 
 export function AppShell({
   header,
   children,
   sidebar,
   hasResults = false,
+  summary,
 }: {
   header: React.ReactNode;
   children: React.ReactNode;
   sidebar?: React.ReactNode;
   hasResults?: boolean;
+  /** Phones: once results load, a compact bar (title + dates + Edit) replaces the open search form */
+  summary?: { title: string; subtitle: string };
 }) {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -40,7 +45,7 @@ export function AppShell({
   const allCardsMode = selectedCards.length === 0;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden font-sans bg-gph-bg">
+    <div className="flex flex-col h-[calc(100dvh-var(--tabbar-h))] overflow-hidden font-sans bg-gph-bg">
 
       {/* ① Nav — shared across all pages */}
       <NavBar />
@@ -50,14 +55,18 @@ export function AppShell({
 
       {/* Mobile: collapsible */}
       <div className="md:hidden shrink-0 border-b bg-gph-card border-gph-line">
+        {summary && hasResults && !headerOpen && (
+          <MobileResultsHeader title={summary.title} subtitle={summary.subtitle} onEdit={() => setHeaderOpen(true)} />
+        )}
         {headerOpen && (
-          <div className="px-4 pt-4 pb-2">
+          <section aria-label="Search" className="px-4 pt-4 pb-2">
             {header}
-          </div>
+          </section>
         )}
         <button
           onClick={() => setHeaderOpen(o => !o)}
-          className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-gph-muted"
+          hidden={!!summary && hasResults && !headerOpen}
+          className="w-full flex items-center justify-center gap-1.5 min-h-11 text-xs font-medium text-gph-muted"
         >
           <span>{headerOpen ? 'Collapse search' : 'Modify search'}</span>
           <svg

@@ -10,6 +10,7 @@ export type FlagName =
   | "ui:settings"
   | "ui:admin"
   | "ui:board"
+  | "ui:you"
   // tRPC routers
   | "api:stays"
   | "api:flights"
@@ -71,6 +72,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "api:reports":                       { enabledIn: ["local", "beta", "production"], description: "booking reports tRPC router" },
   "integration:redis:portal-data":     { enabledIn: ["local", "beta", "production"], description: "Redis caching — portalData router" },
   "ui:board":                          { enabledIn: ["local", "beta", "production"], description: "/discover/board community board" },
+  "ui:you":                            { enabledIn: ["local", "beta", "production"], description: "/you account page (mobile tab bar)" },
   "api:board":                         { enabledIn: ["local", "beta", "production"], description: "board tRPC router" },
   "integration:redis:board":           { enabledIn: ["local", "beta", "production"], description: "Redis caching — board topics list" },
   "integration:anthropic:moderation":  { enabledIn: ["local", "beta", "production"], description: "Claude Haiku — board post/comment moderation classifier" },

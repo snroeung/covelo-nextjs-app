@@ -21,7 +21,7 @@ function fmtUsd(n: number): string {
 function cppTier(cpp: number): { label: string; chipBg: string; chipFg: string } {
   if (cpp >= 2.0) return { label: 'Excellent',  chipBg: '#dcf3e3', chipFg: '#0f7536' };
   if (cpp >= 1.5) return { label: 'Great',       chipBg: '#dcf3e3', chipFg: '#0f7536' };
-  if (cpp >  1.0) return { label: 'Above face',  chipBg: '#e8f5eb', chipFg: '#3f8f4e' };
+  if (cpp >  1.0) return { label: 'Above face',  chipBg: '#e8f5eb', chipFg: '#2d7a3a' };
   if (cpp === 1.0) return { label: '= Cash',     chipBg: '#f0f0ee', chipFg: '#5f6066' };
   return               { label: 'Below face',  chipBg: '#e2e8f0', chipFg: '#475569' };
 }
@@ -66,7 +66,7 @@ function EstMark({ isDark, title }: { isDark: boolean; title?: string }) {
       tabIndex={0}
       title={title ?? 'Estimated from recent portal pricing'}
       className={`text-[9px] font-mono border-b border-dotted cursor-help ${
-        isDark ? 'text-gph-dark-muted border-gph-dark-muted' : 'text-gray-400 border-gray-300'
+        isDark ? 'text-gph-dark-muted border-gph-dark-muted' : 'text-gray-600 border-gray-300'
       }`}
     >
       est.
@@ -102,7 +102,7 @@ function RankBadge({ kind, isBestChoice, isDark }: { kind: OptionRowView['kind']
 function BonusBadge({ bonus, isDark }: { bonus: TransferBonus; isDark: boolean }) {
   return (
     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold font-mono uppercase tracking-wide shrink-0 ${
-      isDark ? 'bg-cv-amber-900 text-cv-amber-300' : 'bg-cv-amber-50 text-cv-amber-700'
+      isDark ? 'bg-cv-amber-900 text-cv-amber-300' : 'bg-cv-amber-50 text-cv-amber-900'
     }`}>
       {bonus.bonus_pct != null ? `+${bonus.bonus_pct}% bonus` : 'status match'}
     </span>
@@ -164,7 +164,7 @@ const VALUE_COL = 'md:w-36';
 const ACTION_COL = 'md:w-40';
 
 function ColumnHeaders({ isDark }: { isDark: boolean }) {
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-400';
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   return (
     <div className={`hidden md:flex items-center gap-5 px-5 py-2.5 border-b text-[10px] font-bold font-mono uppercase tracking-widest ${borderCls} ${mutedCls}`}>
@@ -196,7 +196,7 @@ const CHIP_PALETTE = {
   },
   poor: {
     dark:  { fill: 'bg-cv-amber-900',    text: 'text-cv-amber-300',  border: 'border-cv-amber-700' },
-    light: { fill: 'bg-cv-amber-50',     text: 'text-cv-amber-700',  border: 'border-cv-amber-400' },
+    light: { fill: 'bg-cv-amber-50',     text: 'text-cv-amber-900',  border: 'border-cv-amber-400' },
   },
   neutral: {
     dark:  { fill: 'bg-gph-dark-linesoft', text: 'text-gph-dark-ink', border: 'border-gph-dark-line' },
@@ -309,7 +309,7 @@ function SourceChipGroup({ cards, isDark }: { cards: SourceCardView[]; isDark: b
 function SourceCards({ view, isDark }: { view: OptionRowView; isDark: boolean }) {
   if (view.kind !== 'transfer' || view.sourceCards.length === 0) return null;
 
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const ownedCount = view.sourceCards.filter(c => c.owned).length;
 
   // The no-owned-route case states itself in `unlockNote` above the chips.
@@ -341,7 +341,7 @@ function FeaturedRow({ view, isDark, booking }: { view: OptionRowView; isDark: b
   const dealUrl = resolveDeepLink(view);
 
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   // Green marks whichever row is actually the better deal — a transfer that
   // beats the portal (TransferResult.isBetterThanPortal) gets the highlight
@@ -466,7 +466,7 @@ function AlternativeRow({
   booking?: RedemptionBooking;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const earnLine = cashEarnLine(view);
   const dealUrl = resolveDeepLink(view);
@@ -573,7 +573,7 @@ function AlternativesTrigger({
   isDark: boolean;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const triggerHover = isDark ? 'hover:bg-gph-dark-linesoft' : 'hover:bg-gray-50';
   const ringColor = isDark ? '#161618' : '#ffffff';
@@ -638,7 +638,7 @@ function AlternativesOverlay({
   booking?: RedemptionBooking;
 }) {
   const inkCls = isDark ? 'text-gph-dark-ink' : 'text-gray-900';
-  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
   const borderCls = isDark ? 'border-gph-dark-line' : 'border-gray-200';
   const surfaceCls = isDark ? 'bg-gph-dark-card' : 'bg-white';
 
@@ -659,7 +659,7 @@ function AlternativesOverlay({
             onClick={onClose}
             aria-label="Close options"
             className={`min-h-11 min-w-11 flex items-center justify-center rounded-lg transition-colors ${
-              isDark ? 'text-gph-dark-muted hover:bg-gph-dark-linesoft' : 'text-gray-500 hover:bg-gray-200'
+              isDark ? 'text-gph-dark-muted hover:bg-gph-dark-linesoft' : 'text-gray-600 hover:bg-gray-200'
             }`}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden="true">
@@ -689,7 +689,7 @@ function AlternativesOverlay({
 function BonusNotice({ bonus, scopeNote, isDark }: { bonus: TransferBonus; scopeNote: string; isDark: boolean }) {
   return (
     <div className={`px-5 py-2 text-[11px] font-semibold font-mono border-b ${
-      isDark ? 'bg-cv-amber-900 text-cv-amber-300 border-gph-dark-line' : 'bg-cv-amber-50 text-cv-amber-700 border-gray-200'
+      isDark ? 'bg-cv-amber-900 text-cv-amber-300 border-gph-dark-line' : 'bg-cv-amber-50 text-cv-amber-900 border-gray-200'
     }`}>
       ⚡ {bonus.bonus_pct != null ? `${bonus.bonus_pct}% transfer bonus` : 'Status-match transfer offer'} to {bonus.transfer_partner} from{' '}
       {ISSUER_LOYALTY_NAME[bonus.issuer]} through {formatBonusEndDate(bonus.end_date)} · {scopeNote}
@@ -759,7 +759,7 @@ export function RedemptionTable({
   const liveBonus = views.find(v => v.bonus)?.bonus;
 
   const containerBg = isDark ? 'bg-gph-dark-card' : 'bg-white';
-  const mutedCls    = isDark ? 'text-gph-dark-muted' : 'text-gray-500';
+  const mutedCls    = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
 
   return (
     <div ref={rootRef} data-testid="redemption-table" className={`relative ${containerBg}`}>

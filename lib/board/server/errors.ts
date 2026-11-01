@@ -17,8 +17,14 @@ export function throwIfBlocked(result: LimitResult): void {
   throw new TRPCError({ code: result.code, message: result.message });
 }
 
+/** What a member sees when the database fails. The database's own message (table and function names) goes to the server log, never to the page. */
+export const INTERNAL_ERROR_MESSAGE = "Something went wrong on our side. Try again in a moment.";
+
 /** Unwraps a Supabase result, turning a database error into a 500. */
 export function must<T>(res: { data: T | null; error: { message: string } | null }, what = "query"): T {
-  if (res.error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Board ${what} failed: ${res.error.message}` });
+  if (res.error) {
+    console.error(`[board] ${what} failed: ${res.error.message}`);
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: INTERNAL_ERROR_MESSAGE, cause: new Error(res.error.message) });
+  }
   return res.data as T;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import { BoardIcon } from './icons';
 
 // Shared modal for the board: composer, report, offer details, topic list.
@@ -9,10 +10,7 @@ import { BoardIcon } from './icons';
 // Follows the app's modal rules — a see-through blurred backdrop (the page
 // stays readable), fixed to the viewport — and adds what a dialog owes
 // keyboard and screen-reader users: focus moves in, Tab stays inside, Escape
-// closes, focus goes back to whatever opened it. On a phone it is a bottom
-// sheet; from md up it is centred.
-
-let openCount = 0;
+// closes, focus goes back to whatever opened it. Centred on every screen size.
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -37,8 +35,6 @@ export function Dialog({ label, onClose, children, width = 'md', initialFocus }:
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
-    openCount++;
-    document.body.style.overflow = 'hidden';
 
     const first = initialFocus?.current ?? panel.current?.querySelector<HTMLElement>(FOCUSABLE) ?? panel.current;
     first?.focus();
@@ -60,16 +56,17 @@ export function Dialog({ label, onClose, children, width = 'md', initialFocus }:
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      if (--openCount === 0) document.body.style.overflow = '';
       opener?.focus?.();
     };
-    // Focus and scroll lock are set up once per mount
+    // Focus is set up once per mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useScrollLock();
+
   if (typeof document === 'undefined') return null;
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center md:items-center md:p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overscroll-contain">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onMouseDown={() => onCloseRef.current()} aria-hidden="true" />
       <div
         ref={panel}
@@ -77,7 +74,7 @@ export function Dialog({ label, onClose, children, width = 'md', initialFocus }:
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        className={`relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-gph-line bg-gph-card text-gph-ink shadow-2xl outline-none md:max-h-[90dvh] md:rounded-xl ${WIDTH[width]}`}
+        className={`relative flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-xl border border-gph-line bg-gph-card text-gph-ink shadow-2xl outline-none ${WIDTH[width]}`}
       >
         {children}
       </div>

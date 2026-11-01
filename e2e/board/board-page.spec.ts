@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { MOBILE, expectNoHorizontalScroll, tabBar } from '../utils/mobile-helpers';
 
 test.describe('The board — page', () => {
   test('1. loads with heading and filters', async ({ page }) => {
@@ -48,5 +49,64 @@ test.describe('The board — page', () => {
     await expect(dialog).toBeVisible();
     const box = await dialog.boundingBox();
     expect(box!.width).toBeLessThanOrEqual(375);
+  });
+});
+
+test.describe('The board — phone filters', () => {
+  test.use(MOBILE);
+
+  test('Sort, Show, Topic and Verified sit on one line, and the page cannot drag sideways', async ({ page }) => {
+    await page.goto('/discover/board');
+    await expect(page.getByRole('heading', { level: 1, name: 'The board' })).toBeVisible();
+
+    const row = page.getByRole('group', { name: 'Filter posts' });
+    const controls = [
+      row.getByRole('button', { name: /^Sort:/ }),
+      row.getByRole('button', { name: /^Show:/ }),
+      row.getByRole('button', { name: /^Topic:/ }),
+    ];
+    const tops = await Promise.all(controls.map(async (c) => Math.round((await c.boundingBox())!.y)));
+    expect(new Set(tops).size).toBe(1);
+    await expectNoHorizontalScroll(page);
+    await expect(tabBar(page)).toBeVisible();
+  });
+
+  test('a filter opens as a bottom sheet, locks the page, and picking an option writes the URL', async ({ page }) => {
+    await page.goto('/discover/board');
+    await page.getByRole('button', { name: /^Sort:/ }).click();
+
+    const list = page.getByRole('listbox', { name: 'Sort' });
+    await expect(list).toBeVisible();
+    const box = (await list.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    expect(await page.evaluate(() => document.body.style.position)).toBe('fixed');
+
+    await list.getByRole('option', { name: 'New' }).click();
+    await expect(list).toBeHidden();
+    await expect(page).toHaveURL(/sort=new/);
+    expect(await page.evaluate(() => document.body.style.position)).toBe('');
+  });
+
+  test('Topic dropdown lists topics and filters the feed', async ({ page }) => {
+    await page.goto('/discover/board');
+    await page.getByRole('button', { name: /^Topic:/ }).click();
+    const options = page.getByRole('listbox', { name: 'Topic' }).getByRole('option');
+    // Topics arrive with the feed; wait for them instead of counting an empty list
+    await expect.poll(() => options.count(), { timeout: 10_000 }).toBeGreaterThan(0);
+    await page.waitForTimeout(500);
+    test.skip((await options.count()) < 2, 'No topics to select');
+    await options.nth(1).click();
+    await expect(page).toHaveURL(/topic=/);
+    await expect(page.getByRole('button', { name: /^Topic:/ })).not.toContainText('All topics');
+  });
+
+  test('passes accessibility checks with a sheet open', async ({ page }) => {
+    await page.goto('/discover/board');
+    await expect(page.getByRole('heading', { level: 1, name: 'The board' })).toBeVisible();
+    await page.getByRole('button', { name: /^Show:/ }).click();
+    await expect(page.getByRole('listbox', { name: 'Show' })).toBeVisible();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
   });
 });
