@@ -3,8 +3,12 @@
 
 import "dotenv/config";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { checkSupabase } from "../supabase-healthcheck";
 import { markDormantTopics } from "@/lib/board/server/dormancy";
 
-markDormantTopics(getSupabaseAdmin())
+const db = getSupabaseAdmin();
+
+checkSupabase(db, "board_posts")
+  .then((ok) => { if (!ok) process.exit(1); return markDormantTopics(db); })
   .then((n) => console.log(`Marked ${n} topic${n === 1 ? "" : "s"} dormant.`))
   .catch((err) => { console.error(err); process.exit(1); });

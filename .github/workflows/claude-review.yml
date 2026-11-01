@@ -1,0 +1,68 @@
+name: Claude Code Review
+
+# Reviews every non-merge commit in a pull request and posts one comment per commit on
+# the PR (commits already commented are skipped on later pushes). Findings never block
+# the PR. Auth is workload identity federation (no API key secret).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review commits
+    # fork PRs get no OIDC token or write access
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      ANTHROPIC_FEDERATION_RULE_ID: fdrl_01XTYYdjmzXns86Hu3LJHeCS
+      ANTHROPIC_ORGANIZATION_ID: 8512cc98-b90a-4b8f-9a9b-3aad0e97ea29
+      ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01BUnNiED8SAP2FhdVQqbcuw
+      ANTHROPIC_WORKSPACE_ID: wrkspc_01KvkjWW6sX9ejhAb3y4zh6z
+      ANTHROPIC_IDENTITY_TOKEN_FILE: /tmp/anthropic-oidc-token
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: List non-merge commits in this PR
+        id: commits
+        shell: bash
+        run: |
+          # --no-merges drops merge commits; cap at 20 to bound cost
+          SHAS=$(git rev-list --no-merges --reverse "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" | tail -n 20 | tr '\n' ' ')
+          echo "shas=$SHAS" >> "$GITHUB_OUTPUT"
+          echo "Reviewing: ${SHAS:-none}"
+
+      - uses: actions/setup-node@v4
+        if: steps.commits.outputs.shas != ''
+        with:
+          node-version: "22"
+          cache: "npm"
+      - if: steps.commits.outputs.shas != ''
+        run: npm ci
+
+      - name: Fetch GitHub OIDC token
+        if: steps.commits.outputs.shas != ''
+        shell: bash
+        run: |
+          curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" | jq -r .value > "$ANTHROPIC_IDENTITY_TOKEN_FILE"
+          echo "::add-mask::$(cat "$ANTHROPIC_IDENTITY_TOKEN_FILE")"
+
+      - name: Review with Claude
+        if: steps.commits.outputs.shas != ''
+        run: npx tsx scripts/ci/claude-review.ts ${{ steps.commits.outputs.shas }}

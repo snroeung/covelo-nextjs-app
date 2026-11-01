@@ -13,6 +13,7 @@ import { extractRecords } from "./extract";
 import { upsertRecord } from "./upsert";
 import { invalidateCacheFor } from "./cache";
 import { recordSyncRun } from "./audit";
+import { checkSupabase } from "../supabase-healthcheck";
 import type { RecordType } from "./schemas";
 import { RECORD_SCHEMAS } from "./schemas";
 
@@ -137,6 +138,11 @@ async function main(): Promise<void> {
     console.error(
       `No source matches SOURCE_KEY_FILTER=${SOURCE_KEY_FILTER}, RECORD_TYPE_FILTER=${RECORD_TYPE_FILTER}`,
     );
+    process.exit(1);
+  }
+
+  if (!(await checkSupabase(getSupabaseAdmin(), "portal_sync_runs"))) {
+    console.error("Supabase healthcheck failed — aborting before any fetch or extraction.");
     process.exit(1);
   }
 
