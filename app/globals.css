@@ -217,6 +217,129 @@ select:not([multiple]):not([size]) {
   .cv-overlay { animation: none; }
 }
 
+/* ── Loading states (components/ui/loading) ───────────────────────────────────
+   Everything reads gph-* tokens, so one class resolves in both themes. Motion is
+   stepped (8-bit) on purpose; reduced-motion shows the static first frame. */
+.cv-sk {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--gph-linesoft) 20%, var(--gph-line) 42%, var(--gph-linesoft) 64%);
+  background-size: 600px 100%;
+  animation: cv-shimmer 1.6s linear infinite;
+}
+@keyframes cv-shimmer { 0% { background-position: -300px 0; } 100% { background-position: 300px 0; } }
+
+.cv-stg { opacity: 0; animation: cv-stagger 4.8s infinite; }
+.cv-stg-1 { animation-delay: .15s; }
+.cv-stg-2 { animation-delay: .3s; }
+.cv-stg-3 { animation-delay: .45s; }
+@keyframes cv-stagger {
+  0% { opacity: 0; transform: translateY(6px); }
+  8% { opacity: 1; transform: none; }
+  96% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Cycling status lines: N children share one slot, each visible 1/N of the loop. */
+.cv-cyc { position: relative; height: 16px; }
+.cv-cyc > span {
+  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 11.5px; font-weight: 600;
+  letter-spacing: .03em; color: var(--gph-muted); white-space: nowrap; opacity: 0;
+  animation: cv-cyc4 4.8s infinite;
+}
+.cv-cyc > span:nth-child(2) { animation-delay: 1.2s; }
+.cv-cyc > span:nth-child(3) { animation-delay: 2.4s; }
+.cv-cyc > span:nth-child(4) { animation-delay: 3.6s; }
+.cv-cyc-3 > span { animation-name: cv-cyc3; animation-duration: 3.6s; }
+.cv-cyc-2 > span { animation-name: cv-cyc2; animation-duration: 2.4s; }
+@keyframes cv-cyc4 { 0% { opacity: 0; transform: translateY(3px); } 4% { opacity: 1; transform: none; } 21% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes cv-cyc3 { 0% { opacity: 0; transform: translateY(3px); } 5% { opacity: 1; transform: none; } 28% { opacity: 1; } 33%, 100% { opacity: 0; } }
+@keyframes cv-cyc2 { 0% { opacity: 0; transform: translateY(3px); } 6% { opacity: 1; transform: none; } 44% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.cv-dot { width: 5px; height: 5px; flex: none; background: var(--gph-value); animation: cv-blink 1s steps(2) infinite; }
+@keyframes cv-blink { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+/* Stepped pixel spinner (conic ring masked to a square outline). */
+.cv-pxspin {
+  width: 12px; height: 12px; flex: none; padding: 2px;
+  background: conic-gradient(currentColor 0 25%, color-mix(in srgb, currentColor 25%, transparent) 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: cv-spin .8s steps(4) infinite;
+}
+@keyframes cv-spin { to { transform: rotate(360deg); } }
+
+/* Flight route: plane sweeps dep → arr over a lit track. */
+.cv-route { position: relative; height: 60px; margin: 4px 0 14px; }
+.cv-track { position: absolute; left: 22px; right: 22px; top: 20px; height: 2px; overflow: hidden; background: var(--gph-linesoft); }
+.cv-track::after {
+  content: ''; position: absolute; top: 0; left: -40%; width: 40%; height: 100%;
+  background: linear-gradient(90deg, transparent, var(--gph-value), transparent);
+  animation: cv-sweep 2.2s ease-in-out infinite;
+}
+@keyframes cv-sweep { to { left: 100%; } }
+.cv-plane { position: absolute; top: 13px; left: 14px; animation: cv-fly 2.2s ease-in-out infinite; }
+@keyframes cv-fly { 0% { left: 14px; opacity: 0; } 8%, 92% { opacity: 1; } 100% { left: calc(100% - 32px); opacity: 0; } }
+
+/* Row re-price sweep (cabin change): rows stay, a band passes over them. */
+.cv-resweep { position: relative; overflow: hidden; }
+.cv-resweep::before {
+  content: ''; position: absolute; inset: 0 auto 0 -60%; width: 60%; pointer-events: none; z-index: 1;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gph-value) 14%, transparent), transparent);
+  animation: cv-rowsweep 2.4s ease-in-out infinite;
+}
+@keyframes cv-rowsweep { 0% { left: -60%; } 55%, 100% { left: 120%; } }
+
+/* Hotel map strip: grid + pins popping + light scan. */
+.cv-gl { position: absolute; background: color-mix(in srgb, var(--gph-ink) 6%, transparent); }
+.cv-pin { position: absolute; color: var(--gph-ink); opacity: 0; animation: cv-pop 3.6s infinite; }
+@keyframes cv-pop { 0% { opacity: 0; transform: scale(.4) translateY(4px); } 8% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; } }
+.cv-scan {
+  position: absolute; top: 0; left: -30%; width: 30%; height: 100%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gph-card) 60%, transparent), transparent);
+  animation: cv-scan 3.6s ease-in-out infinite;
+}
+@keyframes cv-scan { to { left: 100%; } }
+
+/* Map overlay: tiles → water/park/roads → ping, then a fill bar. */
+.cv-tile { opacity: 0; background: color-mix(in srgb, var(--gph-line) 70%, var(--gph-linesoft)); animation: cv-tile 5s infinite; }
+.cv-tile:nth-child(odd) { background: var(--gph-line); }
+@keyframes cv-tile { 0% { opacity: 0; } 8%, 92% { opacity: 1; } 100% { opacity: 0; } }
+.cv-road, .cv-park, .cv-water { position: absolute; opacity: 0; animation: cv-road 5s infinite; }
+.cv-road { background: var(--gph-card); }
+.cv-park { border-radius: 14px; background: color-mix(in srgb, var(--gph-value) 18%, transparent); }
+.cv-water { background: color-mix(in srgb, #4a9ed6 22%, var(--gph-linesoft)); }
+@keyframes cv-road { 0%, 18% { opacity: 0; } 28%, 92% { opacity: 1; } 100% { opacity: 0; } }
+.cv-ping { position: absolute; left: 50%; top: 46%; width: 12px; height: 12px; margin: -6px 0 0 -6px; background: var(--gph-ink); border: 2px solid var(--gph-card); }
+.cv-ping::before, .cv-ping::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  border: 1.5px solid var(--gph-value); animation: cv-ring 1.6s steps(6) infinite;
+}
+.cv-ping::after { animation-delay: .8s; }
+@keyframes cv-ring { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(6); opacity: 0; } }
+.cv-mtrack { height: 3px; margin-top: 8px; overflow: hidden; border-radius: 3px; background: var(--gph-linesoft); }
+.cv-mtrack > i { display: block; height: 100%; background: var(--gph-value); animation: cv-fill 5s infinite; }
+@keyframes cv-fill { 0% { width: 0; } 38% { width: 45%; } 66%, 94% { width: 100%; opacity: 1; } 100% { width: 100%; opacity: 0; } }
+
+/* Publishing: hairline under the dialog header; ring on the freshly landed post. */
+.cv-hair { position: relative; height: 2px; overflow: hidden; background: var(--gph-linesoft); }
+.cv-hair > i { position: absolute; top: 0; left: 0; height: 100%; background: var(--gph-value); animation: cv-hairline 2.4s ease-in-out infinite; }
+@keyframes cv-hairline { 0% { width: 0; left: 0; } 50% { width: 70%; left: 10%; } 100% { width: 20%; left: 100%; } }
+.cv-landed { animation: cv-land 1.5s ease-out 1 both; }
+@keyframes cv-land {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  12% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gph-value) 50%, transparent); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-sk, .cv-stg, .cv-dot, .cv-pxspin, .cv-plane, .cv-track::after, .cv-resweep::before, .cv-pin, .cv-scan,
+  .cv-tile, .cv-road, .cv-park, .cv-water, .cv-ping::before, .cv-ping::after, .cv-mtrack > i, .cv-hair > i, .cv-landed { animation: none; }
+  .cv-stg, .cv-pin, .cv-tile, .cv-road, .cv-park, .cv-water { opacity: 1; }
+  .cv-mtrack > i { width: 60%; }
+  .cv-cyc > span { animation: none; }
+  .cv-cyc > span:first-child { opacity: 1; }
+}
+
 /* ── Search hub marquee (example board) ───────────────────────────────────── */
 @keyframes tkL { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .tk-track {

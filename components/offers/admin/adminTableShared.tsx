@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
+import { PixelSpinner } from '@/components/ui/loading/primitives';
 import type { PendingReviewTable as PendingTableName } from '@/lib/types/portalData';
 
 // Shared dark/light Tailwind tokens for the admin pending-review table trio
@@ -127,12 +128,7 @@ export function IssuerFilterSelect({
 }
 
 function Spinner() {
-  return (
-    <svg className="w-3 h-3 animate-spin" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeOpacity="0.25" />
-      <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
+  return <PixelSpinner />;
 }
 
 function CheckIcon() {

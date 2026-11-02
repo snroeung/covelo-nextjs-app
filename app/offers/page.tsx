@@ -14,6 +14,7 @@ import { ISSUER_LABELS, isTransfer, sortByValueThenRecency } from '@/lib/discove
 import { browserTimeZone } from '@/lib/time';
 import { liveOffers } from '@/lib/offers/live';
 import { SavedOffersMenu } from '@/components/offers/SavedOffersMenu';
+import { OffersLoading } from '@/components/ui/loading/OffersLoading';
 import type { TransferBonus, SpendingBonus, Issuer } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
@@ -85,11 +86,7 @@ function OffersPageInner() {
 
           <div className="px-4 md:px-7 py-5">
             {isLoading ? (
-              <div className="flex flex-col gap-3 animate-pulse py-2">
-                <div className={`h-3 w-full rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-                <div className={`h-3 w-5/6 rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-                <div className={`h-3 w-2/3 rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-              </div>
+              <OffersLoading compact />
             ) : visibleOffers.length === 0 ? (
               <p className="text-sm py-6 text-gph-muted">No offers match this filter right now.</p>
             ) : (

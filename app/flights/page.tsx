@@ -16,6 +16,9 @@ import { usePerPage } from '@/hooks/usePerPage';
 import { trpc } from '@/lib/trpc-client';
 import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
+import { FlightsLoading } from '@/components/ui/loading/FlightsLoading';
+import { PixelSpinner } from '@/components/ui/loading/primitives';
+import { isCabinOnlyChange } from '@/lib/flights/cabinReprice';
 import { calcPoints } from '@/lib/points/calcPoints';
 import { getOfferFlightInfo, getOfferTripDates, groupOffersByAirline, offerPriceRange } from '@/lib/flights/itinerary';
 import { findLiveBonus } from '@/lib/points/transferBonus';
@@ -427,8 +430,12 @@ function FlightsPageInner() {
     enabled: !!committed,
     staleTime: 1000 * 60 * 15,
     retry: 1,
+    // Cabin switch re-runs the search; keep the same itineraries on screen and re-price them.
+    placeholderData: (prev, prevQuery) =>
+      isCabinOnlyChange(prevQuery?.queryKey[1] as FlightQueryVars | null | undefined, committed) ? prev : undefined,
   });
   const searching = flightSearch.isFetching;
+  const repricing = flightSearch.isPlaceholderData;
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = usePerPage();
@@ -772,16 +779,12 @@ function FlightsPageInner() {
         title: `${committed.origin} → ${committed.destination}`,
         subtitle: flightSummarySubtitle(committed.departureDate, committed.returnDate, committed.passengers),
       } : undefined}
+      loading={searching && !repricing}
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
       <h1 className="sr-only">Flight search results</h1>
-      {searching ? (
-        <div className="flex items-center justify-center py-24">
-          <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-        </div>
+      {searching && !repricing ? (
+        <FlightsLoading origin={committed?.origin ?? ''} destination={committed?.destination ?? ''} />
 
       ) : flightSearch.isError ? (
         <EmptyState message="Flight search failed. Check your selections and try again." />
@@ -822,6 +825,11 @@ function FlightsPageInner() {
               </h2>
               <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-1.5 ${subTextCls}`}>
                 {startDate} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'} · {CABIN_LABELS[cabinClass]}
+                {repricing && (
+                  <span role="status" className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-gph-actionsoft px-2.5 py-1 align-middle text-gph-ink">
+                    <PixelSpinner />Updating to {CABIN_LABELS[cabinClass]}
+                  </span>
+                )}
                 {drillAirlineKey
                   ? drillOffers.length > 0 && ` · Showing ${drillFrom}–${drillTo} of ${drillOffers.length} flights`
                   : offers.length > 0 && ` · Showing ${from}–${to} of ${airlineGroups.length} airlines`}
@@ -878,7 +886,7 @@ function FlightsPageInner() {
               <>
                 {drillPageOffers.map((offer, i) => (
                   <Fragment key={offer.id}>
-                    <FlightCard offer={offer} />
+                    <FlightCard offer={offer} repricing={repricing} />
                     {i === 1 && drillPageOffers.length >= 3 && (
                       <AffiliateAdSpot
                         slot="flights_inline"
@@ -910,7 +918,7 @@ function FlightsPageInner() {
                 const rest = offerPriceRange(group.rest);
                 return (
                   <Fragment key={group.key}>
-                    <FlightCard offer={group.top} />
+                    <FlightCard offer={group.top} repricing={repricing} />
                     {group.rest.length > 0 && (
                       <AirlineGroupCard
                         isDark={isDark}

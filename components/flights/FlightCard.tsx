@@ -1,6 +1,7 @@
 'use client';
 
 import { btn } from '@/components/ui/button';
+import { Shimmer } from '@/components/ui/loading/primitives';
 import { Fragment, useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { CollectionBanner } from '@/components/offers/CollectionBanner';
@@ -141,21 +142,28 @@ interface BestValueStripProps {
   textPrimary: string;
   textMuted: string;
   dividerCls: string;
+  repricing?: boolean;
 }
 
-function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls }: BestValueStripProps) {
+function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textPrimary, textMuted, dividerCls, repricing }: BestValueStripProps) {
   const boxCls = isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200';
   return (
     <div className={`border-t px-3.5 py-3 md:px-5 md:py-4 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-5 ${dividerCls}`}>
       <p className="flex items-baseline gap-2 shrink-0">
         <span className={`text-xs font-mono uppercase ${textMuted}`}>From</span>
-        <span data-testid="from-cash" className={`text-2xl md:text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
-          {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-        </span>
+        {repricing ? (
+          <Shimmer className="h-8 w-24" />
+        ) : (
+          <span data-testid="from-cash" className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
+            {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
+          </span>
+        )}
       </p>
 
-      <div className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 md:px-4 md:py-3 flex flex-wrap items-center gap-x-3 md:gap-x-4 gap-y-2 ${boxCls}`}>
-        {best ? (
+      <div className={`flex-1 min-w-0 rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3 ${boxCls}`}>
+        {repricing ? (
+          <Shimmer className="h-9 w-full" />
+        ) : best ? (
           <>
             <div className="min-w-0 flex-1">
               <p className={`text-[10px] font-bold font-mono uppercase tracking-widest ${isDark ? 'text-cv-green-400' : 'text-cv-green-800'}`}>
@@ -194,7 +202,7 @@ function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textP
 // ---------------------------------------------------------------------------
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function FlightCard({ offer }: { offer: any }) {
+export function FlightCard({ offer, repricing = false }: { offer: any; repricing?: boolean }) {
   const { isDark } = useTheme();
   const [compareOpen, setCompareOpen] = useState(false);
 
@@ -237,7 +245,7 @@ export function FlightCard({ offer }: { offer: any }) {
   );
 
   return (
-    <article data-testid="flight-card" className={`rounded-xl border ${cardBg}`}>
+    <article data-testid="flight-card" aria-busy={repricing || undefined} className={`rounded-xl border ${cardBg} ${repricing ? 'cv-resweep' : ''}`}>
       {collection && (
         <CollectionBanner
           collectionName={collection.collection_name}
@@ -305,6 +313,7 @@ export function FlightCard({ offer }: { offer: any }) {
         textPrimary={textPrimary}
         textMuted={textMuted}
         dividerCls={dividerCls}
+        repricing={repricing}
       />
 
       {compareOpen && ptsResult && (

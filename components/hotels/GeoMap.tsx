@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { trpc } from '@/lib/trpc-client';
+import { MapLoading } from '@/components/ui/loading/MapLoading';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_API_KEY ?? '';
 
@@ -124,6 +125,7 @@ export function GeoMap({
   const markersRef = useRef<any[]>([]);
   const pinElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const [openPin, setOpenPin] = useState<GeoPin | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const openPinIdRef = useRef<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -228,6 +230,7 @@ export function GeoMap({
 
       map.on('load', () => {
         if (cancelled) return;
+        setMapReady(true);
 
         markersRef.current.forEach((m) => m.remove());
         markersRef.current = [];
@@ -287,6 +290,7 @@ export function GeoMap({
       mapRef.current?.remove();
       mapRef.current = null;
       setOpenPin(null);
+      setMapReady(false);
     };
     // isDark/zoomControls intentionally excluded: rebuilding the whole map+markers
     // here would tear markers down mid-interaction (e.g. right after ThemeContext's
@@ -668,6 +672,7 @@ export function GeoMap({
         className={isFullscreen ? `fixed inset-0 z-50 ${bg}` : 'relative w-full h-full rounded-xl overflow-hidden'}
       >
         <div ref={containerRef} className="w-full h-full" />
+        {!mapReady && <MapLoading count={pins?.length} />}
         {fullscreenBtn}
         {cardOverlay}
       </div>
