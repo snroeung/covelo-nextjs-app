@@ -1,7 +1,9 @@
 'use client';
 
 import { btn } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { BottomSheet } from '@/components/ui/BottomSheet';
+import { OptionList } from '@/components/ui/OptionList';
+import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavBar } from '@/components/layout/NavBar';
 import { AdminOffersTable, offerStatus } from '@/components/offers/admin/AdminOffersTable';
@@ -23,6 +25,15 @@ import type { SponsoredAd, TransferBonus, SpendingBonus } from '@/lib/types/offe
 import { isBoardPendingTable, type TransferPartnerRow, type TravelCollection, type PointsValuation, type PendingReviewRow } from '@/lib/types/portalData';
 
 type Tab = 'offers' | 'ads' | 'pending' | 'partners' | 'collections' | 'valuations';
+
+const SECTION_TABS: { key: Tab; label: string }[] = [
+  { key: 'offers', label: 'Offers' },
+  { key: 'ads', label: 'Sponsored ads' },
+  { key: 'partners', label: 'Transfer partners' },
+  { key: 'collections', label: 'Travel collections' },
+  { key: 'valuations', label: 'Points valuations' },
+  { key: 'pending', label: 'Pending review' },
+];
 type OfferTypeFilter = 'all' | 'transfer' | 'spending';
 
 const OFFER_TYPE_TABS: { key: OfferTypeFilter; label: string }[] = [
@@ -49,6 +60,8 @@ export function OffersAdminShell() {
   const { isDark } = useTheme();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>('offers');
+  const [sectionsOpen, setSectionsOpen] = useState(false);
+  const closeSections = useCallback(() => setSectionsOpen(false), []);
   const [offerFilter, setOfferFilter] = useState<StatusFilter>('all');
   const [offerTypeFilter, setOfferTypeFilter] = useState<OfferTypeFilter>('all');
   const [offerIssuerFilter, setOfferIssuerFilter] = useState<IssuerFilter>('all');
@@ -187,6 +200,12 @@ export function OffersAdminShell() {
     return `${base} ${isDark ? 'text-gph-dark-muted hover:text-gph-dark-ink' : 'text-gray-600 hover:text-gray-700'}`;
   }
 
+  const pendingBadge = pendingCounts.total > 0 && (
+    <span aria-label={`${pendingCounts.total} pending`} className="ml-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 font-mono text-[10px] font-bold text-gray-900">
+      {pendingCounts.total}
+    </span>
+  );
+
   const liveAdsCount = adsData.filter((a) => adStatus(a) === 'live').length;
   const filteredAds = adsData
     .filter((a) => adFilter === 'all' || adStatus(a) === adFilter)
@@ -291,32 +310,42 @@ export function OffersAdminShell() {
         </div>
       </div>
 
-      {/* Section tabs */}
+      {/* Section tabs: a row from md up; on a phone the current section opens a bottom sheet of all of them */}
       <div className={`px-4 md:px-8 py-3 border-b ${tabBar}`}>
-        <div className="max-w-6xl mx-auto flex items-center gap-1">
-          <button onClick={() => setTab('offers')} className={navTabCls(tab === 'offers')}>
-            Offers
+        <div className="max-w-6xl mx-auto hidden md:flex items-center gap-1">
+          {SECTION_TABS.map(({ key, label }) => (
+            <button key={key} onClick={() => setTab(key)} className={navTabCls(tab === key)}>
+              {label}
+              {key === 'pending' && pendingBadge}
+            </button>
+          ))}
+        </div>
+
+        <div className="md:hidden">
+          <button
+            type="button"
+            onClick={() => setSectionsOpen(true)}
+            aria-haspopup="dialog"
+            className="flex w-full min-h-12 items-center justify-between gap-3 rounded-lg border border-gph-line bg-gph-card px-4 text-sm font-semibold text-gph-ink"
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-gph-muted">Section</span>
+              <span className="truncate">{SECTION_TABS.find((t) => t.key === tab)?.label}</span>
+              {tab !== 'pending' && pendingCounts.total > 0 && pendingBadge}
+            </span>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-          <button onClick={() => setTab('ads')} className={navTabCls(tab === 'ads')}>
-            Sponsored ads
-          </button>
-          <button onClick={() => setTab('partners')} className={navTabCls(tab === 'partners')}>
-            Transfer partners
-          </button>
-          <button onClick={() => setTab('collections')} className={navTabCls(tab === 'collections')}>
-            Travel collections
-          </button>
-          <button onClick={() => setTab('valuations')} className={navTabCls(tab === 'valuations')}>
-            Points valuations
-          </button>
-          <button onClick={() => setTab('pending')} className={navTabCls(tab === 'pending')}>
-            Pending review
-            {pendingCounts.total > 0 && (
-              <span aria-label={`${pendingCounts.total} pending`} className="ml-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 font-mono text-[10px] font-bold text-gray-900">
-                {pendingCounts.total}
-              </span>
-            )}
-          </button>
+          <BottomSheet open={sectionsOpen} onClose={closeSections} label="Admin sections">
+            <OptionList
+              label="Admin sections"
+              className="-mx-4"
+              options={SECTION_TABS.map(({ key, label }) => ({ value: key, label, trailing: key === 'pending' ? pendingBadge : undefined }))}
+              value={tab}
+              onSelect={(key) => { setTab(key); closeSections(); }}
+            />
+          </BottomSheet>
         </div>
       </div>
 

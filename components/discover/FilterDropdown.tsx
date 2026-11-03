@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { useScrollLock } from '@/hooks/useScrollLock';
+import { BottomSheet } from '@/components/ui/BottomSheet';
+import { OptionList } from '@/components/ui/OptionList';
 
 export interface FilterDropdownOption<T extends string> {
   value: T;
@@ -28,11 +28,10 @@ export function FilterDropdown<T extends string>({ label, options, value, onChan
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const isPhone = useMediaQuery('(max-width: 767px)');
-  useScrollLock(open && isPhone);
 
   useEffect(() => {
     if (!open) return;
-    // The phone sheet has its own backdrop; only the popover needs outside-click
+    // The phone sheet has its own backdrop and Escape handling; only the popover needs these
     function handlePointer(e: PointerEvent) {
       if (isPhone) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -50,49 +49,25 @@ export function FilterDropdown<T extends string>({ label, options, value, onChan
 
   const current = options.find((o) => o.value === value) ?? options[0];
 
-  const list = (
-    <ul role="listbox" aria-label={label} className="max-h-[60dvh] md:max-h-80 overflow-y-auto overscroll-contain">
-      {options.map((o) => (
-        <li key={o.value} role="presentation">
-          <button
-            type="button"
-            role="option"
-            aria-selected={o.value === value}
-            onClick={() => { onChange(o.value); setOpen(false); }}
-            className={`w-full text-left px-4 md:px-3.5 min-h-12 md:min-h-11 flex items-center justify-between gap-3 text-sm font-semibold transition-colors ${
-              o.value === value
-                ? 'bg-gph-actionsoft text-gph-ink'
-                : 'text-gph-ink hover:bg-gph-linesoft'
-            }`}
-          >
-            <span className="min-w-0 truncate">{o.label}</span>
-            {o.hint && <span className="shrink-0 font-mono text-[11px] text-gph-muted">{o.hint}</span>}
-          </button>
-        </li>
-      ))}
-    </ul>
+  const close = () => setOpen(false);
+  const optionList = (
+    <OptionList
+      label={label}
+      options={options.map((o) => ({
+        value: o.value,
+        label: o.label,
+        trailing: o.hint ? <span className="shrink-0 font-mono text-[11px] text-gph-muted">{o.hint}</span> : undefined,
+      }))}
+      value={value}
+      onSelect={(v) => { onChange(v); close(); }}
+      className="max-h-[60dvh] md:max-h-80 overflow-y-auto overscroll-contain"
+    />
   );
 
   // Flush wrapper + padding (never margin), so there is no dead gap under the pill
   const popover = (
     <div className="absolute top-full left-0 z-50 w-56 pt-1.5">
-      <div className="rounded-xl border shadow-lg overflow-hidden bg-gph-card border-gph-line">{list}</div>
-    </div>
-  );
-
-  // Backdrop is see-through and blurred — the page stays readable behind it
-  const sheet = (
-    <div className="fixed inset-0 z-[60] flex items-end" role="dialog" aria-modal="true" aria-label={label}>
-      <div aria-hidden="true" className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setOpen(false)} />
-      <div className="relative w-full rounded-t-2xl border-t shadow-lg overflow-hidden bg-gph-card border-gph-line pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-gph-muted">{label}</span>
-          <button type="button" onClick={() => setOpen(false)} aria-label={`Close ${label}`} className="grid min-h-11 min-w-11 place-items-center -mr-2 text-gph-muted">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-          </button>
-        </div>
-        {list}
-      </div>
+      <div className="rounded-xl border shadow-lg overflow-hidden bg-gph-card border-gph-line">{optionList}</div>
     </div>
   );
 
@@ -115,7 +90,10 @@ export function FilterDropdown<T extends string>({ label, options, value, onChan
         </svg>
       </button>
 
-      {open && (isPhone ? createPortal(sheet, document.body) : popover)}
+      {open && !isPhone && popover}
+      <BottomSheet open={open && isPhone} onClose={close} label={label}>
+        <div className="-mx-4 -my-1">{optionList}</div>
+      </BottomSheet>
     </div>
   );
 }
