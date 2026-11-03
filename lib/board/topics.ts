@@ -194,6 +194,24 @@ export function matchTopic<T extends TopicRef>(draft: string, topics: readonly T
   };
 }
 
+/**
+ * Existing topics for a half-typed name, best first: exact, then keys that start with it (or a word that
+ * does), then keys that contain it, then near-matches from matchTopic. Powers the composer's autocomplete.
+ */
+export function searchTopics<T extends TopicRef>(draft: string, topics: readonly T[], limit = 6): T[] {
+  const key = topicKey(draft);
+  if (!key) return [];
+  const { exact, suggestions } = matchTopic(draft, topics);
+  const rank = (t: T) => (t.key.startsWith(key) ? 0 : t.key.split(" ").some((w) => w.startsWith(key)) ? 1 : 2);
+  const contains = topics
+    .filter((t) => t !== exact && t.key.includes(key))
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  const seen = new Set<T>();
+  return [exact, ...contains, ...suggestions]
+    .filter((t): t is T => !!t && !seen.has(t) && !!seen.add(t))
+    .slice(0, limit);
+}
+
 /** Keyword hints for the seeded common topics, keyed by topic key. */
 const TOPIC_HINTS: Record<string, readonly string[]> = {
   "transfer bonus": ["transfer bonus", "transfer", "bonus", "ratio", "partner", "transferred"],

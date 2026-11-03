@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useState } from 'react';
 import { TOPIC_RULES } from '@/lib/board/constants';
-import { matchTopic, suggestTopicForText, validateTopic } from '@/lib/board/topics';
+import { matchTopic, searchTopics, suggestTopicForText, validateTopic } from '@/lib/board/topics';
 import {
   addExisting, addNew, canAddAny, canAddNew, isSelectedNew, MAX_NEW_TOPICS, MAX_TOPICS, newCount, removeSelection,
   type TopicSelection,
@@ -32,8 +32,10 @@ const OFF = 'border-gph-line bg-gph-card text-gph-ink hover:bg-gph-linesoft';
  */
 export function TopicPicker({ topics, value, onChange, draftText, status = 'ready' }: Props) {
   const [draft, setDraft] = useState('');
+  const [active, setActive] = useState(-1);
   const inputId = useId();
   const helpId = useId();
+  const listId = useId();
 
   // Chips: the common topics, the busiest active ones, and the member's own provisional ones
   const chips = useMemo(
@@ -50,6 +52,8 @@ export function TopicPicker({ topics, value, onChange, draftText, status = 'read
   const text = draft.trim();
   const match = text ? matchTopic(text, topics) : null;
   const validation = text ? validateTopic(text) : null;
+  // Autocomplete: every existing topic (quiet ones included), not just the chips
+  const results = text ? searchTopics(text, topics, 6) : [];
   const suggestion = value.length === 0 && draftText.trim().length > 8 ? suggestTopicForText(draftText, chips) : null;
 
   const roomForAny = canAddAny(value);
@@ -60,6 +64,17 @@ export function TopicPicker({ topics, value, onChange, draftText, status = 'read
   const toggleExisting = (t: BoardTopic) =>
     onChange(selectedIds.has(t.id) ? removeSelection(value, { type: 'existing', id: t.id, name: t.name, key: t.key }) : addExisting(value, t));
 
+  const createIndex = canCreate ? results.length : -1;
+  const rowCount = results.length + (canCreate ? 1 : 0);
+  const optionId = (i: number) => `${listId}-${i}`;
+
+  function pick(t: BoardTopic) {
+    if (selectedIds.has(t.id) || !roomForAny) return;
+    onChange(addExisting(value, t));
+    setDraft('');
+    setActive(-1);
+  }
+
   function commit() {
     if (!text) return;
     if (match?.exact) {
@@ -68,6 +83,7 @@ export function TopicPicker({ topics, value, onChange, draftText, status = 'read
       onChange(addNew(value, { name: validation.name, key: validation.key }));
     } else return;
     setDraft('');
+    setActive(-1);
   }
 
   return (
@@ -86,25 +102,18 @@ export function TopicPicker({ topics, value, onChange, draftText, status = 'read
       <div role="group" aria-labelledby={`${inputId}-label`} className="flex flex-wrap gap-1.5">
         {chips.map((t) => {
           const on = selectedIds.has(t.id);
-          const main = value[0]?.type === 'existing' && value[0].id === t.id;
           return (
             <button key={t.id} type="button" aria-pressed={on} disabled={!on && !roomForAny} onClick={() => toggleExisting(t)} className={`${CHIP} ${on ? ON : OFF}`}>
               {t.name}
-              {main && <span className="font-mono text-[9px] tracking-wider opacity-80">MAIN</span>}
             </button>
           );
         })}
-        {value.filter((s) => s.type === 'new').map((s) => {
-          const main = value[0] === s;
-          return (
-            <button key={s.key} type="button" aria-pressed="true" onClick={() => onChange(removeSelection(value, s))} aria-label={`Remove new topic ${s.name}`} className={`${CHIP} ${ON} border-dashed`}>
-              {s.name}
-              {main && <span className="font-mono text-[9px] tracking-wider opacity-80">MAIN</span>}
-              <span className="font-mono text-[9px] tracking-wider opacity-80">NEW</span>
-              <BoardIcon name="x" size={11} />
-            </button>
-          );
-        })}
+        {value.filter((s) => s.type === 'new').map((s) => (
+          <button key={s.key} type="button" aria-pressed="true" onClick={() => onChange(removeSelection(value, s))} aria-label={`Remove new topic ${s.name}`} className={`${CHIP} ${ON} border-dashed`}>
+            {s.name}
+            <BoardIcon name="x" size={11} />
+          </button>
+        ))}
       </div>
 
       {suggestion && !selectedIds.has((suggestion as BoardTopic).id ?? '') && (
@@ -117,54 +126,74 @@ export function TopicPicker({ topics, value, onChange, draftText, status = 'read
       )}
 
       <div className="mt-2.5">
-        <label htmlFor={inputId} className="sr-only">Find or add a topic</label>
+        <label htmlFor={inputId} className="sr-only">Search topics or add a new one</label>
         <input
           id={inputId}
+          role="combobox"
+          aria-expanded={rowCount > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={active >= 0 && active < rowCount ? optionId(active) : undefined}
+          autoComplete="off"
           value={draft}
           maxLength={TOPIC_RULES.maxLength}
           disabled={!roomForAny}
           aria-describedby={helpId}
-          placeholder={roomForAny ? 'Find or add a topic…' : `You've picked ${MAX_TOPICS} topics`}
-          onChange={(e) => setDraft(e.target.value)}
+          placeholder={roomForAny ? 'Search topics or add a new one…' : `You've picked ${MAX_TOPICS} topics`}
+          onChange={(e) => { setDraft(e.target.value); setActive(-1); }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); commit(); }
+            if (e.key === 'ArrowDown' && rowCount > 0) { e.preventDefault(); setActive((a) => (a + 1) % rowCount); }
+            else if (e.key === 'ArrowUp' && rowCount > 0) { e.preventDefault(); setActive((a) => (a <= 0 ? rowCount - 1 : a - 1)); }
+            else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (active >= 0 && active < results.length) pick(results[active] as BoardTopic);
+              else commit();
+            }
             // Escape clears the box; the dialog only closes on an empty one
-            if (e.key === 'Escape' && draft) { e.stopPropagation(); setDraft(''); }
+            if (e.key === 'Escape' && draft) { e.stopPropagation(); setDraft(''); setActive(-1); }
           }}
           className={`${FIELD} min-h-11`}
         />
 
         {text && (
           <div className="mt-2 flex flex-col items-start gap-1.5">
-            {match?.exact && (
-              <button type="button" disabled={exactSelected || !roomForAny} onClick={commit} className={`${CHIP} ${OFF}`}>
-                {exactSelected ? `${match.exact.name} is already picked` : `Use existing: ${match.exact.name}`}
-              </button>
-            )}
-            {!match?.exact && match?.didYouMean && (
-              <p className="text-xs text-gph-muted">
-                Did you mean{' '}
-                <button type="button" onClick={() => { onChange(addExisting(value, match.didYouMean!)); setDraft(''); }} className="min-h-11 font-bold text-gph-ink underline underline-offset-2">
-                  {match.didYouMean.name}
-                </button>
-                ?
-              </p>
-            )}
-            {!match?.exact && match && match.suggestions.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-gph-muted">Use existing:</span>
-                {match.suggestions.map((t) => (
-                  <button key={t.key} type="button" disabled={!roomForAny} onClick={() => { onChange(addExisting(value, t as BoardTopic)); setDraft(''); }} className={`${CHIP} ${OFF}`}>
-                    {t.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            {canCreate && validation?.ok && (
-              <button type="button" onClick={commit} className={`${CHIP} ${OFF} border-dashed`}>
-                <BoardIcon name="plus" size={12} />
-                Add &ldquo;{validation.name}&rdquo; as a new topic
-              </button>
+            {rowCount > 0 && (
+              <ul id={listId} role="listbox" aria-label="Matching topics" className="w-full overflow-hidden rounded-lg border border-gph-line bg-gph-card">
+                {results.map((t, i) => {
+                  const picked = selectedIds.has((t as BoardTopic).id);
+                  return (
+                    <li key={t.key} role="presentation">
+                      <button
+                        id={optionId(i)}
+                        type="button"
+                        role="option"
+                        aria-selected={active === i}
+                        disabled={picked || !roomForAny}
+                        onClick={() => pick(t as BoardTopic)}
+                        className={`flex min-h-11 w-full items-center justify-between gap-3 px-3.5 text-left text-sm font-semibold text-gph-ink disabled:cursor-not-allowed disabled:opacity-50 ${active === i ? 'bg-gph-linesoft' : 'hover:bg-gph-linesoft'}`}
+                      >
+                        <span className="min-w-0 truncate">{t.name}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-gph-muted">{picked ? 'PICKED' : (t as BoardTopic).status === 'dormant' ? 'QUIET' : ''}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+                {canCreate && validation?.ok && (
+                  <li role="presentation" className={results.length > 0 ? 'border-t border-gph-line' : ''}>
+                    <button
+                      id={optionId(createIndex)}
+                      type="button"
+                      role="option"
+                      aria-selected={active === createIndex}
+                      onClick={commit}
+                      className={`flex min-h-11 w-full items-center gap-2 px-3.5 text-left text-sm font-semibold text-gph-ink ${active === createIndex ? 'bg-gph-linesoft' : 'hover:bg-gph-linesoft'}`}
+                    >
+                      <BoardIcon name="plus" size={12} />
+                      Add &ldquo;{validation.name}&rdquo; as a new topic
+                    </button>
+                  </li>
+                )}
+              </ul>
             )}
             {validation && !validation.ok && text.length >= TOPIC_RULES.minLength && (
               <p role="alert" className="text-xs font-semibold text-gph-danger">{validation.error}</p>

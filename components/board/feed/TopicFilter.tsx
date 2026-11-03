@@ -40,7 +40,7 @@ export function TopicFilter({ topics, selected, counts, allCount, onSelect }: Pr
 
   return (
     <>
-      <FilterDropdown label="Topic" options={options} value={selected ?? ALL} onChange={(v) => onSelect(v === ALL ? null : v)} />
+      <FilterDropdown label="Topic" searchPlaceholder="Search topics…" options={options} value={selected ?? ALL} onChange={(v) => onSelect(v === ALL ? null : v)} />
       {selectedTopic && <TopicChipMenu topic={selectedTopic} topics={topics} onGone={() => onSelect(null)} />}
     </>
   );

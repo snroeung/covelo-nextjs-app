@@ -149,16 +149,6 @@ function BestValueStrip({ totalAmount, best, hasPoints, onCompare, isDark, textP
   const boxCls = isDark ? 'bg-gph-dark-linesoft border-gph-dark-line' : 'bg-gray-50 border-gray-200';
   return (
     <div className={`border-t px-3.5 py-3 md:px-5 md:py-4 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-5 ${dividerCls}`}>
-      <p className="flex items-baseline gap-2 shrink-0">
-        <span className={`text-xs font-mono uppercase ${textMuted}`}>From</span>
-        {repricing ? (
-          <Shimmer className="h-8 w-24" />
-        ) : (
-          <span data-testid="from-cash" className={`text-3xl font-extrabold font-mono tabular-nums leading-none ${textPrimary}`}>
-            {totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
-          </span>
-        )}
-      </p>
 
       <div className={`flex-1 min-w-0 rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-3 ${boxCls}`}>
         {repricing ? (
@@ -230,7 +220,7 @@ export function FlightCard({ offer, repricing = false }: { offer: any; repricing
   const routes = buildRouteViews(offer);
   const tripWord = isRoundTrip ? 'Round trip' : 'One way';
   const scopeAdj = isRoundTrip ? 'round-trip' : 'one-way';
-  const tripMeta = `${scopeAdj} · ${totalTripDuration(offer.slices)}`;
+  const tripMeta = `FROM ${totalAmount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}`;
   const tripMetaCls = isDark ? 'text-gph-dark-muted' : 'text-gray-600';
 
   const collection = offer.collection as { collection_name: string; issuer: string; perk_summary: string; source_url: string | null; limited_time_offer?: boolean } | undefined;
@@ -276,7 +266,6 @@ export function FlightCard({ offer, repricing = false }: { offer: any; repricing
           <p className={`text-[9.5px] md:text-xs font-bold font-mono uppercase tracking-wide md:tracking-widest text-right ${tripMetaCls}`}>
             {tripMeta}
           </p>
-          {addToTrip}
         </div>
       </div>
 

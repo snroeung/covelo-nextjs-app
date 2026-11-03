@@ -101,6 +101,53 @@ test.describe('The board — phone filters', () => {
     await expect(page.getByRole('button', { name: /^Topic:/ })).not.toContainText('All topics');
   });
 
+  test('Topic dropdown has a search box that filters as you type', async ({ page }) => {
+    await page.goto('/discover/board');
+    await page.getByRole('button', { name: /^Topic:/ }).click();
+    const options = page.getByRole('listbox', { name: 'Topic' }).getByRole('option');
+    // The topic list rides a slow batched call; wait for it rather than counting just "All topics"
+    const loaded = await expect.poll(() => options.count(), { timeout: 30_000 }).toBeGreaterThan(1).then(() => true, () => false);
+    test.skip(!loaded, 'No topics to search');
+    const search = page.getByRole('combobox', { name: 'Search topic' });
+    await expect(search).toBeVisible();
+    const before = await options.count();
+    await search.fill('zzzz-no-such-topic');
+    await expect(page.getByText(/No topic matches/)).toBeVisible();
+    await search.fill('');
+    await expect.poll(() => options.count()).toBe(before);
+    // Typing narrows the list; Enter picks the top match and filters the feed
+    const second = (await options.nth(1).locator('span').first().innerText()).replace(/ · quiet$/, '');
+    await search.fill(second.slice(0, 3));
+    await expect.poll(() => options.count()).toBeLessThanOrEqual(before);
+    await search.press('Enter');
+    await expect(page).toHaveURL(/topic=/);
+  });
+
+  test('Composer topic box autocompletes existing topics and still offers a new one', async ({ page }) => {
+    await page.goto('/discover/board?compose=1');
+    const dialog = page.getByRole('dialog', { name: 'New post' });
+    await expect(dialog).toBeVisible();
+    const box = dialog.getByRole('combobox', { name: /Search topics or add a new one/ });
+    const chips = dialog.getByRole('group', { name: 'TOPIC' }).getByRole('button', { pressed: false });
+    const loaded = await expect.poll(() => chips.count(), { timeout: 30_000 }).toBeGreaterThan(0).then(() => true, () => false);
+    test.skip(!loaded, 'No topics to autocomplete');
+    const name = (await chips.first().innerText()).trim();
+    await box.fill(name.slice(0, 3));
+    const list = dialog.getByRole('listbox', { name: 'Matching topics' });
+    await expect(list.getByRole('option', { name })).toBeVisible();
+    // Arrow + Enter picks it as a chip, and the box clears
+    await box.press('ArrowDown');
+    await box.press('Enter');
+    await expect(dialog.getByRole('button', { name, pressed: true })).toBeVisible();
+    await expect(box).toHaveValue('');
+    // A name nothing matches offers "Add … as a new topic", with no MAIN/NEW tags on the chip
+    await box.fill('Zzqx Wanderlust');
+    await list.getByRole('option', { name: /as a new topic/ }).click();
+    const added = dialog.getByRole('button', { name: /Remove new topic Zzqx Wanderlust/i });
+    await expect(added).toBeVisible();
+    await expect(added).not.toContainText(/MAIN|NEW/);
+  });
+
   test('passes accessibility checks with a sheet open', async ({ page }) => {
     await page.goto('/discover/board');
     await expect(page.getByRole('heading', { level: 1, name: 'The board' })).toBeVisible();

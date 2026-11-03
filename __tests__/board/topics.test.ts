@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  singularize, normalizeTopic, isProgramTopic, topicKey, validateTopic, keySimilarity, matchTopic, suggestTopicForText, type TopicRef,
+  singularize, normalizeTopic, isProgramTopic, topicKey, validateTopic, keySimilarity, matchTopic, searchTopics, suggestTopicForText, type TopicRef,
 } from '@/lib/board/topics';
 import { BOARD_COMMON_TOPICS } from '@/lib/board/constants';
 
@@ -156,5 +156,31 @@ describe('suggestTopicForText', () => {
   it('returns null when nothing matches', () => {
     expect(suggestTopicForText('Who wins the election?', TOPICS)).toBeNull();
     expect(suggestTopicForText('', TOPICS)).toBeNull();
+  });
+});
+
+describe('searchTopics', () => {
+  it('returns nothing for an empty or symbol-only draft', () => {
+    expect(searchTopics('', TOPICS)).toEqual([]);
+    expect(searchTopics('  ', TOPICS)).toEqual([]);
+  });
+
+  it('finds topics from a half-typed name, prefix matches first', () => {
+    expect(searchTopics('lou', TOPICS).map((t) => t.name)).toEqual(['Lounges']);
+    expect(searchTopics('h', TOPICS).map((t) => t.name)[0]).toBe('Hotels');
+  });
+
+  it('puts an exact match first and finds mid-name matches', () => {
+    expect(searchTopics('hotel', TOPICS)[0]?.name).toBe('Hotels');
+    expect(searchTopics('flight', TOPICS).map((t) => t.name)).toContain('Award flights');
+  });
+
+  it('tolerates a typo and honours the limit', () => {
+    expect(searchTopics('Lounje', TOPICS).map((t) => t.name)).toContain('Lounges');
+    expect(searchTopics('s', TOPICS, 2)).toHaveLength(2);
+  });
+
+  it('returns nothing for an unrelated draft', () => {
+    expect(searchTopics('Cruises', TOPICS)).toEqual([]);
   });
 });
