@@ -1,14 +1,16 @@
 'use client';
 
 import { btn } from '@/components/ui/button';
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell, MAIN_SCROLL_ID } from '@/components/layout/AppShell';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { type GuestsValue } from '@/components/inputs/GuestsDropdown';
 import { HotelCard } from '@/components/hotels/HotelCard';
 import { HotelDetailModal } from '@/components/hotels/HotelDetailModal';
 import { GeoMap, type GeoPin } from '@/components/hotels/GeoMap';
+import { HotelsLoading } from '@/components/ui/loading/HotelsLoading';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
@@ -113,24 +115,15 @@ function HotelFiltersContent({
 function HotelFiltersDropdown(props: HotelFiltersProps) {
   const { isDark, filterCount } = props;
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [open]);
-
-  const cardCls = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
+  const close = useCallback(() => setOpen(false), []);
 
   return (
-    <div ref={ref} className="relative md:hidden">
+    <div className="md:hidden">
       <button
-        onClick={() => setOpen(v => !v)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className={`flex items-center gap-1.5 min-h-11 px-3 rounded-lg border text-xs font-semibold transition-colors ${
           open || filterCount > 0
             ? isDark ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink' : 'border-gray-900 bg-gray-100 text-gray-900'
             : isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink' : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900'
@@ -145,16 +138,16 @@ function HotelFiltersDropdown(props: HotelFiltersProps) {
             {filterCount}
           </span>
         )}
-        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
-      {open && (
-        <div className={`absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border shadow-xl p-4 ${cardCls}`}>
-          <HotelFiltersContent {...props} />
-        </div>
-      )}
+      <BottomSheet
+        open={open}
+        onClose={close}
+        label="Filter"
+        footer={<button type="button" onClick={close} className={btn('primary', 'lg', 'w-full')}>Show results</button>}
+      >
+        <HotelFiltersContent {...props} />
+      </BottomSheet>
     </div>
   );
 }
@@ -600,6 +593,7 @@ function HotelsPageInner() {
         title: destPlace.name,
         subtitle: staySummarySubtitle(checkIn, checkOut, nightsBetween(checkIn, checkOut), guests.adults + guests.children),
       } : undefined}
+      loading={hotelSearch.isPending}
       sidebar={allAccommodations.length > 0 ? (
         <HotelFiltersContent
           isDark={isDark}
@@ -626,12 +620,7 @@ function HotelsPageInner() {
         </button>
       )}
       {hotelSearch.isPending ? (
-        <div className="flex items-center justify-center py-24">
-          <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-        </div>
+        <HotelsLoading />
       ) : hotelSearch.isError ? (
         <EmptyState message="Hotel search failed. Check your selections and try again." />
       ) : accommodations.length > 0 ? (

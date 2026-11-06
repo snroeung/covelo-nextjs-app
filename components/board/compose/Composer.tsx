@@ -18,6 +18,7 @@ import { EMPTY_OFFER, NewOfferForm, newOfferError, type NewOfferDraft } from './
 import { OfferLinkPicker } from './OfferLinkPicker';
 import { postPath } from '@/components/board/shared/share';
 import { useBoardToast } from '@/components/board/shared/Toast';
+import { PixelSpinner, StatusCycle } from '@/components/ui/loading/primitives';
 import { TopicPicker } from './TopicPicker';
 
 type OfferMode = 'link' | 'new';
@@ -107,6 +108,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
   return (
     <Dialog label="New post" onClose={requestClose} width="lg">
       <DialogHeader title="New post" onClose={requestClose} />
+      {create.isPending && <div className="cv-hair" role="status"><span className="sr-only">Posting to the board</span><i /></div>}
       <DialogBody className="flex flex-col gap-[18px]">
         <KindPicker value={kind} onChange={setKind} />
 
@@ -179,12 +181,14 @@ export function Composer({ onClose }: { onClose: () => void }) {
             {error ?? blockedMessage ?? `You can post again in ${cooldown} s.`}
           </p>
         )}
-        {left != null && left !== null && !blockedMessage && (
+        {create.isPending ? (
+          <StatusCycle lines={['Checking your post…', 'Posting to the board…']} className="mr-auto" />
+        ) : left != null && !blockedMessage && (
           <span className="mr-auto font-mono text-[11px] text-gph-muted">{left} {left === 1 ? 'post' : 'posts'} left today</span>
         )}
         <button type="button" onClick={requestClose} className={BTN_GHOST}>Cancel</button>
         <button type="button" onClick={submit} disabled={!canSubmit} title={problem ?? undefined} className={BTN_PRIMARY}>
-          {create.isPending ? 'Posting…' : cooldown > 0 ? `Post (${cooldown})` : 'Post'}
+          {create.isPending ? <span className="inline-flex items-center gap-2"><PixelSpinner />Posting…</span> : cooldown > 0 ? `Post (${cooldown})` : 'Post'}
         </button>
       </DialogFooter>
     </Dialog>

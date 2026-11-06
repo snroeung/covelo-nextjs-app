@@ -21,6 +21,7 @@ export function AppShell({
   sidebar,
   hasResults = false,
   summary,
+  loading = false,
 }: {
   header: React.ReactNode;
   children: React.ReactNode;
@@ -28,6 +29,8 @@ export function AppShell({
   hasResults?: boolean;
   /** Phones: once results load, a compact bar (title + dates + Edit) replaces the open search form */
   summary?: { title: string; subtitle: string };
+  /** A search is in flight: the cards sidebar slims down so the loading state gets the room. */
+  loading?: boolean;
 }) {
   const { isDark } = useTheme();
   const { user } = useAuth();
@@ -86,22 +89,31 @@ export function AppShell({
       {/* ④ Body: cards sidebar | results */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Sidebar — desktop only */}
-        <aside className="hidden md:flex w-64 shrink-0 border-r flex-col overflow-hidden bg-gph-card border-gph-line">
-          {allCardsMode && !user && (
-            <div className={`mx-3 mt-3 px-4 py-3 rounded-xl border ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
-              <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-900'}`}>
-                Showing all cards.{' '}
-                <Link href="/auth" className="font-semibold">Sign in</Link>{' '}
-                to filter based on your wallet
-              </p>
-            </div>
+        {/* Sidebar — desktop only. Slims to a bare 64px strip while a search loads. */}
+        <aside
+          data-testid="cards-sidebar"
+          data-collapsed={loading}
+          aria-hidden={loading || undefined}
+          className={`hidden md:flex shrink-0 border-r flex-col overflow-hidden bg-gph-card border-gph-line transition-[width] duration-200 ${loading ? 'w-16' : 'w-64'}`}
+        >
+          {!loading && (
+            <>
+              {allCardsMode && !user && (
+                <div className={`mx-3 mt-3 px-4 py-3 rounded-xl border ${isDark ? 'bg-cv-amber-900/40 border-cv-amber-700/40' : 'bg-cv-amber-50 border-cv-amber-200'}`}>
+                  <p className={`text-xs ${isDark ? 'text-cv-amber-300' : 'text-cv-amber-900'}`}>
+                    Showing all cards.{' '}
+                    <Link href="/auth" className="font-semibold">Sign in</Link>{' '}
+                    to filter based on your wallet
+                  </p>
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {sidebar}
+                <AffiliateAdSpot slot="sidebar" isDark={isDark} />
+                {user && <BalancePanel />}
+              </div>
+            </>
           )}
-          <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            {sidebar}
-            <AffiliateAdSpot slot="sidebar" isDark={isDark} />
-            {user && <BalancePanel />}
-          </div>
         </aside>
 
         {/* Results */}

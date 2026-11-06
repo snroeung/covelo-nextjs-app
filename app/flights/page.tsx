@@ -1,10 +1,12 @@
 'use client';
 
-import { Fragment, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, Suspense, useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { AppShell, MAIN_SCROLL_ID } from '@/components/layout/AppShell';
+import { btn } from '@/components/ui/button';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { FlightCard } from '@/components/flights/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
@@ -16,6 +18,9 @@ import { usePerPage } from '@/hooks/usePerPage';
 import { trpc } from '@/lib/trpc-client';
 import { clampPage, paginate, pageRange } from '@/lib/pagination';
 import { AffiliateAdSpot } from '@/components/offers/AffiliateAdSpot';
+import { FlightsLoading } from '@/components/ui/loading/FlightsLoading';
+import { PixelSpinner } from '@/components/ui/loading/primitives';
+import { isCabinOnlyChange } from '@/lib/flights/cabinReprice';
 import { calcPoints } from '@/lib/points/calcPoints';
 import { getOfferFlightInfo, getOfferTripDates, groupOffersByAirline, offerPriceRange } from '@/lib/flights/itinerary';
 import { findLiveBonus } from '@/lib/points/transferBonus';
@@ -263,29 +268,21 @@ function RefineContent({
   );
 }
 
-// Mobile-only dropdown button wrapping RefineContent
+// Mobile-only: a Refine button that opens RefineContent as a bottom sheet
 function RefineDropdown(props: RefineProps) {
   const { isDark, filterCount } = props;
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
 
   const isActive = open || filterCount > 0;
-  const cardCls  = isDark ? 'bg-gph-dark-card border-gph-dark-line' : 'bg-white border-gray-200';
 
   return (
-    <div ref={ref} className="relative md:hidden">
+    <div className="md:hidden">
       <button
-        onClick={() => setOpen(v => !v)}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        className={`flex items-center gap-1.5 min-h-11 px-3 rounded-lg border text-xs font-semibold transition-colors ${
           isActive
             ? isDark ? 'border-gph-dark-action bg-gph-dark-linesoft text-gph-dark-ink' : 'border-gray-900 bg-gray-100 text-gray-900'
             : isDark ? 'border-gph-dark-line text-gph-dark-muted hover:border-gph-dark-action hover:text-gph-dark-ink' : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-900'
@@ -300,16 +297,16 @@ function RefineDropdown(props: RefineProps) {
             {filterCount}
           </span>
         )}
-        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
-      {open && (
-        <div className={`absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border shadow-xl p-4 ${cardCls}`}>
-          <RefineContent {...props} />
-        </div>
-      )}
+      <BottomSheet
+        open={open}
+        onClose={close}
+        label="Refine"
+        footer={<button type="button" onClick={close} className={btn('primary', 'lg', 'w-full')}>Show results</button>}
+      >
+        <RefineContent {...props} />
+      </BottomSheet>
     </div>
   );
 }
@@ -427,8 +424,12 @@ function FlightsPageInner() {
     enabled: !!committed,
     staleTime: 1000 * 60 * 15,
     retry: 1,
+    // Cabin switch re-runs the search; keep the same itineraries on screen and re-price them.
+    placeholderData: (prev, prevQuery) =>
+      isCabinOnlyChange(prevQuery?.queryKey[1] as FlightQueryVars | null | undefined, committed) ? prev : undefined,
   });
   const searching = flightSearch.isFetching;
+  const repricing = flightSearch.isPlaceholderData;
 
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = usePerPage();
@@ -772,16 +773,12 @@ function FlightsPageInner() {
         title: `${committed.origin} → ${committed.destination}`,
         subtitle: flightSummarySubtitle(committed.departureDate, committed.returnDate, committed.passengers),
       } : undefined}
+      loading={searching && !repricing}
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
       <h1 className="sr-only">Flight search results</h1>
-      {searching ? (
-        <div className="flex items-center justify-center py-24">
-          <svg className={`w-8 h-8 animate-spin ${isDark ? 'text-gph-dark-muted' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-        </div>
+      {searching && !repricing ? (
+        <FlightsLoading origin={committed?.origin ?? ''} destination={committed?.destination ?? ''} />
 
       ) : flightSearch.isError ? (
         <EmptyState message="Flight search failed. Check your selections and try again." />
@@ -822,6 +819,11 @@ function FlightsPageInner() {
               </h2>
               <p className={`text-[10px] font-bold font-mono tracking-widest uppercase mt-1.5 ${subTextCls}`}>
                 {startDate} · {tripType === 'roundtrip' ? 'Round trip' : 'One way'} · {CABIN_LABELS[cabinClass]}
+                {repricing && (
+                  <span role="status" className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-gph-actionsoft px-2.5 py-1 align-middle text-gph-ink">
+                    <PixelSpinner />Updating to {CABIN_LABELS[cabinClass]}
+                  </span>
+                )}
                 {drillAirlineKey
                   ? drillOffers.length > 0 && ` · Showing ${drillFrom}–${drillTo} of ${drillOffers.length} flights`
                   : offers.length > 0 && ` · Showing ${from}–${to} of ${airlineGroups.length} airlines`}
@@ -878,7 +880,7 @@ function FlightsPageInner() {
               <>
                 {drillPageOffers.map((offer, i) => (
                   <Fragment key={offer.id}>
-                    <FlightCard offer={offer} />
+                    <FlightCard offer={offer} repricing={repricing} />
                     {i === 1 && drillPageOffers.length >= 3 && (
                       <AffiliateAdSpot
                         slot="flights_inline"
@@ -910,7 +912,7 @@ function FlightsPageInner() {
                 const rest = offerPriceRange(group.rest);
                 return (
                   <Fragment key={group.key}>
-                    <FlightCard offer={group.top} />
+                    <FlightCard offer={group.top} repricing={repricing} />
                     {group.rest.length > 0 && (
                       <AirlineGroupCard
                         isDark={isDark}

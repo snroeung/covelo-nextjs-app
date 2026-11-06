@@ -18,6 +18,7 @@ import { trpc } from '@/lib/trpc-client';
 import { sortByValueThenRecency } from '@/lib/discover/offerCopy';
 import { browserTimeZone } from '@/lib/time';
 import { liveOffers } from '@/lib/offers/live';
+import { DiscoverLoading } from '@/components/ui/loading/DiscoverLoading';
 import type { TransferBonus, SpendingBonus } from '@/lib/types/offers';
 
 type Offer = TransferBonus | SpendingBonus;
@@ -63,12 +64,7 @@ function DiscoverPageInner() {
           <DiscoverMasthead isDark={isDark} offerCount={remainingPool.length} onOpenOffer={setOpenOffer} />
 
           {isLoading ? (
-            <div className="flex flex-col gap-3 animate-pulse py-2">
-              <div className={`h-3 w-1/3 rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-              <div className={`h-8 w-2/3 rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-              <div className={`h-3 w-full rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-              <div className={`h-3 w-5/6 rounded ${isDark ? 'bg-gph-dark-line' : 'bg-gph-line'}`} />
-            </div>
+            <DiscoverLoading />
           ) : featuredOffer ? (
             <DiscoverLead offer={featuredOffer} isDark={isDark} onOpen={() => setOpenOffer(featuredOffer)} />
           ) : (

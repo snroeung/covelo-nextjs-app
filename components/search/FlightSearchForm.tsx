@@ -3,6 +3,7 @@
 import { DateInput } from '@/components/inputs/DateInput';
 import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
+import { PixelSpinner } from '@/components/ui/loading/primitives';
 import type { TripType } from '@/lib/searchUrls';
 
 // Controlled flight search form. The consumer owns all state (origin/arrival place,
@@ -74,13 +75,13 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
     <button
       onClick={onSearch}
       disabled={searchDisabled || searchPending}
-      className={`rounded-lg px-6 min-h-11 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+      className={`rounded-lg px-6 min-h-11 text-sm font-bold disabled:cursor-not-allowed transition-colors ${searchPending ? 'disabled:opacity-100' : 'disabled:opacity-40'} whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 ${
         isDark
           ? 'bg-gph-dark-action text-gph-dark-bg hover:bg-gph-dark-actionhi focus:ring-gph-dark-action'
           : 'bg-gray-900 text-white hover:bg-gray-700 focus:ring-gray-900'
       }`}
     >
-      {searchPending ? 'Searching…' : 'Search →'}
+      {searchPending ? <span className="inline-flex items-center justify-center gap-2"><PixelSpinner />Searching…</span> : 'Search →'}
     </button>
   );
 
@@ -118,7 +119,7 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
   );
 
   return (
-    <div className="w-full flex flex-col gap-2.5">
+    <fieldset disabled={!!searchPending} aria-busy={!!searchPending} className={`m-0 flex w-full min-w-0 flex-col gap-2.5 border-0 p-0 ${searchPending ? 'opacity-70' : ''}`}>
       {/* Mobile — trip pills on their own row above the stacked fields */}
       <div className="md:hidden">{tripPills}</div>
       <div className="flex flex-col gap-2.5 md:hidden">
@@ -140,6 +141,6 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
         <div className={tripType === 'oneway' ? 'invisible' : ''}>{returnField}</div>
         {searchButton}
       </div>
-    </div>
+    </fieldset>
   );
 }
