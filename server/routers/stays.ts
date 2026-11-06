@@ -13,6 +13,7 @@ import { groupSimilarRooms } from "@/lib/adapters/room-name-match";
 import { matchHotels } from "@/lib/hotelbeds-match";
 import { matchHotelCollections, type CollectionMatchEntry } from "@/lib/travelCollectionMatch";
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/timing";
 import type { TravelCollection } from "@/lib/types/portalData";
 
 // Redis helpers that respect the integration:redis flag.
@@ -20,11 +21,11 @@ import type { TravelCollection } from "@/lib/types/portalData";
 // reusing the existing graceful-degradation pattern.
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:stays")) return null;
-  return redis.get<T>(key).catch(() => null);
+  return timed("redis.get", () => redis.get<T>(key).catch(() => null), (r) => (r ? "hit" : "miss"));
 }
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   if (!isEnabled("integration:redis:stays")) return;
-  await redis.set(key, value, { ex: ttl }).catch(() => {});
+  await timed("redis.set", () => redis.set(key, value, { ex: ttl }).catch(() => {}));
 }
 
 const guestSchema = z.discriminatedUnion("type", [
@@ -189,7 +190,7 @@ export const staysRouter = router({
         (async () => {
           console.log("[stays] Duffel → calling stays.search");
           const t0 = Date.now();
-          const res = await duffel.stays.search({
+          const res = await timed("duffel.stays", () => duffel.stays.search({
             check_in_date: checkInDate,
             check_out_date: checkOutDate,
             rooms,
@@ -199,7 +200,7 @@ export const staysRouter = router({
               radius,
               geographic_coordinates: { latitude, longitude },
             },
-          });
+          }));
           console.log(`[stays] Duffel ✓ ${res.data.results.length} hotels (${Date.now() - t0}ms)`);
           return res;
         })(),
@@ -219,7 +220,7 @@ export const staysRouter = router({
 
           console.log("[stays] HotelBeds → calling hotel-api/1.0/hotels");
           const t0 = Date.now();
-          const raw = await searchHotels({
+          const raw = await timed("hotelbeds.search", () => searchHotels({
             checkIn: checkInDate,
             checkOut: checkOutDate,
             rooms,
@@ -228,7 +229,7 @@ export const staysRouter = router({
             latitude,
             longitude,
             radiusKm: Math.max(radius, 5),
-          });
+          }));
 
           const normalized = adaptHotelBedsResults(raw);
           console.log(`[stays] HotelBeds ✓ ${normalized.length} hotels (${Date.now() - t0}ms)`);
@@ -245,12 +246,12 @@ export const staysRouter = router({
           const supabase = await createClient();
           // Filter in the query, not just via row-level security: an admin session can read inactive
           // and pending rows, and this list is cached under a key every visitor shares
-          const { data, error } = await supabase
+          const { data, error } = await timed("supabase.collections", async () => await supabase
             .from("travel_collections")
             .select("*")
             .eq("type", "hotel")
             .in("status", ["approved", "admin"])
-            .eq("active", true);
+            .eq("active", true));
           if (error) throw error;
 
           const result = (data ?? []) as TravelCollection[];
@@ -291,7 +292,7 @@ export const staysRouter = router({
       // Cache Duffel results per accommodation (1h TTL — rates fluctuate)
       if (isEnabled("integration:redis:stays")) {
         try {
-          await Promise.all(
+          await timed("redis.set.results", () => Promise.all(
             searchResults.map((sr) =>
               redis.set(
                 cacheKeys.staySearchResult(sr.accommodation.id, checkInDate, checkOutDate, rooms),
@@ -299,7 +300,7 @@ export const staysRouter = router({
                 { ex: CACHE.staySearchResult.ttl },
               )
             )
-          );
+          ));
         } catch (err) {
           console.warn("[stays] Redis cache write failed:", err);
         }
