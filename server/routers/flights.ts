@@ -7,6 +7,7 @@ import { redis } from "@/lib/redis";
 import { TRPCError } from "@trpc/server";
 import { duffel } from "@/lib/duffel";
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/timing";
 import { matchFlightCollections } from "@/lib/travelCollectionMatch";
 import type { TravelCollection } from "@/lib/types/portalData";
 
@@ -14,11 +15,11 @@ import type { TravelCollection } from "@/lib/types/portalData";
 // Flag off → reads miss, writes no-op (same graceful-degradation pattern as stays).
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:flights")) return null;
-  return redis.get<T>(key).catch(() => null);
+  return timed("redis.get", () => redis.get<T>(key).catch(() => null), (r) => (r ? "hit" : "miss"));
 }
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   if (!isEnabled("integration:redis:flights")) return;
-  await redis.set(key, value, { ex: ttl }).catch(() => {});
+  await timed("redis.set", () => redis.set(key, value, { ex: ttl }).catch(() => {}));
 }
 
 export const flightsRouter = router({
@@ -59,11 +60,11 @@ export const flightsRouter = router({
         ...(returnDate ? [{ origin: destination, destination: origin, departure_date: returnDate, arrival_time: null, departure_time: null }] : []),
       ];
 
-      const offerRequest = await duffel.offerRequests.create({
+      const offerRequest = await timed("duffel.offers", () => duffel.offerRequests.create({
         slices,
         passengers: Array.from({ length: passengers }, () => ({ type: "adult" as const })),
         cabin_class: cabinClass,
-      });
+      }));
 
       let collections: TravelCollection[] = [];
       try {
@@ -73,12 +74,12 @@ export const flightsRouter = router({
           collections = cachedCollections;
         } else {
           const supabase = await createClient();
-          const { data, error } = await supabase
+          const { data, error } = await timed("supabase.collections", async () => await supabase
             .from("travel_collections")
             .select("*")
             .eq("type", "flight")
             .in("status", ["approved", "admin"])
-            .eq("active", true);
+            .eq("active", true));
           if (error) throw error;
           collections = (data ?? []) as TravelCollection[];
           await cacheSet(collectionsCacheKey, collections, CACHE.travelCollections.ttl);

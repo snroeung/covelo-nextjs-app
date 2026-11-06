@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { isEnabled } from "@/lib/feature-flags";
 import type { FlagName } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/timing";
 
 /** What every request carries before auth: the viewer's IANA time zone (already validated, UTC when unknown). */
 export interface TrpcContext {
@@ -65,7 +66,7 @@ export function viewerProcedure(flag: FlagName) {
       });
     }
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await timed("supabase.auth", () => supabase.auth.getUser());
     return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user), timeZone: ctx.timeZone } } });
   });
 }

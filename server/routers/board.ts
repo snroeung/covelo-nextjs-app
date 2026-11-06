@@ -23,6 +23,7 @@ import { canSeeComment, canSeePost } from "@/lib/board/visibility";
 import { loadActor, loadDisplayName, type UserEvents } from "@/lib/board/server/actor";
 import { logModEvent } from "@/lib/board/server/audit";
 import { bustTopicsCache, cacheGet, cacheSet } from "@/lib/board/server/cache";
+import { timed } from "@/lib/timing";
 import { must, throwIfBlocked } from "@/lib/board/server/errors";
 import { todayIso } from "@/lib/offers/live";
 import { countFeed, fetchPost, queryFeed, type FeedRow } from "@/lib/board/server/feed";
@@ -141,16 +142,16 @@ export const boardRouter = router({
 
         let topicIds: string[] | undefined;
         if (input.topic) {
-          topicIds = topicFamily(await loadTopicIndex(admin), input.topic);
+          topicIds = topicFamily(await timed("board.topicIndex", () => loadTopicIndex(admin)), input.topic);
         }
 
         const params = { type: input.type, topicIds, q: input.q, verifiedOnly: input.verified, sort: input.sort, cursor: input.cursor };
         const firstPage = !input.cursor;
         const [page, counts] = await Promise.all([
-          queryFeed(admin, viewer, params),
-          firstPage ? loadChipCounts(admin, viewer, input.type) : Promise.resolve(null),
+          timed("board.queryFeed", () => queryFeed(admin, viewer, params)),
+          firstPage ? timed("board.chipCounts", () => loadChipCounts(admin, viewer, input.type)) : Promise.resolve(null),
         ]);
-        return { posts: await hydratePosts(admin, page.rows, viewer), nextCursor: page.nextCursor, counts };
+        return { posts: await timed("board.hydrate", () => hydratePosts(admin, page.rows, viewer)), nextCursor: page.nextCursor, counts };
       }),
 
     /** The signed-in member's saved posts, most recently saved first. Posts they can no longer see (removed, held) drop out. */
@@ -601,7 +602,7 @@ export const boardRouter = router({
         const shared = await sharedTopics(admin);
         let mine: BoardTopic[] = [];
         if (ctx.viewer.id) {
-          const res = await admin.from("board_topics").select("id, name, key, status").eq("created_by", ctx.viewer.id).eq("status", "provisional").limit(50);
+          const res = await timed("board.ownTopics", async () => await admin.from("board_topics").select("id, name, key, status").eq("created_by", ctx.viewer.id).eq("status", "provisional").limit(50));
           mine = (must(res, "own topics") as unknown as Array<Omit<BoardTopic, "activity">>).map((t) => ({ ...t, activity: 0 }));
         }
         const q = input.q?.toLowerCase();
@@ -787,8 +788,8 @@ async function sharedTopics(admin: SupabaseClient): Promise<BoardTopic[]> {
   if (cached) return cached;
 
   const [topicRes, activityRes] = await Promise.all([
-    admin.from("board_topics").select("id, name, key, status").in("status", ["common", "active", "dormant"]).limit(500),
-    admin.rpc("board_topic_activity"),
+    timed("board.topicsQuery", async () => await admin.from("board_topics").select("id, name, key, status").in("status", ["common", "active", "dormant"]).limit(500)),
+    timed("board.topicActivity", async () => await admin.rpc("board_topic_activity")),
   ]);
   const activity = new Map(
     ((must(activityRes as never, "topic activity") ?? []) as unknown as Array<{ topic_id: string; posts_30d: number | string; authors_30d: number | string }>)
