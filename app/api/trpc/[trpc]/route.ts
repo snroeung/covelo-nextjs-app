@@ -1,7 +1,13 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@/server/routers/_app";
 import { TZ_HEADER, zoneOrUtc } from "@/lib/time";
-import { currentSpans, elapsedMs, toServerTiming, withTiming } from "@/lib/timing";
+import { currentSpans, elapsedMs, proxyAuthSpan, timingExposed, toServerTiming, withTiming } from "@/lib/timing";
+
+/** The proxy's auth call (forwarded as a header) first, then everything the resolvers recorded. */
+function allSpans(req: Request) {
+  const proxy = proxyAuthSpan(req.headers);
+  return proxy ? [proxy, ...currentSpans()] : currentSpans();
+}
 
 const handler = (req: Request) =>
   withTiming(async () => {
@@ -11,7 +17,7 @@ const handler = (req: Request) =>
       router: appRouter,
       createContext: ({ req }) => ({ timeZone: zoneOrUtc(req.headers.get(TZ_HEADER)) }),
       responseMeta() {
-        const header = toServerTiming(currentSpans(), elapsedMs());
+        const header = timingExposed(req.headers) ? toServerTiming(allSpans(req), elapsedMs()) : "";
         return header ? { headers: { "Server-Timing": header } } : {};
       },
       onError({ error, path }) {
@@ -26,7 +32,7 @@ const handler = (req: Request) =>
     console.info("[perf]", JSON.stringify({
       path: new URL(req.url).pathname.replace("/api/trpc/", ""),
       total: Math.round(elapsedMs()),
-      spans: currentSpans().map((s) => ({ l: s.label, ms: Math.round(s.ms), o: s.outcome, ...(s.note ? { n: s.note } : {}) })),
+      spans: allSpans(req).map((s) => ({ l: s.label, ms: Math.round(s.ms), o: s.outcome, ...(s.note ? { n: s.note } : {}) })),
     }));
     return res;
   });

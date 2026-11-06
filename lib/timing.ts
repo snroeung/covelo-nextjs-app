@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { timingSafeEqual } from "node:crypto";
 
 /** One timed call to a dependency (Duffel, HotelBeds, Supabase, Redis, auth). */
 export interface TimingSpan {
@@ -79,4 +80,32 @@ export function toServerTiming(spans: TimingSpan[], totalMs?: number): string {
   });
   if (totalMs !== undefined && parts.length) parts.push(`total;dur=${Math.round(totalMs)}`);
   return parts.join(", ");
+}
+
+/** Request header the proxy sets on /api/trpc calls: ms its Supabase `getUser()` took. */
+export const PROXY_AUTH_HEADER = "x-covelo-proxy-auth-ms";
+
+/** Reads the proxy's auth time off a request as a span, or null when absent or not a plain integer. */
+export function proxyAuthSpan(headers: Headers): TimingSpan | null {
+  const raw = headers.get(PROXY_AUTH_HEADER);
+  if (!raw || !/^\d{1,6}$/.test(raw)) return null;
+  return { label: "proxy-auth", ms: Number(raw), outcome: "ok" };
+}
+
+/** Request header a caller sends to see timings in production; must equal `PERF_TIMING_TOKEN`. */
+export const PERF_TOKEN_HEADER = "x-perf-token";
+
+/**
+ * Whether this request may see `Server-Timing`. Dependency names and durations
+ * are internal detail, so production hides them unless the caller presents the
+ * token. Every other environment shows them. No token configured = hidden.
+ */
+export function timingExposed(headers: Headers): boolean {
+  if (process.env.NEXT_PUBLIC_APP_ENV !== "production") return true;
+  const expected = process.env.PERF_TIMING_TOKEN;
+  const given = headers.get(PERF_TOKEN_HEADER);
+  if (!expected || !given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
