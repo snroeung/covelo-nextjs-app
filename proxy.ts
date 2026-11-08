@@ -66,7 +66,7 @@ export async function proxy(request: NextRequest) {
     forwarded.set(PROXY_AUTH_HEADER, String(authMs));
     supabaseResponse = NextResponse.next({ request: { headers: forwarded } });
     refreshedCookies.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
-  } else if (timingExposed(request.headers)) {
+  } else if (timingExposed()) {
     supabaseResponse.headers.set('Server-Timing', `proxy-auth;dur=${authMs}`);
   }
 

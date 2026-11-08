@@ -17,7 +17,7 @@ const handler = (req: Request) =>
       router: appRouter,
       createContext: ({ req }) => ({ timeZone: zoneOrUtc(req.headers.get(TZ_HEADER)) }),
       responseMeta() {
-        const header = timingExposed(req.headers) ? toServerTiming(allSpans(req), elapsedMs()) : "";
+        const header = timingExposed() ? toServerTiming(allSpans(req), elapsedMs()) : "";
         return header ? { headers: { "Server-Timing": header } } : {};
       },
       onError({ error, path }) {

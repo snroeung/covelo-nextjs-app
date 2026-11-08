@@ -85,25 +85,17 @@ describe("timing", () => {
 describe("timingExposed", () => {
   const OLD = { ...process.env };
   afterEach(() => { process.env = { ...OLD }; });
-  const h = (token?: string) => new Headers(token ? { "x-perf-token": token } : {});
 
-  it("is open outside production", () => {
-    process.env.NEXT_PUBLIC_APP_ENV = "beta";
-    expect(timingExposed(h())).toBe(true);
+  it("is on outside production", () => {
+    for (const env of ["local", "beta", undefined]) {
+      if (env) process.env.NEXT_PUBLIC_APP_ENV = env; else delete process.env.NEXT_PUBLIC_APP_ENV;
+      expect(timingExposed()).toBe(true);
+    }
   });
 
-  it("is hidden in production without a configured token", () => {
+  it("is off in production", () => {
     process.env.NEXT_PUBLIC_APP_ENV = "production";
-    delete process.env.PERF_TIMING_TOKEN;
-    expect(timingExposed(h("anything"))).toBe(false);
-  });
-
-  it("needs the exact token in production", () => {
-    process.env.NEXT_PUBLIC_APP_ENV = "production";
-    process.env.PERF_TIMING_TOKEN = "s3cret";
-    expect(timingExposed(h())).toBe(false);
-    expect(timingExposed(h("wrong"))).toBe(false);
-    expect(timingExposed(h("s3cret"))).toBe(true);
+    expect(timingExposed()).toBe(false);
   });
 });
 
