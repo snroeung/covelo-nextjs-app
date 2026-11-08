@@ -9,11 +9,13 @@ const ROUTES = ['/search', '/hotels', '/flights', '/discover/board', '/offers'];
 
 const CONTROLS =
   'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="image"], [type="hidden"]), textarea, select, [contenteditable]:not([contenteditable="false"])';
+// Exempt controls (`data-keep-font`) are measured too: opting out is only
+// allowed for controls that set their own size of 16px or more.
 
 async function controlFontSizes(page: Page) {
   return page.locator(CONTROLS).evaluateAll((els) =>
     els
-      .filter((e) => e.checkVisibility())
+      .filter((e) => e.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
       .map((e) => ({
         id: e.id || e.getAttribute('name') || e.getAttribute('placeholder') || e.tagName,
         px: parseFloat(getComputedStyle(e).fontSize),
