@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@/server/routers/_app";
 import { TZ_HEADER, zoneOrUtc } from "@/lib/time";
@@ -11,6 +12,8 @@ function allSpans(req: Request) {
 
 const handler = (req: Request) =>
   withTiming(async () => {
+    // Procedure names (comma-joined for a batch) make traces searchable per procedure
+    trace.getActiveSpan()?.setAttribute("trpc.path", new URL(req.url).pathname.replace("/api/trpc/", ""));
     const res = await fetchRequestHandler({
       endpoint: "/api/trpc",
       req,

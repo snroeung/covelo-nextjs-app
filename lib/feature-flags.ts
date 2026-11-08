@@ -32,7 +32,8 @@ export type FlagName =
   | "integration:redis:portal-data"
   | "integration:redis:board"
   | "integration:anthropic:moderation"
-  | "integration:supabase";
+  | "integration:supabase"
+  | "integration:otel";
 
 interface FlagDef {
   enabledIn: AppEnv[];
@@ -63,6 +64,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:redis:places":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — places lib" },
   "integration:redis:offers":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — offers router" },
   "integration:supabase":              { enabledIn: ["local", "beta", "production"], description: "Supabase (auth — keep always-on)" },
+  "integration:otel":                  { enabledIn: ["local", "beta", "production"], description: "OpenTelemetry tracing export (Vercel Observability) — kill switch for instrumentation.ts" },
 
   "ui:discover":                       { enabledIn: ["local", "beta", "production"], description: "/discover page" },
   "ui:settings":                       { enabledIn: ["local", "beta", "production"], description: "/settings page" },

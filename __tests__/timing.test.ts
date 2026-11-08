@@ -1,4 +1,40 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const otel = vi.hoisted(() => {
+  interface FakeSpan {
+    name: string;
+    attrs: Record<string, unknown>;
+    status?: { code: number };
+    exceptions: unknown[];
+    ended: boolean;
+  }
+  const spans: FakeSpan[] = [];
+  return { spans };
+});
+
+vi.mock("@opentelemetry/api", () => ({
+  SpanStatusCode: { UNSET: 0, OK: 1, ERROR: 2 },
+  trace: {
+    getActiveSpan: () => undefined,
+    getTracer: () => ({
+      startActiveSpan: (name: string, opts: { attributes?: Record<string, unknown> }, fn: (s: unknown) => unknown) => {
+        const span = {
+          name,
+          attrs: { ...opts.attributes },
+          status: undefined as { code: number } | undefined,
+          exceptions: [] as unknown[],
+          ended: false,
+          setAttribute(k: string, v: unknown) { this.attrs[k] = v; },
+          setStatus(s: { code: number }) { this.status = s; },
+          recordException(e: unknown) { this.exceptions.push(e); },
+          end() { this.ended = true; },
+        };
+        otel.spans.push(span);
+        return fn(span);
+      },
+    }),
+  },
+}));
 import { currentSpans, elapsedMs, proxyAuthSpan, timed, timingExposed, toServerTiming, withTiming } from "@/lib/timing";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -108,5 +144,37 @@ describe("proxyAuthSpan", () => {
     for (const v of ["-1", "1.5", "abc", "12;evil", "1234567"]) {
       expect(proxyAuthSpan(new Headers({ "x-covelo-proxy-auth-ms": v }))).toBeNull();
     }
+  });
+});
+
+describe("timed → OpenTelemetry span", () => {
+  beforeEach(() => { otel.spans.length = 0; });
+
+  it("opens a span with dep, outcome and note, and ends it", async () => {
+    await timed("redis.get", async () => "v", { note: () => "hit" });
+    expect(otel.spans).toHaveLength(1);
+    expect(otel.spans[0]).toMatchObject({ name: "redis.get", ended: true, attrs: { "covelo.dep": "redis", "covelo.outcome": "ok", "covelo.note": "hit" } });
+    expect(otel.spans[0].status).toBeUndefined();
+  });
+
+  it("sets ERROR status and records the exception on throw, still ending the span", async () => {
+    await expect(timed("duffel.stays", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+    expect(otel.spans[0].status?.code).toBe(2);
+    expect(otel.spans[0].exceptions).toHaveLength(1);
+    expect(otel.spans[0].attrs["covelo.outcome"]).toBe("error");
+    expect(otel.spans[0].ended).toBe(true);
+  });
+
+  it("sets ERROR status when `failed` says so, without throwing", async () => {
+    const r = await timed("supabase.q", async () => ({ error: { message: "x" } }), { failed: (x) => !!x.error });
+    expect(r.error.message).toBe("x");
+    expect(otel.spans[0].status?.code).toBe(2);
+    expect(otel.spans[0].exceptions).toHaveLength(0);
+  });
+
+  it("emits spans even outside withTiming (traces do not need the collector)", async () => {
+    expect(currentSpans()).toEqual([]);
+    await timed("board.queryFeed", async () => 1);
+    expect(otel.spans.map((s) => s.name)).toEqual(["board.queryFeed"]);
   });
 });

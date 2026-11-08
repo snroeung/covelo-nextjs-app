@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isEnabled } from '@/lib/feature-flags';
 import type { FlagName } from '@/lib/feature-flags';
-import { PROXY_AUTH_HEADER, timingExposed } from '@/lib/timing';
+import { PROXY_AUTH_HEADER, timed, timingExposed } from '@/lib/timing';
 
 // Routes that require a feature flag to be enabled.
 // Patterns are prefix-matched (pathname.startsWith).
@@ -55,7 +55,10 @@ export async function proxy(request: NextRequest) {
 
   // Refresh session so it doesn't expire mid-session
   const authStart = performance.now();
-  await supabase.auth.getUser();
+  await timed('proxy-auth', () => supabase.auth.getUser(), {
+    // No session is a signed-out visitor, not a failure
+    failed: (r) => !!r.error && r.error.name !== 'AuthSessionMissingError',
+  });
   const authMs = Math.round(performance.now() - authStart);
 
   // Proxy runs outside the tRPC request, so the route's own Server-Timing can't see this call.

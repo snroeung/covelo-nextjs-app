@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 
 /** One timed call to a dependency (Duffel, HotelBeds, Supabase, Redis, auth). */
 export interface TimingSpan {
@@ -24,11 +25,6 @@ export function withTiming<T>(fn: () => Promise<T>): Promise<T> {
   return store.run({ spans: [], startedAt: performance.now() }, fn);
 }
 
-/**
- * Times `fn` under `label` and records it on the current request's collector.
- * Outside `withTiming` (tests, scripts, jobs) it just runs `fn`. Never swallows
- * the result or the error.
- */
 export interface TimedOptions<T> {
   /** Detail for the span, e.g. "hit" / "miss". */
   note?: (result: T) => string | undefined;
@@ -36,27 +32,46 @@ export interface TimedOptions<T> {
   failed?: (result: T) => boolean;
 }
 
-export async function timed<T>(
+const tracer = trace.getTracer("covelo");
+
+/** "redis.get" → "redis", "board.queryFeed" → "board": the dependency a span belongs to. */
+function depOf(label: string): string {
+  return label.split(".")[0];
+}
+
+/**
+ * Times `fn` under `label`. Feeds two sinks: the current request's collector
+ * (Server-Timing and the [perf] log — only inside `withTiming`) and an
+ * OpenTelemetry span (traces — a no-op until an SDK is registered). Never
+ * swallows the result or the error. Span attributes carry no user data.
+ */
+export function timed<T>(
   label: string,
   fn: () => Promise<T>,
   opts: TimedOptions<T> = {},
 ): Promise<T> {
   const collector = store.getStore();
-  if (!collector) return fn();
   const start = performance.now();
-  try {
-    const result = await fn();
-    push(collector, {
-      label,
-      ms: performance.now() - start,
-      outcome: opts.failed?.(result) ? "error" : "ok",
-      note: opts.note?.(result),
-    });
-    return result;
-  } catch (err) {
-    push(collector, { label, ms: performance.now() - start, outcome: "error" });
-    throw err;
-  }
+  return tracer.startActiveSpan(label, { attributes: { "covelo.dep": depOf(label) } }, async (span) => {
+    try {
+      const result = await fn();
+      const failed = !!opts.failed?.(result);
+      const note = opts.note?.(result);
+      span.setAttribute("covelo.outcome", failed ? "error" : "ok");
+      if (note) span.setAttribute("covelo.note", note);
+      if (failed) span.setStatus({ code: SpanStatusCode.ERROR });
+      if (collector) push(collector, { label, ms: performance.now() - start, outcome: failed ? "error" : "ok", note });
+      return result;
+    } catch (err) {
+      span.setAttribute("covelo.outcome", "error");
+      span.recordException(err as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      if (collector) push(collector, { label, ms: performance.now() - start, outcome: "error" });
+      throw err;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 function push(collector: Collector, span: TimingSpan) {
