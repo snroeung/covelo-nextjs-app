@@ -205,14 +205,21 @@ select:not([multiple]):not([size]) {
 
 /* ── No focus zoom on phones ─────────────────────────────────────────────────
    iOS Safari zooms in on a focused control whose font is under 16px and never
-   zooms back out. Phones get 16px on every text control; desktop keeps each
-   component's own size. Unlayered, so it beats the `text-*` utilities. Pinch
-   zoom stays available — never fix this with maximum-scale on the viewport. */
+   zooms back out. Phones raise every text control to 16px; desktop keeps each
+   component's own size. Unlayered, so it beats the small `text-*` utilities.
+   Controls already set larger (`text-lg` … `text-9xl`, e.g. the trip title
+   input) are left alone so they don't shrink. Button-type inputs never zoom.
+   Pinch zoom stays available — never fix this with maximum-scale. */
 @media (max-width: 767px) {
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
-  textarea,
-  select,
-  [contenteditable="true"] {
+  :is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"],
+      [type="submit"], [type="button"], [type="reset"], [type="image"], [type="hidden"]),
+    textarea,
+    select,
+    [contenteditable]:not([contenteditable="false"])
+  ):not([class*="text-lg"], [class*="text-xl"], [class*="text-2xl"], [class*="text-3xl"],
+      [class*="text-4xl"], [class*="text-5xl"], [class*="text-6xl"], [class*="text-7xl"],
+      [class*="text-8xl"], [class*="text-9xl"]) {
     font-size: 16px;
   }
 }

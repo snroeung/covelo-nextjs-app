@@ -8,12 +8,12 @@ import { MOBILE } from '../utils/mobile-helpers';
 const ROUTES = ['/search', '/hotels', '/flights', '/discover/board', '/offers'];
 
 const CONTROLS =
-  'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]), textarea, select, [contenteditable="true"]';
+  'input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="image"], [type="hidden"]), textarea, select, [contenteditable]:not([contenteditable="false"])';
 
 async function controlFontSizes(page: Page) {
   return page.locator(CONTROLS).evaluateAll((els) =>
     els
-      .filter((e) => (e as HTMLElement).offsetParent !== null)
+      .filter((e) => e.checkVisibility())
       .map((e) => ({
         id: e.id || e.getAttribute('name') || e.getAttribute('placeholder') || e.tagName,
         px: parseFloat(getComputedStyle(e).fontSize),
