@@ -493,7 +493,7 @@ export default function TripDetailPage() {
           {/* Title */}
           {editField === 'title' ? (
             <input
-              ref={titleInputRef} autoFocus type="text" value={editTitle}
+              ref={titleInputRef} autoFocus type="text" value={editTitle} data-keep-font
               onChange={(e) => setEditTitle(e.target.value)}
               onBlur={saveTitle}
               onKeyDown={(e) => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') setEditField(null); }}
