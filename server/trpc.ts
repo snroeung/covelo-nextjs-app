@@ -66,7 +66,10 @@ export function viewerProcedure(flag: FlagName) {
       });
     }
     const supabase = await createClient();
-    const { data: { user } } = await timed("supabase.auth", () => supabase.auth.getUser());
+    const { data: { user } } = await timed("supabase.auth", () => supabase.auth.getUser(), {
+      // A signed-out visitor has no session: getUser() reports that as an error, but nothing failed
+      failed: (r) => !!r.error && r.error.name !== "AuthSessionMissingError",
+    });
     return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user), timeZone: ctx.timeZone } } });
   });
 }

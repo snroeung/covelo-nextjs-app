@@ -12,7 +12,7 @@ describe("timing", () => {
 
   it("records ok spans with duration and note", async () => {
     await withTiming(async () => {
-      await timed("redis.get", async () => { await sleep(15); return null; }, (r) => (r ? "hit" : "miss"));
+      await timed("redis.get", async () => { await sleep(15); return null; }, { note: (r) => (r ? "hit" : "miss") });
       const [span] = currentSpans();
       expect(span.label).toBe("redis.get");
       expect(span.outcome).toBe("ok");
@@ -25,6 +25,24 @@ describe("timing", () => {
     await withTiming(async () => {
       await expect(timed("duffel", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
       expect(currentSpans()[0].outcome).toBe("error");
+    });
+  });
+
+  it("marks a returned { error } as an error span when `failed` says so", async () => {
+    await withTiming(async () => {
+      const res = await timed("supabase.q", async () => ({ data: null, error: { message: "boom" } }), { failed: (r) => !!r.error });
+      expect(res.error?.message).toBe("boom");
+      await timed("supabase.ok", async () => ({ data: [1], error: null }), { failed: (r) => !!r.error });
+      expect(currentSpans().map((s) => s.outcome)).toEqual(["error", "ok"]);
+    });
+  });
+
+  it("records a failed Redis call as an error when the catch sits outside timed", async () => {
+    await withTiming(async () => {
+      const value = await timed("redis.get", async () => { throw new Error("ECONNREFUSED"); }, { note: (r) => (r ? "hit" : "miss") }).catch(() => null);
+      expect(value).toBeNull();
+      expect(currentSpans()[0]).toMatchObject({ label: "redis.get", outcome: "error" });
+      expect(currentSpans()[0].note).toBeUndefined();
     });
   });
 

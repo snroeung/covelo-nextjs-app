@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isEnabled } from '@/lib/feature-flags';
 import type { FlagName } from '@/lib/feature-flags';
@@ -31,7 +31,7 @@ export async function proxy(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({ request });
-  let refreshedCookies: Array<{ name: string; value: string; options?: Parameters<typeof supabaseResponse.cookies.set>[2] }> = [];
+  const refreshedCookies: Array<{ name: string; value: string; options?: CookieOptions }> = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          refreshedCookies = cookiesToSet;
+          refreshedCookies.push(...cookiesToSet);
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)

@@ -15,11 +15,11 @@ import type { TravelCollection } from "@/lib/types/portalData";
 // Flag off → reads miss, writes no-op (same graceful-degradation pattern as stays).
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:flights")) return null;
-  return timed("redis.get", () => redis.get<T>(key).catch(() => null), (r) => (r ? "hit" : "miss"));
+  return timed("redis.get", () => redis.get<T>(key), { note: (r) => (r ? "hit" : "miss") }).catch(() => null);
 }
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   if (!isEnabled("integration:redis:flights")) return;
-  await timed("redis.set", () => redis.set(key, value, { ex: ttl }).catch(() => {}));
+  await timed("redis.set", () => redis.set(key, value, { ex: ttl })).catch(() => {});
 }
 
 export const flightsRouter = router({
@@ -79,7 +79,7 @@ export const flightsRouter = router({
             .select("*")
             .eq("type", "flight")
             .in("status", ["approved", "admin"])
-            .eq("active", true));
+            .eq("active", true), { failed: (r) => !!r.error });
           if (error) throw error;
           collections = (data ?? []) as TravelCollection[];
           await cacheSet(collectionsCacheKey, collections, CACHE.travelCollections.ttl);

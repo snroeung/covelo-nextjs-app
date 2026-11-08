@@ -30,17 +30,29 @@ export function withTiming<T>(fn: () => Promise<T>): Promise<T> {
  * Outside `withTiming` (tests, scripts, jobs) it just runs `fn`. Never swallows
  * the result or the error.
  */
+export interface TimedOptions<T> {
+  /** Detail for the span, e.g. "hit" / "miss". */
+  note?: (result: T) => string | undefined;
+  /** For clients that return `{ error }` instead of throwing (Supabase): true marks the span as an error. */
+  failed?: (result: T) => boolean;
+}
+
 export async function timed<T>(
   label: string,
   fn: () => Promise<T>,
-  note?: (result: T) => string | undefined,
+  opts: TimedOptions<T> = {},
 ): Promise<T> {
   const collector = store.getStore();
   if (!collector) return fn();
   const start = performance.now();
   try {
     const result = await fn();
-    push(collector, { label, ms: performance.now() - start, outcome: "ok", note: note?.(result) });
+    push(collector, {
+      label,
+      ms: performance.now() - start,
+      outcome: opts.failed?.(result) ? "error" : "ok",
+      note: opts.note?.(result),
+    });
     return result;
   } catch (err) {
     push(collector, { label, ms: performance.now() - start, outcome: "error" });

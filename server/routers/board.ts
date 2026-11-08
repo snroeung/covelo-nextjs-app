@@ -602,7 +602,7 @@ export const boardRouter = router({
         const shared = await sharedTopics(admin);
         let mine: BoardTopic[] = [];
         if (ctx.viewer.id) {
-          const res = await timed("board.ownTopics", async () => await admin.from("board_topics").select("id, name, key, status").eq("created_by", ctx.viewer.id).eq("status", "provisional").limit(50));
+          const res = await timed("board.ownTopics", async () => await admin.from("board_topics").select("id, name, key, status").eq("created_by", ctx.viewer.id).eq("status", "provisional").limit(50), { failed: (r) => !!r.error });
           mine = (must(res, "own topics") as unknown as Array<Omit<BoardTopic, "activity">>).map((t) => ({ ...t, activity: 0 }));
         }
         const q = input.q?.toLowerCase();
@@ -788,8 +788,8 @@ async function sharedTopics(admin: SupabaseClient): Promise<BoardTopic[]> {
   if (cached) return cached;
 
   const [topicRes, activityRes] = await Promise.all([
-    timed("board.topicsQuery", async () => await admin.from("board_topics").select("id, name, key, status").in("status", ["common", "active", "dormant"]).limit(500)),
-    timed("board.topicActivity", async () => await admin.rpc("board_topic_activity")),
+    timed("board.topicsQuery", async () => await admin.from("board_topics").select("id, name, key, status").in("status", ["common", "active", "dormant"]).limit(500), { failed: (r) => !!r.error }),
+    timed("board.topicActivity", async () => await admin.rpc("board_topic_activity"), { failed: (r) => !!r.error }),
   ]);
   const activity = new Map(
     ((must(activityRes as never, "topic activity") ?? []) as unknown as Array<{ topic_id: string; posts_30d: number | string; authors_30d: number | string }>)

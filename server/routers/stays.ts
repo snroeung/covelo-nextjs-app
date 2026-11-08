@@ -21,11 +21,11 @@ import type { TravelCollection } from "@/lib/types/portalData";
 // reusing the existing graceful-degradation pattern.
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:stays")) return null;
-  return timed("redis.get", () => redis.get<T>(key).catch(() => null), (r) => (r ? "hit" : "miss"));
+  return timed("redis.get", () => redis.get<T>(key), { note: (r) => (r ? "hit" : "miss") }).catch(() => null);
 }
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   if (!isEnabled("integration:redis:stays")) return;
-  await timed("redis.set", () => redis.set(key, value, { ex: ttl }).catch(() => {}));
+  await timed("redis.set", () => redis.set(key, value, { ex: ttl })).catch(() => {});
 }
 
 const guestSchema = z.discriminatedUnion("type", [
@@ -251,7 +251,7 @@ export const staysRouter = router({
             .select("*")
             .eq("type", "hotel")
             .in("status", ["approved", "admin"])
-            .eq("active", true));
+            .eq("active", true), { failed: (r) => !!r.error });
           if (error) throw error;
 
           const result = (data ?? []) as TravelCollection[];
