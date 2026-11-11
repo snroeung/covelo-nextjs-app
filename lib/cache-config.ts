@@ -15,8 +15,7 @@ export const cacheKeys = {
     `stay:details:${accommodationId}`,
   stayRooms:        (searchResultId: string) =>
     `stay:rooms:${searchResultId}`,
-  staySearchResult: (accommodationId: string, checkIn: string, checkOut: string, rooms: number) =>
-    `stay:accommodation:${accommodationId}:${checkIn}:${checkOut}:${rooms}`,
+  staySearch:       (hash: string) => `stay:search:${hash}`,
   hotelBedsSearch:  (hash: string) =>
     `hb:search:${hash}`,
   flightSearch:     (hash: string) =>
@@ -51,7 +50,7 @@ export const cacheKeys = {
 export const CACHE = {
   stayDetails:      { ttl: TTL.ONE_DAY },
   stayRooms:        { ttl: TTL.FIFTEEN_MINUTES },
-  staySearchResult: { ttl: TTL.ONE_HOUR },
+  staySearch:       { ttl: TTL.FIFTEEN_MINUTES },
   hotelBedsSearch:  { ttl: TTL.FIFTEEN_MINUTES },
   flightSearch:     { ttl: TTL.FIFTEEN_MINUTES },
   flightBoard:      { ttl: TTL.ONE_DAY },

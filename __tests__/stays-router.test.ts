@@ -87,3 +87,106 @@ describe('stays.search — shared travel_collections cache', () => {
     expect(from).not.toHaveBeenCalled();
   });
 });
+
+describe('stays.search — Duffel results cache', () => {
+  const caller = appRouter.createCaller({});
+  const loc = { geographic_coordinates: { latitude: 39.95, longitude: -75.16 } };
+  const bookable = { accommodation: { id: 'acc_1', name: 'Hotel One', location: loc }, cheapest_rate_total_amount: '120.00' };
+  const unbookable = { accommodation: { id: 'acc_2', name: 'Hotel Two', location: loc }, cheapest_rate_total_amount: '0.00' };
+  const searchKeyCalls = () =>
+    vi.mocked(redis.set).mock.calls.filter(([key]) => String(key).startsWith('stay:search:'));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(redis.get).mockResolvedValue(null);
+    vi.mocked(redis.set).mockResolvedValue('OK');
+    vi.mocked(createClient).mockResolvedValue({ from: vi.fn().mockReturnValue(makeCollectionsBuilder([])) } as never);
+    vi.mocked(duffel.stays.search).mockResolvedValue({ data: { results: [bookable, unbookable] } } as never);
+  });
+
+  it('on a miss, calls Duffel once and caches only the bookable results for 15 minutes', async () => {
+    const out = await caller.stays.search(INPUT);
+
+    expect(duffel.stays.search).toHaveBeenCalledTimes(1);
+    expect(out).toHaveLength(1);
+    const calls = searchKeyCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toEqual([bookable]);
+    expect(calls[0][2]).toEqual({ ex: 15 * 60 });
+  });
+
+  it('writes nothing per hotel any more', async () => {
+    await caller.stays.search(INPUT);
+    expect(vi.mocked(redis.set).mock.calls.some(([key]) => String(key).startsWith('stay:accommodation:'))).toBe(false);
+  });
+
+  it('on a hit, skips Duffel entirely and returns the cached results', async () => {
+    vi.mocked(redis.get).mockImplementation(async (key: string) => (String(key).startsWith('stay:search:') ? [bookable] : null));
+
+    const out = await caller.stays.search(INPUT);
+
+    expect(duffel.stays.search).not.toHaveBeenCalled();
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ accommodation: { id: 'acc_1' } });
+    expect(searchKeyCalls()).toHaveLength(0);
+  });
+
+  it('ignores a cached entry whose Duffel result ids are about to expire, and searches again', async () => {
+    const soon = { ...bookable, expires_at: new Date(Date.now() + 2 * 60 * 1000).toISOString() };
+    vi.mocked(redis.get).mockImplementation(async (key: string) => (String(key).startsWith('stay:search:') ? [soon] : null));
+
+    await caller.stays.search(INPUT);
+
+    expect(duffel.stays.search).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a cached entry whose ids have plenty of life left', async () => {
+    const fresh = { ...bookable, expires_at: new Date(Date.now() + 40 * 60 * 1000).toISOString() };
+    vi.mocked(redis.get).mockImplementation(async (key: string) => (String(key).startsWith('stay:search:') ? [fresh] : null));
+
+    await caller.stays.search(INPUT);
+
+    expect(duffel.stays.search).not.toHaveBeenCalled();
+  });
+
+  it('keys on every input that changes the answer', async () => {
+    const keyFor = async (input: typeof INPUT & Record<string, unknown>) => {
+      vi.mocked(redis.set).mockClear();
+      await caller.stays.search(input);
+      return searchKeyCalls()[0][0];
+    };
+    const base = await keyFor(INPUT);
+
+    expect(await keyFor({ ...INPUT })).toBe(base);
+    expect(await keyFor({ ...INPUT, checkOutDate: '2026-12-04' })).not.toBe(base);
+    expect(await keyFor({ ...INPUT, guests: [{ type: 'adult' as const }, { type: 'adult' as const }] })).not.toBe(base);
+    expect(await keyFor({ ...INPUT, freeCancellationOnly: true })).not.toBe(base);
+    expect(await keyFor({ ...INPUT, radius: 12 })).not.toBe(base);
+  });
+});
+
+describe('stays.search — Duffel timeout', () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(redis.get).mockResolvedValue(null);
+    vi.mocked(redis.set).mockResolvedValue('OK');
+    vi.mocked(createClient).mockResolvedValue({ from: vi.fn().mockReturnValue(makeCollectionsBuilder([])) } as never);
+  });
+
+  it('gives up on a Duffel call that never answers instead of hanging', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      vi.mocked(duffel.stays.search).mockReturnValue(new Promise(() => {}) as never);
+      const pending = caller.stays.search(INPUT);
+      const assertion = expect(pending).rejects.toThrow(/duffel\.stays timed out after 15000ms/);
+      await vi.advanceTimersByTimeAsync(15_000);
+      await assertion;
+      // nothing half-finished gets cached
+      expect(vi.mocked(redis.set).mock.calls.some(([key]) => String(key).startsWith('stay:search:'))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

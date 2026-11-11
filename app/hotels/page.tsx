@@ -2,7 +2,7 @@
 
 import { btn } from '@/components/ui/button';
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { AppShell, MAIN_SCROLL_ID } from '@/components/layout/AppShell';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -208,6 +208,14 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
+type HotelQueryVars = {
+  latitude: number; longitude: number; checkInDate: string; checkOutDate: string;
+  rooms: number; guests: ReturnType<typeof buildGuests>;
+};
+
+/** Matches the server-side stays.search cache TTL (lib/cache-config.ts staySearch). */
+const HOTEL_SEARCH_STALE_MS = 15 * 60 * 1000;
+
 function HotelsPageInner() {
   const searchParams  = useSearchParams();
   const paramDest     = searchParams.get('destination') ?? '';
@@ -253,24 +261,33 @@ function HotelsPageInner() {
 
   const { isDark } = useTheme();
 
-  const hotelSearch = useMutation({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mutationFn: (vars: any) => trpc.stays.search.mutate(vars),
-  });
+  // The committed search. Arriving with a full query (trip planner, shared link) searches immediately.
+  // It is a query key, not a mutation, so the same search again within 15 min — back from a hotel,
+  // from another tab of the app — is answered from the client cache instead of re-hitting the server.
+  const [committed, setCommitted] = useState<HotelQueryVars | null>(() =>
+    fromTrip
+      ? {
+          latitude: paramLat,
+          longitude: paramLng,
+          checkInDate: paramCheckIn,
+          checkOutDate: paramCheckOut,
+          rooms: paramRooms,
+          guests: buildGuests({ adults: paramAdults, children: paramChildren, pets: 0 }),
+        }
+      : null,
+  );
 
-  // Auto-search when arriving from trip planner with all required data
-  useEffect(() => {
-    if (!fromTrip) return;
-    hotelSearch.mutate({
-      latitude: paramLat,
-      longitude: paramLng,
-      checkInDate: paramCheckIn,
-      checkOutDate: paramCheckOut,
-      rooms: paramRooms,
-      guests: buildGuests({ adults: paramAdults, children: paramChildren, pets: 0 }),
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const hotelSearch = useQuery({
+    queryKey: ['stays.search', committed],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    queryFn: () => trpc.stays.search.mutate(committed!) as Promise<any[]>,
+    enabled: !!committed,
+    staleTime: HOTEL_SEARCH_STALE_MS,
+    gcTime: HOTEL_SEARCH_STALE_MS,
+    retry: 1,
+  });
+  // A disabled query reports isPending forever; only an in-flight request is "searching".
+  const searching = hotelSearch.isFetching;
 
   // Reset to page 1 when a new search resolves — adjusted during render
   // (React's documented alternative to an effect for this).
@@ -451,14 +468,20 @@ function HotelsPageInner() {
 
   function handleSearch() {
     if (!canSearch || !destPlace) return;
-    hotelSearch.mutate({
+    const next: HotelQueryVars = {
       latitude: destPlace.latitude,
       longitude: destPlace.longitude,
       checkInDate: checkIn,
       checkOutDate: checkOut,
       rooms: 1,
       guests: buildGuests(guests),
-    });
+    };
+    if (committed && JSON.stringify(committed) === JSON.stringify(next)) {
+      // Same search: its results are already on screen. Only a failed one is worth running again.
+      if (hotelSearch.isError) void hotelSearch.refetch();
+      return;
+    }
+    setCommitted(next);
   }
 
   const SORT_LABELS = {
@@ -517,7 +540,7 @@ function HotelsPageInner() {
       onGuestsChange={setGuests}
       onSearch={handleSearch}
       searchDisabled={!canSearch}
-      searchPending={hotelSearch.isPending}
+      searchPending={searching}
     />
   );
 
@@ -593,7 +616,7 @@ function HotelsPageInner() {
         title: destPlace.name,
         subtitle: staySummarySubtitle(checkIn, checkOut, nightsBetween(checkIn, checkOut), guests.adults + guests.children),
       } : undefined}
-      loading={hotelSearch.isPending}
+      loading={searching}
       sidebar={allAccommodations.length > 0 ? (
         <HotelFiltersContent
           isDark={isDark}
@@ -619,7 +642,7 @@ function HotelsPageInner() {
           Back to top
         </button>
       )}
-      {hotelSearch.isPending ? (
+      {searching ? (
         <HotelsLoading />
       ) : hotelSearch.isError ? (
         <EmptyState message="Hotel search failed. Check your selections and try again." />

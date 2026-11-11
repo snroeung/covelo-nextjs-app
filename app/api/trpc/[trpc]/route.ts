@@ -2,7 +2,14 @@ import { trace } from "@opentelemetry/api";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "@/server/routers/_app";
 import { TZ_HEADER, zoneOrUtc } from "@/lib/time";
+import { createAuthLoader } from "@/server/trpc";
+import { hasSessionCookie } from "@/lib/supabase/session";
 import { currentSpans, elapsedMs, proxyAuthSpan, timingExposed, toServerTiming, withTiming } from "@/lib/timing";
+
+/** Cookie names off the Cookie header (values are not needed to tell signed-in from signed-out). */
+function cookieNames(req: Request): string[] {
+  return (req.headers.get("cookie") ?? "").split(";").map((c) => c.split("=")[0].trim()).filter(Boolean);
+}
 
 /** The proxy's auth call (forwarded as a header) first, then everything the resolvers recorded. */
 function allSpans(req: Request) {
@@ -18,7 +25,10 @@ const handler = (req: Request) =>
       endpoint: "/api/trpc",
       req,
       router: appRouter,
-      createContext: ({ req }) => ({ timeZone: zoneOrUtc(req.headers.get(TZ_HEADER)) }),
+      createContext: ({ req }) => ({
+        timeZone: zoneOrUtc(req.headers.get(TZ_HEADER)),
+        getAuth: createAuthLoader(hasSessionCookie(cookieNames(req))),
+      }),
       responseMeta() {
         const header = timingExposed() ? toServerTiming(allSpans(req), elapsedMs()) : "";
         return header ? { headers: { "Server-Timing": header } } : {};

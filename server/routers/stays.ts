@@ -6,6 +6,7 @@ import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { duffel } from "@/lib/duffel";
 import { redis } from "@/lib/redis";
+import { DUFFEL_TIMEOUT_MS, withTimeout } from "@/lib/withTimeout";
 import { searchHotels } from "@/lib/hotelbeds";
 import { adaptHotelBedsResults } from "@/lib/adapters/hotelbeds-adapter";
 import { groupDuffelRooms, type NormalizedRoom } from "@/lib/adapters/duffel-rooms-adapter";
@@ -32,6 +33,28 @@ const guestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("adult") }),
   z.object({ type: z.literal("child"), age: z.number().int().min(0).max(17) }),
 ]);
+
+/** Duffel's bookable results for one search, as the Duffel leg returns them. */
+type DuffelStayResults = Awaited<ReturnType<typeof duffel.stays.search>>["data"]["results"];
+
+/** A cached result is only served while Duffel will still honour its id for details and rates. */
+const MIN_REMAINING_MS = 10 * 60 * 1000;
+
+function stillUsable(results: DuffelStayResults): boolean {
+  return results.every((sr) => !sr.expires_at || Date.parse(sr.expires_at) - Date.now() > MIN_REMAINING_MS);
+}
+
+/** Same search → same key: coordinates rounded to ~11 m, every input that changes Duffel's answer included. */
+function staySearchKey(p: {
+  latitude: number; longitude: number; radius: number; checkInDate: string; checkOutDate: string;
+  rooms: number; guests: unknown[]; freeCancellationOnly: boolean;
+}): string {
+  const raw = JSON.stringify([
+    p.latitude.toFixed(4), p.longitude.toFixed(4), p.radius, p.checkInDate, p.checkOutDate,
+    p.rooms, p.guests, p.freeCancellationOnly,
+  ]);
+  return cacheKeys.staySearch(createHash("sha256").update(raw).digest("hex"));
+}
 
 function hbCacheKey(
   lat: number,
@@ -184,13 +207,22 @@ export const staysRouter = router({
 
       console.log(`[stays] search lat=${latitude} lng=${longitude} ${checkInDate}→${checkOutDate} rooms=${rooms} adults=${adults} children=${children}`);
 
+      const searchKey = staySearchKey({ latitude, longitude, radius, checkInDate, checkOutDate, rooms, guests, freeCancellationOnly });
+
       // Run Duffel, HotelBeds, and hotel_collections lookups in parallel.
       // HotelBeds/collections failure is non-fatal — results are returned without those augmentations.
       const [duffelOutcome, hbOutcome, collectionsOutcome] = await Promise.allSettled([
-        (async () => {
+        (async (): Promise<DuffelStayResults> => {
+          // Duffel is the slow leg: a repeat search inside the TTL skips it entirely
+          const cachedResults = await cacheGet<DuffelStayResults>(searchKey);
+          if (cachedResults && stillUsable(cachedResults)) {
+            console.log(`[stays] Duffel ✓ ${cachedResults.length} hotels (cache hit)`);
+            return cachedResults;
+          }
+
           console.log("[stays] Duffel → calling stays.search");
           const t0 = Date.now();
-          const res = await timed("duffel.stays", () => duffel.stays.search({
+          const res = await timed("duffel.stays", () => withTimeout(duffel.stays.search({
             check_in_date: checkInDate,
             check_out_date: checkOutDate,
             rooms,
@@ -200,9 +232,16 @@ export const staysRouter = router({
               radius,
               geographic_coordinates: { latitude, longitude },
             },
-          }));
+          }), DUFFEL_TIMEOUT_MS, "duffel.stays"));
           console.log(`[stays] Duffel ✓ ${res.data.results.length} hotels (${Date.now() - t0}ms)`);
-          return res;
+
+          // Drop results with no bookable rate — no rooms means no point in
+          // paying for a fetchAllRates call later, and nothing to show in the UI.
+          const bookable = res.data.results.filter(
+            (sr) => sr.cheapest_rate_total_amount && parseFloat(sr.cheapest_rate_total_amount) > 0
+          );
+          await cacheSet(searchKey, bookable, CACHE.staySearch.ttl);
+          return bookable;
         })(),
         (async () => {
           if (!isEnabled("integration:hotelbeds:stays")) {
@@ -265,11 +304,7 @@ export const staysRouter = router({
         throw duffelOutcome.reason;
       }
 
-      // Drop results with no bookable rate — no rooms means no point in
-      // paying for a fetchAllRates call later, and nothing to show in the UI.
-      const searchResults = duffelOutcome.value.data.results.filter(
-        (sr) => sr.cheapest_rate_total_amount && parseFloat(sr.cheapest_rate_total_amount) > 0
-      );
+      const searchResults = duffelOutcome.value;
 
       // Build portalPrices map if HotelBeds succeeded
       let portalPricesMap = new Map<string, { amex: number; citi: number }>();
@@ -287,23 +322,6 @@ export const staysRouter = router({
         console.log(`[stays] matched ${collectionMatchMap.size}/${searchResults.length} hotels to collections`);
       } else {
         console.warn("[stays] travel_collections ✗", collectionsOutcome.reason);
-      }
-
-      // Cache Duffel results per accommodation (1h TTL — rates fluctuate)
-      if (isEnabled("integration:redis:stays")) {
-        try {
-          await timed("redis.set.results", () => Promise.all(
-            searchResults.map((sr) =>
-              redis.set(
-                cacheKeys.staySearchResult(sr.accommodation.id, checkInDate, checkOutDate, rooms),
-                sr,
-                { ex: CACHE.staySearchResult.ttl },
-              )
-            )
-          ));
-        } catch (err) {
-          console.warn("[stays] Redis cache write failed:", err);
-        }
       }
 
       // Augment each result with HotelBeds portal prices and travel_collections match where available
