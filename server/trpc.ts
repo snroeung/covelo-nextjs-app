@@ -3,7 +3,7 @@ import type { AuthError, User } from "@supabase/supabase-js";
 import { isEnabled } from "@/lib/feature-flags";
 import type { FlagName } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
-import { timed } from "@/lib/timing";
+import { timed, withProcedure } from "@/lib/timing";
 
 /** What every request carries before auth: the viewer's IANA time zone (already validated, UTC when unknown). */
 export interface TrpcContext {
@@ -59,7 +59,10 @@ const t = initTRPC.context<TrpcContext>().create({
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+
+// Every procedure starts here, so spans recorded inside it (including its auth middleware) carry its name
+const base = t.procedure.use(({ path, next }) => withProcedure(path, () => next()));
+export const publicProcedure = base;
 
 /**
  * Returns a procedure pre-configured with a feature flag guard.
@@ -70,7 +73,7 @@ export const publicProcedure = t.procedure;
  *   flaggedProcedure("api:flights").input(schema).mutation(...)
  */
 export function flaggedProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return base.use(async ({ next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -92,7 +95,7 @@ export function isAdminUser(user: { app_metadata?: unknown } | null | undefined)
  * depends on the viewer (the board feed).
  */
 export function viewerProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ ctx, next }) => {
+  return base.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -111,7 +114,7 @@ export function viewerProcedure(flag: FlagName) {
  * admin (user, session client, viewer) for resolvers that record who acted.
  */
 export function adminProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ ctx, next }) => {
+  return base.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -136,7 +139,7 @@ export function adminProcedure(flag: FlagName) {
  * policies keyed on auth.uid() apply to its writes.
  */
 export function authedProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ ctx, next }) => {
+  return base.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",

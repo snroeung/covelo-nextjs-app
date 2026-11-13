@@ -99,8 +99,12 @@ export const staysRouter = router({
 
       // Run only the API calls we still need
       const [detailsOutcome, ratesOutcome] = await Promise.allSettled([
-        cachedStatic ? Promise.resolve(null) : duffel.stays.accommodation.get(input.accommodationId),
-        cachedRooms  ? Promise.resolve(null) : duffel.stays.searchResults.fetchAllRates(input.searchResultId),
+        cachedStatic
+          ? Promise.resolve(null)
+          : timed("duffel.accommodation", () => withTimeout(duffel.stays.accommodation.get(input.accommodationId), DUFFEL_TIMEOUT_MS, "duffel.accommodation")),
+        cachedRooms
+          ? Promise.resolve(null)
+          : timed("duffel.rates", () => withTimeout(duffel.stays.searchResults.fetchAllRates(input.searchResultId), DUFFEL_TIMEOUT_MS, "duffel.rates")),
       ]);
 
       let staticDetails = cachedStatic;

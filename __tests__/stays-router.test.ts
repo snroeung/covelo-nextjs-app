@@ -1,7 +1,7 @@
 import { vi, beforeEach, describe, it, expect } from 'vitest';
 
 vi.mock('@/lib/duffel', () => ({
-  duffel: { stays: { search: vi.fn() } },
+  duffel: { stays: { search: vi.fn(), accommodation: { get: vi.fn() }, searchResults: { fetchAllRates: vi.fn() } } },
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -185,6 +185,36 @@ describe('stays.search — Duffel timeout', () => {
       await assertion;
       // nothing half-finished gets cached
       expect(vi.mocked(redis.set).mock.calls.some(([key]) => String(key).startsWith('stay:search:'))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('stays.accommodationDetails — Duffel timeout', () => {
+  const caller = appRouter.createCaller({});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(redis.get).mockResolvedValue(null);
+    vi.mocked(redis.set).mockResolvedValue('OK');
+  });
+
+  it('does not hang when Duffel never answers the rates call: it stops waiting after the timeout', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      vi.mocked(duffel.stays.accommodation.get).mockResolvedValue({ data: { rooms: [], description: 'x' } } as never);
+      vi.mocked(duffel.stays.searchResults.fetchAllRates).mockReturnValue(new Promise(() => {}) as never);
+
+      let settled = false;
+      const pending = caller.stays.accommodationDetails({ accommodationId: 'acc_1', searchResultId: 'srr_1' })
+        .then(() => { settled = true; }, () => { settled = true; });
+
+      await vi.advanceTimersByTimeAsync(14_000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_500);
+      await pending;
+      expect(settled).toBe(true);
     } finally {
       vi.useRealTimers();
     }

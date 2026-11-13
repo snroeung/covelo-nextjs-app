@@ -45,7 +45,7 @@ const handler = (req: Request) =>
     console.info("[perf]", JSON.stringify({
       path: new URL(req.url).pathname.replace("/api/trpc/", ""),
       total: Math.round(elapsedMs()),
-      spans: allSpans(req).map((s) => ({ l: s.label, ms: Math.round(s.ms), o: s.outcome, ...(s.note ? { n: s.note } : {}) })),
+      spans: allSpans(req).map((s) => ({ l: s.label, ms: Math.round(s.ms), o: s.outcome, ...(s.note ? { n: s.note } : {}), ...(s.proc ? { p: s.proc } : {}) })),
     }));
     return res;
   });

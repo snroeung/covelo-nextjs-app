@@ -35,7 +35,7 @@ vi.mock("@opentelemetry/api", () => ({
     }),
   },
 }));
-import { currentSpans, elapsedMs, proxyAuthSpan, timed, timingExposed, toServerTiming, withTiming } from "@/lib/timing";
+import { currentSpans, elapsedMs, proxyAuthSpan, timed, timingExposed, toServerTiming, withProcedure, withTiming } from "@/lib/timing";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -176,5 +176,44 @@ describe("timed → OpenTelemetry span", () => {
     expect(currentSpans()).toEqual([]);
     await timed("board.queryFeed", async () => 1);
     expect(otel.spans.map((s) => s.name)).toEqual(["board.queryFeed"]);
+  });
+});
+
+describe("withProcedure", () => {
+  beforeEach(() => { otel.spans.length = 0; });
+
+  it("tags spans made inside a procedure, and only those", async () => {
+    await withTiming(async () => {
+      await timed("before", async () => 1);
+      await withProcedure("board.posts.list", () => timed("redis.get", async () => null, { note: (r) => (r ? "hit" : "miss") }));
+      await timed("after", async () => 1);
+      expect(currentSpans().map((s) => s.proc)).toEqual([undefined, "board.posts.list", undefined]);
+    });
+  });
+
+  it("keeps the procedures of one batched request apart when they run in parallel", async () => {
+    await withTiming(async () => {
+      await Promise.all([
+        withProcedure("a.one", async () => { await sleep(10); await timed("x", async () => 1); }),
+        withProcedure("b.two", async () => { await sleep(1); await timed("y", async () => 1); }),
+      ]);
+      const byLabel = Object.fromEntries(currentSpans().map((s) => [s.label, s.proc]));
+      expect(byLabel).toEqual({ x: "a.one", y: "b.two" });
+    });
+  });
+
+  it("puts the procedure on the OTel span as trpc.procedure", async () => {
+    await withProcedure("stays.search", () => timed("duffel.stays", async () => 1));
+    expect(otel.spans[0].attrs["trpc.procedure"]).toBe("stays.search");
+    await timed("no.proc", async () => 1);
+    expect(otel.spans[1].attrs["trpc.procedure"]).toBeUndefined();
+  });
+
+  it("shows the procedure in Server-Timing desc, before the note", () => {
+    expect(toServerTiming([
+      { label: "redis.get", ms: 5, outcome: "ok", note: "hit", proc: "board.posts.list" },
+      { label: "duffel.stays", ms: 9, outcome: "error", note: "x", proc: "stays.search" },
+      { label: "plain", ms: 1, outcome: "ok" },
+    ])).toBe('redis.get;dur=5;desc="board.posts.list hit", duffel.stays;dur=9;desc="stays.search error", plain;dur=1');
   });
 });
