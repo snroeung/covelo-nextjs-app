@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { haversineMeters, matchHotels } from '@/lib/hotelbeds-match';
 import { adaptHotelBedsHotel, adaptHotelBedsResults } from '@/lib/adapters/hotelbeds-adapter';
+import { HOTELBEDS_TIMEOUT_MS, searchHotels } from '@/lib/hotelbeds';
 import type { HotelBedsHotel, HotelBedsSearchResponse } from '@/lib/hotelbeds';
 import type { NormalizedHBHotel } from '@/lib/adapters/hotelbeds-adapter';
 
@@ -184,5 +185,27 @@ describe('matchHotels()', () => {
     expect(map.has('acc_6')).toBe(true);
     // Should pick the one with better combined score (hbId 6 is closer)
     expect(map.get('acc_6')!.amex).toBeCloseTo(450);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchHotels() — timeout
+// ---------------------------------------------------------------------------
+
+describe('searchHotels() timeout', () => {
+  it('aborts the request after HOTELBEDS_TIMEOUT_MS instead of waiting forever', async () => {
+    vi.stubEnv('HOTELBEDS_API_KEY', 'k');
+    vi.stubEnv('HOTELBEDS_API_SECRET', 's');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchHotels({ checkIn: '2027-01-15', checkOut: '2027-01-17', rooms: 1, adults: 2, children: 0, latitude: 1, longitude: 2 });
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(HOTELBEDS_TIMEOUT_MS).toBe(4500);
+
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 });
