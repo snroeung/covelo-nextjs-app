@@ -62,6 +62,42 @@ export async function seedMemberOfferPost(opts: { title?: string; body?: string;
   };
 }
 
+export interface SeededTips {
+  /** Unique word in every title: search for it to see exactly these posts and no others */
+  token: string;
+  count: number;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * `count` visible tip posts (newest first by one minute each) sharing a unique search token, for
+ * specs that need a feed longer than a page. Specs run in parallel, so isolate with `?q=<token>`.
+ */
+export async function seedTipPosts(count: number): Promise<SeededTips> {
+  const db = getSupabaseAdmin();
+  const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
+  const member = users?.users.find((u) => u.email === (process.env.PLAYWRIGHT_MEMBER_EMAIL || 'member@covelo.local'));
+  if (!member) throw new Error('Run `npm run seed:local-member` first: the local member user is missing.');
+  const { data: topic } = await db.from('board_topics').select('id').in('status', ['common', 'active']).limit(1).single();
+  if (!topic) throw new Error('No visible board topic to attach the seeded posts to.');
+
+  const token = `pagetoken${Math.random().toString(36).slice(2, 10)}`;
+  const now = Date.now();
+  const rows = Array.from({ length: count }, (_, i) => ({
+    kind: 'tip', author_id: member.id, topic_id: topic.id, mod_status: 'clean',
+    title: `${SEED_PREFIX} ${token} tip ${String(i + 1).padStart(2, '0')}`,
+    body: `Seeded for the pagination spec ${token}`,
+    created_at: new Date(now - i * 60_000).toISOString(),
+  }));
+  const inserted = await db.from('board_posts').insert(rows).select('id');
+  if (inserted.error) throw new Error(`seed tips: ${inserted.error.message}`);
+  const ids = (inserted.data ?? []).map((r) => r.id);
+  const links = await db.from('board_post_topics').upsert(ids.map((post_id) => ({ post_id, topic_id: topic.id, is_primary: true })), { onConflict: 'post_id,topic_id' });
+  if (links.error) throw new Error(`seed tip topics: ${links.error.message}`);
+
+  return { token, count, cleanup: async () => { await db.from('board_posts').delete().in('id', ids); } };
+}
+
 /** Remove one seeded post, its member offer, and the catalog offer a publish created from it. */
 export async function cleanupSeededPost(postId: string, memberOfferId: string): Promise<void> {
   const db = getSupabaseAdmin();

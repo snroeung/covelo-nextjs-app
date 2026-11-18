@@ -1,11 +1,46 @@
 import { initTRPC, TRPCError } from "@trpc/server";
+import type { AuthError, User } from "@supabase/supabase-js";
 import { isEnabled } from "@/lib/feature-flags";
 import type { FlagName } from "@/lib/feature-flags";
 import { createClient } from "@/lib/supabase/server";
+import { timed, withProcedure } from "@/lib/timing";
 
 /** What every request carries before auth: the viewer's IANA time zone (already validated, UTC when unknown). */
 export interface TrpcContext {
   timeZone?: string;
+  /** Resolves the caller once per HTTP request (see `createAuthLoader`). Absent in tests/jobs, where each procedure asks Supabase itself. */
+  getAuth?: () => Promise<AuthResult>;
+}
+
+export interface AuthResult {
+  user: User | null;
+  error: AuthError | null;
+}
+
+async function fetchAuth(): Promise<AuthResult> {
+  const supabase = await createClient();
+  const { data: { user }, error } = await timed("supabase.auth", () => supabase.auth.getUser(), {
+    // A signed-out visitor has no session: getUser() reports that as an error, but nothing failed
+    failed: (r) => !!r.error && r.error.name !== "AuthSessionMissingError",
+  });
+  return { user, error };
+}
+
+/**
+ * One auth lookup per HTTP request. A batch of N procedures shares the single result, and a
+ * visitor with no session cookie (`hasSession` false) costs no Supabase round trip at all.
+ * Build one per request in the route's createContext.
+ */
+export function createAuthLoader(hasSession: boolean): () => Promise<AuthResult> {
+  let pending: Promise<AuthResult> | undefined;
+  return () => {
+    if (!hasSession) return Promise.resolve({ user: null, error: null });
+    return (pending ??= fetchAuth());
+  };
+}
+
+function resolveAuth(ctx: TrpcContext): Promise<AuthResult> {
+  return ctx.getAuth ? ctx.getAuth() : fetchAuth();
 }
 
 const t = initTRPC.context<TrpcContext>().create({
@@ -24,7 +59,10 @@ const t = initTRPC.context<TrpcContext>().create({
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+
+// Every procedure starts here, so spans recorded inside it (including its auth middleware) carry its name
+const base = t.procedure.use(({ path, next }) => withProcedure(path, () => next()));
+export const publicProcedure = base;
 
 /**
  * Returns a procedure pre-configured with a feature flag guard.
@@ -35,7 +73,7 @@ export const publicProcedure = t.procedure;
  *   flaggedProcedure("api:flights").input(schema).mutation(...)
  */
 export function flaggedProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ next }) => {
+  return base.use(async ({ next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -57,15 +95,14 @@ export function isAdminUser(user: { app_metadata?: unknown } | null | undefined)
  * depends on the viewer (the board feed).
  */
 export function viewerProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ ctx, next }) => {
+  return base.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: `Feature "${flag}" is not available in this environment.`,
       });
     }
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user } = await resolveAuth(ctx);
     return next({ ctx: { viewer: { id: user?.id ?? null, isAdmin: isAdminUser(user), timeZone: ctx.timeZone } } });
   });
 }
@@ -77,7 +114,7 @@ export function viewerProcedure(flag: FlagName) {
  * admin (user, session client, viewer) for resolvers that record who acted.
  */
 export function adminProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ ctx, next }) => {
+  return base.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -85,7 +122,7 @@ export function adminProcedure(flag: FlagName) {
       });
     }
     const supabase = await createClient();
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { user, error } = await resolveAuth(ctx);
     if (error || !user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }
@@ -102,7 +139,7 @@ export function adminProcedure(flag: FlagName) {
  * policies keyed on auth.uid() apply to its writes.
  */
 export function authedProcedure(flag: FlagName) {
-  return t.procedure.use(async ({ ctx, next }) => {
+  return base.use(async ({ ctx, next }) => {
     if (!isEnabled(flag)) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -110,7 +147,7 @@ export function authedProcedure(flag: FlagName) {
       });
     }
     const supabase = await createClient();
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { user, error } = await resolveAuth(ctx);
     if (error || !user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Sign in required." });
     }

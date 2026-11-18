@@ -53,6 +53,9 @@ export interface HotelBedsSearchResponse {
   };
 }
 
+/** HotelBeds only adds portal prices; a slow call is dropped (the caller treats it as non-fatal) instead of holding Duffel's results. */
+export const HOTELBEDS_TIMEOUT_MS = 4500;
+
 export async function searchHotels(
   params: HotelBedsSearchParams,
 ): Promise<HotelBedsSearchResponse> {
@@ -76,6 +79,7 @@ export async function searchHotels(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(HOTELBEDS_TIMEOUT_MS),
   });
 
   if (!res.ok) {

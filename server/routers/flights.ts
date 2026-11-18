@@ -4,9 +4,11 @@ import { flaggedProcedure, router } from "@/server/trpc";
 import { isEnabled } from "@/lib/feature-flags";
 import { CACHE, cacheKeys } from "@/lib/cache-config";
 import { redis } from "@/lib/redis";
+import { DUFFEL_TIMEOUT_MS, withTimeout } from "@/lib/withTimeout";
 import { TRPCError } from "@trpc/server";
 import { duffel } from "@/lib/duffel";
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/timing";
 import { matchFlightCollections } from "@/lib/travelCollectionMatch";
 import type { TravelCollection } from "@/lib/types/portalData";
 
@@ -14,11 +16,38 @@ import type { TravelCollection } from "@/lib/types/portalData";
 // Flag off → reads miss, writes no-op (same graceful-degradation pattern as stays).
 async function cacheGet<T>(key: string): Promise<T | null> {
   if (!isEnabled("integration:redis:flights")) return null;
-  return redis.get<T>(key).catch(() => null);
+  return timed("redis.get", () => redis.get<T>(key), { note: (r) => (r ? "hit" : "miss") }).catch(() => null);
 }
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   if (!isEnabled("integration:redis:flights")) return;
-  await redis.set(key, value, { ex: ttl }).catch(() => {});
+  await timed("redis.set", () => redis.set(key, value, { ex: ttl })).catch(() => {});
+}
+
+/**
+ * Approved flight collections (cached, shared by every visitor). Failure is non-fatal — the
+ * search is returned without collection badges — so this never rejects and can run alongside Duffel.
+ */
+async function loadFlightCollections(): Promise<TravelCollection[]> {
+  try {
+    const collectionsCacheKey = cacheKeys.travelCollections("flight");
+    const cached = await cacheGet<TravelCollection[]>(collectionsCacheKey);
+    if (cached) return cached;
+
+    const supabase = await createClient();
+    const { data, error } = await timed("supabase.collections", async () => await supabase
+      .from("travel_collections")
+      .select("*")
+      .eq("type", "flight")
+      .in("status", ["approved", "admin"])
+      .eq("active", true), { failed: (r) => !!r.error });
+    if (error) throw error;
+    const collections = (data ?? []) as TravelCollection[];
+    await cacheSet(collectionsCacheKey, collections, CACHE.travelCollections.ttl);
+    return collections;
+  } catch (err) {
+    console.warn("[flights] travel_collections ✗", err);
+    return [];
+  }
 }
 
 export const flightsRouter = router({
@@ -59,34 +88,16 @@ export const flightsRouter = router({
         ...(returnDate ? [{ origin: destination, destination: origin, departure_date: returnDate, arrival_time: null, departure_time: null }] : []),
       ];
 
-      const offerRequest = await duffel.offerRequests.create({
+      // Independent of Duffel, so it runs alongside it. Never rejects (failure → no collections).
+      const collectionsPromise = loadFlightCollections();
+
+      const offerRequest = await timed("duffel.offers", () => withTimeout(duffel.offerRequests.create({
         slices,
         passengers: Array.from({ length: passengers }, () => ({ type: "adult" as const })),
         cabin_class: cabinClass,
-      });
+      }), DUFFEL_TIMEOUT_MS, "duffel.offers"));
 
-      let collections: TravelCollection[] = [];
-      try {
-        const collectionsCacheKey = cacheKeys.travelCollections("flight");
-        const cachedCollections = await cacheGet<TravelCollection[]>(collectionsCacheKey);
-        if (cachedCollections) {
-          collections = cachedCollections;
-        } else {
-          const supabase = await createClient();
-          const { data, error } = await supabase
-            .from("travel_collections")
-            .select("*")
-            .eq("type", "flight")
-            .in("status", ["approved", "admin"])
-            .eq("active", true);
-          if (error) throw error;
-          collections = (data ?? []) as TravelCollection[];
-          await cacheSet(collectionsCacheKey, collections, CACHE.travelCollections.ttl);
-        }
-      } catch (err) {
-        console.warn("[flights] travel_collections ✗", err);
-      }
-
+      const collections = await collectionsPromise;
       const collectionMatchMap = matchFlightCollections(offerRequest.data.offers, collections, departureDate);
       const result = {
         ...offerRequest.data,

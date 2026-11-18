@@ -1,10 +1,11 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { describeError } from '@/lib/board/errors';
 import { DEFAULT_FILTERS, filtersToSearch, hasActiveFilters, parseFilters, type BoardFilters as Filters } from '@/lib/board/filters';
 import { useBoardFeed, useBoardTopics, useBoardViewer } from '@/hooks/useBoard';
+import { useFeedScrollRestore } from '@/hooks/useFeedScrollRestore';
 import { saveFeedSearch } from '@/components/board/shared/backLink';
 import { BoardFilters } from './BoardFilters';
 import { BoardHeader } from './BoardHeader';
@@ -36,6 +37,32 @@ export function BoardPage() {
   const posts = feed.data?.pages.flatMap((p) => p.posts) ?? [];
   const counts = feed.data?.pages[0]?.counts ?? null;
 
+  // Back, reload or "The board" on a post return to where the member was, loading the batches
+  // that were open then. Until that is done the sentinel below stays quiet.
+  const restore = useFeedScrollRestore({
+    feedKey: filtersToSearch(filters),
+    loaded: posts.length,
+    ready: feed.data !== undefined && !feed.isPlaceholderData,
+    hasNextPage: feed.hasNextPage,
+    isFetchingNextPage: feed.isFetchingNextPage,
+    fetchFailed: feed.isFetchNextPageError,
+    fetchNextPage: feed.fetchNextPage,
+  });
+
+  // Infinite scroll: an invisible marker under the last post. Once it comes within 600px of the
+  // viewport the next batch is requested, and it keeps asking until the marker is pushed back out.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, isPlaceholderData, fetchNextPage } = feed;
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage || isFetchingNextPage || isFetchNextPageError || isPlaceholderData || restore.restoring) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) void fetchNextPage();
+    }, { rootMargin: '600px 0px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, isPlaceholderData, restore.restoring, fetchNextPage, posts.length]);
+
   const [composing, setComposing] = useState(() => params.get('compose') === '1');
   const [signInPrompt, setSignInPrompt] = useState(false);
   const newPost = () => (viewer.signedIn ? setComposing(true) : setSignInPrompt(true));
@@ -55,9 +82,10 @@ export function BoardPage() {
           />
 
           <section aria-label="Posts" aria-busy={feed.isFetching}>
-            {feed.isPending ? (
+            {feed.isPending || restore.restoring ? (
               <FeedSkeleton />
-            ) : feed.isError ? (
+            ) : feed.isError && !feed.data ? (
+              // Only when there is nothing to show: a failed later batch keeps the posts already loaded
               <div role="alert" className="rounded-[10px] border border-dashed border-gph-line p-7 text-center text-[13px] text-gph-muted">
                 <p className="mb-3">{describeError(feed.error).message}</p>
                 <button type="button" onClick={() => feed.refetch()} className={BTN_GHOST}>Try again</button>
@@ -78,12 +106,23 @@ export function BoardPage() {
               </ul>
             )}
 
-            {feed.hasNextPage && (
-              <div className="mt-4 flex justify-center">
-                <button type="button" onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage} className={BTN_GHOST}>
-                  {feed.isFetchingNextPage ? 'Loading…' : 'Load more posts'}
-                </button>
+            {hasNextPage && <div ref={sentinelRef} aria-hidden="true" className="h-px" />}
+
+            {isFetchingNextPage && (
+              <div className="mt-2.5">
+                <FeedSkeleton count={2} label="Loading more posts" />
               </div>
+            )}
+
+            {isFetchNextPageError && (
+              <div role="alert" className="mt-3 rounded-[10px] border border-dashed border-gph-line p-5 text-center text-[13px] text-gph-muted">
+                <p className="mb-3">Couldn&rsquo;t load more posts.</p>
+                <button type="button" onClick={() => void fetchNextPage()} className={BTN_GHOST}>Try again</button>
+              </div>
+            )}
+
+            {!hasNextPage && posts.length > 0 && !feed.isFetching && (
+              <p className="mt-5 text-center text-xs text-gph-muted">You&rsquo;re all caught up.</p>
             )}
           </section>
         </div>

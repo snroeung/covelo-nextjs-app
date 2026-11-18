@@ -1,7 +1,9 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { isEnabled } from '@/lib/feature-flags';
 import type { FlagName } from '@/lib/feature-flags';
+import { PROXY_AUTH_HEADER, timed, timingExposed } from '@/lib/timing';
+import { hasSessionCookie } from '@/lib/supabase/session';
 
 // Routes that require a feature flag to be enabled.
 // Patterns are prefix-matched (pathname.startsWith).
@@ -30,6 +32,7 @@ export async function proxy(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({ request });
+  const refreshedCookies: Array<{ name: string; value: string; options?: CookieOptions }> = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,6 +44,7 @@ export async function proxy(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          refreshedCookies.push(...cookiesToSet);
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -51,7 +55,27 @@ export async function proxy(request: NextRequest) {
   );
 
   // Refresh session so it doesn't expire mid-session
-  await supabase.auth.getUser();
+  // Nothing to refresh without a session cookie, so signed-out visitors skip the Supabase round trip
+  const authStart = performance.now();
+  if (hasSessionCookie(request.cookies.getAll().map((c) => c.name))) {
+    await timed('proxy-auth', () => supabase.auth.getUser(), {
+      // No session is a signed-out visitor, not a failure
+      failed: (r) => !!r.error && r.error.name !== 'AuthSessionMissingError',
+    });
+  }
+  const authMs = Math.round(performance.now() - authStart);
+
+  // Proxy runs outside the tRPC request, so the route's own Server-Timing can't see this call.
+  // A response header here would replace the route's, so API calls get the number forwarded as a
+  // request header (the route folds it into its single header); pages get it directly.
+  if (pathname.startsWith('/api/trpc')) {
+    const forwarded = new Headers(request.headers);
+    forwarded.set(PROXY_AUTH_HEADER, String(authMs));
+    supabaseResponse = NextResponse.next({ request: { headers: forwarded } });
+    refreshedCookies.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options));
+  } else if (timingExposed()) {
+    supabaseResponse.headers.set('Server-Timing', `proxy-auth;dur=${authMs}`);
+  }
 
   return supabaseResponse;
 }

@@ -55,11 +55,11 @@ export function PostCard({ post }: { post: BoardPost }) {
           <span className="font-mono text-[11px] font-semibold text-gph-muted">{postMeta(post)}</span>
         </div>
 
-        <h3 className="text-base font-bold leading-snug tracking-tight text-gph-ink" style={{ textWrap: 'pretty' }}>
+        <h2 className="text-base font-bold leading-snug tracking-tight text-gph-ink" style={{ textWrap: 'pretty' }}>
           <Link href={href} onClick={(e) => e.stopPropagation()} className="hover:underline focus-visible:outline-2 focus-visible:outline-gph-ink">
             {post.title}
           </Link>
-        </h3>
+        </h2>
         {post.body && <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-gph-muted">{post.body}</p>}
 
         {post.offer && <div className="mt-2.5"><OfferPreview offer={post.offer} compact /></div>}

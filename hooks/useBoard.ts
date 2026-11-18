@@ -68,7 +68,12 @@ export function useBoardFeed(filters: BoardFilters) {
     queryFn: ({ pageParam }): Promise<FeedPage> => trpc.board.posts.list.query({ ...feedInput(filters), cursor: pageParam }),
     getNextPageParam: (last) => last.nextCursor,
     enabled: viewer.ready,
-    staleTime: 30_000,
+    // A long feed is expensive to refetch (every loaded batch is asked for again) and reshuffles under
+    // the reader, so coming back to it within these windows shows it as it was. A new post or a delete
+    // invalidates it explicitly.
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
     // Changing a filter keeps the old list on screen until the new one lands
     placeholderData: (previous) => previous,
   });

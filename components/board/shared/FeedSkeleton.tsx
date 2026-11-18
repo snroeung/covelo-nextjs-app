@@ -7,9 +7,9 @@ const TITLE_WIDTHS = [
   ['94%', '40%'],
 ];
 
-export function FeedSkeleton({ count = 3 }: { count?: number }) {
+export function FeedSkeleton({ count = 3, label = 'Loading posts' }: { count?: number; label?: string }) {
   return (
-    <LoadingRegion label="Loading posts" className="flex flex-col gap-2.5">
+    <LoadingRegion label={label} className="flex flex-col gap-2.5">
       {Array.from({ length: count }, (_, i) => {
         const [t1, t2] = TITLE_WIDTHS[i % TITLE_WIDTHS.length];
         return (

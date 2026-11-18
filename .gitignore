@@ -56,5 +56,5 @@ next-env.d.ts
 .temp
 
 .playwright-cli
-# written by `next dev` on startup
-/AGENTS.md
+
+AGENTS.md

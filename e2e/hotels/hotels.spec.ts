@@ -779,3 +779,45 @@ test.describe('Hotels page — phone', () => {
     await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe('');
   });
 });
+
+test.describe('Hotels page — client search cache', () => {
+  test('coming back to the same search is answered from the client cache, not the server', async ({ page }) => {
+    const searches: string[] = [];
+    page.on('request', (req) => {
+      if (req.url().includes('/api/trpc/stays.search')) searches.push(req.url());
+    });
+
+    await gotoHotelsWithResults(page);
+    expect(searches).toHaveLength(1);
+
+    // Leave through the app's own router (a full reload would drop the cache), then come back
+    await page.getByRole('link', { name: /^covelo/i }).first().click();
+    await expect(page).not.toHaveURL(/\/hotels/);
+    await page.goBack();
+    await expect(
+      page.getByRole('main').getByText(/hotels? in Philadelphia|No hotels found for this location/),
+    ).toBeVisible({ timeout: 10_000 });
+
+    expect(searches).toHaveLength(1);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a new search is not served from the cache of the old one', async ({ page }) => {
+    const searches: string[] = [];
+    page.on('request', (req) => {
+      if (req.url().includes('/api/trpc/stays.search')) searches.push(req.url());
+    });
+
+    await gotoHotelsWithResults(page);
+    await page.goto(`/hotels?${new URLSearchParams({
+      destination: 'Boston, MA', lat: '42.3601', lng: '-71.0589',
+      checkIn: CHECK_IN, checkOut: CHECK_OUT, adults: '2', children: '0', rooms: '1',
+    })}`);
+    await expect(
+      page.getByRole('main').getByText(/hotels? in Boston|No hotels found for this location/),
+    ).toBeVisible({ timeout: 30_000 });
+
+    expect(searches).toHaveLength(2);
+  });
+});

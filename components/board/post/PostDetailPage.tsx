@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { describeError } from '@/lib/board/errors';
 import { useBoardPost } from '@/hooks/useBoard';
 import { readFeedSearch } from '@/components/board/shared/backLink';
+import { markFeedReturn } from '@/lib/board/feedPosition';
 import { BTN_GHOST } from '@/components/ui/button';
 import { FeedSkeleton } from '@/components/board/shared/FeedSkeleton';
 import { BoardIcon } from '@/components/board/shared/icons';
@@ -21,6 +22,7 @@ export function PostDetailPage({ id }: { id: string }) {
     <div className="mx-auto max-w-[820px] px-4 pb-16 pt-7 md:px-6">
       <Link
         href={`/discover/board${backSearch}`}
+        onClick={() => markFeedReturn()}
         className="mb-3.5 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-gph-line bg-gph-card px-3.5 text-xs font-bold text-gph-ink hover:bg-gph-linesoft focus-visible:outline-2 focus-visible:outline-gph-ink"
       >
         <BoardIcon name="chev-l" size={12} />
