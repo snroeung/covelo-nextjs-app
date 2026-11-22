@@ -1,8 +1,10 @@
 name: Claude Code Review
 
 # Reviews every non-merge commit in a pull request and posts one comment per commit on
-# the PR (commits already commented are skipped on later pushes). Findings never block
-# the PR. Auth is workload identity federation (no API key secret).
+# the PR (commits already commented are skipped on later pushes). It also re-reads the
+# PR's earlier review comments and appends a "Still pending" section listing the issues
+# from them that remain unresolved at HEAD. Findings never block the PR. Auth is workload
+# identity federation (no API key secret).
 
 on:
   pull_request:
@@ -27,6 +29,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       ANTHROPIC_FEDERATION_RULE_ID: fdrl_01XTYYdjmzXns86Hu3LJHeCS
       ANTHROPIC_ORGANIZATION_ID: 8512cc98-b90a-4b8f-9a9b-3aad0e97ea29
       ANTHROPIC_SERVICE_ACCOUNT_ID: svac_01BUnNiED8SAP2FhdVQqbcuw
