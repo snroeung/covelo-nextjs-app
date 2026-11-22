@@ -16,8 +16,8 @@ export const handlers = [
     });
   }),
 
-  // Google Places autocomplete
-  http.get('https://places.googleapis.com/v1/places:autocomplete', () => {
+  // Google Places Autocomplete (New) — POST
+  http.post('https://places.googleapis.com/v1/places:autocomplete', () => {
     return HttpResponse.json({ suggestions: [] });
   }),
 ];

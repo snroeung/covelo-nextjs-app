@@ -24,8 +24,9 @@ export const cacheKeys = {
     `flight:board:${hash}`,
   placeLatLng:      (placeId: string) =>
     `place:latlng:${placeId}`,
+  // v2 — stores a Places API (New) photo resource name, not a legacy photo_reference
   placePhoto:       (name: string, address: string) =>
-    `place:photo:ref:${name}:${address}`,
+    `place:photo:v2:ref:${name}:${address}`,
   countryAirports:  (iso2: string) =>
     `place:country-airports:${iso2}`,
   // Google place ID only — the one Places value Google allows storing indefinitely

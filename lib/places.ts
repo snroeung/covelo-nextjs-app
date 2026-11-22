@@ -5,6 +5,9 @@ import { searchAirports, getStaticAirport } from './airports';
 
 const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
+/** Places API (New) base — the single Google generation used across this module. */
+const PLACES_V1 = 'https://places.googleapis.com/v1';
+
 export interface PlaceSuggestion {
   placeId: string;
   description: string;
@@ -23,9 +26,15 @@ interface RawPrediction {
 }
 
 /**
- * Shared fetch behind Places Autocomplete. Callers that only need {placeId, description}
- * should use getPlaceAutocomplete below; resolveCountryIso2 also needs the raw `types`
- * array (to detect a country prediction), so it calls this directly.
+ * Shared fetch behind Places Autocomplete (New). Callers that only need
+ * {placeId, description} should use getPlaceAutocomplete below; resolveCountryIso2
+ * also needs the raw `types` array (to detect a country prediction), so it calls
+ * this directly. Returns the legacy-shaped RawPrediction so downstream callers are
+ * unchanged — only the HTTP call maps Autocomplete (New)'s response here.
+ *
+ * `types` maps to Autocomplete (New)'s `includedPrimaryTypes` (e.g. 'airport',
+ * '(regions)' → 'country'); `components` was always 'country:XX' and maps to
+ * `includedRegionCodes` (lowercased).
  */
 async function fetchAutocompletePredictions(
   input: string,
@@ -35,21 +44,39 @@ async function fetchAutocompletePredictions(
 ): Promise<RawPrediction[]> {
   if (!GMAPS_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set');
 
-  const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
-  url.searchParams.set('input', input);
-  url.searchParams.set('sessiontoken', sessionToken);
-  if (types) url.searchParams.set('types', types);
-  if (components) url.searchParams.set('components', components);
-  url.searchParams.set('key', GMAPS_KEY);
-
-  const res = await fetch(url.toString());
-  const data = await res.json();
-
-  if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-    throw new Error(`Places autocomplete failed: ${data.status}`);
+  const body: Record<string, unknown> = { input, sessionToken, languageCode: 'en' };
+  if (types) body.includedPrimaryTypes = [types === '(regions)' ? 'country' : types];
+  if (components) {
+    const iso2 = components.replace(/^country:/, '').toLowerCase();
+    if (iso2) body.includedRegionCodes = [iso2];
   }
 
-  return data.predictions ?? [];
+  const res = await fetch(`${PLACES_V1}/places:autocomplete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': GMAPS_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    // Surface Google's reason (e.g. 403 PERMISSION_DENIED when "Places API (New)"
+    // isn't enabled on the key) — the status alone hides the actionable detail.
+    const detail = await res.text().catch(() => '');
+    console.error('[places] Autocomplete (New) failed', { status: res.status, detail });
+    throw new Error(`Places autocomplete failed: ${res.status}`);
+  }
+
+  const data = (await res.json()) as {
+    suggestions?: Array<{
+      placePrediction?: { placeId: string; text?: { text?: string }; types?: string[] };
+    }>;
+  };
+
+  return (data.suggestions ?? [])
+    .map((s) => s.placePrediction)
+    .filter((p): p is NonNullable<typeof p> => Boolean(p?.placeId))
+    .map((p) => ({ place_id: p.placeId, description: p.text?.text ?? '', types: p.types }));
 }
 
 /**
@@ -81,21 +108,20 @@ async function resolveCountryIso2(input: string): Promise<string | null> {
   const top = predictions[0];
   if (!top || !top.types?.includes('country')) return null;
 
-  const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-  detailsUrl.searchParams.set('place_id', top.place_id);
-  detailsUrl.searchParams.set('fields', 'address_component');
-  detailsUrl.searchParams.set('sessiontoken', sessionToken);
-  detailsUrl.searchParams.set('key', GMAPS_KEY);
+  const detailsUrl = new URL(`${PLACES_V1}/places/${encodeURIComponent(top.place_id)}`);
+  detailsUrl.searchParams.set('sessionToken', sessionToken);
 
-  const detailsRes = await fetch(detailsUrl.toString());
+  const detailsRes = await fetch(detailsUrl.toString(), {
+    headers: { 'X-Goog-Api-Key': GMAPS_KEY, 'X-Goog-FieldMask': 'addressComponents' },
+  });
+  if (!detailsRes.ok) return null;
   const detailsData = await detailsRes.json();
-  if (detailsData.status !== 'OK') return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const countryComponent = (detailsData.result?.address_components ?? []).find((c: any) =>
+  const countryComponent = (detailsData.addressComponents ?? []).find((c: any) =>
     c.types?.includes('country'),
   );
-  return countryComponent?.short_name ?? null;
+  return countryComponent?.shortText ?? null;
 }
 
 /**
@@ -186,10 +212,10 @@ export async function getNearestAirport(cityName: string): Promise<NearestAirpor
 }
 
 /**
- * Returns a photo_reference for a place identified by name + address.
- * The caller should construct a server-side proxy URL from this reference
- * (e.g. /api/place-photo?ref=REFERENCE) so the API key is never exposed.
- * Results are cached in Redis for 7 days.
+ * Returns a Places API (New) photo resource name (`places/XXX/photos/YYY`) for a
+ * place identified by name + address. The caller should construct a server-side
+ * proxy URL from this name (e.g. /api/place-photo?ref=NAME) so the API key is
+ * never exposed. Results are cached in Redis for 7 days.
  */
 export async function getPlacePhoto(name: string, address: string): Promise<string | null> {
   if (!GMAPS_KEY) return null;
@@ -205,16 +231,21 @@ export async function getPlacePhoto(name: string, address: string): Promise<stri
     }
   }
 
-  const findUrl = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json');
-  findUrl.searchParams.set('input', `${name} ${address}`);
-  findUrl.searchParams.set('inputtype', 'textquery');
-  findUrl.searchParams.set('fields', 'photos');
-  findUrl.searchParams.set('key', GMAPS_KEY);
+  const findRes = await fetch(`${PLACES_V1}/places:searchText`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': GMAPS_KEY,
+      'X-Goog-FieldMask': 'places.photos',
+    },
+    body: JSON.stringify({ textQuery: `${name} ${address}`, pageSize: 1, languageCode: 'en' }),
+  });
+  if (!findRes.ok) return null;
+  const findData = (await findRes.json()) as {
+    places?: Array<{ photos?: Array<{ name?: string }> }>;
+  };
 
-  const findRes = await fetch(findUrl.toString());
-  const findData = await findRes.json();
-
-  const photoRef: string | undefined = findData.candidates?.[0]?.photos?.[0]?.photo_reference;
+  const photoRef: string | undefined = findData.places?.[0]?.photos?.[0]?.name;
   if (!photoRef) return null;
 
   if (isEnabled("integration:redis:places")) {
@@ -259,22 +290,24 @@ export async function getPlaceLatLng(
   // Cache miss → call Place Details (this call closes the session and is billed)
   if (!GMAPS_KEY) throw new Error('GOOGLE_MAPS_API_KEY is not set');
 
-  const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-  url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'geometry,name');
-  url.searchParams.set('sessiontoken', sessionToken);
-  url.searchParams.set('key', GMAPS_KEY);
+  const url = new URL(`${PLACES_V1}/places/${encodeURIComponent(placeId)}`);
+  url.searchParams.set('sessionToken', sessionToken);
 
-  const res = await fetch(url.toString());
-  const data = await res.json();
+  const res = await fetch(url.toString(), {
+    headers: { 'X-Goog-Api-Key': GMAPS_KEY, 'X-Goog-FieldMask': 'location,displayName' },
+  });
 
-  if (data.status !== 'OK') {
-    console.error('[places] Place Details failed', { placeId, status: data.status, error_message: data.error_message });
-    throw new Error(`Place details failed: ${data.status}`);
+  if (!res.ok) {
+    console.error('[places] Place Details failed', { placeId, status: res.status });
+    throw new Error(`Place details failed: ${res.status}`);
   }
 
-  const { lat, lng } = data.result.geometry.location;
-  const result: PlaceLatLng = { latitude: lat, longitude: lng, name: data.result.name };
+  const data = await res.json();
+  const result: PlaceLatLng = {
+    latitude: data.location.latitude,
+    longitude: data.location.longitude,
+    name: data.displayName?.text ?? '',
+  };
 
   // 30-day TTL — swallow write errors so the result is still returned
   if (isEnabled("integration:redis:places")) {
@@ -294,7 +327,6 @@ export async function getPlaceLatLng(
 // any other place content, so only the ID goes to Redis — reviews, rating and
 // count are fetched live on every call.
 
-const PLACES_V1 = 'https://places.googleapis.com/v1';
 /** Cached in place of an ID when a hotel has no trustworthy Google match. */
 const NO_MATCH = 'none';
 /** A Google place further than this from Duffel's coordinates is a different hotel. */
