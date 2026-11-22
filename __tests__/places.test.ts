@@ -17,31 +17,38 @@ import { redis } from '@/lib/redis';
 import { isEnabled } from '@/lib/feature-flags';
 import { getAirportsForQuery, getHotelGoogleReviews } from '@/lib/places';
 
-const AUTOCOMPLETE_URL = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
-const DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json';
+// Places API (New): Autocomplete is POST, Place Details is GET v1/places/:id.
+const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
+const DETAILS_URL = 'https://places.googleapis.com/v1/places/:id';
 
 const NRT = { place_id: 'nrt_id', description: 'Narita International Airport (NRT), Narita, Chiba, Japan' };
 const HND = { place_id: 'hnd_id', description: 'Haneda Airport (HND), Ota, Tokyo, Japan' };
-const JAPAN = { place_id: 'japan_id', types: ['country', 'political'] };
+const JAPAN = { place_id: 'japan_id', description: 'Japan', types: ['country', 'political'] };
+
+type AutocompleteBody = { includedPrimaryTypes?: string[]; includedRegionCodes?: string[] };
+
+/** Builds an Autocomplete (New) suggestion from the legacy-shaped fixtures above. */
+function suggestion(p: { place_id: string; description: string; types?: string[] }) {
+  return { placePrediction: { placeId: p.place_id, text: { text: p.description }, types: p.types } };
+}
 
 function mockJapanAirports(onCountryCall?: () => void) {
   server.use(
-    http.get(AUTOCOMPLETE_URL, ({ request }) => {
-      const params = new URL(request.url).searchParams;
-      const types = params.get('types');
-      const components = params.get('components');
+    http.post(AUTOCOMPLETE_URL, async ({ request }) => {
+      const body = (await request.json()) as AutocompleteBody;
+      const primary = body.includedPrimaryTypes?.[0];
+      const region = body.includedRegionCodes?.[0];
 
-      if (types === 'airport' && components === 'country:JP') {
+      if (primary === 'airport' && region === 'jp') {
         onCountryCall?.();
-        return HttpResponse.json({ status: 'OK', predictions: [NRT, HND] });
+        return HttpResponse.json({ suggestions: [suggestion(NRT), suggestion(HND)] });
       }
-      if (types === 'airport') return HttpResponse.json({ status: 'ZERO_RESULTS', predictions: [] });
-      if (types === '(regions)') return HttpResponse.json({ status: 'OK', predictions: [JAPAN] });
-      return HttpResponse.json({ status: 'ZERO_RESULTS', predictions: [] });
+      if (primary === 'airport') return HttpResponse.json({ suggestions: [] });
+      if (primary === 'country') return HttpResponse.json({ suggestions: [suggestion(JAPAN)] });
+      return HttpResponse.json({ suggestions: [] });
     }),
     http.get(DETAILS_URL, () => HttpResponse.json({
-      status: 'OK',
-      result: { address_components: [{ types: ['country', 'political'], short_name: 'JP', long_name: 'Japan' }] },
+      addressComponents: [{ types: ['country', 'political'], shortText: 'JP', longText: 'Japan' }],
     })),
   );
 }
@@ -56,9 +63,9 @@ describe('getAirportsForQuery', () => {
 
   it('matches a bundled IATA code without calling Google — covers airports like CUN that Google\'s text match misses', async () => {
     let googleCalled = false;
-    server.use(http.get(AUTOCOMPLETE_URL, () => {
+    server.use(http.post(AUTOCOMPLETE_URL, () => {
       googleCalled = true;
-      return HttpResponse.json({ status: 'ZERO_RESULTS', predictions: [] });
+      return HttpResponse.json({ suggestions: [] });
     }));
 
     const result = await getAirportsForQuery('CUN', 'session-1');
@@ -75,15 +82,14 @@ describe('getAirportsForQuery', () => {
 
   it('falls back to Google for a direct match when nothing in the bundled list matches', async () => {
     server.use(
-      http.get(AUTOCOMPLETE_URL, ({ request }) => {
-        const types = new URL(request.url).searchParams.get('types');
-        if (types === 'airport') {
+      http.post(AUTOCOMPLETE_URL, async ({ request }) => {
+        const body = (await request.json()) as AutocompleteBody;
+        if (body.includedPrimaryTypes?.[0] === 'airport') {
           return HttpResponse.json({
-            status: 'OK',
-            predictions: [{ place_id: 'made_up_id', description: 'Made Up Private Strip (ZZZ), Nowhere' }],
+            suggestions: [suggestion({ place_id: 'made_up_id', description: 'Made Up Private Strip (ZZZ), Nowhere' })],
           });
         }
-        return HttpResponse.json({ status: 'ZERO_RESULTS', predictions: [] });
+        return HttpResponse.json({ suggestions: [] });
       }),
     );
 
@@ -104,7 +110,7 @@ describe('getAirportsForQuery', () => {
   });
 
   it('returns an empty list when the input matches neither a bundled airport, a direct Google match, nor a country', async () => {
-    server.use(http.get(AUTOCOMPLETE_URL, () => HttpResponse.json({ status: 'ZERO_RESULTS', predictions: [] })));
+    server.use(http.post(AUTOCOMPLETE_URL, () => HttpResponse.json({ suggestions: [] })));
 
     const result = await getAirportsForQuery('asdfqwerasdfqwer', 'session-1');
 
@@ -144,9 +150,9 @@ describe('getAirportsForQuery', () => {
   it('skips the Google fallback entirely when the Google Places integration is disabled', async () => {
     (isEnabled as Mock).mockReturnValue(false);
     let googleCalled = false;
-    server.use(http.get(AUTOCOMPLETE_URL, () => {
+    server.use(http.post(AUTOCOMPLETE_URL, () => {
       googleCalled = true;
-      return HttpResponse.json({ status: 'ZERO_RESULTS', predictions: [] });
+      return HttpResponse.json({ suggestions: [] });
     }));
 
     const result = await getAirportsForQuery('zzzznonexistentplace', 'session-1');

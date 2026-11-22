@@ -57,7 +57,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "integration:duffel:flights":        { enabledIn: ["local", "beta", "production"], description: "Duffel API — flights router" },
   "integration:duffel:stays":          { enabledIn: ["local", "beta", "production"], description: "Duffel API — stays router" },
   "integration:hotelbeds:stays":       { enabledIn: ["local", "beta", "production"], description: "HotelBeds API — stays router" },
-  "integration:google-places:places":  { enabledIn: ["local", "beta", "production"], description: "Google Places API — places router" },
+  "integration:google-places:places":  { enabledIn: ["local", "beta", "production"], description: "Google Places API (New) — places router (autocomplete, details, photos)" },
   "integration:google-places:reviews": { enabledIn: ["local", "beta", "production"], description: "Google Places API (New) — paid hotel reviews (Place Details Enterprise + Atmosphere)" },
   "integration:redis:stays":           { enabledIn: ["local", "beta", "production"], description: "Redis caching — stays router" },
   "integration:redis:flights":         { enabledIn: ["local", "beta", "production"], description: "Redis caching — flights router" },
