@@ -15,7 +15,7 @@ vi.mock('@/lib/feature-flags', () => ({
 
 import { redis } from '@/lib/redis';
 import { isEnabled } from '@/lib/feature-flags';
-import { getAirportsForQuery, getHotelGoogleReviews } from '@/lib/places';
+import { getAirportsForQuery, getHotelGoogleReviews, getNearestAirport, getPlaceLatLng, getPlacePhoto } from '@/lib/places';
 
 // Places API (New): Autocomplete is POST, Place Details is GET v1/places/:id.
 const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
@@ -352,5 +352,185 @@ describe('getHotelGoogleReviews', () => {
     expect(searchCalls).toHaveLength(0);
     expect(detailCalls).toHaveLength(0);
     expect(redis.get).not.toHaveBeenCalled();
+  });
+});
+
+// ── getPlaceLatLng (Place Details New) ───────────────────────────────────────
+
+const PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places/:id';
+
+describe('getPlaceLatLng', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue('OK');
+  });
+
+  it('resolves a bundled airport from the static list without calling Google', async () => {
+    let called = false;
+    server.use(http.get(PLACE_DETAILS_URL, () => { called = true; return HttpResponse.json({}); }));
+
+    const result = await getPlaceLatLng('iata:CUN', 'session-1');
+
+    expect(typeof result.latitude).toBe('number');
+    expect(typeof result.longitude).toBe('number');
+    expect(result.name).toBeTruthy();
+    expect(called).toBe(false);
+  });
+
+  it('fetches lat/lng + name from Place Details (New) with the right field mask and caches it', async () => {
+    let fieldMask: string | null = null;
+    server.use(http.get(PLACE_DETAILS_URL, ({ request }) => {
+      fieldMask = request.headers.get('X-Goog-FieldMask');
+      return HttpResponse.json({ location: { latitude: 39.95, longitude: -75.17 }, displayName: { text: 'The Logan' } });
+    }));
+
+    const result = await getPlaceLatLng('gid_logan', 'session-1');
+
+    expect(fieldMask).toBe('location,displayName');
+    expect(result).toEqual({ latitude: 39.95, longitude: -75.17, name: 'The Logan' });
+    expect(redis.set).toHaveBeenCalledWith('place:latlng:gid_logan', result, { ex: 60 * 60 * 24 * 30 });
+  });
+
+  it('returns a cached lat/lng without calling Google', async () => {
+    (redis.get as Mock).mockResolvedValue({ latitude: 1, longitude: 2, name: 'Cached' });
+    let called = false;
+    server.use(http.get(PLACE_DETAILS_URL, () => { called = true; return HttpResponse.json({}); }));
+
+    const result = await getPlaceLatLng('gid_x', 'session-1');
+
+    expect(result).toEqual({ latitude: 1, longitude: 2, name: 'Cached' });
+    expect(called).toBe(false);
+  });
+
+  it('throws when Place Details responds non-OK', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    server.use(http.get(PLACE_DETAILS_URL, () => new HttpResponse('nope', { status: 500 })));
+
+    await expect(getPlaceLatLng('gid_bad', 'session-1')).rejects.toThrow('Place details failed: 500');
+    err.mockRestore();
+  });
+});
+
+// ── getPlacePhoto (Text Search New → photo resource name) ────────────────────
+
+describe('getPlacePhoto', () => {
+  const SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue('OK');
+  });
+
+  it('returns a photo resource name from Text Search (New) and caches it under the v2 key', async () => {
+    let fieldMask: string | null = null;
+    let body: Record<string, unknown> = {};
+    server.use(http.post(SEARCH_URL, async ({ request }) => {
+      fieldMask = request.headers.get('X-Goog-FieldMask');
+      body = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ places: [{ photos: [{ name: 'places/X/photos/Y' }] }] });
+    }));
+
+    const result = await getPlacePhoto('The Logan', '1 Logan Sq');
+
+    expect(fieldMask).toBe('places.photos');
+    expect(body).toMatchObject({ textQuery: 'The Logan 1 Logan Sq', pageSize: 1 });
+    expect(result).toBe('places/X/photos/Y');
+    expect(redis.set).toHaveBeenCalledWith('place:photo:v2:ref:The Logan:1 Logan Sq', 'places/X/photos/Y', { ex: 60 * 60 * 24 * 7 });
+  });
+
+  it('returns a cached photo name without calling Google', async () => {
+    (redis.get as Mock).mockResolvedValue('places/cached/photos/Z');
+    let called = false;
+    server.use(http.post(SEARCH_URL, () => { called = true; return HttpResponse.json({}); }));
+
+    const result = await getPlacePhoto('A', 'B');
+
+    expect(result).toBe('places/cached/photos/Z');
+    expect(called).toBe(false);
+  });
+
+  it('returns null when the search yields no photo, and caches nothing', async () => {
+    server.use(http.post(SEARCH_URL, () => HttpResponse.json({ places: [{}] })));
+
+    const result = await getPlacePhoto('A', 'B');
+
+    expect(result).toBeNull();
+    expect(redis.set).not.toHaveBeenCalled();
+  });
+
+  it('returns null when Text Search responds non-OK', async () => {
+    server.use(http.post(SEARCH_URL, () => new HttpResponse('err', { status: 500 })));
+
+    const result = await getPlacePhoto('A', 'B');
+
+    expect(result).toBeNull();
+  });
+});
+
+// ── getNearestAirport (Autocomplete New → Place Details New) ──────────────────
+
+describe('getNearestAirport', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue('OK');
+  });
+
+  it('prefers the IATA-coded suggestion and resolves its lat/lng', async () => {
+    server.use(
+      http.post(AUTOCOMPLETE_URL, () => HttpResponse.json({
+        suggestions: [
+          suggestion({ place_id: 'dt_phl', description: 'Philadelphia, PA, USA' }),
+          suggestion({ place_id: 'phl_airport', description: 'Philadelphia International Airport (PHL), PA, USA' }),
+        ],
+      })),
+      http.get(PLACE_DETAILS_URL, () => HttpResponse.json({
+        location: { latitude: 39.8729, longitude: -75.2437 },
+        displayName: { text: 'Philadelphia International Airport' },
+      })),
+    );
+
+    const result = await getNearestAirport('Philadelphia, PA, USA');
+
+    expect(result).toEqual({
+      latitude: 39.8729,
+      longitude: -75.2437,
+      name: 'Philadelphia International Airport',
+      description: 'Philadelphia International Airport (PHL), PA, USA',
+      iataCode: 'PHL',
+    });
+  });
+
+  it('retries with the first word when the full city name returns nothing', async () => {
+    const inputs: string[] = [];
+    server.use(
+      http.post(AUTOCOMPLETE_URL, async ({ request }) => {
+        const body = (await request.json()) as { input: string };
+        inputs.push(body.input);
+        if (body.input === 'Washington D.C. airport') return HttpResponse.json({ suggestions: [] });
+        return HttpResponse.json({ suggestions: [suggestion({ place_id: 'iad', description: 'Washington Dulles (IAD), VA, USA' })] });
+      }),
+      http.get(PLACE_DETAILS_URL, () => HttpResponse.json({
+        location: { latitude: 38.95, longitude: -77.45 },
+        displayName: { text: 'Dulles' },
+      })),
+    );
+
+    const result = await getNearestAirport('Washington D.C., DC, USA');
+
+    expect(inputs).toEqual(['Washington D.C. airport', 'Washington airport']);
+    expect(result.iataCode).toBe('IAD');
+    expect(result.latitude).toBe(38.95);
+  });
+
+  it('throws when no airport is found at all', async () => {
+    server.use(http.post(AUTOCOMPLETE_URL, () => HttpResponse.json({ suggestions: [] })));
+
+    await expect(getNearestAirport('Nowhereville')).rejects.toThrow('No airport found for "Nowhereville"');
   });
 });
