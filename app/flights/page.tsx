@@ -9,6 +9,7 @@ import { btn } from '@/components/ui/button';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { FlightCard } from '@/components/flights/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
+import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { AirlineGroupCard } from '@/components/flights/AirlineGroupCard';
@@ -348,6 +349,9 @@ function FlightsPageInner() {
   const [tripType,     setTripType]     = useState<TripType>(paramTripType);
   const [cabinClass,   setCabinClass]   = useState<CabinClass>('economy');
   const [sort,         setSort]         = useState<FlightSort>('best');
+
+  // Location autocomplete availability → page-top alarm (stays until the service recovers).
+  const [locationUnavailable, setLocationUnavailable] = useState(false);
   const [startDate,    setStartDate]    = useState(paramDepart);
   const [endDate,      setEndDate]      = useState(paramReturn);
   const [originPlace,  setOriginPlace]  = useState<SelectedPlace | null>(() => seedFromIata(paramOrigin, paramOriginNm));
@@ -725,6 +729,7 @@ function FlightsPageInner() {
       onSearch={handleSearch}
       searchDisabled={!canSearch}
       searchPending={searching}
+      onServiceUnavailable={setLocationUnavailable}
     />
   );
 
@@ -777,6 +782,7 @@ function FlightsPageInner() {
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
       <h1 className="sr-only">Flight search results</h1>
+      <LocationUnavailableBanner show={locationUnavailable} />
       {searching && !repricing ? (
         <FlightsLoading origin={committed?.origin ?? ''} destination={committed?.destination ?? ''} />
 

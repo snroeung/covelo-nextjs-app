@@ -29,6 +29,9 @@ export const cacheKeys = {
     `place:photo:v2:ref:${name}:${address}`,
   countryAirports:  (iso2: string) =>
     `place:country-airports:${iso2}`,
+  // Mapbox forward-geocode result for a free-text query (fallback path); normalized lowercase
+  geocode:          (query: string) =>
+    `place:geocode:${query.trim().toLowerCase()}`,
   // Google place ID only — the one Places value Google allows storing indefinitely
   hotelGooglePlaceId: (accommodationId: string) =>
     `place:hotel-gid:${accommodationId}`,
@@ -58,6 +61,8 @@ export const CACHE = {
   placeLatLng:      { ttl: TTL.THIRTY_DAYS },
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
   countryAirports:  { ttl: TTL.ONE_DAY },
+  // Geocode results are stable for a given query string
+  geocode:          { ttl: TTL.ONE_DAY },
   // Doubles as Google's recommended 12-month place ID refresh
   hotelGooglePlaceId: { ttl: TTL.ONE_YEAR },
   transferBonuses:  { ttl: TTL.FIFTEEN_MINUTES },

@@ -26,9 +26,11 @@ interface Props {
   fieldLabel?: string;     // when set, renders label inside the bordered field box
   initialValue?: string;   // pre-filled input text (e.g. from saved trip planner state)
   initialCommitted?: boolean; // treat initialValue as already-selected (no auto-open dropdown)
+  onUnavailableChange?: (unavailable: boolean) => void; // fires when autocomplete errors / recovers
+  onNoMatchChange?: (noMatch: boolean) => void;         // fires when the auto-geocode finds no match
 }
 
-export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, fieldLabel, initialValue, initialCommitted }: Props) {
+export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, fieldLabel, initialValue, initialCommitted, onUnavailableChange, onNoMatchChange }: Props) {
   const { isDark } = useTheme();
   const listboxId = useId();
 
@@ -37,7 +39,6 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
   // Session token groups all autocomplete calls — only the Place Details call is billed
   const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID());
   const [resolving, setResolving] = useState(false);
-  const [resolveError, setResolveError] = useState<string | null>(null);
   // Tracks the last committed (selected) value. While input === committedInput the
   // dropdown stays closed even when new suggestion results arrive from the debounced query.
   // For airport mode with a pre-filled value that isn't already committed (e.g. city name
@@ -51,7 +52,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
 
   const debouncedInput = useDebounce(input, 300);
 
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ['places.autocomplete', debouncedInput, sessionToken, forAirport],
     queryFn: () => trpc.places.autocomplete.query({
       input: debouncedInput,
@@ -63,6 +64,46 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
   });
   // Stable fallback so the render-time sync below doesn't see a new [] every render.
   const suggestions = useMemo(() => data ?? [], [data]);
+
+  // Place-mode fallback: when autocomplete is unavailable, resolve the typed text to
+  // coordinates via Mapbox automatically — no manual trigger — and commit it. Airport
+  // mode has its own offline path (raw IATA entry) and never runs this.
+  const geocodeEnabled = !forAirport && isError && debouncedInput.trim().length >= 2;
+  const geocodeQuery = useQuery({
+    queryKey: ['places.geocode', debouncedInput],
+    queryFn: () => trpc.places.geocode.query({ query: debouncedInput }),
+    enabled: geocodeEnabled,
+    staleTime: 1000 * 60 * 10,
+  });
+  const geocodeResult = geocodeEnabled ? geocodeQuery.data : undefined;
+
+  // Auto-commit the resolved coordinates. Keep the user's typed text (don't overwrite the
+  // input) so they can keep editing; just feed coords up so the search can run.
+  const commitGeo = useRef(onSelect);
+  useEffect(() => { commitGeo.current = onSelect; });
+  useEffect(() => {
+    if (geocodeResult) commitGeo.current({ ...geocodeResult, description: geocodeResult.name });
+  }, [geocodeResult]);
+
+  // Auto-geocode status (place mode only). No-match and unavailability are NOT shown inline;
+  // no-match is surfaced by the page as its "search failed" empty state (see onNoMatchChange).
+  const geocodeNoMatch = geocodeEnabled && !geocodeQuery.isFetching && geocodeResult === null;
+
+  // Report no-match upward so the results area can show the failed-search state. Ref pattern
+  // (updated in an effect, not during render); reset to false on unmount.
+  const reportNoMatch = useRef(onNoMatchChange);
+  useEffect(() => { reportNoMatch.current = onNoMatchChange; });
+  useEffect(() => { reportNoMatch.current?.(geocodeNoMatch); }, [geocodeNoMatch]);
+  useEffect(() => () => reportNoMatch.current?.(false), []);
+
+  // Report autocomplete availability upward (for a page-level banner). Keep the latest
+  // callback in a ref (updated in an effect, never during render) so an inline callback
+  // identity doesn't re-fire the reporting effect; depend only on isError. Reset to
+  // available on unmount so a stale "unavailable" doesn't linger after the field is gone.
+  const reportUnavail = useRef(onUnavailableChange);
+  useEffect(() => { reportUnavail.current = onUnavailableChange; });
+  useEffect(() => { reportUnavail.current?.(isError); }, [isError]);
+  useEffect(() => () => reportUnavail.current?.(false), []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -95,7 +136,6 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
     setInput(description);
     setOpen(false);
     setResolving(true);
-    setResolveError(null);
     try {
       // This is the only billed call — it ends the current session
       const result = await trpc.places.getLatLng.query({ placeId, sessionToken });
@@ -103,10 +143,8 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
       onSelect({ ...result, description, iataCode });
       // Start a fresh session for the next search
       setSessionToken(crypto.randomUUID());
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not resolve location';
-      setResolveError(msg);
-      // Still call onSelect with no lat/lng so the IATA input remains usable
+    } catch {
+      // Details lookup failed — commit with no lat/lng so an IATA pick still works downstream.
       const iataCode = forAirport ? parseIata(description) : undefined;
       onSelect({ latitude: 0, longitude: 0, name: description, description, iataCode });
     } finally {
@@ -122,6 +160,16 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
       onClear();
     }
   }
+
+  // Flights fallback (no inline UI): when autocomplete is unavailable and the input is
+  // exactly a 3-letter code, commit it automatically — the code is all flights need
+  // downstream. Keep the typed text; don't overwrite the field.
+  const iataAuto = forAirport && isError && /^[A-Za-z]{3}$/.test(debouncedInput.trim())
+    ? debouncedInput.trim().toUpperCase()
+    : null;
+  useEffect(() => {
+    if (iataAuto) commitGeo.current({ latitude: 0, longitude: 0, name: iataAuto, description: iataAuto, iataCode: iataAuto });
+  }, [iataAuto]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' || e.key === 'Escape') {
@@ -197,10 +245,6 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
             className={`w-full rounded-lg border pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 ${inputCls}`}
           />
         </div>
-      )}
-
-      {resolveError && (
-        <p className="mt-1 px-1 text-xs text-cv-amber-400">{resolveError} — enter IATA code manually.</p>
       )}
 
       {open && (

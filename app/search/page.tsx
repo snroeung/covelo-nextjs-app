@@ -13,6 +13,7 @@ import { CARD_PORTAL_MAP, type PortalId } from '@/lib/points/types';
 import { SearchModeToggle, type SearchMode } from '@/components/search/SearchModeToggle';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
+import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
 import { SearchBoard, adaptFlightOffer, adaptStay, FALLBACK_FLIGHTS, FALLBACK_STAYS, type BoardCard, type FlightOfferSlice, type StaySearchResultSlice } from '@/components/search/SearchBoard';
 import type { GuestsValue } from '@/components/inputs/GuestsDropdown';
 import type { SelectedPlace } from '@/components/inputs/LocationSearch';
@@ -52,6 +53,15 @@ function SearchHome() {
 
   const [today] = useState(() => new Date().toISOString().split('T')[0]);
   const [mode, setMode] = useState<SearchMode>('flights');
+
+  // Location autocomplete availability → page-top alarm. Reset when switching modes
+  // (derive-on-change during render, not in an effect).
+  const [locationUnavailable, setLocationUnavailable] = useState(false);
+  const [prevMode, setPrevMode] = useState(mode);
+  if (prevMode !== mode) {
+    setPrevMode(mode);
+    setLocationUnavailable(false);
+  }
 
   // Flight form state
   const [tripType, setTripType]         = useState<TripType>('roundtrip');
@@ -154,6 +164,7 @@ function SearchHome() {
       <NavBar />
 
       <main className="w-full px-4 md:px-8 py-8 md:py-12 flex-1">
+        <LocationUnavailableBanner show={locationUnavailable} />
         {/* White hub panel: hero + search + wallet */}
         <div className={`rounded-2xl border p-5 md:p-8 ${surface}`}>
         {/* Hero */}
@@ -189,6 +200,7 @@ function SearchHome() {
               onEndDateChange={setReturnDate}
               onSearch={() => router.push(buildFlightSearchUrl(flightValues))}
               searchDisabled={!flightsValid}
+              onServiceUnavailable={setLocationUnavailable}
             />
           ) : (
             <HotelSearchForm
@@ -202,6 +214,7 @@ function SearchHome() {
               onGuestsChange={setGuests}
               onSearch={() => router.push(buildHotelSearchUrl(hotelValues))}
               searchDisabled={!hotelsValid}
+              onServiceUnavailable={setLocationUnavailable}
             />
           )}
         </div>

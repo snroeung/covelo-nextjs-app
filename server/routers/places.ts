@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { flaggedProcedure, router } from '@/server/trpc';
 import { isEnabled } from '@/lib/feature-flags';
 import { getPlaceAutocomplete, getAirportsForQuery, getPlaceLatLng, getNearestAirport, getPlacePhoto, getHotelGoogleReviews } from '@/lib/places';
+import { geocodeText } from '@/lib/geocode';
 
 export const placesRouter = router({
   /**
@@ -27,6 +28,24 @@ export const placesRouter = router({
         });
       }
       return getPlaceAutocomplete(input, sessionToken, types);
+    }),
+
+  /**
+   * Mapbox forward-geocode fallback — resolves free text → lat/lng when Google
+   * Places autocomplete is unavailable (403, flag off, network). Place mode only;
+   * flights fall back to a raw IATA code with no network call. Gated by
+   * integration:mapbox; returns null when nothing matches.
+   */
+  geocode: flaggedProcedure("api:places")
+    .input(z.object({ query: z.string().min(2) }))
+    .query(async ({ input: { query } }) => {
+      if (!isEnabled("integration:mapbox")) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Geocoding fallback is not available in this environment.",
+        });
+      }
+      return geocodeText(query);
     }),
 
   /**

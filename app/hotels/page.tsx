@@ -12,6 +12,7 @@ import { HotelDetailModal } from '@/components/hotels/HotelDetailModal';
 import { GeoMap, type GeoPin } from '@/components/hotels/GeoMap';
 import { HotelsLoading } from '@/components/ui/loading/HotelsLoading';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
+import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/layout/FeaturedPagination';
@@ -238,6 +239,11 @@ function HotelsPageInner() {
   });
   const [checkIn, setCheckIn]     = useState(fromTrip ? paramCheckIn : '');
   const [checkOut, setCheckOut]   = useState(fromTrip ? paramCheckOut : '');
+
+  // Location autocomplete availability → page-top alarm (stays until the service recovers).
+  const [locationUnavailable, setLocationUnavailable] = useState(false);
+  // Auto-geocode found no match → surface the results-area "search failed" state.
+  const [locationNoMatch, setLocationNoMatch] = useState(false);
   const [minStars, setMinStars]         = useState<number | null>(null);
   const [requiredAmenities, setRequiredAmenities] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder]       = useState<'relevant' | 'az' | 'lowest' | 'highest'>('relevant');
@@ -541,6 +547,8 @@ function HotelsPageInner() {
       onSearch={handleSearch}
       searchDisabled={!canSearch}
       searchPending={searching}
+      onServiceUnavailable={setLocationUnavailable}
+      onNoMatchChange={setLocationNoMatch}
     />
   );
 
@@ -631,6 +639,7 @@ function HotelsPageInner() {
       ) : undefined}
     >
       <h1 className="sr-only">Hotel search results</h1>
+      <LocationUnavailableBanner show={locationUnavailable} />
       {showBackToTop && (
         <button
           onClick={() => document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -644,7 +653,7 @@ function HotelsPageInner() {
       )}
       {searching ? (
         <HotelsLoading />
-      ) : hotelSearch.isError ? (
+      ) : hotelSearch.isError || locationNoMatch ? (
         <EmptyState message="Hotel search failed. Check your selections and try again." />
       ) : accommodations.length > 0 ? (
         <div className="space-y-4">
