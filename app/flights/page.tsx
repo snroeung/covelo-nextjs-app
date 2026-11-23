@@ -772,6 +772,7 @@ function FlightsPageInner() {
 
   return (
     <AppShell
+      banner={<LocationUnavailableBanner show={locationUnavailable} />}
       header={header}
       hasResults={rawOffers.length > 0}
       summary={committed ? {
@@ -782,7 +783,6 @@ function FlightsPageInner() {
       sidebar={rawOffers.length > 0 ? <RefineContent {...refineProps} /> : undefined}
     >
       <h1 className="sr-only">Flight search results</h1>
-      <LocationUnavailableBanner show={locationUnavailable} />
       {searching && !repricing ? (
         <FlightsLoading origin={committed?.origin ?? ''} destination={committed?.destination ?? ''} />
 

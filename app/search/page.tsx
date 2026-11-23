@@ -161,10 +161,10 @@ function SearchHome() {
 
   return (
     <div className={`min-h-screen flex flex-col ${pageBg}`}>
+      <LocationUnavailableBanner show={locationUnavailable} />
       <NavBar />
 
       <main className="w-full px-4 md:px-8 py-8 md:py-12 flex-1">
-        <LocationUnavailableBanner show={locationUnavailable} />
         {/* White hub panel: hero + search + wallet */}
         <div className={`rounded-2xl border p-5 md:p-8 ${surface}`}>
         {/* Hero */}

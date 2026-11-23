@@ -618,6 +618,7 @@ function HotelsPageInner() {
   return (
     <>
     <AppShell
+      banner={<LocationUnavailableBanner show={locationUnavailable} />}
       header={header}
       hasResults={accommodations.length > 0}
       summary={destPlace?.name ? {
@@ -639,7 +640,6 @@ function HotelsPageInner() {
       ) : undefined}
     >
       <h1 className="sr-only">Hotel search results</h1>
-      <LocationUnavailableBanner show={locationUnavailable} />
       {showBackToTop && (
         <button
           onClick={() => document.getElementById(MAIN_SCROLL_ID)?.scrollTo({ top: 0, behavior: 'smooth' })}
