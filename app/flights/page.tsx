@@ -11,6 +11,7 @@ import { FlightCard } from '@/components/flights/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
 import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
+import { isProviderOutage } from '@/lib/trpc-errors';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { AirlineGroupCard } from '@/components/flights/AirlineGroupCard';
@@ -774,9 +775,14 @@ function FlightsPageInner() {
   return (
     <AppShell
       banner={
-        flightSearch.isError
-          ? <UnavailableBanner show subject="Flight search" detail="We’re having trouble reaching our providers. Please try again in a few moments." />
-          : <LocationUnavailableBanner show={locationUnavailable} />
+        <>
+          <UnavailableBanner
+            show={isProviderOutage(flightSearch.error)}
+            subject="Flight search"
+            detail="We’re having trouble reaching our providers. Please try again in a few moments."
+          />
+          <LocationUnavailableBanner show={locationUnavailable} />
+        </>
       }
       header={header}
       hasResults={rawOffers.length > 0}

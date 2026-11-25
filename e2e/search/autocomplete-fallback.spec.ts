@@ -173,6 +173,14 @@ async function failSearch(page: Page, proc: string) {
   }));
 }
 
+/** Fail a search proc with a 4xx (client/validation) error — must NOT raise the provider alarm. */
+async function failSearchClient(page: Page, proc: string) {
+  await page.route(`**/api/trpc/${proc}*`, (r) => r.fulfill({
+    status: 400, contentType: 'application/json',
+    body: JSON.stringify([{ error: { message: 'bad request', code: -32600, data: { code: 'BAD_REQUEST', httpStatus: 400, path: proc } } }]),
+  }));
+}
+
 const BANNER = 'Location search is temporarily unavailable';
 
 test.describe('Autocomplete unavailable — page banner', () => {
@@ -216,5 +224,42 @@ test.describe('Autocomplete unavailable — page banner', () => {
     })}`);
 
     await expect(page.getByText('Hotel search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
+  });
+
+  // A 4xx search error must NOT raise the provider alarm, and a concurrent autocomplete
+  // outage must still show the location banner (the two are independent, not mutually exclusive).
+  test('/hotels: location outage shows the location banner; a 4xx search error raises no provider alarm', async ({ page }) => {
+    await failAutocomplete(page);
+    await stubGeocodeNoMatch(page);
+    await failSearchClient(page, 'stays.search');
+    await page.goto(`/hotels?${new URLSearchParams({
+      lat: '39.9526', lng: '-75.1652', destination: 'Philadelphia',
+      checkIn: futureDate(14), checkOut: futureDate(17), guests: '2',
+    })}`);
+
+    await expect(page.getByText('Hotel search is temporarily unavailable')).toBeHidden();
+
+    const dest = page.getByRole('combobox').first();
+    await dest.click();
+    await dest.fill('Paris');
+    await expect(page.getByText(BANNER)).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('/flights: location outage shows the location banner; a 4xx search error raises no provider alarm', async ({ page }) => {
+    await failAutocomplete(page);
+    await failSearchClient(page, 'flights.searchOffers');
+    await page.goto(`/flights?${new URLSearchParams({
+      origin: 'PHL', originName: 'Philadelphia International Airport',
+      destinationCode: 'SFO', destination: 'San Francisco International Airport',
+      tripType: 'roundtrip', departDate: futureDate(21), returnDate: futureDate(28),
+      adults: '1', cabinClass: 'economy',
+    })}`);
+
+    await expect(page.getByText('Flight search is temporarily unavailable')).toBeHidden();
+
+    const origin = page.getByRole('combobox').first();
+    await origin.click();
+    await origin.fill('Boston');
+    await expect(page.getByText(BANNER)).toBeVisible({ timeout: 20_000 });
   });
 });

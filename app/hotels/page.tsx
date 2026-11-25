@@ -14,6 +14,7 @@ import { HotelsLoading } from '@/components/ui/loading/HotelsLoading';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
 import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
+import { isProviderOutage } from '@/lib/trpc-errors';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/layout/FeaturedPagination';
@@ -620,9 +621,14 @@ function HotelsPageInner() {
     <>
     <AppShell
       banner={
-        hotelSearch.isError
-          ? <UnavailableBanner show subject="Hotel search" detail="We’re having trouble reaching our providers. Please try again in a few moments." />
-          : <LocationUnavailableBanner show={locationUnavailable} />
+        <>
+          <UnavailableBanner
+            show={isProviderOutage(hotelSearch.error)}
+            subject="Hotel search"
+            detail="We’re having trouble reaching our providers. Please try again in a few moments."
+          />
+          <LocationUnavailableBanner show={locationUnavailable} />
+        </>
       }
       header={header}
       hasResults={accommodations.length > 0}
