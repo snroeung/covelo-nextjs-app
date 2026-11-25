@@ -10,6 +10,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { FlightCard } from '@/components/flights/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
+import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { AirlineGroupCard } from '@/components/flights/AirlineGroupCard';
@@ -772,7 +773,11 @@ function FlightsPageInner() {
 
   return (
     <AppShell
-      banner={<LocationUnavailableBanner show={locationUnavailable} />}
+      banner={
+        flightSearch.isError
+          ? <UnavailableBanner show subject="Flight search" detail="We’re having trouble reaching our providers. Please try again in a few moments." />
+          : <LocationUnavailableBanner show={locationUnavailable} />
+      }
       header={header}
       hasResults={rawOffers.length > 0}
       summary={committed ? {

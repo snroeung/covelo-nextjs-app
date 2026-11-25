@@ -13,6 +13,7 @@ import { GeoMap, type GeoPin } from '@/components/hotels/GeoMap';
 import { HotelsLoading } from '@/components/ui/loading/HotelsLoading';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
 import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
+import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/layout/FeaturedPagination';
@@ -618,7 +619,11 @@ function HotelsPageInner() {
   return (
     <>
     <AppShell
-      banner={<LocationUnavailableBanner show={locationUnavailable} />}
+      banner={
+        hotelSearch.isError
+          ? <UnavailableBanner show subject="Hotel search" detail="We’re having trouble reaching our providers. Please try again in a few moments." />
+          : <LocationUnavailableBanner show={locationUnavailable} />
+      }
       header={header}
       hasResults={accommodations.length > 0}
       summary={destPlace?.name ? {

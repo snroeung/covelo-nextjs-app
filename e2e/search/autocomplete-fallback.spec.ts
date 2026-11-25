@@ -195,8 +195,7 @@ test.describe('Autocomplete unavailable — page banner', () => {
     await expect(page.getByRole('button', { name: 'Dismiss' })).toHaveCount(0);
   });
 
-  test('/flights: banner appears when editing a field and autocomplete fails', async ({ page }) => {
-    await failAutocomplete(page);
+  test('/flights: a flight-search API outage shows the alarm banner', async ({ page }) => {
     await failSearch(page, 'flights.searchOffers');
     await page.goto(`/flights?${new URLSearchParams({
       origin: 'PHL', originName: 'Philadelphia International Airport',
@@ -205,30 +204,17 @@ test.describe('Autocomplete unavailable — page banner', () => {
       adults: '1', cabinClass: 'economy',
     })}`);
 
-    const banner = page.getByText(BANNER);
-    await expect(banner).toBeHidden();
-
-    const origin = page.getByRole('combobox').first();
-    await origin.click();
-    await origin.fill('Boston');
-    await expect(banner).toBeVisible({ timeout: 20_000 });
+    // The search errors on load → top alarm names the failing API.
+    await expect(page.getByText('Flight search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
   });
 
-  test('/hotels: banner appears when editing the destination and autocomplete fails', async ({ page }) => {
-    await failAutocomplete(page);
-    await stubGeocodeNoMatch(page); // keep the auto-geocode deterministic (banner is the subject)
+  test('/hotels: a stays API outage shows the alarm banner', async ({ page }) => {
     await failSearch(page, 'stays.search');
     await page.goto(`/hotels?${new URLSearchParams({
       lat: '39.9526', lng: '-75.1652', destination: 'Philadelphia',
       checkIn: futureDate(14), checkOut: futureDate(17), guests: '2',
     })}`);
 
-    const banner = page.getByText(BANNER);
-    await expect(banner).toBeHidden();
-
-    const dest = page.getByRole('combobox').first();
-    await dest.click();
-    await dest.fill('Paris');
-    await expect(banner).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Hotel search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
   });
 });
