@@ -1,7 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
+import type { LocationHealth } from '@/server/routers/health';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
+
+/** Banner shows when Places is unreachable. Mapbox is only the fallback, so it's not gating. */
+export function isLocationUnavailable(data: LocationHealth | undefined): boolean {
+  return !!data && !data.places;
+}
 
 /**
  * Stable "is the location search (Google Places) down right now?" signal for the
@@ -22,6 +28,5 @@ export function useLocationUnavailable(): boolean {
     refetchOnReconnect: true,     // resume after a stall (network back)
     retry: false,
   });
-  // Mapbox is only the fallback; the banner is about autocomplete (Places) being reachable.
-  return !!data && !data.places;
+  return isLocationUnavailable(data);
 }

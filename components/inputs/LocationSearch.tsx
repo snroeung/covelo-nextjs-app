@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -73,11 +73,10 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
     queryFn: () => trpc.places.geocode.query({ query: debouncedInput }),
     enabled: geocodeEnabled,
     staleTime: 1000 * 60 * 10,
-    // Keep the last coords/no-match across keystrokes so the derived no-match (which drives
-    // the hotels "search failed" state) stays stable instead of resetting mid-fetch.
-    placeholderData: keepPreviousData,
-    retry: 1,
   });
+  // No placeholderData: during a refetch `data` is undefined (not the previous input's
+  // coords), so the auto-commit below can never fire a search with a stale location, and
+  // the no-match derived from it only reflects a settled result.
   const geocodeResult = geocodeEnabled ? geocodeQuery.data : undefined;
 
   // Auto-commit the resolved coordinates. Keep the user's typed text (don't overwrite the
