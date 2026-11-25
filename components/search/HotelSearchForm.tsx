@@ -26,7 +26,6 @@ export interface HotelSearchFormProps {
   searchDisabled: boolean;
   searchPending?: boolean;
 
-  onServiceUnavailable?: (unavailable: boolean) => void; // true when autocomplete is down
   onNoMatchChange?: (noMatch: boolean) => void;          // true when the auto-geocode finds no match
 }
 
@@ -35,7 +34,7 @@ export function HotelSearchForm(props: HotelSearchFormProps) {
   const {
     onDestSelect, onDestClear, destInitialValue,
     checkIn, onCheckInChange, checkOut, onCheckOutChange,
-    guests, onGuestsChange, onSearch, searchDisabled, searchPending, onServiceUnavailable, onNoMatchChange,
+    guests, onGuestsChange, onSearch, searchDisabled, searchPending, onNoMatchChange,
   } = props;
 
   const destField = (
@@ -44,7 +43,6 @@ export function HotelSearchForm(props: HotelSearchFormProps) {
       initialValue={destInitialValue}
       onSelect={onDestSelect}
       onClear={onDestClear}
-      onUnavailableChange={onServiceUnavailable}
       onNoMatchChange={onNoMatchChange}
     />
   );

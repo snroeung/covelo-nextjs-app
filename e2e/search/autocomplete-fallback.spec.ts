@@ -59,6 +59,22 @@ async function failGeocode(page: Page) {
   });
 }
 
+/** Stub the location-services healthcheck (`health.location`). places=false → banner shows.
+ *  health.* uses an unbatched httpLink, so the response is a single object, not an array. */
+async function stubHealth(page: Page, places: boolean, mapbox = true) {
+  await page.route('**/api/trpc/health.location*', (r) => r.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ result: { data: { places, mapbox } } }),
+  }));
+}
+
+// Default every test to healthy location services: the banner is off unless a test opts in,
+// and no test hits the real health APIs. (health.* is unbatched, so this route is reliable.)
+test.beforeEach(async ({ page }) => {
+  await stubHealth(page, true);
+});
+
 test.describe('Autocomplete fallback — flights (raw IATA)', () => {
   test('a 3-letter code auto-commits without Google, and the search submits', async ({ page }) => {
     await failAutocomplete(page);
@@ -87,6 +103,7 @@ test.describe('Autocomplete fallback — flights (raw IATA)', () => {
   });
 
   test('non-code input shows the banner (no inline guidance) and stays accessible', async ({ page }) => {
+    await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await page.goto('/search');
 
@@ -148,6 +165,7 @@ test.describe('Autocomplete fallback — hotels (Mapbox geocode)', () => {
   });
 
   test('a geocode outage shows no inline error (banner only)', async ({ page }) => {
+    await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await failGeocode(page);
 
@@ -184,23 +202,20 @@ async function failSearchClient(page: Page, proc: string) {
 const BANNER = 'Location search is temporarily unavailable';
 
 test.describe('Autocomplete unavailable — page banner', () => {
-  test('/search: a non-dismissible alarm appears when autocomplete fails', async ({ page }) => {
-    await failAutocomplete(page);
-    await stubGeocodeNoMatch(page); // keep the auto-geocode deterministic (banner is the subject)
+  test('/search: a non-dismissible alarm appears when location services are down', async ({ page }) => {
+    await stubHealth(page, false); // healthcheck reports Places down → banner on load
     await page.goto('/search');
-    await page.getByRole('tab', { name: 'Hotels' }).click();
 
-    // No banner until a field actually reports the failure.
-    const banner = page.getByText(BANNER);
-    await expect(banner).toBeHidden();
-
-    const dest = page.getByRole('combobox').nth(0);
-    await dest.click();
-    await dest.fill('Paris');
-    await expect(banner).toBeVisible({ timeout: 20_000 });
-
+    await expect(page.getByText(BANNER)).toBeVisible({ timeout: 20_000 });
     // Not dismissible — no dismiss control exists.
     await expect(page.getByRole('button', { name: 'Dismiss' })).toHaveCount(0);
+  });
+
+  test('/search: no banner when location services are healthy', async ({ page }) => {
+    await stubHealth(page, true);
+    await page.goto('/search');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByText(BANNER)).toBeHidden();
   });
 
   test('/flights: a flight-search API outage shows the alarm banner', async ({ page }) => {
@@ -226,27 +241,23 @@ test.describe('Autocomplete unavailable — page banner', () => {
     await expect(page.getByText('Hotel search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
   });
 
-  // A 4xx search error must NOT raise the provider alarm, and a concurrent autocomplete
-  // outage must still show the location banner (the two are independent, not mutually exclusive).
+  // The location banner (healthcheck) and the provider alarm (search error) are independent:
+  // a 4xx search error must NOT raise the provider alarm, while a location outage still shows
+  // the location banner, and both can show at once.
   test('/hotels: location outage shows the location banner; a 4xx search error raises no provider alarm', async ({ page }) => {
-    await failAutocomplete(page);
-    await stubGeocodeNoMatch(page);
+    await stubHealth(page, false);
     await failSearchClient(page, 'stays.search');
     await page.goto(`/hotels?${new URLSearchParams({
       lat: '39.9526', lng: '-75.1652', destination: 'Philadelphia',
       checkIn: futureDate(14), checkOut: futureDate(17), guests: '2',
     })}`);
 
-    await expect(page.getByText('Hotel search is temporarily unavailable')).toBeHidden();
-
-    const dest = page.getByRole('combobox').first();
-    await dest.click();
-    await dest.fill('Paris');
     await expect(page.getByText(BANNER)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Hotel search is temporarily unavailable')).toBeHidden();
   });
 
   test('/flights: location outage shows the location banner; a 4xx search error raises no provider alarm', async ({ page }) => {
-    await failAutocomplete(page);
+    await stubHealth(page, false);
     await failSearchClient(page, 'flights.searchOffers');
     await page.goto(`/flights?${new URLSearchParams({
       origin: 'PHL', originName: 'Philadelphia International Airport',
@@ -255,11 +266,7 @@ test.describe('Autocomplete unavailable — page banner', () => {
       adults: '1', cabinClass: 'economy',
     })}`);
 
-    await expect(page.getByText('Flight search is temporarily unavailable')).toBeHidden();
-
-    const origin = page.getByRole('combobox').first();
-    await origin.click();
-    await origin.fill('Boston');
     await expect(page.getByText(BANNER)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText('Flight search is temporarily unavailable')).toBeHidden();
   });
 });

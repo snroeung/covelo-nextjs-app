@@ -1,5 +1,6 @@
 // TTL constants (seconds)
 export const TTL = {
+  THIRTY_SECONDS:  30,
   FIVE_MINUTES:    60 * 5,
   FIFTEEN_MINUTES: 60 * 15,
   ONE_HOUR:        60 * 60,
@@ -29,6 +30,9 @@ export const cacheKeys = {
     `place:photo:v2:ref:${name}:${address}`,
   countryAirports:  (iso2: string) =>
     `place:country-airports:${iso2}`,
+  // Reachability of the location services (Places / Mapbox) for the unavailable banner
+  locationHealth:   () =>
+    `health:location`,
   // Mapbox forward-geocode result for a free-text query (fallback path); normalized lowercase
   geocode:          (query: string) =>
     `place:geocode:${query.trim().toLowerCase()}`,
@@ -61,6 +65,8 @@ export const CACHE = {
   placeLatLng:      { ttl: TTL.THIRTY_DAYS },
   placePhoto:       { ttl: TTL.SEVEN_DAYS },
   countryAirports:  { ttl: TTL.ONE_DAY },
+  // Short window so a recovered service clears the banner quickly, but page loads read cache
+  locationHealth:   { ttl: TTL.THIRTY_SECONDS },
   // Geocode results are stable for a given query string
   geocode:          { ttl: TTL.ONE_DAY },
   // Doubles as Google's recommended 12-month place ID refresh

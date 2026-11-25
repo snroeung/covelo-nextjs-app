@@ -12,6 +12,7 @@ import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
 import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
 import { isProviderOutage } from '@/lib/trpc-errors';
+import { useLocationUnavailable } from '@/hooks/useLocationUnavailable';
 import { type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { Pagination } from '@/components/layout/Pagination';
 import { AirlineGroupCard } from '@/components/flights/AirlineGroupCard';
@@ -352,8 +353,8 @@ function FlightsPageInner() {
   const [cabinClass,   setCabinClass]   = useState<CabinClass>('economy');
   const [sort,         setSort]         = useState<FlightSort>('best');
 
-  // Location autocomplete availability → page-top alarm (stays until the service recovers).
-  const [locationUnavailable, setLocationUnavailable] = useState(false);
+  // Location-service health → page-top alarm (stable, polled; see useLocationUnavailable).
+  const locationUnavailable = useLocationUnavailable();
   const [startDate,    setStartDate]    = useState(paramDepart);
   const [endDate,      setEndDate]      = useState(paramReturn);
   const [originPlace,  setOriginPlace]  = useState<SelectedPlace | null>(() => seedFromIata(paramOrigin, paramOriginNm));
@@ -731,7 +732,6 @@ function FlightsPageInner() {
       onSearch={handleSearch}
       searchDisabled={!canSearch}
       searchPending={searching}
-      onServiceUnavailable={setLocationUnavailable}
     />
   );
 

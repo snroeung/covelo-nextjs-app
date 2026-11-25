@@ -15,6 +15,7 @@ export type FlagName =
   | "api:stays"
   | "api:flights"
   | "api:places"
+  | "api:health"
   | "api:offers"
   | "api:portal-data"
   | "api:reports"
@@ -54,6 +55,7 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "api:stays":                 { enabledIn: ["local", "beta", "production"], description: "stays tRPC router" },
   "api:flights":               { enabledIn: ["local", "beta", "production"], description: "flights tRPC router" },
   "api:places":                { enabledIn: ["local", "beta", "production"], description: "places tRPC router" },
+  "api:health":                { enabledIn: ["local", "beta", "production"], description: "health tRPC router — location-service reachability for the unavailable banner" },
 
   "integration:duffel:flights":        { enabledIn: ["local", "beta", "production"], description: "Duffel API — flights router" },
   "integration:duffel:stays":          { enabledIn: ["local", "beta", "production"], description: "Duffel API — stays router" },

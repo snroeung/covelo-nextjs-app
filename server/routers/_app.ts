@@ -6,8 +6,10 @@ import { offersRouter } from "@/server/routers/offers";
 import { portalDataRouter } from "@/server/routers/portalData";
 import { reportsRouter } from "@/server/routers/reports";
 import { boardRouter } from "@/server/routers/board";
+import { healthRouter } from "@/server/routers/health";
 
 export const appRouter = router({
+  health: healthRouter,
   flights: flightsRouter,
   stays: staysRouter,
   places: placesRouter,

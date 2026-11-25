@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { DateInput } from '@/components/inputs/DateInput';
 import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -35,7 +34,6 @@ export interface FlightSearchFormProps {
   searchDisabled: boolean;
   searchPending?: boolean;
 
-  onServiceUnavailable?: (unavailable: boolean) => void; // true when autocomplete is down
 }
 
 const TRIP_LABELS: Record<TripType, string> = { roundtrip: 'Round trip', oneway: 'One-way' };
@@ -47,13 +45,8 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
     onOriginSelect, onOriginClear, originInitialValue, originInitialCommitted, originFieldKey,
     onArrivalSelect, onArrivalClear, arrivalInitialValue, arrivalInitialCommitted, arrivalFieldKey,
     startDate, onStartDateChange, endDate, onEndDateChange,
-    onSearch, searchDisabled, searchPending, onServiceUnavailable,
+    onSearch, searchDisabled, searchPending,
   } = props;
-
-  // Either origin or arrival losing autocomplete means the service is down — OR them
-  // into one signal for the page-level banner.
-  const [unavail, setUnavail] = useState({ from: false, to: false });
-  useEffect(() => { onServiceUnavailable?.(unavail.from || unavail.to); }, [unavail, onServiceUnavailable]);
 
   const segWrap = isDark ? 'border-gph-dark-line bg-gph-dark-bg' : 'border-gray-200 bg-gray-100';
 
@@ -102,7 +95,6 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
       initialCommitted={originInitialCommitted}
       onSelect={onOriginSelect}
       onClear={onOriginClear}
-      onUnavailableChange={(b) => setUnavail((s) => (s.from === b ? s : { ...s, from: b }))}
     />
   );
   const toField = (
@@ -114,7 +106,6 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
       initialCommitted={arrivalInitialCommitted}
       onSelect={onArrivalSelect}
       onClear={onArrivalClear}
-      onUnavailableChange={(b) => setUnavail((s) => (s.to === b ? s : { ...s, to: b }))}
     />
   );
   const departField = (
