@@ -840,11 +840,6 @@ export async function mockReportsRouter(
 }
 
 /**
- * Stubs the `places.hotelReviews` tRPC query (Google Places reviews) so hotel
- * specs never make billed Google calls. Returns a live counter of how many
- * times the client asked — the section must fetch only once scrolled into view.
- */
-/**
  * Stub a tRPC query procedure, answering every op in a (possibly batched) GET with
  * `resolve(input)`. Handles httpBatchLink's `/proc,proc?batch=1&input={"0":…,"1":…}` shape,
  * so two fields resolving in parallel (one batched request) both get an answer.
@@ -876,6 +871,11 @@ export async function stubLocationHealth(page: Page, places: boolean, mapbox = t
   }));
 }
 
+/**
+ * Stubs the `places.hotelReviews` tRPC query (Google Places reviews) so hotel
+ * specs never make billed Google calls. Returns a live counter of how many
+ * times the client asked — the section must fetch only once scrolled into view.
+ */
 export async function mockGoogleReviews(page: Page, payload: unknown): Promise<{ calls: number }> {
   const counter = { calls: 0 };
   await page.route('**/api/trpc/places.hotelReviews?*', async (route) => {
