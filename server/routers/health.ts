@@ -70,8 +70,15 @@ async function probe(): Promise<LocationHealth> {
 export async function getLocationHealth(): Promise<LocationHealth> {
   if (memo && Date.now() - memo.at < MEMO_TTL_MS) return memo.value;
   // Concurrent callers on a cold/expired memo share one resolution (and one probe).
-  inflight ??= resolveLocationHealth().finally(() => { inflight = null; });
-  return inflight;
+  if (inflight) return inflight;
+  const p = resolveLocationHealth();
+  inflight = p;
+  // Clear only if this is still the current probe: a reset mid-probe may have started a
+  // newer one that this settle must not null out. then(clear, clear) rather than finally
+  // so a rejection can't surface as an unhandled one.
+  const clear = () => { if (inflight === p) inflight = null; };
+  p.then(clear, clear);
+  return p;
 }
 
 async function resolveLocationHealth(): Promise<LocationHealth> {

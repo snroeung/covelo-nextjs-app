@@ -69,3 +69,83 @@ describe('getLocationHealth', () => {
     expect(redis.get as Mock).not.toHaveBeenCalled();
   });
 });
+
+describe('getLocationHealth — in-flight coalescing', () => {
+  const MEMO_EXPIRED = 60_000; // past the 30s memo window
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __resetLocationHealthCache();
+    (isEnabled as Mock).mockReturnValue(true);
+    (redis.get as Mock).mockResolvedValue(null);
+    (redis.set as Mock).mockResolvedValue('OK');
+  });
+
+  it('concurrent callers on a cold cache share a single probe', async () => {
+    let placesHits = 0;
+    let mapboxHits = 0;
+    server.use(
+      http.post(PLACES_URL, () => { placesHits += 1; return HttpResponse.json({ suggestions: [] }); }),
+      http.get(MAPBOX_URL, () => { mapboxHits += 1; return HttpResponse.json({ features: [] }); }),
+    );
+
+    const results = await Promise.all(Array.from({ length: 5 }, () => getLocationHealth()));
+
+    for (const r of results) expect(r).toEqual({ places: true, mapbox: true });
+    expect(placesHits).toBe(1);
+    expect(mapboxHits).toBe(1);
+    expect(redis.get as Mock).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the in-flight slot once the probe settles, so a later call probes again', async () => {
+    let placesHits = 0;
+    server.use(
+      http.post(PLACES_URL, () => { placesHits += 1; return HttpResponse.json({ suggestions: [] }); }),
+      http.get(MAPBOX_URL, () => HttpResponse.json({ features: [] })),
+    );
+
+    await getLocationHealth();
+    const realNow = Date.now();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + MEMO_EXPIRED);
+    try {
+      await getLocationHealth(); // memo expired + nothing in flight → a fresh probe
+    } finally {
+      nowSpy.mockRestore();
+    }
+    expect(placesHits).toBe(2);
+  });
+
+  it('a probe settling after a reset does not clear the newer in-flight probe', async () => {
+    let placesHits = 0;
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    const gateA = new Promise<void>((r) => { releaseA = r; });
+    const gateB = new Promise<void>((r) => { releaseB = r; });
+    server.use(
+      http.post(PLACES_URL, async () => {
+        const n = ++placesHits;
+        await (n === 1 ? gateA : gateB);
+        return HttpResponse.json({ suggestions: [] });
+      }),
+      http.get(MAPBOX_URL, () => HttpResponse.json({ features: [] })),
+    );
+
+    const a = getLocationHealth();   // probe A, held open
+    __resetLocationHealthCache();    // test seam drops A mid-flight
+    const b = getLocationHealth();   // probe B, held open
+
+    releaseA();
+    await a;                         // A settles — must leave B's in-flight slot alone
+
+    const realNow = Date.now();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(realNow + MEMO_EXPIRED);
+    try {
+      const c = getLocationHealth(); // memo expired → must join B, not start probe #3
+      releaseB();
+      await Promise.all([b, c]);
+    } finally {
+      nowSpy.mockRestore();
+    }
+    expect(placesHits).toBe(2);
+  });
+});
