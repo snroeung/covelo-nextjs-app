@@ -840,6 +840,38 @@ export async function mockReportsRouter(
 }
 
 /**
+ * Stub a tRPC query procedure, answering every op in a (possibly batched) GET with
+ * `resolve(input)`. Handles httpBatchLink's `/proc,proc?batch=1&input={"0":…,"1":…}` shape,
+ * so two fields resolving in parallel (one batched request) both get an answer.
+ */
+export async function stubTrpcQuery(
+  page: Page,
+  proc: string,
+  resolve: (input: Record<string, unknown>) => unknown,
+): Promise<void> {
+  await page.route(`**/api/trpc/${proc}*`, (route) => {
+    const url = new URL(route.request().url());
+    const ops = decodeURIComponent(url.pathname.split('/api/trpc/')[1] ?? '').split(',');
+    const inputs = JSON.parse(url.searchParams.get('input') ?? '{}') as Record<string, Record<string, unknown>>;
+    const body = ops.map((_, i) => ({ result: { data: resolve(inputs[String(i)] ?? {}) } }));
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+}
+
+/**
+ * Stub the location-services healthcheck (`health.location`). places=false → page-top
+ * "Location search" banner; mapbox=false → banner inside the map view only.
+ * health.* uses an unbatched httpLink, so the response is a single object, not an array.
+ */
+export async function stubLocationHealth(page: Page, places: boolean, mapbox = true): Promise<void> {
+  await page.route('**/api/trpc/health.location*', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ result: { data: { places, mapbox } } }),
+  }));
+}
+
+/**
  * Stubs the `places.hotelReviews` tRPC query (Google Places reviews) so hotel
  * specs never make billed Google calls. Returns a live counter of how many
  * times the client asked — the section must fetch only once scrolled into view.

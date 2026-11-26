@@ -15,6 +15,7 @@ export type FlagName =
   | "api:stays"
   | "api:flights"
   | "api:places"
+  | "api:health"
   | "api:offers"
   | "api:portal-data"
   | "api:reports"
@@ -25,6 +26,7 @@ export type FlagName =
   | "integration:hotelbeds:stays"
   | "integration:google-places:places"
   | "integration:google-places:reviews"
+  | "integration:mapbox"
   | "integration:redis:stays"
   | "integration:redis:flights"
   | "integration:redis:places"
@@ -53,12 +55,14 @@ const FLAGS_CONFIG: Record<FlagName, FlagDef> = {
   "api:stays":                 { enabledIn: ["local", "beta", "production"], description: "stays tRPC router" },
   "api:flights":               { enabledIn: ["local", "beta", "production"], description: "flights tRPC router" },
   "api:places":                { enabledIn: ["local", "beta", "production"], description: "places tRPC router" },
+  "api:health":                { enabledIn: ["local", "beta", "production"], description: "health tRPC router — location-service reachability for the unavailable banner" },
 
   "integration:duffel:flights":        { enabledIn: ["local", "beta", "production"], description: "Duffel API — flights router" },
   "integration:duffel:stays":          { enabledIn: ["local", "beta", "production"], description: "Duffel API — stays router" },
   "integration:hotelbeds:stays":       { enabledIn: ["local", "beta", "production"], description: "HotelBeds API — stays router" },
   "integration:google-places:places":  { enabledIn: ["local", "beta", "production"], description: "Google Places API (New) — places router (autocomplete, details, photos)" },
   "integration:google-places:reviews": { enabledIn: ["local", "beta", "production"], description: "Google Places API (New) — paid hotel reviews (Place Details Enterprise + Atmosphere)" },
+  "integration:mapbox":                { enabledIn: ["local", "beta", "production"], description: "Mapbox forward geocoding — text→coords fallback when Google Places autocomplete fails (places.geocode)" },
   "integration:redis:stays":           { enabledIn: ["local", "beta", "production"], description: "Redis caching — stays router" },
   "integration:redis:flights":         { enabledIn: ["local", "beta", "production"], description: "Redis caching — flights router" },
   "integration:redis:places":          { enabledIn: ["local", "beta", "production"], description: "Redis caching — places lib" },

@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useTheme } from '@/contexts/ThemeContext';
+import { pickBestSuggestion } from '@/lib/bestSuggestion';
 import type { PlaceLatLng } from '@/lib/places';
+
+const SUGGESTION_STALE_MS = 1000 * 60 * 10;
+const hasIata = (description: string) => /\([A-Z]{3}\)/.test(description);
 
 // Parses IATA codes from airport descriptions, e.g. "Heathrow Airport (LHR)" → "LHR"
 function parseIata(description: string): string | undefined {
@@ -18,7 +22,21 @@ export interface SelectedPlace extends PlaceLatLng {
   iataCode?: string; // populated when forAirport=true and IATA is present in description
 }
 
+export type BestMatchResult =
+  | { status: 'picked'; place: SelectedPlace }   // a suggestion was auto-selected
+  | { status: 'no-suggestions' }                 // autocomplete answered with nothing
+  | { status: 'unavailable' };                   // autocomplete (or Place Details) is down
+
+export interface LocationSearchHandle {
+  /**
+   * Submit-time selection when the user typed but didn't pick: select the suggestion that
+   * exactly matches the text, else the closest (top-ranked) one, and commit it via onSelect.
+   */
+  commitBestMatch(): Promise<BestMatchResult>;
+}
+
 interface Props {
+  ref?: Ref<LocationSearchHandle>;
   onSelect: (place: SelectedPlace) => void;
   onClear: () => void;
   placeholder?: string;
@@ -26,10 +44,12 @@ interface Props {
   fieldLabel?: string;     // when set, renders label inside the bordered field box
   initialValue?: string;   // pre-filled input text (e.g. from saved trip planner state)
   initialCommitted?: boolean; // treat initialValue as already-selected (no auto-open dropdown)
+  onTextChange?: (text: string) => void; // raw typed text, so the page can resolve it on submit
 }
 
-export function LocationSearch({ onSelect, onClear, placeholder, forAirport = false, fieldLabel, initialValue, initialCommitted }: Props) {
+export function LocationSearch({ ref, onSelect, onClear, placeholder, forAirport = false, fieldLabel, initialValue, initialCommitted, onTextChange }: Props) {
   const { isDark } = useTheme();
+  const queryClient = useQueryClient();
   const listboxId = useId();
 
   const [input, setInput] = useState(initialValue ?? '');
@@ -37,7 +57,6 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
   // Session token groups all autocomplete calls — only the Place Details call is billed
   const [sessionToken, setSessionToken] = useState(() => crypto.randomUUID());
   const [resolving, setResolving] = useState(false);
-  const [resolveError, setResolveError] = useState<string | null>(null);
   // Tracks the last committed (selected) value. While input === committedInput the
   // dropdown stays closed even when new suggestion results arrive from the debounced query.
   // For airport mode with a pre-filled value that isn't already committed (e.g. city name
@@ -51,15 +70,20 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
 
   const debouncedInput = useDebounce(input, 300);
 
+  // One key + fetcher for both the as-you-type dropdown and the submit-time best match, so
+  // they share the cache (a submit right after typing reuses the dropdown's results).
+  const suggestionsKey = (text: string) => ['places.autocomplete', text, sessionToken, forAirport];
+  const fetchSuggestions = (text: string) => trpc.places.autocomplete.query({
+    input: text,
+    sessionToken,
+    types: forAirport ? 'airport' : undefined,
+  });
+
   const { data } = useQuery({
-    queryKey: ['places.autocomplete', debouncedInput, sessionToken, forAirport],
-    queryFn: () => trpc.places.autocomplete.query({
-      input: debouncedInput,
-      sessionToken,
-      types: forAirport ? 'airport' : undefined,
-    }),
+    queryKey: suggestionsKey(debouncedInput),
+    queryFn: () => fetchSuggestions(debouncedInput),
     enabled: debouncedInput.trim().length >= 2,
-    staleTime: 1000 * 60 * 10,
+    staleTime: SUGGESTION_STALE_MS,
   });
   // Stable fallback so the render-time sync below doesn't see a new [] every render.
   const suggestions = useMemo(() => data ?? [], [data]);
@@ -78,7 +102,7 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
   // When forAirport=true, only show suggestions that include an IATA code — this
   // filters out private airstrips, military bases, and other non-public airports.
   const visibleSuggestions = forAirport
-    ? suggestions.filter((s) => /\([A-Z]{3}\)/.test(s.description))
+    ? suggestions.filter((s) => hasIata(s.description))
     : suggestions;
 
   // Re-evaluate the dropdown when suggestions or input change (adjusting state during
@@ -90,33 +114,68 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
     if (input !== committedInput) setOpen(visibleSuggestions.length > 0 && input.trim().length >= 2);
   }
 
-  async function handleSelect(placeId: string, description: string) {
+  async function handleSelect(placeId: string, description: string): Promise<SelectedPlace> {
     setCommittedInput(description);
     setInput(description);
     setOpen(false);
     setResolving(true);
-    setResolveError(null);
+    const iataCode = forAirport ? parseIata(description) : undefined;
     try {
       // This is the only billed call — it ends the current session
       const result = await trpc.places.getLatLng.query({ placeId, sessionToken });
-      const iataCode = forAirport ? parseIata(description) : undefined;
-      onSelect({ ...result, description, iataCode });
+      const place = { ...result, description, iataCode };
+      onSelect(place);
       // Start a fresh session for the next search
       setSessionToken(crypto.randomUUID());
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not resolve location';
-      setResolveError(msg);
-      // Still call onSelect with no lat/lng so the IATA input remains usable
-      const iataCode = forAirport ? parseIata(description) : undefined;
-      onSelect({ latitude: 0, longitude: 0, name: description, description, iataCode });
+      return place;
+    } catch {
+      // Details lookup failed — commit with no lat/lng so an IATA pick still works downstream.
+      const place = { latitude: 0, longitude: 0, name: description, description, iataCode };
+      onSelect(place);
+      return place;
     } finally {
       setResolving(false);
     }
   }
 
+  async function commitBestMatch(): Promise<BestMatchResult> {
+    const text = input.trim();
+    if (text.length < 2) return { status: 'no-suggestions' };
+
+    let list: { placeId: string; description: string }[];
+    try {
+      // Suggestions for exactly what's typed — not the debounced value, which can lag a
+      // fast submit. Served from cache when the dropdown already fetched this text.
+      list = await queryClient.fetchQuery({
+        queryKey: suggestionsKey(input),
+        queryFn: () => fetchSuggestions(input),
+        staleTime: SUGGESTION_STALE_MS,
+        retry: false,
+      });
+    } catch {
+      return { status: 'unavailable' };
+    }
+
+    const candidates = forAirport ? list.filter((s) => hasIata(s.description)) : list;
+    const best = pickBestSuggestion(text, candidates, forAirport);
+    if (!best) return { status: 'no-suggestions' };
+
+    const place = await handleSelect(best.placeId, best.description);
+    // A place search needs coordinates; a failed Place Details lookup leaves 0,0.
+    if (!forAirport && place.latitude === 0 && place.longitude === 0) return { status: 'unavailable' };
+    return { status: 'picked', place };
+  }
+
+  useImperativeHandle(ref, () => ({ commitBestMatch }));
+
   function handleChange(value: string) {
     setCommittedInput(''); // user is typing again — allow dropdown to reopen
     setInput(value);
+    // Pages that resolve on submit use onTextChange to drop a now-stale picked place.
+    // onClear keeps its original meaning (field emptied) — some consumers reset more than
+    // the place on clear (e.g. the trip planner wipes dates/title), so it must not fire
+    // on every keystroke.
+    onTextChange?.(value);
     if (value.trim().length < 2) {
       setOpen(false);
       onClear();
@@ -197,10 +256,6 @@ export function LocationSearch({ onSelect, onClear, placeholder, forAirport = fa
             className={`w-full rounded-lg border pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 ${inputCls}`}
           />
         </div>
-      )}
-
-      {resolveError && (
-        <p className="mt-1 px-1 text-xs text-cv-amber-400">{resolveError} — enter IATA code manually.</p>
       )}
 
       {open && (

@@ -200,7 +200,9 @@ export function NavBar() {
               ref={avatarRef}
               onClick={() => setPopupOpen((v) => !v)}
               className={btn('accent', 'icon', 'rounded-full! text-xs select-none')}
-              aria-label="Open profile"
+              // The accessible name must contain the visible text (the initials) — WCAG 2.5.3,
+              // axe `label-content-name-mismatch`. Lead with them, then say what it does.
+              aria-label={initials ? `${initials}, open profile` : 'Open profile'}
               aria-expanded={popupOpen}
             >
               {initials}

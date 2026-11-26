@@ -10,6 +10,7 @@ import {
   openedUrls,
   setOfferActive,
   setTravelCollectionActive,
+  stubLocationHealth,
   stubWindowOpen,
   today,
   daysFromNow,
@@ -507,6 +508,31 @@ test.describe('Hotels page — map', () => {
     await expect(page.getByRole('button', { name: 'Show map' })).toBeVisible();
     await toggleBtn.click();
     await expect(page.getByRole('button', { name: 'Hide map' })).toBeVisible();
+  });
+
+  test('a Mapbox outage shows a banner inside the map view only, not at the top of the page', async ({ page }) => {
+    await stubLocationHealth(page, true, false); // Places up, Mapbox down
+    await gotoHotelsWithResults(page);
+
+    const hotelMap = page.getByTestId('hotel-map');
+    const hasMap = await hotelMap.isVisible({ timeout: 5_000 }).catch(() => false);
+    test.skip(!hasMap, 'No mappable hotels (missing geographic coordinates) for this query');
+
+    await expect(hotelMap.getByText('Map is temporarily unavailable')).toBeVisible({ timeout: 15_000 });
+    // Scoped to the map: the page-top location banner stays off, and results still render.
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeHidden();
+    await expect(page.getByTestId('hotel-card').first()).toBeVisible();
+  });
+
+  test('no map banner when Mapbox is healthy', async ({ page }) => {
+    await stubLocationHealth(page, true, true);
+    await gotoHotelsWithResults(page);
+
+    const hotelMap = page.getByTestId('hotel-map');
+    const hasMap = await hotelMap.isVisible({ timeout: 5_000 }).catch(() => false);
+    test.skip(!hasMap, 'No mappable hotels (missing geographic coordinates) for this query');
+
+    await expect(page.getByTestId('map-unavailable')).toHaveCount(0);
   });
 
   test('clicking a map pin opens its card, and "View details" opens the hotel modal', async ({ page }) => {

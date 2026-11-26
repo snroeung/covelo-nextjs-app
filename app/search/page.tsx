@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { trpc } from '@/lib/trpc-client';
@@ -13,14 +13,15 @@ import { CARD_PORTAL_MAP, type PortalId } from '@/lib/points/types';
 import { SearchModeToggle, type SearchMode } from '@/components/search/SearchModeToggle';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
 import { HotelSearchForm } from '@/components/search/HotelSearchForm';
+import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
+import { useLocationUnavailable } from '@/hooks/useLocationUnavailable';
 import { SearchBoard, adaptFlightOffer, adaptStay, FALLBACK_FLIGHTS, FALLBACK_STAYS, type BoardCard, type FlightOfferSlice, type StaySearchResultSlice } from '@/components/search/SearchBoard';
 import type { GuestsValue } from '@/components/inputs/GuestsDropdown';
-import type { SelectedPlace } from '@/components/inputs/LocationSearch';
+import type { LocationSearchHandle, SelectedPlace } from '@/components/inputs/LocationSearch';
+import { isResolved, resolvePlace } from '@/lib/resolvePlace';
 import {
   buildFlightSearchUrl,
   buildHotelSearchUrl,
-  isFlightSearchValid,
-  isHotelSearchValid,
   type TripType,
 } from '@/lib/searchUrls';
 
@@ -53,18 +54,47 @@ function SearchHome() {
   const [today] = useState(() => new Date().toISOString().split('T')[0]);
   const [mode, setMode] = useState<SearchMode>('flights');
 
+  // Location-service health → page-top alarm (stable, polled; see useLocationUnavailable).
+  const locationUnavailable = useLocationUnavailable();
+
   // Flight form state
   const [tripType, setTripType]         = useState<TripType>('roundtrip');
   const [originPlace, setOriginPlace]   = useState<SelectedPlace | null>(null);
   const [arrivalPlace, setArrivalPlace] = useState<SelectedPlace | null>(null);
+  const [originText, setOriginText]     = useState('');
+  const [arrivalText, setArrivalText]   = useState('');
   const [departDate, setDepartDate]     = useState('');
   const [returnDate, setReturnDate]     = useState('');
 
   // Hotel form state
   const [destPlace, setDestPlace] = useState<SelectedPlace | null>(null);
+  const [destText, setDestText]   = useState('');
   const [checkIn, setCheckIn]     = useState('');
   const [checkOut, setCheckOut]   = useState('');
   const [guests, setGuests]       = useState<GuestsValue>({ adults: 2, children: 0, pets: 0 });
+
+  // Resolve on submit: a field the user typed in but didn't pick from is resolved only when
+  // they press Search (see resolvePlace) — never per keystroke.
+  const [resolving, setResolving]     = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const originRef  = useRef<LocationSearchHandle>(null);
+  const arrivalRef = useRef<LocationSearchHandle>(null);
+  const destRef    = useRef<LocationSearchHandle>(null);
+
+  // The forms are rendered conditionally, so switching Flights ⇄ Hotels remounts the
+  // location fields empty. Reset the matching state so nothing hidden (a typed text, a
+  // picked place, a "No match" note) can drive a search or linger on screen.
+  function changeMode(next: SearchMode) {
+    setMode(next);
+    setOriginPlace(null);  setOriginText('');
+    setArrivalPlace(null); setArrivalText('');
+    setDestPlace(null);    setDestText('');
+    setSubmitError(null);
+  }
+
+  // A field is ready when a place was picked, or there's typed text to resolve on submit.
+  const fieldReady = (p: SelectedPlace | null, text: string, forAirport: boolean) =>
+    isResolved(p, forAirport) || text.trim().length >= 2;
 
   const flightValues = {
     originCode:      originPlace?.iataCode ?? '',
@@ -75,19 +105,54 @@ function SearchHome() {
     returnDate: tripType === 'oneway' ? '' : returnDate,
     tripType,
   };
-  const hotelValues = {
-    destinationName: destPlace?.description ?? destPlace?.name ?? '',
-    latitude:  destPlace?.latitude ?? 0,
-    longitude: destPlace?.longitude ?? 0,
-    checkIn,
-    checkOut,
-    rooms: 1,
-    adults: guests.adults,
-    children: guests.children,
-  };
 
-  const flightsValid = isFlightSearchValid(flightValues, today);
-  const hotelsValid = isHotelSearchValid(hotelValues, today);
+  // Dates still gate strictly; each location can be a picked place OR typed text that's
+  // resolved on submit.
+  const hotelDatesOk  = !!checkIn && checkIn >= today && !!checkOut && checkOut > checkIn;
+  const flightDatesOk = !!departDate && departDate >= today &&
+    (tripType === 'oneway' || (!!returnDate && returnDate >= departDate));
+  const flightsValid = flightDatesOk && !resolving
+    && fieldReady(originPlace, originText, true) && fieldReady(arrivalPlace, arrivalText, true);
+  const hotelsValid  = hotelDatesOk && !resolving && fieldReady(destPlace, destText, false);
+
+  // No-match is the only case with an inline note; an outage stays silent (the banner covers it).
+  async function submitHotels() {
+    setSubmitError(null);
+    setResolving(true);
+    try {
+      const r = await resolvePlace({ picked: destPlace, text: destText, field: destRef.current, forAirport: false });
+      if (r.kind === 'no-match') { setSubmitError(`No match for "${destText.trim()}"`); return; }
+      if (r.kind === 'unavailable') return;
+      router.push(buildHotelSearchUrl({
+        destinationName: r.place.description ?? r.place.name,
+        latitude: r.place.latitude, longitude: r.place.longitude,
+        checkIn, checkOut, rooms: 1, adults: guests.adults, children: guests.children,
+      }));
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  async function submitFlights() {
+    setSubmitError(null);
+    setResolving(true);
+    try {
+      const [o, a] = await Promise.all([
+        resolvePlace({ picked: originPlace,  text: originText,  field: originRef.current,  forAirport: true }),
+        resolvePlace({ picked: arrivalPlace, text: arrivalText, field: arrivalRef.current, forAirport: true }),
+      ]);
+      const missed = o.kind === 'no-match' ? originText : a.kind === 'no-match' ? arrivalText : null;
+      if (missed !== null) { setSubmitError(`No match for "${missed.trim()}"`); return; }
+      if (o.kind !== 'place' || a.kind !== 'place') return;
+      router.push(buildFlightSearchUrl({
+        ...flightValues,
+        originCode:      o.place.iataCode ?? '', originName:      o.place.description,
+        destinationCode: a.place.iataCode ?? '', destinationName: a.place.description,
+      }));
+    } finally {
+      setResolving(false);
+    }
+  }
 
   // ── Example board: cache-first (Redis → Duffel) via the existing tRPC search.
   const bDepart = useMemo(() => addDays(21), []);
@@ -151,6 +216,7 @@ function SearchHome() {
 
   return (
     <div className={`min-h-screen flex flex-col ${pageBg}`}>
+      <LocationUnavailableBanner show={locationUnavailable} />
       <NavBar />
 
       <main className="w-full px-4 md:px-8 py-8 md:py-12 flex-1">
@@ -170,7 +236,7 @@ function SearchHome() {
               cents-per-point value.
             </p>
           </div>
-          <SearchModeToggle mode={mode} onChange={setMode} />
+          <SearchModeToggle mode={mode} onChange={changeMode} />
         </div>
 
         {/* Search tray (inset within the panel) */}
@@ -181,28 +247,39 @@ function SearchHome() {
               onTripTypeChange={setTripType}
               onOriginSelect={setOriginPlace}
               onOriginClear={() => setOriginPlace(null)}
+              onOriginTextChange={(t) => { setOriginText(t); setOriginPlace(null); setSubmitError(null); }}
+              originRef={originRef}
               onArrivalSelect={setArrivalPlace}
               onArrivalClear={() => setArrivalPlace(null)}
+              onArrivalTextChange={(t) => { setArrivalText(t); setArrivalPlace(null); setSubmitError(null); }}
+              arrivalRef={arrivalRef}
               startDate={departDate}
               onStartDateChange={setDepartDate}
               endDate={returnDate}
               onEndDateChange={setReturnDate}
-              onSearch={() => router.push(buildFlightSearchUrl(flightValues))}
+              onSearch={submitFlights}
               searchDisabled={!flightsValid}
+              searchPending={resolving}
             />
           ) : (
             <HotelSearchForm
               onDestSelect={setDestPlace}
               onDestClear={() => setDestPlace(null)}
+              onDestTextChange={(t) => { setDestText(t); setDestPlace(null); setSubmitError(null); }}
+              destRef={destRef}
               checkIn={checkIn}
               onCheckInChange={setCheckIn}
               checkOut={checkOut}
               onCheckOutChange={setCheckOut}
               guests={guests}
               onGuestsChange={setGuests}
-              onSearch={() => router.push(buildHotelSearchUrl(hotelValues))}
+              onSearch={submitHotels}
               searchDisabled={!hotelsValid}
+              searchPending={resolving}
             />
+          )}
+          {submitError && (
+            <p role="alert" className={`mt-2 px-1 text-xs ${isDark ? 'text-cv-amber-400' : 'text-cv-amber-900'}`}>{submitError}</p>
           )}
         </div>
 

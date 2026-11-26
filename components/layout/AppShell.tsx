@@ -16,6 +16,7 @@ import { MAIN_SCROLL_ID } from '@/hooks/useScrollLock';
 export { MAIN_SCROLL_ID };
 
 export function AppShell({
+  banner,
   header,
   children,
   sidebar,
@@ -23,6 +24,8 @@ export function AppShell({
   summary,
   loading = false,
 }: {
+  /** Full-width element rendered above the nav as the top-most row (e.g. an outage alarm). */
+  banner?: React.ReactNode;
   header: React.ReactNode;
   children: React.ReactNode;
   sidebar?: React.ReactNode;
@@ -49,6 +52,9 @@ export function AppShell({
 
   return (
     <div className="flex flex-col h-[calc(100dvh-var(--tabbar-h))] overflow-hidden font-sans bg-gph-bg">
+
+      {/* ⓪ Top-most row — an optional full-width banner above the nav */}
+      {banner}
 
       {/* ① Nav — shared across all pages */}
       <NavBar />

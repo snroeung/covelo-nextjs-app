@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { trpc } from '@/lib/trpc-client';
 import { MapLoading } from '@/components/ui/loading/MapLoading';
+import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
+import { useMapUnavailable } from '@/hooks/useLocationUnavailable';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_API_KEY ?? '';
 
@@ -101,6 +103,8 @@ export function GeoMap({
   header, minimized = false, onToggleMinimize,
 }: GeoMapProps) {
   const dockMode = pins !== undefined;
+  // Mapbox down → a banner over this map view only (not the page). Shares the health query.
+  const mapUnavailable = useMapUnavailable();
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
@@ -665,6 +669,19 @@ export function GeoMap({
     </div>
   );
 
+  // Overlaid across the top of the map only; the right padding keeps the text clear of the
+  // fullscreen button (z-30), which stays on top and usable.
+  const mapUnavailableNotice = mapUnavailable && (
+    <div className="absolute inset-x-0 top-0 z-20" data-testid="map-unavailable">
+      <UnavailableBanner
+        show
+        subject="Map"
+        detail="It may not load right now — everything else still works."
+        className={allowFullscreen ? 'pr-16 md:pr-16' : ''}
+      />
+    </div>
+  );
+
   if (dockMode) {
     return (
       <div
@@ -673,6 +690,7 @@ export function GeoMap({
       >
         <div ref={containerRef} className="w-full h-full" />
         {!mapReady && <MapLoading count={pins?.length} />}
+        {mapUnavailableNotice}
         {fullscreenBtn}
         {cardOverlay}
       </div>
@@ -813,6 +831,7 @@ export function GeoMap({
         onMouseEnter={() => setMapHovered(true)}
         onMouseLeave={() => setMapHovered(false)}
       >
+        {!minimized && mapUnavailableNotice}
         {hasCoords ? (
           <>
             <div

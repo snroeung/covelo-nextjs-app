@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, Suspense, useCallback, useMemo, useState } from 'react';
+import { Fragment, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -9,7 +9,12 @@ import { btn } from '@/components/ui/button';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { FlightCard } from '@/components/flights/FlightCard';
 import { FlightSearchForm } from '@/components/search/FlightSearchForm';
-import { type SelectedPlace } from '@/components/inputs/LocationSearch';
+import { LocationUnavailableBanner } from '@/components/search/LocationUnavailableBanner';
+import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
+import { isProviderOutage } from '@/lib/trpc-errors';
+import { useLocationUnavailable } from '@/hooks/useLocationUnavailable';
+import { type LocationSearchHandle, type SelectedPlace } from '@/components/inputs/LocationSearch';
+import { isResolved, resolvePlace } from '@/lib/resolvePlace';
 import { Pagination } from '@/components/layout/Pagination';
 import { AirlineGroupCard } from '@/components/flights/AirlineGroupCard';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -348,10 +353,20 @@ function FlightsPageInner() {
   const [tripType,     setTripType]     = useState<TripType>(paramTripType);
   const [cabinClass,   setCabinClass]   = useState<CabinClass>('economy');
   const [sort,         setSort]         = useState<FlightSort>('best');
+
+  // Location-service health → page-top alarm (stable, polled; see useLocationUnavailable).
+  const locationUnavailable = useLocationUnavailable();
   const [startDate,    setStartDate]    = useState(paramDepart);
   const [endDate,      setEndDate]      = useState(paramReturn);
   const [originPlace,  setOriginPlace]  = useState<SelectedPlace | null>(() => seedFromIata(paramOrigin, paramOriginNm));
   const [arrivalPlace, setArrivalPlace] = useState<SelectedPlace | null>(() => seedFromIata(paramDestCode, paramDest));
+  const [originText,   setOriginText]   = useState('');
+  const [arrivalText,  setArrivalText]  = useState('');
+  const originRef  = useRef<LocationSearchHandle>(null);
+  const arrivalRef = useRef<LocationSearchHandle>(null);
+  const [resolving, setResolving] = useState(false);
+  // A typed airport that matched nothing → the results-area "Flight search failed" state.
+  const [locationNoMatch, setLocationNoMatch] = useState(false);
   const [fromInitial]                   = useState(paramOriginNm || paramOrigin);
   const [fromCommitted]                 = useState(paramOrigin.length === 3);
   const [toKey,        setToKey]        = useState(0);
@@ -678,24 +693,44 @@ function FlightsPageInner() {
     (filterMaxPrice !== null ? 1 : 0);
 
   const todayStr    = new Date().toISOString().split('T')[0];
-  const originCode  = originPlace?.iataCode ?? '';
+  const originCode  = originPlace?.iataCode ?? '';   // ad-slot context (route)
   const arrivalCode = arrivalPlace?.iataCode ?? '';
-  const canSearch   = originCode.length === 3 && arrivalCode.length === 3
+  // A field is ready when an airport was picked, or there's typed text to resolve on submit.
+  const fieldReady = (p: SelectedPlace | null, text: string) => isResolved(p, true) || text.trim().length >= 2;
+  const canSearch   = fieldReady(originPlace, originText) && fieldReady(arrivalPlace, arrivalText)
+    && !resolving
     && !!startDate && startDate >= todayStr
     && (tripType === 'oneway' || (!!endDate && endDate >= startDate));
 
   // Committing new params changes the query key → useQuery fetches. Arriving from the
   // /search hub is handled by seeding `committed` above, so no auto-run effect is needed.
-  function handleSearch() {
+  async function handleSearch() {
     if (!canSearch) return;
-    setCommitted({
-      origin:       originCode,
-      destination:  arrivalCode,
-      departureDate: startDate,
-      returnDate:   tripType === 'roundtrip' && endDate ? endDate : undefined,
-      passengers:   1,
-      cabinClass,
-    });
+    setLocationNoMatch(false);
+    setResolving(true);
+    try {
+      // Picked airport → as-is; typed-but-unpicked → closest suggestion (exact match first);
+      // autocomplete down → the typed 3-letter code. See resolvePlace.
+      const [o, a] = await Promise.all([
+        resolvePlace({ picked: originPlace,  text: originText,  field: originRef.current,  forAirport: true }),
+        resolvePlace({ picked: arrivalPlace, text: arrivalText, field: arrivalRef.current, forAirport: true }),
+      ]);
+      // "Search failed" is reserved for a genuine no-match; an outage stays silent (banner).
+      if (o.kind === 'no-match' || a.kind === 'no-match') { setLocationNoMatch(true); return; }
+      if (o.kind !== 'place' || a.kind !== 'place') return;
+      setOriginPlace(o.place);
+      setArrivalPlace(a.place);
+      setCommitted({
+        origin:       o.place.iataCode ?? '',
+        destination:  a.place.iataCode ?? '',
+        departureDate: startDate,
+        returnDate:   tripType === 'roundtrip' && endDate ? endDate : undefined,
+        passengers:   1,
+        cabinClass,
+      });
+    } finally {
+      setResolving(false);
+    }
   }
 
   // Cabin isn't a client-side filter like stops/airlines — Duffel prices per cabin at
@@ -711,10 +746,14 @@ function FlightsPageInner() {
       onTripTypeChange={setTripType}
       onOriginSelect={setOriginPlace}
       onOriginClear={() => setOriginPlace(null)}
+      onOriginTextChange={(t) => { setOriginText(t); setOriginPlace(null); }}
+      originRef={originRef}
       originInitialValue={fromInitial}
       originInitialCommitted={fromCommitted}
       onArrivalSelect={setArrivalPlace}
       onArrivalClear={() => setArrivalPlace(null)}
+      onArrivalTextChange={(t) => { setArrivalText(t); setArrivalPlace(null); }}
+      arrivalRef={arrivalRef}
       arrivalInitialValue={toInitial}
       arrivalInitialCommitted={toCommitted}
       arrivalFieldKey={toKey}
@@ -724,7 +763,7 @@ function FlightsPageInner() {
       onEndDateChange={setEndDate}
       onSearch={handleSearch}
       searchDisabled={!canSearch}
-      searchPending={searching}
+      searchPending={searching || resolving}
     />
   );
 
@@ -767,6 +806,16 @@ function FlightsPageInner() {
 
   return (
     <AppShell
+      banner={
+        <>
+          <UnavailableBanner
+            show={isProviderOutage(flightSearch.error)}
+            subject="Flight search"
+            detail="We’re having trouble reaching our providers. Please try again in a few moments."
+          />
+          <LocationUnavailableBanner show={locationUnavailable} />
+        </>
+      }
       header={header}
       hasResults={rawOffers.length > 0}
       summary={committed ? {
@@ -780,7 +829,7 @@ function FlightsPageInner() {
       {searching && !repricing ? (
         <FlightsLoading origin={committed?.origin ?? ''} destination={committed?.destination ?? ''} />
 
-      ) : flightSearch.isError ? (
+      ) : flightSearch.isError || locationNoMatch ? (
         <EmptyState message="Flight search failed. Check your selections and try again." />
 
       ) : rawOffers.length > 0 ? (
