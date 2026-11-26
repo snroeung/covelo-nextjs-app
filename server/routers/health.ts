@@ -12,12 +12,15 @@ const PROBE_TIMEOUT_MS = 3000;
 const MEMO_TTL_MS = CACHE.locationHealth.ttl * 1000;
 
 // Per-instance throttle: even if Redis is unavailable (or a stampede hits on a miss), each
-// server probes the billable upstreams at most once per window.
+// server probes the billable upstreams at most once per window. `inflight` additionally
+// coalesces concurrent callers on a cold/expired memo onto a single probe.
 let memo: { at: number; value: LocationHealth } | null = null;
+let inflight: Promise<LocationHealth> | null = null;
 
-/** Test seam — clears the per-instance memo between cases. */
+/** Test seam — clears the per-instance caches between cases. */
 export function __resetLocationHealthCache(): void {
   memo = null;
+  inflight = null;
 }
 
 /** True when the request reaches the service and gets a non-error response. */
@@ -66,7 +69,12 @@ async function probe(): Promise<LocationHealth> {
  */
 export async function getLocationHealth(): Promise<LocationHealth> {
   if (memo && Date.now() - memo.at < MEMO_TTL_MS) return memo.value;
+  // Concurrent callers on a cold/expired memo share one resolution (and one probe).
+  inflight ??= resolveLocationHealth().finally(() => { inflight = null; });
+  return inflight;
+}
 
+async function resolveLocationHealth(): Promise<LocationHealth> {
   const cacheKey = cacheKeys.locationHealth();
 
   if (isEnabled("integration:redis:places")) {
