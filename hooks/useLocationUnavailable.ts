@@ -4,21 +4,26 @@ import type { LocationHealth } from '@/server/routers/health';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 
-/** Banner shows when Places is unreachable. Mapbox is only the fallback, so it's not gating. */
+/** Page banner shows when Places is unreachable. Mapbox doesn't gate it (see isMapUnavailable). */
 export function isLocationUnavailable(data: LocationHealth | undefined): boolean {
   return !!data && !data.places;
 }
 
+/** Map-view banner shows when Mapbox is unreachable. Scoped to the map — not the page. */
+export function isMapUnavailable(data: LocationHealth | undefined): boolean {
+  return !!data && !data.mapbox;
+}
+
 /**
- * Stable "is the location search (Google Places) down right now?" signal for the
- * unavailable banner. Backed by the `health.location` endpoint, which is cached ~30s
- * server-side — so each check is cheap (mostly a Redis read) and non-blocking. Replaces
- * reacting to per-keystroke autocomplete errors, which flickered.
+ * Location-service health (Google Places + Mapbox) from the `health.location` endpoint,
+ * which is cached ~30s server-side — so each check is cheap (mostly a Redis read) and
+ * non-blocking. Every caller shares one query (same key), so the page banner and the map
+ * banner cost a single request.
  *
  * Checked: once on mount (session start), again when the tab is refocused or the network
  * reconnects (session resuming after a stall), and on a 5-minute poll.
  */
-export function useLocationUnavailable(): boolean {
+function useLocationHealth(): LocationHealth | undefined {
   const { data } = useQuery({
     queryKey: ['health.location'],
     queryFn: () => trpc.health.location.query(),
@@ -28,5 +33,15 @@ export function useLocationUnavailable(): boolean {
     refetchOnReconnect: true,     // resume after a stall (network back)
     retry: false,
   });
-  return isLocationUnavailable(data);
+  return data;
+}
+
+/** Is location search (Google Places) down? Drives the page-top banner. */
+export function useLocationUnavailable(): boolean {
+  return isLocationUnavailable(useLocationHealth());
+}
+
+/** Is Mapbox down? Drives the banner inside the map view only. */
+export function useMapUnavailable(): boolean {
+  return isMapUnavailable(useLocationHealth());
 }

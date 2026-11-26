@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLocationUnavailable } from '@/hooks/useLocationUnavailable';
+import { isLocationUnavailable, isMapUnavailable } from '@/hooks/useLocationUnavailable';
 
 describe('isLocationUnavailable', () => {
   it('is false while the healthcheck is still loading (no data)', () => {
@@ -16,5 +16,19 @@ describe('isLocationUnavailable', () => {
 
   it('ignores Mapbox — it is only the fallback', () => {
     expect(isLocationUnavailable({ places: true, mapbox: false })).toBe(false);
+  });
+});
+
+describe('isMapUnavailable', () => {
+  it('is false while the healthcheck is still loading (no data)', () => {
+    expect(isMapUnavailable(undefined)).toBe(false);
+  });
+
+  it('is true when Mapbox is down', () => {
+    expect(isMapUnavailable({ places: true, mapbox: false })).toBe(true);
+  });
+
+  it('is false when Mapbox is up, even if Places is down', () => {
+    expect(isMapUnavailable({ places: false, mapbox: true })).toBe(false);
   });
 });

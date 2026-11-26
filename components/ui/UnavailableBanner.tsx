@@ -8,6 +8,8 @@ interface Props {
   subject: string;
   /** Optional guidance shown after the headline. */
   detail?: string;
+  /** Extra classes for the inner row (e.g. right padding to clear an overlaid control). */
+  className?: string;
 }
 
 /**
@@ -18,7 +20,7 @@ interface Props {
  * "<subject> is temporarily unavailable." Wrap it per feature (e.g. LocationUnavailableBanner)
  * to supply the subject + detail.
  */
-export function UnavailableBanner({ show, subject, detail }: Props) {
+export function UnavailableBanner({ show, subject, detail, className = '' }: Props) {
   const { isDark } = useTheme();
   if (!show) return null;
 
@@ -26,7 +28,7 @@ export function UnavailableBanner({ show, subject, detail }: Props) {
 
   return (
     <div role="alert" className={`w-full shrink-0 border-b shadow-sm ${wrap}`}>
-      <div className="mx-auto flex max-w-6xl items-end gap-3 px-4 py-2.5 md:px-8">
+      <div className={`mx-auto flex max-w-6xl items-end gap-3 px-4 py-2.5 md:px-8 ${className}`}>
         <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
         </svg>
