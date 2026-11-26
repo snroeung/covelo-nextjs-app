@@ -2,7 +2,8 @@
 
 import { DateInput } from '@/components/inputs/DateInput';
 import { GuestsDropdown, type GuestsValue } from '@/components/inputs/GuestsDropdown';
-import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
+import type { Ref } from 'react';
+import { LocationSearch, type LocationSearchHandle, type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PixelSpinner } from '@/components/ui/loading/primitives';
 
@@ -26,7 +27,8 @@ export interface HotelSearchFormProps {
   searchDisabled: boolean;
   searchPending?: boolean;
 
-  onNoMatchChange?: (noMatch: boolean) => void;          // true when the auto-geocode finds no match
+  onDestTextChange?: (text: string) => void;             // raw typed text (resolved on submit if unpicked)
+  destRef?: Ref<LocationSearchHandle>;                   // lets the page auto-select a suggestion on submit
 }
 
 export function HotelSearchForm(props: HotelSearchFormProps) {
@@ -34,7 +36,7 @@ export function HotelSearchForm(props: HotelSearchFormProps) {
   const {
     onDestSelect, onDestClear, destInitialValue,
     checkIn, onCheckInChange, checkOut, onCheckOutChange,
-    guests, onGuestsChange, onSearch, searchDisabled, searchPending, onNoMatchChange,
+    guests, onGuestsChange, onSearch, searchDisabled, searchPending, onDestTextChange, destRef,
   } = props;
 
   const destField = (
@@ -43,7 +45,8 @@ export function HotelSearchForm(props: HotelSearchFormProps) {
       initialValue={destInitialValue}
       onSelect={onDestSelect}
       onClear={onDestClear}
-      onNoMatchChange={onNoMatchChange}
+      onTextChange={onDestTextChange}
+      ref={destRef}
     />
   );
   const checkInField = (

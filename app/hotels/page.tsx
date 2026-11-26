@@ -16,7 +16,8 @@ import { LocationUnavailableBanner } from '@/components/search/LocationUnavailab
 import { UnavailableBanner } from '@/components/ui/UnavailableBanner';
 import { isProviderOutage } from '@/lib/trpc-errors';
 import { useLocationUnavailable } from '@/hooks/useLocationUnavailable';
-import { type SelectedPlace } from '@/components/inputs/LocationSearch';
+import { type LocationSearchHandle, type SelectedPlace } from '@/components/inputs/LocationSearch';
+import { isResolved, resolvePlace } from '@/lib/resolvePlace';
 import { Pagination } from '@/components/layout/Pagination';
 import { FeaturedPagination, FEATURED_PER_PAGE } from '@/components/layout/FeaturedPagination';
 import { trpc } from '@/lib/trpc-client';
@@ -235,6 +236,9 @@ function HotelsPageInner() {
   const [destPlace, setDestPlace] = useState<SelectedPlace | null>(
     fromTrip ? { latitude: paramLat, longitude: paramLng, name: paramDest, description: paramDest } : null,
   );
+  const [destText, setDestText] = useState('');
+  const destRef = useRef<LocationSearchHandle>(null);
+  const [resolving, setResolving] = useState(false);
   const [guests, setGuests]       = useState<GuestsValue>({
     adults: fromTrip ? paramAdults : 2,
     children: fromTrip ? paramChildren : 0,
@@ -245,7 +249,7 @@ function HotelsPageInner() {
 
   // Location-service health → page-top alarm (stable, polled; see useLocationUnavailable).
   const locationUnavailable = useLocationUnavailable();
-  // Auto-geocode found no match → surface the results-area "search failed" state.
+  // On-submit geocode found no match → surface the results-area "search failed" state.
   const [locationNoMatch, setLocationNoMatch] = useState(false);
   const [minStars, setMinStars]         = useState<number | null>(null);
   const [requiredAmenities, setRequiredAmenities] = useState<Set<string>>(new Set());
@@ -473,13 +477,13 @@ function HotelsPageInner() {
     return { expanded, tuck };
   }
 
-  const canSearch = !!destPlace && !!checkIn && !!checkOut;
+  const hasLocation = isResolved(destPlace, false) || destText.trim().length >= 2;
+  const canSearch = hasLocation && !!checkIn && !!checkOut && !resolving;
 
-  function handleSearch() {
-    if (!canSearch || !destPlace) return;
+  function runSearch(place: SelectedPlace) {
     const next: HotelQueryVars = {
-      latitude: destPlace.latitude,
-      longitude: destPlace.longitude,
+      latitude: place.latitude,
+      longitude: place.longitude,
       checkInDate: checkIn,
       checkOutDate: checkOut,
       rooms: 1,
@@ -491,6 +495,24 @@ function HotelsPageInner() {
       return;
     }
     setCommitted(next);
+  }
+
+  async function handleSearch() {
+    if (!canSearch) return;
+    setLocationNoMatch(false);
+    setResolving(true);
+    try {
+      // Picked place → as-is; typed-but-unpicked → closest suggestion (exact match first);
+      // autocomplete down → Mapbox geocode. See resolvePlace.
+      const r = await resolvePlace({ picked: destPlace, text: destText, field: destRef.current, forAirport: false });
+      // "Search failed" is reserved for a genuine no-match; an outage stays silent (banner).
+      if (r.kind === 'no-match') { setLocationNoMatch(true); return; }
+      if (r.kind === 'unavailable') return;
+      setDestPlace(r.place);
+      runSearch(r.place);
+    } finally {
+      setResolving(false);
+    }
   }
 
   const SORT_LABELS = {
@@ -540,6 +562,8 @@ function HotelsPageInner() {
     <HotelSearchForm
       onDestSelect={setDestPlace}
       onDestClear={() => setDestPlace(null)}
+      onDestTextChange={(t) => { setDestText(t); setDestPlace(null); }}
+      destRef={destRef}
       destInitialValue={fromTrip ? paramDest : undefined}
       checkIn={checkIn}
       onCheckInChange={setCheckIn}
@@ -549,8 +573,7 @@ function HotelsPageInner() {
       onGuestsChange={setGuests}
       onSearch={handleSearch}
       searchDisabled={!canSearch}
-      searchPending={searching}
-      onNoMatchChange={setLocationNoMatch}
+      searchPending={searching || resolving}
     />
   );
 

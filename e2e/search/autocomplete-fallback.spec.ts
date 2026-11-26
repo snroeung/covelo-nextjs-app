@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { stubLocationHealth as stubHealth, stubTrpcQuery } from '../utils/admin-helpers';
 
 function futureDate(daysFromNow: number): string {
   const d = new Date();
@@ -59,41 +60,31 @@ async function failGeocode(page: Page) {
   });
 }
 
-/** Stub the location-services healthcheck (`health.location`). places=false → banner shows.
- *  health.* uses an unbatched httpLink, so the response is a single object, not an array. */
-async function stubHealth(page: Page, places: boolean, mapbox = true) {
-  await page.route('**/api/trpc/health.location*', (r) => r.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ result: { data: { places, mapbox } } }),
-  }));
-}
-
 // Default every test to healthy location services: the banner is off unless a test opts in,
 // and no test hits the real health APIs. (health.* is unbatched, so this route is reliable.)
 test.beforeEach(async ({ page }) => {
   await stubHealth(page, true);
 });
 
-test.describe('Autocomplete fallback — flights (raw IATA)', () => {
-  test('a 3-letter code auto-commits without Google, and the search submits', async ({ page }) => {
+test.describe('Resolve on submit — flights (raw IATA)', () => {
+  test('typed 3-letter codes resolve on Search and submit (autocomplete down)', async ({ page }) => {
+    await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await page.goto('/search');
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
 
-    // No inline button: typing a 3-letter code auto-commits it when autocomplete is down.
+    // Nothing resolves as you type; the code is read only when Search is pressed.
     const origin = page.getByRole('combobox').nth(0);
     await origin.click();
     await origin.fill('PHL');
-
     const arrival = page.getByRole('combobox').nth(1);
     await arrival.click();
     await arrival.fill('SFO');
-
     await fillVisibleDate(page, 0, futureDate(21));
     await fillVisibleDate(page, 1, futureDate(28));
 
     const search = page.getByRole('button', { name: 'Search →' });
-    await expect(search).toBeEnabled({ timeout: 20_000 });
+    await expect(search).toBeEnabled();
     await search.click();
 
     await expect(page).toHaveURL(/\/flights\?/, { timeout: 15_000 });
@@ -102,7 +93,7 @@ test.describe('Autocomplete fallback — flights (raw IATA)', () => {
     expect(url.searchParams.get('destinationCode')).toBe('SFO');
   });
 
-  test('non-code input shows the banner (no inline guidance) and stays accessible', async ({ page }) => {
+  test('a non-code airport input with autocomplete down stays put with no inline message; the banner explains', async ({ page }) => {
     await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await page.goto('/search');
@@ -110,35 +101,46 @@ test.describe('Autocomplete fallback — flights (raw IATA)', () => {
     const origin = page.getByRole('combobox').nth(0);
     await origin.click();
     await origin.fill('Philadelphia');
-    // The outage is explained by the top banner, not an inline line under the field.
-    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('Search unavailable — type a 3-letter airport code.')).toBeHidden();
+    const arrival = page.getByRole('combobox').nth(1);
+    await arrival.click();
+    await arrival.fill('SFO');
+    await fillVisibleDate(page, 0, futureDate(21));
+    await fillVisibleDate(page, 1, futureDate(28));
 
-    // Scope to the search panel (the nav avatar carries a pre-existing label-name-mismatch
-    // unrelated to this change; the existing search.spec full-page axe test races past it).
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
+
+    // "Philadelphia" can't be resolved without autocomplete, so Search does nothing —
+    // an outage, not a no-match, so no inline message; the banner is the explanation.
+    const autocompleteTried = page.waitForResponse('**/api/trpc/places.autocomplete*');
+    await page.getByRole('button', { name: 'Search →' }).click();
+    await autocompleteTried;
+    await expect(page.getByText('No match for', { exact: false })).toBeHidden();
+    await expect(page).toHaveURL(/\/search/);
+
     const results = await new AxeBuilder({ page }).include('main').analyze();
     expect(results.violations).toEqual([]);
   });
 });
 
-test.describe('Autocomplete fallback — hotels (Mapbox geocode)', () => {
-  test('the geocode fallback resolves coords and the hotel search submits', async ({ page }) => {
+test.describe('Resolve on submit — hotels (Mapbox geocode)', () => {
+  test('a typed destination is geocoded on Search and the hotel search runs', async ({ page }) => {
+    await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await stubGeocode(page, { latitude: 48.8566, longitude: 2.3522, name: 'Paris' });
 
     await page.goto('/search');
     await page.getByRole('tab', { name: 'Hotels' }).click();
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
 
     const dest = page.getByRole('combobox').nth(0);
     await dest.click();
     await dest.fill('Paris');
-
-    // Auto-resolves via Mapbox (no manual trigger): coords commit and the search enables.
     await fillVisibleDate(page, 0, futureDate(14));
     await fillVisibleDate(page, 1, futureDate(17));
 
+    // Typed text alone is enough to submit; the geocode happens on click.
     const search = page.getByRole('button', { name: 'Search →' });
-    await expect(search).toBeEnabled({ timeout: 20_000 });
+    await expect(search).toBeEnabled();
     await search.click();
 
     await expect(page).toHaveURL(/\/hotels\?/, { timeout: 15_000 });
@@ -147,39 +149,50 @@ test.describe('Autocomplete fallback — hotels (Mapbox geocode)', () => {
     expect(Number(url.searchParams.get('lng'))).toBeCloseTo(2.3522, 2);
   });
 
-  test('/hotels: a geocode no-match shows the search-failed state, not an inline message', async ({ page }) => {
+  test('a geocode no-match on submit shows an error and stays on /search', async ({ page }) => {
+    await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await stubGeocodeNoMatch(page);
 
-    // No search params → the page is idle (no isError), so the failed state can only come
-    // from the no-match path.
-    await page.goto('/hotels');
+    await page.goto('/search');
+    await page.getByRole('tab', { name: 'Hotels' }).click();
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
 
-    const dest = page.getByRole('combobox').first();
+    const dest = page.getByRole('combobox').nth(0);
     await dest.click();
     await dest.fill('Nowhereville');
+    await fillVisibleDate(page, 0, futureDate(14));
+    await fillVisibleDate(page, 1, futureDate(17));
+    await page.getByRole('button', { name: 'Search →' }).click();
 
-    // No inline message under the field; the results area shows the search-failed state.
-    await expect(page.getByText('Hotel search failed. Check your selections and try again.')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('No match for', { exact: false })).toBeHidden();
+    await expect(page.getByText('No match for "Nowhereville"')).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/search/);
   });
 
-  test('a geocode outage shows no inline error (banner only)', async ({ page }) => {
+  test('a geocode outage on submit shows no inline message (banner only)', async ({ page }) => {
     await stubHealth(page, false); // Places down → banner
     await failAutocomplete(page);
     await failGeocode(page);
 
     await page.goto('/search');
     await page.getByRole('tab', { name: 'Hotels' }).click();
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
 
     const dest = page.getByRole('combobox').nth(0);
     await dest.click();
     await dest.fill('Paris');
+    await fillVisibleDate(page, 0, futureDate(14));
+    await fillVisibleDate(page, 1, futureDate(17));
 
-    // The top banner explains the outage; nothing is shown inline under the field.
-    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible({ timeout: 20_000 });
+    // Wait for the failed geocode to come back so the "nothing inline" check isn't vacuous.
+    const geocodeDone = page.waitForResponse('**/api/trpc/places.geocode*');
+    await page.getByRole('button', { name: 'Search →' }).click();
+    await geocodeDone;
+
+    // No inline message — the top banner is the only signal of the outage.
     await expect(page.getByText('Location search is unavailable', { exact: false })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Search →' })).toBeDisabled();
+    await expect(page.getByText('Location search is temporarily unavailable')).toBeVisible();
+    await expect(page).toHaveURL(/\/search/);
   });
 });
 
@@ -200,6 +213,127 @@ async function failSearchClient(page: Page, proc: string) {
 }
 
 const BANNER = 'Location search is temporarily unavailable';
+
+// Autocomplete is UP here: typing without picking a suggestion auto-selects one on Search —
+// the exact match for the typed text if there is one, otherwise the closest (top-ranked).
+test.describe('Closest suggestion on submit — autocomplete up', () => {
+  const COORDS: Record<string, { latitude: number; longitude: number; name: string }> = {
+    'p-fr':     { latitude: 48.8566, longitude: 2.3522,   name: 'Paris' },
+    'p-tx':     { latitude: 33.6609, longitude: -95.5555, name: 'Paris' },
+    'iata:BOS': { latitude: 42.3656, longitude: -71.0096, name: 'Boston Logan International Airport' },
+    'iata:SFO': { latitude: 37.6213, longitude: -122.379, name: 'San Francisco International Airport' },
+  };
+
+  async function stubAutocompleteUp(page: Page) {
+    await stubTrpcQuery(page, 'places.autocomplete', (input) => {
+      const q = String(input.input ?? '').toLowerCase();
+      if (q.startsWith('par')) return [
+        { placeId: 'p-fr', description: 'Paris, France' },
+        { placeId: 'p-tx', description: 'Paris, TX, USA' },
+      ];
+      if (q.startsWith('bos')) return [{ placeId: 'iata:BOS', description: 'Boston Logan International Airport (BOS), Boston, MA' }];
+      if (q.startsWith('san')) return [{ placeId: 'iata:SFO', description: 'San Francisco International Airport (SFO), San Francisco, CA' }];
+      return [];
+    });
+    await stubTrpcQuery(page, 'places.getLatLng', (input) => COORDS[String(input.placeId)]);
+  }
+
+  async function typeWithoutPicking(page: Page, index: number, text: string) {
+    const field = page.getByRole('combobox').nth(index);
+    await field.click();
+    await field.fill(text);
+    // Suggestions appear, but the user never clicks one.
+    await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
+  }
+
+  test('hotels: no exact match → the closest (top) suggestion is selected', async ({ page }) => {
+    await stubAutocompleteUp(page);
+    await page.goto('/search');
+    await page.getByRole('tab', { name: 'Hotels' }).click();
+
+    await typeWithoutPicking(page, 0, 'Pari');
+    await fillVisibleDate(page, 0, futureDate(14));
+    await fillVisibleDate(page, 1, futureDate(17));
+    await page.getByRole('button', { name: 'Search →' }).click();
+
+    await expect(page).toHaveURL(/\/hotels\?/, { timeout: 15_000 });
+    const url = new URL(page.url());
+    expect(Number(url.searchParams.get('lat'))).toBeCloseTo(48.8566, 2); // Paris, France (top)
+  });
+
+  test('hotels: an exact match wins over the top suggestion', async ({ page }) => {
+    await stubAutocompleteUp(page);
+    await page.goto('/search');
+    await page.getByRole('tab', { name: 'Hotels' }).click();
+
+    await typeWithoutPicking(page, 0, 'Paris, TX, USA');
+    await fillVisibleDate(page, 0, futureDate(14));
+    await fillVisibleDate(page, 1, futureDate(17));
+    await page.getByRole('button', { name: 'Search →' }).click();
+
+    await expect(page).toHaveURL(/\/hotels\?/, { timeout: 15_000 });
+    const url = new URL(page.url());
+    expect(Number(url.searchParams.get('lat'))).toBeCloseTo(33.6609, 2); // Paris, TX (exact)
+  });
+
+  test('flights: typed city names resolve to the closest airports', async ({ page }) => {
+    await stubAutocompleteUp(page);
+    await page.goto('/search');
+
+    await typeWithoutPicking(page, 0, 'Boston');
+    await typeWithoutPicking(page, 1, 'San Fran');
+    await fillVisibleDate(page, 0, futureDate(21));
+    await fillVisibleDate(page, 1, futureDate(28));
+    await page.getByRole('button', { name: 'Search →' }).click();
+
+    await expect(page).toHaveURL(/\/flights\?/, { timeout: 15_000 });
+    const url = new URL(page.url());
+    expect(url.searchParams.get('origin')).toBe('BOS');
+    expect(url.searchParams.get('destinationCode')).toBe('SFO');
+  });
+
+  test('hotels: no suggestions at all → inline no-match, and Mapbox is never called', async ({ page }) => {
+    await stubAutocompleteUp(page);
+    let geocodeCalls = 0;
+    await page.route('**/api/trpc/places.geocode*', (r) => { geocodeCalls += 1; return r.abort(); });
+
+    await page.goto('/search');
+    await page.getByRole('tab', { name: 'Hotels' }).click();
+    const dest = page.getByRole('combobox').nth(0);
+    await dest.click();
+    await dest.fill('Zzqx');
+    await fillVisibleDate(page, 0, futureDate(14));
+    await fillVisibleDate(page, 1, futureDate(17));
+    await page.getByRole('button', { name: 'Search →' }).click();
+
+    await expect(page.getByText('No match for "Zzqx"')).toBeVisible({ timeout: 15_000 });
+    expect(geocodeCalls).toBe(0);
+  });
+
+  test('switching Flights ⇄ Hotels clears typed text and the no-match note', async ({ page }) => {
+    await stubAutocompleteUp(page);
+    await page.goto('/search');
+    await page.getByRole('tab', { name: 'Hotels' }).click();
+
+    const dest = page.getByRole('combobox').nth(0);
+    await dest.click();
+    await dest.fill('Zzqx');
+    await fillVisibleDate(page, 0, futureDate(14));
+    await fillVisibleDate(page, 1, futureDate(17));
+    await page.getByRole('button', { name: 'Search →' }).click();
+    await expect(page.getByText('No match for "Zzqx"')).toBeVisible({ timeout: 15_000 });
+
+    // The note doesn't follow the user to the other mode…
+    await page.getByRole('tab', { name: 'Flights' }).click();
+    await expect(page.getByText('No match for', { exact: false })).toBeHidden();
+
+    // …and back on Hotels the empty field can't drive a search with the old hidden text,
+    // even though the dates are still filled.
+    await page.getByRole('tab', { name: 'Hotels' }).click();
+    await expect(page.getByRole('combobox').nth(0)).toHaveValue('');
+    await expect(page.getByRole('button', { name: 'Search →' })).toBeDisabled();
+  });
+});
 
 test.describe('Autocomplete unavailable — page banner', () => {
   test('/search: a non-dismissible alarm appears when location services are down', async ({ page }) => {

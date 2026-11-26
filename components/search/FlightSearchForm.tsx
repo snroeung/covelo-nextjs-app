@@ -1,7 +1,8 @@
 'use client';
 
 import { DateInput } from '@/components/inputs/DateInput';
-import { LocationSearch, type SelectedPlace } from '@/components/inputs/LocationSearch';
+import type { Ref } from 'react';
+import { LocationSearch, type LocationSearchHandle, type SelectedPlace } from '@/components/inputs/LocationSearch';
 import { useTheme } from '@/contexts/ThemeContext';
 import { PixelSpinner } from '@/components/ui/loading/primitives';
 import type { TripType } from '@/lib/searchUrls';
@@ -15,12 +16,16 @@ export interface FlightSearchFormProps {
 
   onOriginSelect: (p: SelectedPlace) => void;
   onOriginClear: () => void;
+  onOriginTextChange?: (text: string) => void;
+  originRef?: Ref<LocationSearchHandle>;
   originInitialValue?: string;
   originInitialCommitted?: boolean;
   originFieldKey?: number;
 
   onArrivalSelect: (p: SelectedPlace) => void;
   onArrivalClear: () => void;
+  onArrivalTextChange?: (text: string) => void;
+  arrivalRef?: Ref<LocationSearchHandle>;
   arrivalInitialValue?: string;
   arrivalInitialCommitted?: boolean;
   arrivalFieldKey?: number;
@@ -42,8 +47,8 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
   const { isDark } = useTheme();
   const {
     tripType, onTripTypeChange,
-    onOriginSelect, onOriginClear, originInitialValue, originInitialCommitted, originFieldKey,
-    onArrivalSelect, onArrivalClear, arrivalInitialValue, arrivalInitialCommitted, arrivalFieldKey,
+    onOriginSelect, onOriginClear, onOriginTextChange, originRef, originInitialValue, originInitialCommitted, originFieldKey,
+    onArrivalSelect, onArrivalClear, onArrivalTextChange, arrivalRef, arrivalInitialValue, arrivalInitialCommitted, arrivalFieldKey,
     startDate, onStartDateChange, endDate, onEndDateChange,
     onSearch, searchDisabled, searchPending,
   } = props;
@@ -95,6 +100,8 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
       initialCommitted={originInitialCommitted}
       onSelect={onOriginSelect}
       onClear={onOriginClear}
+      onTextChange={onOriginTextChange}
+      ref={originRef}
     />
   );
   const toField = (
@@ -106,6 +113,8 @@ export function FlightSearchForm(props: FlightSearchFormProps) {
       initialCommitted={arrivalInitialCommitted}
       onSelect={onArrivalSelect}
       onClear={onArrivalClear}
+      onTextChange={onArrivalTextChange}
+      ref={arrivalRef}
     />
   );
   const departField = (
