@@ -9,10 +9,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePopup } from '@/components/layout/ProfilePopup';
 import { isEnabled } from '@/lib/feature-flags';
 
-const flightsEnabled    = isEnabled('ui:flights');
-const hotelsEnabled     = isEnabled('ui:hotels');
-const discoverEnabled   = isEnabled('ui:discover');
-const boardEnabled      = isEnabled('ui:board');
+const flightsEnabled     = isEnabled('ui:flights');
+const hotelsEnabled      = isEnabled('ui:hotels');
+const discoverEnabled    = isEnabled('ui:discover');
+const boardEnabled       = isEnabled('ui:board');
+const tripPlannerEnabled = isEnabled('ui:trip-planner');
 
 export function NavBar() {
   const { user, profile, loading } = useAuth();
@@ -124,11 +125,11 @@ export function NavBar() {
           )}
         </div>
 
-        {/* Trip Planner temporarily hidden — ui:trip-planner disabled in lib/feature-flags.ts
-        <Link href="/trip-planner" className={navLinkCls(pathname === '/trip-planner')}>
-          Trip Planner
-        </Link>
-        */}
+        {tripPlannerEnabled && (
+          <Link href="/trip-planner" className={navLinkCls(pathname.startsWith('/trip-planner'))}>
+            Trip planner
+          </Link>
+        )}
 
         {discoverEnabled && (
           <div
