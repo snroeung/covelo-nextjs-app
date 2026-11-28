@@ -432,3 +432,64 @@ body {
     padding-bottom: var(--tabbar-h);
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Home page (marketing): intro screen, logo animation, walkthrough deck.
+   The deck's stage recreates real app screens; its palette is scoped to
+   `.cv-stage` so dark mode falls out of `data-theme` rather than a JS palette.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Stage palette (light) — mirrors the design canvas stage tokens ───────── */
+.cv-stage {
+  --b-14161a:#14161a;--b-1b1c1f:#1b1c1f;--b-1f6fbf:#1f6fbf;--b-2d7a3a:#2d7a3a;--b-2e6b34:#2e6b34;--b-2e7d32:#2e7d32;--b-5d6168:#5d6168;--b-7d8b99:#7d8b99;--b-a3a7ae:#a3a7ae;--b-b9bcc2:#b9bcc2;--b-c62828:#c62828;--b-c9ccd1:#c9ccd1;--b-cdb9b1:#cdb9b1;--b-cfd6de:#cfd6de;--b-d7d9dd:#d7d9dd;--b-dcdcd8:#dcdcd8;--b-dff0e2:#dff0e2;--b-e4e6e9:#e4e6e9;--b-e6eaee:#e6eaee;--b-e6f2e7:#e6f2e7;--b-e9dcd6:#e9dcd6;--b-ececea:#ececea;--b-eef1f4:#eef1f4;--b-f2f2ef:#f2f2ef;--b-f2f3f5:#f2f3f5;--b-f4f4f1:#f4f4f1;--b-f4f5f7:#f4f5f7;--b-f5a623:#f5a623;--b-f6f7f9:#f6f7f9;--b-f8f8f6:#f8f8f6;--b-fbefd9:#fbefd9;--b-fff:#fff;
+  --c-111418:#111418;--c-2563a6:#2563a6;--c-2d7a3a:#2d7a3a;--c-2e6b34:#2e6b34;--c-2e7d32:#2e7d32;--c-3a2000:#3a2000;--c-3b4048:#3b4048;--c-4b5058:#4b5058;--c-6b3a00:#6b3a00;--c-6b7079:#6b7079;--c-7cb342:#7cb342;--c-8a5300:#8a5300;--c-9a9ea5:#9a9ea5;--c-b26a00:#b26a00;--c-b3261e:#b3261e;--c-d7d9dd:#d7d9dd;--c-f5a623:#f5a623;--c-fff:#fff;
+  --l-111418:#111418;--l-2e7d32:#2e7d32;--l-6fb877:#6fb877;--l-8fc796:#8fc796;--l-9cc7a2:#9cc7a2;--l-b6d6ba:#b6d6ba;--l-b9bcc2:#b9bcc2;--l-c9ccd1:#c9ccd1;--l-dcdcd6:#dcdcd6;--l-dfe1e5:#dfe1e5;--l-e3e3e1:#e3e3e1;--l-e6e6e2:#e6e6e2;--l-e6e7ea:#e6e7ea;--l-ececea:#ececea;
+}
+.cv-stage .m { font-family: var(--font-geist-mono), ui-monospace, monospace; }
+:root[data-theme="dark"] .cv-stage {
+  --b-14161a:#2c2c31;--b-1b1c1f:#2c2c31;--b-1f6fbf:#1f6fbf;--b-2d7a3a:#2d7a3a;--b-2e6b34:#2e6b34;--b-2e7d32:#2e7d32;--b-5d6168:#050506;--b-7d8b99:#4a5560;--b-a3a7ae:#3a3a40;--b-b9bcc2:#3a3a40;--b-c62828:#c62828;--b-c9ccd1:#3a3a40;--b-cdb9b1:#cdb9b1;--b-cfd6de:#cfd6de;--b-d7d9dd:#3a3a40;--b-dcdcd8:#3a3a40;--b-dff0e2:#12261a;--b-e4e6e9:#050506;--b-e6eaee:#e6eaee;--b-e6f2e7:#12261a;--b-e9dcd6:#e9dcd6;--b-ececea:#2a2a2e;--b-eef1f4:#2a2f35;--b-f2f2ef:#222226;--b-f2f3f5:#0f0f11;--b-f4f4f1:#0f0f11;--b-f4f5f7:#1c1c1f;--b-f5a623:#f5a623;--b-f6f7f9:#1c1c1f;--b-f8f8f6:#1c1c1f;--b-fbefd9:#2e2412;--b-fff:#161618;
+  --c-111418:#f3f3f1;--c-2563a6:#6aa8e8;--c-2d7a3a:#7dc48a;--c-2e6b34:#7dc48a;--c-2e7d32:#4ade80;--c-3a2000:#3a2000;--c-3b4048:#b9b9bf;--c-4b5058:#a1a1a7;--c-6b3a00:#f5c87a;--c-6b7079:#8a8a90;--c-7cb342:#84cc16;--c-8a5300:#f5b544;--c-9a9ea5:#6e6e74;--c-b26a00:#f5b544;--c-b3261e:#f87171;--c-d7d9dd:#3a3a40;--c-f5a623:#f5a623;--c-fff:#fff;
+  --l-111418:#f3f3f1;--l-2e7d32:#4ade80;--l-6fb877:#4f9a5e;--l-8fc796:#3f7a4a;--l-9cc7a2:#3f7a4a;--l-b6d6ba:#2f5a3a;--l-b9bcc2:#4a4a50;--l-c9ccd1:#3a3a40;--l-dcdcd6:#3a3a40;--l-dfe1e5:#2e2e33;--l-e3e3e1:#262629;--l-e6e6e2:#262629;--l-e6e7ea:#262629;--l-ececea:#232326;
+}
+
+/* ── Intro: scroll cue + logo animation ───────────────────────────────────── */
+.cv-scroll-cue { opacity: 0; animation: cv-cue-in .5s ease 2.7s forwards; }
+.cv-scroll-cue .cv-chev { display: block; animation: cv-cue-bob 1.3s ease-in-out 3.2s infinite; }
+@keyframes cv-cue-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes cv-cue-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+
+.cv-logo-mark { display: inline-flex; align-items: baseline; line-height: .95; font-weight: 700; letter-spacing: -.03em; white-space: nowrap; color: var(--gph-ink); --cv-ocean: #e8f5eb; --cv-plane: #f5a623; --cv-smoke: #8d9690; }
+:root[data-theme="dark"] .cv-logo-mark { --cv-ocean: #26382b; --cv-smoke: #8a8a90; }
+.cv-logo-mark .cv-letters { display: flex; }
+.cv-logo-mark .cv-letters span { display: inline-block; opacity: 0; transform: translateY(.12em); animation: cv-lm-letter .36s cubic-bezier(.2,.75,.2,1) forwards; }
+.cv-logo-mark .cv-letters span:nth-child(1) { animation-delay: 2.02s; }
+.cv-logo-mark .cv-letters span:nth-child(2) { animation-delay: 2.09s; }
+.cv-logo-mark .cv-letters span:nth-child(3) { animation-delay: 2.16s; }
+.cv-logo-mark .cv-letters span:nth-child(4) { animation-delay: 2.23s; }
+.cv-logo-mark .cv-letters span:nth-child(5) { animation-delay: 2.30s; }
+.cv-logo-mark .cv-letters span:nth-child(6) { animation-delay: 2.37s; }
+.cv-logo-mark .cv-globe { width: .4em; height: .4em; margin-left: .04em; overflow: visible; transform: translateX(-1.5em) scale(1.55); transform-origin: center; animation: cv-lm-settle .3s steps(5,end) 1.72s forwards, cv-lm-shrink .28s cubic-bezier(.2,.75,.2,1) 2.02s forwards; }
+@keyframes cv-lm-settle { to { transform: translateX(0) scale(1.25); } }
+@keyframes cv-lm-shrink { from { transform: translateX(0) scale(1.25); } to { transform: translateX(0) scale(1); } }
+@keyframes cv-lm-letter { to { opacity: 1; transform: translateY(0); } }
+
+/* ── Deck motion vocabulary ───────────────────────────────────────────────── */
+@keyframes cv-nav-in { from { transform: translateY(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
+.cv-nav-in { animation: cv-nav-in .45s cubic-bezier(.2,.9,.3,1) both; }
+.cv-hot { animation: cv-press .38s cubic-bezier(.3,.7,.4,1.4); position: relative; z-index: 2; }
+@keyframes cv-press { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45,122,58,.55); } 35% { transform: scale(.92); box-shadow: 0 0 0 6px rgba(45,122,58,.35); } 100% { transform: scale(1); box-shadow: 0 0 0 14px rgba(45,122,58,0); } }
+.cv-pop { animation: cv-pop .32s cubic-bezier(.2,.9,.3,1.15); }
+@keyframes cv-pop { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+.cv-drop { animation: cv-drop .3s cubic-bezier(.2,.9,.3,1.1); transform-origin: top right; }
+@keyframes cv-drop { from { opacity: 0; transform: scale(.9) translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes cv-fillA { from { width: 0; } to { width: 100%; } }
+@keyframes cv-fillB { from { width: 0; } to { width: 100%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-scroll-cue { animation: none; opacity: 1; }
+  .cv-scroll-cue .cv-chev { animation: none; }
+  .cv-logo-mark *, .cv-logo-mark .cv-globe { animation: none !important; opacity: 1 !important; }
+  .cv-logo-mark .cv-globe { transform: none !important; }
+  .cv-hot, .cv-pop, .cv-drop, .cv-nav-in { animation: none; }
+  .cv-stage [style*="transition"] { transition: none !important; }
+}
